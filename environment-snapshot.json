@@ -1,0 +1,25 @@
+{
+  "copyright": "Copyright 2026 SecretoftheUniverse.com LLC",
+  "images": [
+    {
+      "tags": [
+        "openbq-local:2.0.0-candidate"
+      ],
+      "image_id": "sha256:4e1e83759f3f7648e91ece6ffe30f3b538111b387d5439b90bc547bc97018bcd"
+    },
+    {
+      "tags": [
+        "openbq-workspace-local:2.0.0-candidate"
+      ],
+      "image_id": "sha256:04222ea5bd191fd4a2fd4db9c01714bb882fa97fb3b3610b1cad43f47b7bc142"
+    }
+  ],
+  "archive_verification": {
+    "regular_files_examined": 45541,
+    "layers_examined": 39,
+    "deployment_private_findings": 0,
+    "public_package_marker_findings": 12,
+    "public_package_findings_verified_byte_identical": true
+  },
+  "qualification": "Original binary snapshots; no runtime volumes or credentials; browser login/catalogue verified historically for v2; save/reopen and backup/restore not qualified."
+}

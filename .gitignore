@@ -46,3 +46,4 @@ __pycache__/
 
 # Downloaded release images
 SHA256SUMS
+release-assets/
