@@ -1,3 +1,5 @@
+> Historical v1.0.0 environment: start with [REPRODUCE.md](REPRODUCE.md) for the archived original images and measured qualification. The development notes below describe the original rehearsal.
+
 # openbq-docker — Episode 1
 
 A headless Open Data Platform backend on Docker, with private HTTPS through a separate Tailscale sidecar. Companion to **Adventures in OpenBQ**. This is an independent packaging recipe for the official OpenBQ-stewarded OpenBB V5 packages, whose names and commands remain `openbb-*`.
