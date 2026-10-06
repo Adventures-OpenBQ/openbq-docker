@@ -1,0 +1,19 @@
+{
+  "copyright": "Copyright 2026 SecretoftheUniverse.com LLC",
+  "images": [
+    {
+      "tags": [
+        "openbq-local:1.0.0"
+      ],
+      "image_id": "sha256:4b6bbfc98174821d97c3b33cd5c7eaa908f6e6cd91a3939ab6437a6bc420d96f"
+    }
+  ],
+  "archive_verification": {
+    "regular_files_examined": 45541,
+    "layers_examined": 39,
+    "deployment_private_findings": 0,
+    "public_package_marker_findings": 12,
+    "public_package_findings_verified_byte_identical": true
+  },
+  "qualification": "Original binary snapshots; no runtime volumes or credentials; browser login/catalogue verified historically for v2; save/reopen and backup/restore not qualified."
+}
