@@ -1,0 +1,15 @@
+name: Public content
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  public-content:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan current files and reachable history
+        run: python3 scripts/check-public.py --history
+      - name: Verify source assembly and privacy checks
+        run: python3 -m unittest discover -s workspace/tests
