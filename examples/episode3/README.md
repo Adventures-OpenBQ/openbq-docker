@@ -6,7 +6,7 @@ Python-execution-widget fixes from our tested reference recipe. The upstream MIT
 license is retained; the series additions are Apache-2.0.
 
 It advertises two apps and **73 cards** through `/apps.json`: the 69-card reference
-app and four configured pivot examples. Its actual registry contains **69 widgets**;
+app and four configured pivot examples. Its actual registry contains **71 widgets**: 69 reference widgets plus two fictional example widgets;
 repeated reference cards reuse widget IDs. Every advertised card resolves locally.
 Two widgets supply deterministic fictional prices and null-handling rows.
 
