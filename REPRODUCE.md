@@ -35,3 +35,5 @@ The historical browser session rendered the local login form, signed in, and dis
 The v2 backend adds the deployed BLS/TMX provider fixes in `provider-fixes/`. It does not contain the later v3 Yahoo extension. Workspace accounts, dashboards and generated application secrets live in its separate named `/data` volume. Create new state rather than sharing the original user's volume or logs.
 
 For source rebuilds, follow `workspace/README.md`. The archived image preserves the actual build: the original build re-resolved Poetry dependencies and downloaded unpinned external font/OS assets, so source pins alone do not establish a byte-identical rebuild.
+
+The release gives the archived backend and Workspace images stable `2.0.0` aliases; their image configuration IDs are unchanged. Compose uses those aliases instead of the original candidate labels.

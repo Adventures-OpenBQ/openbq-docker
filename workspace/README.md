@@ -1,4 +1,4 @@
-# Episode 2 Workspace companion — in rehearsal
+# Episode 2 Workspace companion — historical browser checkpoint
 
 Optional source-built official Workspace/Lite. Episode 1 and the direct Episode 1 → Episode 3 route do not require this service.
 
@@ -17,3 +17,5 @@ The patch pins base images and uses the published Bun dependency lock instead of
 Accounts, dashboards, application secrets and Redis state live in this service's `/data` volume. They are separate from ODP settings and from BDOBB. Do not commit state or generated startup credentials; the upstream entrypoint prints a password into logs.
 
 Privacy gates are installed with `git config core.hooksPath .githooks` from the repository root. Keep actual node domains, IDs, credential files and raw runtime logs in ignored `local-rehearsal/` records; publish placeholder-based instructions only.
+
+The preserved image rendered the login screen, accepted local login, and discovered the backend catalogue in the browser. See [REPRODUCE.md](../REPRODUCE.md) for the original image and remaining dashboard persistence qualification.

@@ -19,7 +19,7 @@ services:
     cap_add: [NET_ADMIN, NET_RAW]
   openbq-api:
     build: .
-    image: openbq-local:1.0.0
+    image: openbq-local:2.0.0
     restart: unless-stopped
     env_file:
       - path: ./credentials.env

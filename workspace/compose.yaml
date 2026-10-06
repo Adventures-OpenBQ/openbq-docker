@@ -1,7 +1,7 @@
 name: openbq-episode2
 services:
   workspace:
-    image: openbq-workspace-local:2.0.0-candidate
+    image: openbq-workspace-local:2.0.0
     restart: unless-stopped
     env_file: [./runtime.env]
     environment:
