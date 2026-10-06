@@ -20,6 +20,7 @@ def assemble(source, output):
     shutil.copy2(source / 'LICENSE', output / 'LICENSE.upstream')
     subprocess.run([sys.executable, str(ROOT / 'patch-cors.py'), str(output / 'core.py')], check=True)
     subprocess.run([sys.executable, str(ROOT / 'patch-omni-python.py'), str(output / 'widgets_omni_sql_python.py'), str(output / 'apps.json')], check=True)
+    subprocess.run([sys.executable, str(ROOT / 'patch-pdf.py'), str(output / 'widgets_types.py')], check=True)
     reference = json.loads((output / 'apps.json').read_text())
     recipes = [a for a in json.loads((ROOT / 'apps.json').read_text()) if a['name'].startswith('Episode 3')]
     if len(reference) != 1 or len(recipes) != 2:

@@ -115,3 +115,5 @@ comparison, not a prerequisite for this setup.
 
 The v3 images remain candidates pending the recorded runtime and frontend
 acceptance checks; no `v3.0.0` release is claimed here.
+
+The reference recipe carries forward the previously qualified PDF repair from `bdobb-dev/backends-for-openbb` commit `32615f789f9423ea14d3f95003da250f4ef5bcfc`. Sample and Bitcoin PDFs use immutable GitHub raw URLs because the original S3 bucket returns AllAccessDisabled. Downloaded bytes match the pinned upstream fixtures; this changes asset transport, not PDF content.

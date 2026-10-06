@@ -14,7 +14,7 @@ apps = fetch('/apps.json')
 ids = [c['i'] for a in apps for t in a['tabs'].values() for c in t['layout']]
 missing = sorted(set(ids) - widgets.keys())
 assert len(apps) == 2 and len(ids) == 73, 'Unexpected self-contained app catalog'
-assert len(widgets) == 69, 'Unexpected widget registry'
+assert len(widgets) == 71, 'Unexpected widget registry'
 assert not missing, 'App layout references absent widgets'
 assert 'omni-python-widget' not in widgets, 'Execution widget must be absent'
 assert len(fetch('/data/prices')) == 5 and len(fetch('/data/nulls')) == 5
