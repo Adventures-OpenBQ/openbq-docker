@@ -1,0 +1,11 @@
+{
+  "openbb_bls/bls_router.py": "b9c2b50b2f1db7a2362c94c898c005683b81a4f2ef5fa202c656d66b60f062cc",
+  "openbb_bls/routers/ces.py": "a789460ab5976b93cef41dfdc740c0fa922763ecd22cb6b3d755e2c95d6491de",
+  "openbb_bls/routers/cpi.py": "f50d416c429e2fbaae2be26f55770e6434202c03d1ae8fa11b99e1783680caa0",
+  "openbb_bls/routers/jolts.py": "6fd96295f0430360182b3456eb1f2601173e2dd8658316aa88c62b995f912131",
+  "openbb_bls/routers/ppi.py": "053353893ad70bf90d3da2ab18ebbc55f0e7a5aeb31f5f86bdf03f2b2ad3935d",
+  "openbb_bls/routers/productivity.py": "7a4623bf1b2d8a4dbf990555cc6838c8af80cf4705c0aa19e186e70696074ca8",
+  "openbb_bls/routers/realer.py": "52a35934ddac4485ddf6daa79ce55a2a819354ef5c1cb06794663217ebe68857",
+  "openbb_bls/routers/ximpim.py": "eb7b79f3c2abe22657d2dcc7fdd0d5502a466ad437892c51345b7066c7730813",
+  "openbb_tmx/tmx_router.py": "9015440ba7069678b9e70ce4ff2d81b089116e5e2cfcbafa7414d1c96dbecf5a"
+}

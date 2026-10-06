@@ -1,0 +1,43 @@
+name: openbq-episode2
+services:
+  workspace:
+    image: openbq-workspace-local:2.0.0-candidate
+    restart: unless-stopped
+    env_file: [./runtime.env]
+    environment:
+      WORKERS: "1"
+      BACKEND_URL: /api
+      AI_COPILOT_ENABLED: "false"
+      AI_COPILOT_OPENBB_COPILOT: "false"
+      AI_COPILOT_AI_ENHANCEMENTS: "false"
+      UI_SHOW_COMPANION_MCP_MODE: "false"
+      UI_SHOW_COPILOT_SWITCHER: "false"
+      UI_SHOW_CHANGELOG: "false"
+      MCP_DEFAULT_SERVER_ENABLED: "false"
+      DATA_ALLOW_HTML_JS_EXECUTION: "false"
+    volumes: [workspace-data:/data]
+    networks: [workspace-internal]
+  tailscale:
+    image: tailscale/tailscale:v1.98.9@sha256:f15d5d3f4a68773a853180b72496f70ba614b64de0878c43fe3da39fe0afba47
+    hostname: openbq-workspace
+    restart: unless-stopped
+    env_file: [./ts.env]
+    environment:
+      TS_HOSTNAME: openbq-workspace
+      TS_AUTH_ONCE: "true"
+      TS_USERSPACE: "false"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - ./ts-state:/var/lib/tailscale
+      - ./ts-config:/config:ro
+    devices: [/dev/net/tun:/dev/net/tun]
+    cap_add: [NET_ADMIN, NET_RAW]
+    networks: [workspace-internal]
+networks:
+  workspace-internal:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1500"
+volumes:
+  workspace-data:

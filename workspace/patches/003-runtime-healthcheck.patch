@@ -1,0 +1,11 @@
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -135,7 +135,7 @@
+ 
+ RUN apt-get update -y \
+     && apt-get install --no-install-recommends -y \
+-       nginx redis-server gettext-base tini \
++       curl nginx redis-server gettext-base tini \
+     && rm -rf /var/lib/apt/lists/* /var/log/nginx/* \
+               /usr/share/doc /usr/share/man /usr/share/info /usr/share/locale \
+     && mkdir -p /var/log/supervisor /run/nginx

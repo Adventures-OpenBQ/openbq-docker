@@ -1,0 +1,27 @@
+# Optional Episode 3 services; use together with docker-compose.yml.
+services:
+  openbq-api:
+    image: openbq-local:3.0.0-candidate
+  tailscale:
+    environment:
+      TS_SERVE_CONFIG: /config/serve-v3.json
+  episode3-demo:
+    build: ./examples/episode3
+    image: openbq-episode3-demo:3.0.0-candidate
+    restart: unless-stopped
+    networks: [openbq-internal]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:17783/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+networks:
+  openbq-internal:
+    driver_opts:
+      com.docker.network.driver.mtu: "1500"
