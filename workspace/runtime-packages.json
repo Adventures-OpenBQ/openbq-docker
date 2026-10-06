@@ -1,0 +1,530 @@
+[
+  {
+    "name": "aioboto3",
+    "version": "15.5.0"
+  },
+  {
+    "name": "aiobotocore",
+    "version": "2.25.1"
+  },
+  {
+    "name": "aiofile",
+    "version": "3.12.3"
+  },
+  {
+    "name": "aiofiles",
+    "version": "25.1.0"
+  },
+  {
+    "name": "aiohappyeyeballs",
+    "version": "2.7.1"
+  },
+  {
+    "name": "aiohttp",
+    "version": "3.14.3"
+  },
+  {
+    "name": "aioitertools",
+    "version": "0.13.0"
+  },
+  {
+    "name": "aiomysql",
+    "version": "0.3.2"
+  },
+  {
+    "name": "aiosignal",
+    "version": "1.4.0"
+  },
+  {
+    "name": "aiosqlite",
+    "version": "0.22.1"
+  },
+  {
+    "name": "alembic",
+    "version": "1.19.1"
+  },
+  {
+    "name": "annotated-doc",
+    "version": "0.0.5"
+  },
+  {
+    "name": "annotated-types",
+    "version": "0.8.0"
+  },
+  {
+    "name": "anyio",
+    "version": "4.14.2"
+  },
+  {
+    "name": "asyncpg",
+    "version": "0.31.0"
+  },
+  {
+    "name": "attrs",
+    "version": "26.1.0"
+  },
+  {
+    "name": "Authlib",
+    "version": "1.7.2"
+  },
+  {
+    "name": "azure-core",
+    "version": "1.41.0"
+  },
+  {
+    "name": "azure-identity",
+    "version": "1.25.3"
+  },
+  {
+    "name": "azure-storage-blob",
+    "version": "12.30.0"
+  },
+  {
+    "name": "bcrypt",
+    "version": "4.3.0"
+  },
+  {
+    "name": "beartype",
+    "version": "0.22.9"
+  },
+  {
+    "name": "boto3",
+    "version": "1.40.61"
+  },
+  {
+    "name": "botocore",
+    "version": "1.40.61"
+  },
+  {
+    "name": "cachetools",
+    "version": "7.1.7"
+  },
+  {
+    "name": "caio",
+    "version": "0.12.2"
+  },
+  {
+    "name": "certifi",
+    "version": "2026.7.22"
+  },
+  {
+    "name": "cffi",
+    "version": "2.1.1"
+  },
+  {
+    "name": "charset-normalizer",
+    "version": "3.5.1"
+  },
+  {
+    "name": "click",
+    "version": "8.4.2"
+  },
+  {
+    "name": "cryptography",
+    "version": "50.0.0"
+  },
+  {
+    "name": "cyclopts",
+    "version": "4.23.2"
+  },
+  {
+    "name": "Deprecated",
+    "version": "1.3.1"
+  },
+  {
+    "name": "dnspython",
+    "version": "2.8.0"
+  },
+  {
+    "name": "docstring_parser",
+    "version": "0.18.0"
+  },
+  {
+    "name": "email-validator",
+    "version": "2.3.0"
+  },
+  {
+    "name": "exceptiongroup",
+    "version": "1.3.1"
+  },
+  {
+    "name": "fastapi",
+    "version": "0.141.1"
+  },
+  {
+    "name": "fastapi-pagination",
+    "version": "0.15.16"
+  },
+  {
+    "name": "fastmcp",
+    "version": "3.4.7"
+  },
+  {
+    "name": "fastmcp-slim",
+    "version": "3.4.7"
+  },
+  {
+    "name": "frozenlist",
+    "version": "1.8.0"
+  },
+  {
+    "name": "greenlet",
+    "version": "3.5.5"
+  },
+  {
+    "name": "griffelib",
+    "version": "2.2.0"
+  },
+  {
+    "name": "gunicorn",
+    "version": "26.2.0"
+  },
+  {
+    "name": "h11",
+    "version": "0.16.0"
+  },
+  {
+    "name": "httpcore",
+    "version": "1.0.9"
+  },
+  {
+    "name": "httpx",
+    "version": "0.28.1"
+  },
+  {
+    "name": "httpx-sse",
+    "version": "0.4.3"
+  },
+  {
+    "name": "hubspot-api-client",
+    "version": "12.0.0"
+  },
+  {
+    "name": "idna",
+    "version": "3.19"
+  },
+  {
+    "name": "isodate",
+    "version": "0.7.2"
+  },
+  {
+    "name": "jaraco.classes",
+    "version": "3.4.0"
+  },
+  {
+    "name": "jaraco.context",
+    "version": "6.1.2"
+  },
+  {
+    "name": "jaraco.functools",
+    "version": "4.6.0"
+  },
+  {
+    "name": "jeepney",
+    "version": "0.9.0"
+  },
+  {
+    "name": "jmespath",
+    "version": "1.1.0"
+  },
+  {
+    "name": "joserfc",
+    "version": "1.7.4"
+  },
+  {
+    "name": "jsonref",
+    "version": "1.1.0"
+  },
+  {
+    "name": "jsonschema",
+    "version": "4.26.0"
+  },
+  {
+    "name": "jsonschema-path",
+    "version": "0.5.0"
+  },
+  {
+    "name": "jsonschema-specifications",
+    "version": "2025.9.1"
+  },
+  {
+    "name": "keyring",
+    "version": "25.7.0"
+  },
+  {
+    "name": "limits",
+    "version": "5.8.0"
+  },
+  {
+    "name": "loguru",
+    "version": "0.7.3"
+  },
+  {
+    "name": "mailchimp-marketing",
+    "version": "3.0.80"
+  },
+  {
+    "name": "mailchimp_transactional",
+    "version": "1.4.1"
+  },
+  {
+    "name": "Mako",
+    "version": "1.4.1"
+  },
+  {
+    "name": "markdown-it-py",
+    "version": "4.2.0"
+  },
+  {
+    "name": "MarkupSafe",
+    "version": "3.0.3"
+  },
+  {
+    "name": "mcp",
+    "version": "1.29.0"
+  },
+  {
+    "name": "mdurl",
+    "version": "0.1.2"
+  },
+  {
+    "name": "more-itertools",
+    "version": "11.1.0"
+  },
+  {
+    "name": "msal",
+    "version": "1.38.0"
+  },
+  {
+    "name": "msal-extensions",
+    "version": "1.3.1"
+  },
+  {
+    "name": "multidict",
+    "version": "6.7.1"
+  },
+  {
+    "name": "openapi-pydantic",
+    "version": "0.5.1"
+  },
+  {
+    "name": "openbb-ai",
+    "version": "2.2.0"
+  },
+  {
+    "name": "opentelemetry-api",
+    "version": "1.44.0"
+  },
+  {
+    "name": "packaging",
+    "version": "26.3"
+  },
+  {
+    "name": "pathable",
+    "version": "0.6.0"
+  },
+  {
+    "name": "platformdirs",
+    "version": "4.11.4"
+  },
+  {
+    "name": "prometheus-fastapi-instrumentator",
+    "version": "8.1.0"
+  },
+  {
+    "name": "prometheus_client",
+    "version": "0.26.0"
+  },
+  {
+    "name": "propcache",
+    "version": "0.5.2"
+  },
+  {
+    "name": "psycopg2-binary",
+    "version": "2.9.12"
+  },
+  {
+    "name": "py-key-value-aio",
+    "version": "0.4.5"
+  },
+  {
+    "name": "pycparser",
+    "version": "3.0"
+  },
+  {
+    "name": "pycryptodome",
+    "version": "3.23.0"
+  },
+  {
+    "name": "pydantic",
+    "version": "2.13.4"
+  },
+  {
+    "name": "pydantic-settings",
+    "version": "2.15.0"
+  },
+  {
+    "name": "pydantic_core",
+    "version": "2.46.4"
+  },
+  {
+    "name": "Pygments",
+    "version": "2.21.0"
+  },
+  {
+    "name": "PyJWT",
+    "version": "2.13.0"
+  },
+  {
+    "name": "PyMySQL",
+    "version": "1.2.0"
+  },
+  {
+    "name": "PyOTP",
+    "version": "2.10.0"
+  },
+  {
+    "name": "pyperclip",
+    "version": "1.11.0"
+  },
+  {
+    "name": "python-dateutil",
+    "version": "2.9.0.post0"
+  },
+  {
+    "name": "python-dotenv",
+    "version": "1.2.3"
+  },
+  {
+    "name": "python-multipart",
+    "version": "0.0.32"
+  },
+  {
+    "name": "python-slugify",
+    "version": "8.0.4"
+  },
+  {
+    "name": "pytz",
+    "version": "2025.2"
+  },
+  {
+    "name": "PyYAML",
+    "version": "6.0.3"
+  },
+  {
+    "name": "redis",
+    "version": "7.4.1"
+  },
+  {
+    "name": "referencing",
+    "version": "0.37.0"
+  },
+  {
+    "name": "requests",
+    "version": "2.34.2"
+  },
+  {
+    "name": "rich",
+    "version": "15.0.0"
+  },
+  {
+    "name": "rich-rst",
+    "version": "2.1.0"
+  },
+  {
+    "name": "rpds-py",
+    "version": "2026.6.3"
+  },
+  {
+    "name": "rq",
+    "version": "1.16.2"
+  },
+  {
+    "name": "s3transfer",
+    "version": "0.14.0"
+  },
+  {
+    "name": "SecretStorage",
+    "version": "3.5.0"
+  },
+  {
+    "name": "six",
+    "version": "1.17.0"
+  },
+  {
+    "name": "slowapi",
+    "version": "0.1.10"
+  },
+  {
+    "name": "SQLAlchemy",
+    "version": "2.0.52"
+  },
+  {
+    "name": "SQLAlchemy-Utils",
+    "version": "0.42.1"
+  },
+  {
+    "name": "sse-starlette",
+    "version": "3.4.8"
+  },
+  {
+    "name": "starlette",
+    "version": "1.6.0"
+  },
+  {
+    "name": "text-unidecode",
+    "version": "1.3"
+  },
+  {
+    "name": "tornado",
+    "version": "6.5.8"
+  },
+  {
+    "name": "typing-inspection",
+    "version": "0.4.4"
+  },
+  {
+    "name": "typing_extensions",
+    "version": "4.16.0"
+  },
+  {
+    "name": "uncalled-for",
+    "version": "0.4.0"
+  },
+  {
+    "name": "urllib3",
+    "version": "2.7.0"
+  },
+  {
+    "name": "uvicorn",
+    "version": "0.52.4"
+  },
+  {
+    "name": "uvicorn-worker",
+    "version": "0.4.0"
+  },
+  {
+    "name": "watchfiles",
+    "version": "1.2.0"
+  },
+  {
+    "name": "websockets",
+    "version": "17.0.1"
+  },
+  {
+    "name": "wheel",
+    "version": "0.46.3"
+  },
+  {
+    "name": "wrapt",
+    "version": "1.17.3"
+  },
+  {
+    "name": "xxhash",
+    "version": "3.8.1"
+  },
+  {
+    "name": "yarl",
+    "version": "1.24.5"
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "repository": "https://github.com/OpenBB-finance/workspace",
+  "commit": "be00e95019a55d57af146919ee46b7e1a4859226",
+  "license": "Apache-2.0",
+  "variant": "lite",
+  "base_images": {
+    "node": "node:22@sha256:363e1587494626837fa7f9a23bdb453d13b0ff3c67c705c2805cfc69c2d2fad7",
+    "python": "python:3.13-slim@sha256:3dd7cc108ec1493442514f5c2a871af6af0ec31d768ff6e378a93340c3b3db5f",
+    "bun": "oven/bun:1.3.11@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2e4e42a7"
+  },
+  "lock_sha256": {
+    "terminalpro/bun.lock": "6bf311d0714daa825d7d0b89c9519ce48ed882a23ba7d206565168b61e7149e0",
+    "backend/poetry.lock": "ae615c0d2a7b3b1affb54fa0ae1b17baeca92c751270be06a05daa12142d9633"
+  },
+  "observed_build": {
+    "runtime_image_id": "sha256:04222ea5bd191fd4a2fd4db9c01714bb882fa97fb3b3610b1cad43f47b7bc142",
+    "architecture": "amd64",
+    "poetry_version": "2.5.1",
+    "backend_lock_regenerated": true,
+    "resolved_lock_sha256": "d491646f3ee25c2da599a079e285084a2768eb2929f220fc4001839dc7a59f86",
+    "runtime_inventory_sha256": "204a795c9759bf83e73c14d10f92d38bd93cd568681b5454f99cbb2f34cbb189"
+  }
+}

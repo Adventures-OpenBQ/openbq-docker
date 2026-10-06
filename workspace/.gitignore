@@ -1,0 +1,4 @@
+build-context/
+ts-state/
+*.env
+!*.env.example

@@ -1,0 +1,17 @@
+"""Apply reviewed provider sources only to the exact published baseline."""
+import hashlib, json, shutil, sysconfig
+from pathlib import Path
+from importlib.metadata import version
+root = Path(__file__).parent
+site = Path(sysconfig.get_paths()["purelib"])
+for package in ("openbb-bls", "openbb-tmx"):
+    if version(package) != "2.0.0":
+        raise SystemExit(f"Unexpected version for {package}")
+files = json.loads((root / "original-sha256.json").read_text())
+for name, expected in files.items():
+    target = site / name
+    if hashlib.sha256(target.read_bytes()).hexdigest() != expected:
+        raise SystemExit(f"Baseline mismatch: {name}")
+for name in files:
+    shutil.copyfile(root / name, site / name)
+print(f"Applied {len(files)} reviewed provider source files")
