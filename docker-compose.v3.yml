@@ -12,7 +12,12 @@ services:
     build: ./examples/episode3
     image: openbq-episode3-demo:3.0.0-candidate
     restart: unless-stopped
-    networks: [openbq-internal]
+    env_file:
+      - path: ./v3.env
+        required: false
+    networks:
+      openbq-internal:
+        aliases: [openbq-reference]
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
