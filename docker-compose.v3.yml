@@ -1,6 +1,9 @@
 # Optional Episode 3 services; use together with docker-compose.yml.
 services:
   openbq-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.v3
     image: openbq-local:3.0.0-candidate
   tailscale:
     environment:
