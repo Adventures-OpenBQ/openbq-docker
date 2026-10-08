@@ -41,10 +41,11 @@ def install_demo(application, registry):
 
 install_demo(app, WIDGETS)
 
-# Omni routes that run the caller's code on this server. The Python route is
-# already stripped at build (patch-omni-python.py); SQL runs the request's query
-# against an in-memory sqlite of mock data. Display-only Omni widgets are not
-# gated. OPENBQ_OMNI_EXEC_ALLOWED=true lets this backend execute; unset, refused.
+# Omni routes that run the caller's code on this server. SQL runs the request's
+# query against an in-memory sqlite of mock data. Python is never executable:
+# its route is stripped at build (patch-omni-python.py, check-no-exec.py), so
+# OPENBQ_OMNI_EXEC_ALLOWED=true enables SQL only. Display-only Omni widgets are
+# not gated. Unset, code execution is refused.
 CODE_EXECUTING_OMNI = ('/omni-sql-widget',)
 
 async def refuse_omni_code_runs(request, call_next):
