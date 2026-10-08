@@ -244,15 +244,23 @@ class ParametersBuilder:
 # own event loop, in its own thread, for the life of the process: the server
 # loop stays free, one provider's heavy work stalls only that provider, and a
 # provider's loop-bound caches (cboe, deribit, nasdaq, tmx) still only ever
-# see one loop.
+# see one loop. One loop per process matters too: a fresh loop per command
+# leaked ~115 MB of native memory per CFTC swap_trades call.
 # ponytail: work on a loop cannot be cancelled, and a provider's commands
 # still queue behind its own heavy ones; per-route threads would be next.
 _PROVIDER_LOOPS: dict[str, asyncio.AbstractEventLoop] = {}
 _PROVIDER_LOOPS_LOCK = threading.Lock()
 
+# These providers run one command at a time. Interleaved on their loop, one
+# command's CPU work (CBOE spreads, CFTC curve fits) starves another's
+# downloads into their timeouts, and CFTC's shard cache names its temp files
+# per process (openbb_cftc/utils/store.py), so concurrent writers of one
+# shard corrupt it.
+_ONE_AT_A_TIME = {"cboe": asyncio.Lock(), "cftc": asyncio.Lock()}
 
-def _provider_loop(name: str) -> asyncio.AbstractEventLoop:
-    """Return the named provider's event loop, starting its thread on first use."""
+
+def _provider_loop(name: str) -> tuple[str, asyncio.AbstractEventLoop]:
+    """Return the provider's key and event loop, starting its thread on first use."""
     key = name.removeprefix("openbb_")
     with _PROVIDER_LOOPS_LOCK:
         if key not in _PROVIDER_LOOPS:
@@ -261,7 +269,16 @@ def _provider_loop(name: str) -> asyncio.AbstractEventLoop:
                 target=loop.run_forever, name=f"provider-{key}", daemon=True
             ).start()
             _PROVIDER_LOOPS[key] = loop
-        return _PROVIDER_LOOPS[key]
+        return key, _PROVIDER_LOOPS[key]
+
+
+async def _run_command(key: str, func: Callable, kwargs: dict[str, Any]):
+    """Run a command on its provider's loop, one at a time where it must be."""
+    if key not in _ONE_AT_A_TIME:
+        return await maybe_coroutine(func, **kwargs)
+
+    async with _ONE_AT_A_TIME[key]:
+        return await maybe_coroutine(func, **kwargs)
 
 
 class StaticCommandRunner:
@@ -276,9 +293,9 @@ class StaticCommandRunner:
     ) -> OBBject:
         """Run a command and return the output."""
         provider = getattr(kwargs.get("provider_choices"), "provider", None)
-        loop = _provider_loop(provider or func.__module__.split(".")[0])
+        key, loop = _provider_loop(provider or func.__module__.split(".")[0])
         obbject = await asyncio.wrap_future(
-            asyncio.run_coroutine_threadsafe(maybe_coroutine(func, **kwargs), loop)
+            asyncio.run_coroutine_threadsafe(_run_command(key, func, kwargs), loop)
         )
         if isinstance(obbject, (OBBject, OBBStream)):
             obbject.provider = getattr(
