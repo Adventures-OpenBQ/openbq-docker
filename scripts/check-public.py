@@ -19,6 +19,8 @@ def main():
   ('private key',r'-----BEGIN [A-Z ]*PRIVATE KEY-----'),
   ('tailnet host',r'(?i)(?:[a-z0-9-]+\.)+[a-z0-9-]+\.ts\.net\b'),
   ('private address',r'\b(?:100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])|192\.168|10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b'),
+  # Tailscale ULA addresses; the trailing hex digit keeps the bare prefix (a CIDR in docs) from matching.
+  ('tailnet IPv6',r'(?i)\bfd7a:115c:a1e0:[0-9a-f:]*[0-9a-f]\b'),
   ('local home',r'/Users/[A-Za-z0-9_.-]+/|/home/[A-Za-z0-9_.-]+/'),
   ('cloud key',r'AKIA[0-9A-Z]{16}'),
   ('tailnet node ID',r'\bn[A-Za-z0-9]{10,}CNTRL\b'),
