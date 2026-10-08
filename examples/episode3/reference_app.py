@@ -41,18 +41,22 @@ def install_demo(application, registry):
 
 install_demo(app, WIDGETS)
 
-# Omni routes that run the caller's code on this server. SQL runs the request's
-# query against an in-memory sqlite of mock data. Python is never executable:
-# its route is stripped at build (patch-omni-python.py, check-no-exec.py), so
-# OPENBQ_OMNI_EXEC_ALLOWED=true enables SQL only. Display-only Omni widgets are
-# not gated. Unset, code execution is refused.
-CODE_EXECUTING_OMNI = ('/omni-sql-widget',)
+# Omni routes that run the caller's code on this server, by language: SQL runs
+# the request's query against an in-memory sqlite of mock data; Python runs the
+# request's code with exec(). OPENBQ_OMNI_EXEC_ALLOWED lists the languages this
+# backend may execute (e.g. "sql" or "sql,python"); unset, nothing executes.
+# Display-only Omni widgets are not gated.
+CODE_EXECUTING_OMNI = {'/omni-sql-widget': 'sql', '/omni-python-widget': 'python'}
+
+def allowed_languages():
+    value = os.environ.get('OPENBQ_OMNI_EXEC_ALLOWED', '')
+    return {lang.strip().lower() for lang in value.split(',') if lang.strip()}
 
 async def refuse_omni_code_runs(request, call_next):
-    allowed = os.environ.get('OPENBQ_OMNI_EXEC_ALLOWED', '').strip().lower() in ('1', 'true', 'yes')
-    if not allowed and request.url.path.endswith(CODE_EXECUTING_OMNI):
+    language = next((lang for path, lang in CODE_EXECUTING_OMNI.items() if request.url.path.endswith(path)), None)
+    if language and language not in allowed_languages():
         return JSONResponse(
-            {'detail': 'Omni code execution is not allowed on this backend (OPENBQ_OMNI_EXEC_ALLOWED).'},
+            {'detail': f"Omni code execution in '{language}' is not allowed on this backend (OPENBQ_OMNI_EXEC_ALLOWED)."},
             status_code=403,
         )
     return await call_next(request)

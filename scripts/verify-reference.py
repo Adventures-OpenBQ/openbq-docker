@@ -13,10 +13,10 @@ widgets = fetch('/widgets.json')
 apps = fetch('/apps.json')
 ids = [c['i'] for a in apps for t in a['tabs'].values() for c in t['layout']]
 missing = sorted(set(ids) - widgets.keys())
-assert len(apps) == 2 and len(ids) == 73, 'Unexpected self-contained app catalog'
-assert len(widgets) == 71, 'Unexpected widget registry'
+assert len(apps) == 2 and len(ids) == 74, 'Unexpected self-contained app catalog'
+assert len(widgets) == 72, 'Unexpected widget registry'
 assert not missing, 'App layout references absent widgets'
-assert 'omni-python-widget' not in widgets, 'Execution widget must be absent'
+assert 'omni-python-widget' in widgets, 'Python Omni widget must be served (gated by OPENBQ_OMNI_EXEC_ALLOWED)'
 assert len(fetch('/data/prices')) == 5 and len(fetch('/data/nulls')) == 5
 assert len(fetch('/table_widget')) == 3
 assert fetch('/metric_widget')[0]['value'] == '1,234,567'

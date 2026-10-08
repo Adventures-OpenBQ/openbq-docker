@@ -13,15 +13,15 @@ class ReferenceTests(unittest.TestCase):
         widgets = self.client.get('/widgets.json').json()
         apps = self.client.get('/apps.json').json()
         self.assertEqual(len(apps), 2)
-        self.assertEqual(sum(len(t['layout']) for a in apps for t in a['tabs'].values()), 73)
-        self.assertNotIn('omni-python-widget', widgets)
+        self.assertEqual(sum(len(t['layout']) for a in apps for t in a['tabs'].values()), 74)
+        self.assertIn('omni-python-widget', widgets)
         for a in apps:
             for tab in a['tabs'].values():
                 for card in tab['layout']:
                     self.assertIn(card['i'], widgets)
         bundle = self.client.get('/bundle.apps.json').json()
         self.assertEqual(len(bundle), 3)
-        self.assertEqual(sum(len(t['layout']) for a in bundle for t in a['tabs'].values()), 79)
+        self.assertEqual(sum(len(t['layout']) for a in bundle for t in a['tabs'].values()), 80)
         optional = self.client.get('/market-examples.apps.json').json()
         self.assertEqual(len(optional), 1)
         market = {card['i'] for a in optional for t in a['tabs'].values() for card in t['layout']}
@@ -33,7 +33,7 @@ class ReferenceTests(unittest.TestCase):
         pdf = self.client.get('/pdf_widget_base64').json()
         self.assertTrue(base64.b64decode(pdf['content']).startswith(b'%PDF'))
         self.assertEqual(self.client.post('/form_submit', json={}).status_code, 400)
-        self.assertIn(self.client.post('/omni-python-widget', json={}).status_code, (404, 405))
+        self.assertEqual(self.client.post('/omni-python-widget', json={}).status_code, 403)
     def test_pivot_and_logo(self):
         self.assertEqual(len(self.client.get('/data/prices').json()), 5)
         self.assertEqual(len(self.client.get('/data/nulls').json()), 5)
@@ -58,14 +58,25 @@ class ReferenceTests(unittest.TestCase):
         import os
         from unittest import mock
         sql = {'prompt': 'SELECT symbol FROM DATA LIMIT 1'}
+        python = {'prompt': 'fig = go.Figure()'}
         origin = {'Origin': 'https://demo.example.org'}
-        r = self.client.post('/omni-sql-widget', json=sql, headers=origin)
-        self.assertEqual(r.status_code, 403)
-        self.assertIn('OPENBQ_OMNI_EXEC_ALLOWED', r.json()['detail'])
-        self.assertEqual(r.headers['access-control-allow-origin'], 'https://demo.example.org')
-        self.assertEqual(self.client.post('/omni-widget', json={'prompt': 'hi'}).status_code, 200)
-        with mock.patch.dict(os.environ, {'OPENBQ_OMNI_EXEC_ALLOWED': 'true'}):
-            self.assertEqual(self.client.post('/omni-sql-widget', json=sql).status_code, 200)
+        def post(path, body):
+            return self.client.post(path, json=body, headers=origin)
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('OPENBQ_OMNI_EXEC_ALLOWED', None)
+            r = post('/omni-sql-widget', sql)
+            self.assertEqual(r.status_code, 403)
+            self.assertIn("'sql'", r.json()['detail'])
+            self.assertEqual(r.headers['access-control-allow-origin'], 'https://demo.example.org')
+            self.assertEqual(post('/omni-python-widget', python).status_code, 403)
+            self.assertEqual(post('/omni-widget', {'prompt': 'hi'}).status_code, 200)
+        with mock.patch.dict(os.environ, {'OPENBQ_OMNI_EXEC_ALLOWED': 'sql'}):
+            self.assertEqual(post('/omni-sql-widget', sql).status_code, 200)
+            r = post('/omni-python-widget', python)
+            self.assertEqual(r.status_code, 403)
+            self.assertIn("'python'", r.json()['detail'])
+        with mock.patch.dict(os.environ, {'OPENBQ_OMNI_EXEC_ALLOWED': 'sql, Python'}):
+            self.assertEqual(post('/omni-python-widget', python).status_code, 200)
     def test_live_grid_websocket(self):
         with self.client.websocket_connect('/live_grid_ws') as ws:
             ws.send_json({'params': {'symbol': 'AAPL'}})

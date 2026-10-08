@@ -6,7 +6,7 @@ ARG REF_BACKEND_REF=a6293707576e16edda8305adda95b07b6a4b968b
 RUN git init --quiet /source \
     && git -C /source fetch --quiet --depth 1 https://github.com/openbq-org/backends-for-openbb.git "$REF_BACKEND_REF" \
     && git -C /source checkout --quiet FETCH_HEAD
-COPY assemble.py source.json patch-cors.py patch-omni-python.py patch-pdf.py reference_app.py server.py apps.json data.json /recipe/
+COPY assemble.py source.json patch-cors.py patch-pdf.py reference_app.py server.py apps.json data.json /recipe/
 COPY assets /recipe/assets
 RUN python /recipe/assemble.py /source /assembled
 
@@ -16,10 +16,10 @@ COPY requirements.lock /tmp/requirements.lock
 RUN python -m pip install -r /tmp/requirements.lock && python -m pip check
 WORKDIR /app
 COPY --from=source /assembled /app
-COPY check-no-exec.py test_reference.py /checks/
+COPY check-omni-gate.py test_reference.py /checks/
 RUN chmod -R a+rX /app /checks \
     && chown -R 10001:10001 /app \
-    && python /checks/check-no-exec.py \
+    && python /checks/check-omni-gate.py \
     && EXTRA_CORS_ORIGINS=https://demo.example.org PYTHONPATH=/app python -m unittest discover -s /checks -p test_reference.py \
     && rm -rf /checks
 USER 10001:10001
