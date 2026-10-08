@@ -8,5 +8,8 @@
   "openbb_bls/routers/realer.py": "52a35934ddac4485ddf6daa79ce55a2a819354ef5c1cb06794663217ebe68857",
   "openbb_bls/routers/ximpim.py": "eb7b79f3c2abe22657d2dcc7fdd0d5502a466ad437892c51345b7066c7730813",
   "openbb_tmx/tmx_router.py": "9015440ba7069678b9e70ce4ff2d81b089116e5e2cfcbafa7414d1c96dbecf5a",
-  "openbb_core/app/command_runner.py": "8e7c308b5f8aa86f30218c047dd50a05cbfa68cc82049bea5b4ea64861b20637"
+  "openbb_core/app/command_runner.py": "8e7c308b5f8aa86f30218c047dd50a05cbfa68cc82049bea5b4ea64861b20637",
+  "openbb_finra/models/bond_list.py": "450dae4ad1be7f7ce561bbb600fe040eaafa97d0edde15d3bc3fa4c3c2d0c7eb",
+  "openbb_federal_reserve/models/institution_structure.py": "bb5e52a465ff4b76c23202fe2e8885db97ea75f118ef103cf3b72960a2722e0e",
+  "openbb_federal_reserve/assets/ffiec/widgets.json": "4566b285ee5153a512ca80ae2a2e1e9458f01ff8fef0bf0de3181f0cc5e5b011"
 }
