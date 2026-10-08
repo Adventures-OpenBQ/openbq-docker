@@ -9,7 +9,9 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "check-public.py"
-FLAGGED = ["fd7a:115c:a1e0:" "ab12:4843:cd96:625b:1234", "fd7a:115c:a1e0:" ":1"]
+RESOLVER = "100.100." "100.100"
+FLAGGED = ["100.100.100" ".10", "100.100.100" ".101", "100.101" ".2.3",
+           "fd7a:115c:a1e0:" "ab12:4843:cd96:625b:1234", "fd7a:115c:a1e0:" ":1"]
 
 
 def scan(text):
@@ -20,7 +22,10 @@ def scan(text):
 
 
 class Addresses(unittest.TestCase):
-    def test_tailnet_ipv6_addresses_are_flagged(self):
+    def test_magicdns_resolver_is_exempt(self):
+        self.assertEqual(scan("nameserver " + RESOLVER), 0)
+
+    def test_other_tailnet_addresses_are_flagged(self):
         for addr in FLAGGED:
             with self.subTest(addr=addr):
                 self.assertEqual(scan("peer " + addr), 1)
