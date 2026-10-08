@@ -1,7 +1,7 @@
 """Commodity Futures Trading Commission Router."""
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
+import threading
 from typing import Annotated
 
 from fastapi import Query as FastAPIQuery
@@ -18,19 +18,30 @@ from openbb_core.app.router import Router
 
 # The CFTC fetchers do seconds-to-minutes of pure-Python work (curve bootstraps
 # over whole DTCC day slices) inside async code. On the server's event loop that
-# freezes every other request, /widgets.json included, until it finishes. Each
-# command therefore runs on its own event loop in one worker thread; the
-# server's loop stays free to answer other clients. One thread, not more: the
-# provider's shard cache names its temp files per process (store.py), so two
-# CFTC commands writing the same shard at once corrupt it.
-# ponytail: a thread cannot be cancelled, so a long CFTC call still runs to
-# completion after its client gives up and later CFTC calls queue behind it.
-_POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix="cftc")
+# freezes every other request, /widgets.json included, until it finishes. So
+# CFTC commands run on a second event loop in its own thread, and the server's
+# loop stays free to answer other clients. One loop for the life of the
+# process, as the provider expects: a fresh asyncio.run loop per command leaked
+# ~115 MB of native memory per swap_trades call. One command at a time: when
+# they interleave, one command's CPU work starves the others' downloads into
+# timeouts, and the provider's shard cache names its temp files per process
+# (store.py), so concurrent writers of one shard corrupt it.
+# ponytail: work on a loop cannot be cancelled, so a long CFTC call still runs
+# to completion after its client gives up and holds up the CFTC calls after it.
+_LOOP = asyncio.new_event_loop()
+threading.Thread(target=_LOOP.run_forever, name="cftc", daemon=True).start()
+_ONE_AT_A_TIME = asyncio.Lock()
+
+
+async def _locked(coro):
+    async with _ONE_AT_A_TIME:
+        return await coro
 
 
 async def _off_loop(coro):
-    """Run a command coroutine to completion on a worker thread's own event loop."""
-    return await asyncio.get_running_loop().run_in_executor(_POOL, asyncio.run, coro)
+    """Run a command coroutine on the CFTC event loop, one at a time, and await it."""
+    future = asyncio.run_coroutine_threadsafe(_locked(coro), _LOOP)
+    return await asyncio.wrap_future(future)
 
 
 router = Router(
