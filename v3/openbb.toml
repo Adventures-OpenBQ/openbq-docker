@@ -1,0 +1,4 @@
+# Read by openbb-api from its working directory (/workspace).
+[middleware]
+# BDOBB key-mode user settings (GET /pro/user, POST /pro/display-settings).
+hooks = ["openbq_settings:middleware"]
