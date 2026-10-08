@@ -8,5 +8,6 @@
   "openbb_bls/routers/realer.py": "52a35934ddac4485ddf6daa79ce55a2a819354ef5c1cb06794663217ebe68857",
   "openbb_bls/routers/ximpim.py": "eb7b79f3c2abe22657d2dcc7fdd0d5502a466ad437892c51345b7066c7730813",
   "openbb_tmx/tmx_router.py": "9015440ba7069678b9e70ce4ff2d81b089116e5e2cfcbafa7414d1c96dbecf5a",
-  "openbb_cftc/cftc_router.py": "5ad96dcbb0cf3aaea78f6fbed3f884440f71ff207b958ea563c96fc4d7e16e42"
+  "openbb_cftc/cftc_router.py": "5ad96dcbb0cf3aaea78f6fbed3f884440f71ff207b958ea563c96fc4d7e16e42",
+  "openbb_core/app/command_runner.py": "8e7c308b5f8aa86f30218c047dd50a05cbfa68cc82049bea5b4ea64861b20637"
 }
