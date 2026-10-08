@@ -54,6 +54,18 @@ class ReferenceTests(unittest.TestCase):
         r = self.client.options('/widgets.json', headers={'Origin':'https://demo.example.org','Access-Control-Request-Method':'GET'})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers['access-control-allow-origin'], 'https://demo.example.org')
+    def test_omni_code_execution_is_gated(self):
+        import os
+        from unittest import mock
+        sql = {'prompt': 'SELECT symbol FROM DATA LIMIT 1'}
+        origin = {'Origin': 'https://demo.example.org'}
+        r = self.client.post('/omni-sql-widget', json=sql, headers=origin)
+        self.assertEqual(r.status_code, 403)
+        self.assertIn('OPENBQ_OMNI_EXEC_ALLOWED', r.json()['detail'])
+        self.assertEqual(r.headers['access-control-allow-origin'], 'https://demo.example.org')
+        self.assertEqual(self.client.post('/omni-widget', json={'prompt': 'hi'}).status_code, 200)
+        with mock.patch.dict(os.environ, {'OPENBQ_OMNI_EXEC_ALLOWED': 'true'}):
+            self.assertEqual(self.client.post('/omni-sql-widget', json=sql).status_code, 200)
     def test_live_grid_websocket(self):
         with self.client.websocket_connect('/live_grid_ws') as ws:
             ws.send_json({'params': {'symbol': 'AAPL'}})
