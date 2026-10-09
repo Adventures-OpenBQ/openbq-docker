@@ -31,5 +31,7 @@
   "openbb_federal_reserve/models/list_of_banks_peer_group.py": "3d1b15e9bf9b57ce05e4242e35e6bcf9a4e430bddce705bf70120d63ade1c770",
   "openbb_federal_reserve/models/regional/kansas_city_ag_credit_survey.py": "08183826b0aa54b87757fbed55eb8e5701dd9d735ca329ade83315b4af101555",
   "openbb_federal_reserve/models/regional/kansas_city_ag_rates.py": "57995efc290f586d29a0356577ae3d5a768245f2df8fe9e6ad1dbb7e09fc55a7",
-  "openbb_federal_reserve/models/regional/kansas_city_ag_finance.py": "8e0c1a78aeb4183a7c91d8ed9d9e84084f1fa808d31a5f53365add44efa5773f"
+  "openbb_federal_reserve/models/regional/kansas_city_ag_finance.py": "8e0c1a78aeb4183a7c91d8ed9d9e84084f1fa808d31a5f53365add44efa5773f",
+  "openbb_us_eia/eia_router.py": "5e34022b0085c74fa36c835084857884b69d7132ea4389b53a851f4bb70a8b0e",
+  "openbb_tmx/routers/equity.py": "2dc08ad4738b2bdff2d402608e0600a10dd75c7dea9a650411eeb14c248680ff"
 }
