@@ -13,5 +13,13 @@
   "openbb_federal_reserve/models/institution_structure.py": "bb5e52a465ff4b76c23202fe2e8885db97ea75f118ef103cf3b72960a2722e0e",
   "openbb_federal_reserve/assets/ffiec/widgets.json": "4566b285ee5153a512ca80ae2a2e1e9458f01ff8fef0bf0de3181f0cc5e5b011",
   "openbb_core/api/router/commands.py": "d3b8b965b374f8168d95a0ce329fb0870601018c95f6dce4d9b3ae6d0f42d89a",
-  "openbb_cftc/utils/fx_valuation.py": "e0817d33b9b0acb7bc9e69b7bcb6b39d6d79831f15bc1d4a37dc60b9941901d9"
+  "openbb_cftc/utils/fx_valuation.py": "e0817d33b9b0acb7bc9e69b7bcb6b39d6d79831f15bc1d4a37dc60b9941901d9",
+  "openbb_fred/models/tips_yields.py": "6383fcfcf1123640d70f346066705d4fd18fccf2384fd38863c692e2c2cc4d39",
+  "openbb_famafrench/utils/constants.py": "d60d61a847eb76994e62f3c2ff71fa470209d7dc43af2e9b4ade238317ddc56a",
+  "openbb_cboe/utils/helpers.py": "f8d292953f0f81ff22e16f4bc0b97cc25bb6294e63943863d560fdf0f204bcc5",
+  "openbb_nasdaq/models/calendar_splits.py": "86709a13be112b779ce90564e7034b88570d884311d058a5a0e264701b43d272",
+  "openbb_federal_reserve/models/list_of_banks_peer_group.py": "3d1b15e9bf9b57ce05e4242e35e6bcf9a4e430bddce705bf70120d63ade1c770",
+  "openbb_federal_reserve/models/regional/kansas_city_ag_credit_survey.py": "08183826b0aa54b87757fbed55eb8e5701dd9d735ca329ade83315b4af101555",
+  "openbb_federal_reserve/models/regional/kansas_city_ag_rates.py": "57995efc290f586d29a0356577ae3d5a768245f2df8fe9e6ad1dbb7e09fc55a7",
+  "openbb_federal_reserve/models/regional/kansas_city_ag_finance.py": "8e0c1a78aeb4183a7c91d8ed9d9e84084f1fa808d31a5f53365add44efa5773f"
 }
