@@ -19,7 +19,10 @@ def _zip(members: dict[str, str]) -> bytes:
 
 
 class SecInstitutionsSearchTest(unittest.TestCase):
-    def test_no_query_returns_all_rows(self):
+    # A blank search would return every SEC filer (about 1.06 million rows), so it
+    # asks for a name instead, and the widget prompts for one.
+    def test_blank_query_asks_for_a_name(self):
+        from openbb_core.app.model.abstract.error import OpenBBError
         from pandas import DataFrame
 
         from openbb_sec.models.institutions_search import (
@@ -33,12 +36,21 @@ class SecInstitutionsSearchTest(unittest.TestCase):
             return frame
 
         with mock.patch("openbb_sec.utils.helpers.get_all_ciks", get_all_ciks):
-            query = SecInstitutionsSearchQueryParams()
-            rows = asyncio.run(SecInstitutionsSearchFetcher.aextract_data(query, None))
-            self.assertEqual(len(rows), 2)
+            for blank in (None, ""):
+                with self.assertRaises(OpenBBError):
+                    asyncio.run(SecInstitutionsSearchFetcher.aextract_data(
+                        SecInstitutionsSearchQueryParams(query=blank), None))
             query = SecInstitutionsSearchQueryParams(query="beta")
             rows = asyncio.run(SecInstitutionsSearchFetcher.aextract_data(query, None))
             self.assertEqual([r["Institution"] for r in rows], ["Beta Trust"])
+
+    def test_widget_prompts_for_query(self):
+        from openbb_core.api.rest_api import app
+        from openbb_platform_api.utils.widgets import build_json
+
+        params = build_json(app.openapi(), [])["sec_institutions_search_sec_obb"]["params"]
+        query = next(p for p in params if p["paramName"] == "query")
+        self.assertIs(query["optional"], False)
 
 
 class DallasSheetTest(unittest.TestCase):
