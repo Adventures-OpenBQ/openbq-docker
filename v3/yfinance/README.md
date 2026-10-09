@@ -23,5 +23,3 @@ the generic pivot recipe groups `line_item` and splits reporting `date`.
 The build gate executes actual V5 Python/REST queries with a stubbed public SDK
 boundary. This establishes integration and null handling, not live Yahoo access.
 No provider API key is required by our yfinance extension.
-
-One local change to the pinned source, recorded in `source.json` under `local_changes`: `openbq_yfinance/client.py` retries a Yahoo HTTP 401 once on a fresh yfinance session. Yahoo expires a long-running server's session, and the SDK's own retry reuses the same cookie jar, so without this every Yahoo call failed with 401 until the API restarted. The build gate checks the retry.
