@@ -13,5 +13,11 @@
   "openbb_federal_reserve/models/institution_structure.py": "bb5e52a465ff4b76c23202fe2e8885db97ea75f118ef103cf3b72960a2722e0e",
   "openbb_federal_reserve/assets/ffiec/widgets.json": "4566b285ee5153a512ca80ae2a2e1e9458f01ff8fef0bf0de3181f0cc5e5b011",
   "openbb_core/api/router/commands.py": "d3b8b965b374f8168d95a0ce329fb0870601018c95f6dce4d9b3ae6d0f42d89a",
-  "openbb_cftc/utils/fx_valuation.py": "e0817d33b9b0acb7bc9e69b7bcb6b39d6d79831f15bc1d4a37dc60b9941901d9"
+  "openbb_cftc/utils/fx_valuation.py": "e0817d33b9b0acb7bc9e69b7bcb6b39d6d79831f15bc1d4a37dc60b9941901d9",
+  "openbb_sec/models/institutions_search.py": "7b956df6e68ad218c6ad64fc12e93795461ae603d058386feea8242dd6f78fb5",
+  "openbb_federal_reserve/models/regional/dallas_bcs.py": "449b611c14e84ab3c5101f7fea6df7229b1b7d3d49c8e35f2746ac278230a092",
+  "openbb_federal_reserve/models/regional/dallas_igrea.py": "706ff34a9c00418ddf0579f0346e76ff45a954b0cf377a70c352232a9cc30c08",
+  "openbb_government_us/usda/utils/ers_vegetables_and_pulses.py": "7aeb969de09628421b3c172c3473f880986e466d6bcad8585987dc4e7a32c93c",
+  "openbb_government_us/usda/utils/ers_livestock_and_meat_domestic_data.py": "64e82b7ba2c279f97c6954b8b5c9b174fb878cd32d8f67ca6a1812deea7c8670",
+  "openbb_government_us/usda/utils/ers_farm_household_income_and_characteristics.py": "9c9bb8bc197a628fa07c26e7469325b646c0c31fe73c7b6ea57b7fc082ad1184"
 }
