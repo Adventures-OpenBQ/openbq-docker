@@ -4,7 +4,6 @@ import json
 import os
 import sys
 import unittest
-from types import SimpleNamespace
 from unittest import mock
 
 import httpx
