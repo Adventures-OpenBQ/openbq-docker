@@ -4,5 +4,8 @@
   "commit": "01fcd64852d9cf8a79fdd52ee592c4a55d5baccc",
   "version": "3.0.0",
   "sdk": "yfinance==1.7.0",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "local_changes": [
+    "openbq_yfinance/client.py: on HTTP 401, replace yfinance's in-memory session and retry once (Yahoo expires a long-running process's session)"
+  ]
 }

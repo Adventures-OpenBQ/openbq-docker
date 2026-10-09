@@ -39,4 +39,29 @@ assert r.status_code == 200, r.text
 assert r.json()['results'][0]['value'] == 100
 assert r.json()['results'][1]['value'] is None
 assert obb.yfinance.equity.historical(symbol='AAPL').results[0].close == 11
-print('PASS: original yfinance V5 extension, four example widgets, historical prices and long-form statement/null handling')
+# A 401 gets one retry on a fresh SDK session; other errors are not retried.
+import asyncio
+from yfinance.data import YfData
+from openbq_yfinance import client as yclient
+class Unauthorized(Exception):
+    response = type('R', (), {'status_code': 401})()
+before = YfData()._session
+attempts = []
+def flaky():
+    attempts.append(1)
+    if len(attempts) == 1:
+        raise Unauthorized('HTTP Error 401: ')
+    return 'ok'
+assert asyncio.run(yclient.call(flaky)) == 'ok' and len(attempts) == 2
+assert YfData()._session is not before and YfData()._crumb is None
+attempts.clear()
+def broken():
+    attempts.append(1)
+    raise ValueError('HTTP Error 500: ')
+try:
+    asyncio.run(yclient.call(broken))
+except Exception as exc:
+    assert 'Yahoo Finance request failed' in str(exc) and len(attempts) == 1
+else:
+    raise AssertionError('a non-401 failure must not be retried')
+print('PASS: original yfinance V5 extension, four example widgets, historical prices, long-form statement/null handling and 401 session reset')
