@@ -75,8 +75,9 @@ class ExceptionHandlers:
                     detail=errors.args,
                 )
             # Required parameters are missing and is not handled by ValidationError.
-            if isinstance(errors, Iterable) and _is_query_model(
-                getattr(error, "title", "")
+            title = getattr(error, "title", "")
+            if isinstance(errors, Iterable) and (
+                "QueryParams" in title or _is_query_model(title)
             ):
                 for err in errors:
                     if err.get("type") == "missing":
