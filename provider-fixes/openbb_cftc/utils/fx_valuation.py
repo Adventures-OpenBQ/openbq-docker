@@ -384,8 +384,10 @@ def _peer_curve(fx_records: Iterable[dict], trade: dict, curve_date: dateType, m
     own = view["by_id"].get(trade["dissemination_identifier"], [])
     anchor = _median_without(view["rates"], [view["candidates"][i][1]["rate"] for i in own])
 
+    key = (trade["pair"], anchor, tuple(own))
+
     if anchor is None:
-        return {"nodes": [], "spot": None, "cip_near": None}
+        return {"nodes": [], "spot": None, "cip_near": None, "key": key}
 
     anchored = _anchored(view, anchor)
     removed: dict[int, list[float]] = {}
@@ -418,7 +420,7 @@ def _peer_curve(fx_records: Iterable[dict], trade: dict, curve_date: dateType, m
         return _median_without(anchored["near"][low], out)
 
     spot = near(3) if any(3 <= d <= 9 for d, _ in nodes) else (nodes[0][1] if nodes else None)
-    return {"nodes": nodes, "spot": spot, "cip_near": near(0)}
+    return {"nodes": nodes, "spot": spot, "cip_near": near(0), "key": key}
 
 
 def _cip_market(
@@ -428,6 +430,7 @@ def _cip_market(
     curve_date: dateType,
     min_trades: int,
     memo: dict,
+    key: tuple | None = None,
 ) -> dict | None:
     """Both legs' curves and a covered-interest-parity forward, when prints are sparse."""
     if near_spot is None:
@@ -449,7 +452,7 @@ def _cip_market(
     def forward(years: float, _s=spot, _b=df_base, _q=df_quote) -> float:
         return _s * _b(years) / _q(years)
 
-    return {"spot": spot, "forward": forward, "df_base": df_base, "df_quote": df_quote}
+    return {"spot": spot, "forward": forward, "df_base": df_base, "df_quote": df_quote, "key": key}
 
 
 def fx_market(
@@ -468,9 +471,10 @@ def fx_market(
     memo = {} if memo is None else memo
     curve = _peer_curve(fx_records, trade, curve_date, memo)
     nodes = curve["nodes"]
+    key = (*curve["key"], min_trades)
 
     if len(nodes) < MIN_FORWARD_NODES:
-        return _cip_market(curve["cip_near"], rates_records, trade, curve_date, min_trades, memo)
+        return _cip_market(curve["cip_near"], rates_records, trade, curve_date, min_trades, memo, key)
 
     spot = curve["spot"]
     days = [node[0] for node in nodes]
@@ -492,7 +496,7 @@ def fx_market(
         return rate_low + weight * (rate_high - rate_low)
 
     if spot is None or spot <= 0.0:
-        return _cip_market(curve["cip_near"], rates_records, trade, curve_date, min_trades, memo)
+        return _cip_market(curve["cip_near"], rates_records, trade, curve_date, min_trades, memo, key)
 
     df_base = _discount_for(rates_records, trade["base"], curve_date, min_trades, memo)
 
@@ -511,7 +515,8 @@ def fx_market(
 
         df_base = _base_df
 
-    return {"spot": spot, "forward": forward, "df_base": df_base, "df_quote": df_quote}
+    # key: equal keys mean equal markets (same pair, anchor and left-out prints).
+    return {"spot": spot, "forward": forward, "df_base": df_base, "df_quote": df_quote, "key": key}
 
 
 def value_fx_forward(trade: dict, market: dict) -> dict:
@@ -548,17 +553,28 @@ def option_vol(
         return None
 
     memo = {} if memo is None else memo
-    options = extract_vanilla_options(
-        _pair_subset(fx_records, trade, memo),
-        trade["base"],
-        trade["quote"],
-        curve_date,
-        market["spot"],
-        family=family,
-    )
-    priced = price_options(
-        options, market["spot"], market["df_quote"], market["df_base"]
-    )
+    # OpenBQ: the priced options depend only on the market and the family, and
+    # option prints never enter the forward curve, so every option print of a
+    # pair shares one market. Price the family once per market instead of once
+    # per print (upstream re-extracted and re-implied every option each time).
+    cache = ("fx-optvol", market["key"], family) if market.get("key") else None
+
+    if cache is not None and cache in memo:
+        priced = memo[cache]
+    else:
+        options = extract_vanilla_options(
+            _pair_subset(fx_records, trade, memo),
+            trade["base"],
+            trade["quote"],
+            curve_date,
+            market["spot"],
+            family=family,
+        )
+        priced = price_options(
+            options, market["spot"], market["df_quote"], market["df_base"]
+        )
+        if cache is not None:
+            memo[cache] = priced
 
     if not priced:
         return None
