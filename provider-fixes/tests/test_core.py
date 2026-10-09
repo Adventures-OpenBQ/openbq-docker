@@ -12,10 +12,17 @@ from pydantic import BaseModel
 
 from openbb_core.api.app_loader import AppLoader
 from openbb_core.app.model.abstract.error import OpenBBError
+from openbb_core.provider.abstract.query_params import QueryParams
 
 
-class ItemQueryParams(BaseModel):
+class ItemQueryParams(QueryParams):
     limit: int
+    symbol: str
+
+
+class BalanceQuery(QueryParams):
+    """Named like openbq-yfinance's query models: no "QueryParams" in the title."""
+
     symbol: str
 
 
@@ -48,6 +55,10 @@ def _app() -> FastAPI:
     async def query_params(request: Request):
         return ItemQueryParams(**request.query_params)
 
+    @app.get("/balance")
+    async def balance(request: Request):
+        return BalanceQuery(**request.query_params)
+
     @app.get("/widgets.json")
     async def widgets():
         return {}
@@ -70,6 +81,11 @@ class ErrorMappingTest(unittest.TestCase):
     def test_missing_field_is_422(self):
         # A provider QueryParams missing a required field: not in the query string.
         response = _get(self.app, "/query_params?limit=1")
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(response.json()["detail"]["type"], "missing")
+
+    def test_missing_field_of_any_query_model_is_422(self):
+        response = _get(self.app, "/balance")
         self.assertEqual(response.status_code, 422, response.text)
         self.assertEqual(response.json()["detail"]["type"], "missing")
 
