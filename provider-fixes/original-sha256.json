@@ -13,5 +13,7 @@
   "openbb_federal_reserve/models/institution_structure.py": "bb5e52a465ff4b76c23202fe2e8885db97ea75f118ef103cf3b72960a2722e0e",
   "openbb_federal_reserve/assets/ffiec/widgets.json": "4566b285ee5153a512ca80ae2a2e1e9458f01ff8fef0bf0de3181f0cc5e5b011",
   "openbb_core/api/router/commands.py": "d3b8b965b374f8168d95a0ce329fb0870601018c95f6dce4d9b3ae6d0f42d89a",
-  "openbb_cftc/utils/fx_valuation.py": "e0817d33b9b0acb7bc9e69b7bcb6b39d6d79831f15bc1d4a37dc60b9941901d9"
+  "openbb_cftc/utils/fx_valuation.py": "e0817d33b9b0acb7bc9e69b7bcb6b39d6d79831f15bc1d4a37dc60b9941901d9",
+  "openbb_core/api/exception_handlers.py": "97852b2865b550735a183367e3a2b7b704e4412f2d9641da063f30b706cd60ed",
+  "openbb_core/app/provider_interface.py": "b639e58956979d72db2c8122628a9dd2e6e183ed72cc5b3070ecf291cdb83870"
 }
