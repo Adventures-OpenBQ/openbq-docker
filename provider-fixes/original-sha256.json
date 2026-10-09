@@ -33,5 +33,6 @@
   "openbb_federal_reserve/models/regional/kansas_city_ag_rates.py": "57995efc290f586d29a0356577ae3d5a768245f2df8fe9e6ad1dbb7e09fc55a7",
   "openbb_federal_reserve/models/regional/kansas_city_ag_finance.py": "8e0c1a78aeb4183a7c91d8ed9d9e84084f1fa808d31a5f53365add44efa5773f",
   "openbb_us_eia/eia_router.py": "5e34022b0085c74fa36c835084857884b69d7132ea4389b53a851f4bb70a8b0e",
-  "openbb_tmx/routers/equity.py": "2dc08ad4738b2bdff2d402608e0600a10dd75c7dea9a650411eeb14c248680ff"
+  "openbb_tmx/routers/equity.py": "2dc08ad4738b2bdff2d402608e0600a10dd75c7dea9a650411eeb14c248680ff",
+  "openbb_core/api/app_loader.py": "ca9b4b2b7ce6ca37f59a18d77eaf62c9014ccaaa951af8b863aacdad04a831a4"
 }

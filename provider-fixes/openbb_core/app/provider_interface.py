@@ -325,11 +325,12 @@ class ProviderInterface(metaclass=SingletonMeta):
                 default = None
                 # The route is shared by providers, so it stays optional; this
                 # provider's widget still marks the input required.
-                widget = choices.setdefault(provider_name, {})
-                widget["x-widget_config"] = {
-                    "optional": False,
-                    **(widget.get("x-widget_config") or {}),
-                }
+                if query:
+                    widget = choices.setdefault(provider_name, {})
+                    widget["x-widget_config"] = {
+                        "optional": False,
+                        **(widget.get("x-widget_config") or {}),
+                    }
             else:
                 default = ...
         else:

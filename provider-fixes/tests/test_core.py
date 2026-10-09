@@ -22,6 +22,10 @@ class ItemQueryParams(BaseModel):
     symbol: str
 
 
+class ItemData(BaseModel):
+    symbol: str
+
+
 def _app() -> FastAPI:
     """A small app with the overlay's handlers, registered the way openbb-core does."""
     app = FastAPI()
@@ -34,6 +38,10 @@ def _app() -> FastAPI:
     @app.get("/non_json")
     async def non_json():
         json.loads("<html>blocked</html>")
+
+    @app.get("/data")
+    async def data():
+        return ItemData()
 
     @app.get("/openbb")
     async def openbb():
@@ -58,11 +66,11 @@ def _app() -> FastAPI:
     return app
 
 
-def _get(app: FastAPI, url: str) -> httpx.Response:
+def _get(app: FastAPI, url: str, **kwargs) -> httpx.Response:
     async def run():
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
         async with httpx.AsyncClient(transport=transport, base_url="http://t") as client:
-            return await client.get(url)
+            return await client.get(url, **kwargs)
 
     return asyncio.run(run())
 
@@ -93,7 +101,13 @@ class ErrorMappingTest(unittest.TestCase):
     def test_non_json_is_502(self):
         response = _get(self.app, "/non_json")
         self.assertEqual(response.status_code, 502, response.text)
-        self.assertIn("non-JSON", response.json()["detail"])
+        self.assertEqual(response.json()["detail"],
+                         "The data source returned a response that is not valid JSON.")
+
+    def test_missing_data_field_stays_500(self):
+        # Upstream dropped a key from a provider Data model: not the client's input.
+        response = _get(self.app, "/data")
+        self.assertEqual(response.status_code, 500, response.text)
 
     def test_openbb_error_still_400(self):
         response = _get(self.app, "/openbb")
@@ -102,13 +116,21 @@ class ErrorMappingTest(unittest.TestCase):
 
 class DeadlineTest(unittest.TestCase):
     def test_defaults(self):
-        from openbb_core.app.command_runner import _deadline
+        from openbb_core.app import command_runner
 
-        with mock.patch.dict(os.environ, {}, clear=True):
-            self.assertEqual((_deadline("cftc"), _deadline("fred")), (90, 55))
+        def deadlines(env):
+            with mock.patch.dict(command_runner._DEADLINES, command_runner._read_deadlines(env), clear=True):
+                return command_runner._deadline("cftc"), command_runner._deadline("fred")
+
+        self.assertEqual(deadlines({}), (90, 55))
+        self.assertEqual(deadlines({"OPENBQ_COMMAND_TIMEOUT": ""}), (90, 55))
+        self.assertEqual(deadlines({"OPENBQ_COMMAND_TIMEOUT": "30"}), (90, 30))  # CFTC keeps its 90
         env = {"OPENBQ_COMMAND_TIMEOUT": "30", "OPENBQ_COMMAND_TIMEOUT_CFTC": "120"}
-        with mock.patch.dict(os.environ, env, clear=True):
-            self.assertEqual((_deadline("cftc"), _deadline("fred")), (120, 30))
+        self.assertEqual(deadlines(env), (120, 30))
+        for bad in ("abc", "0", "-5", "nan"):
+            for name in ("OPENBQ_COMMAND_TIMEOUT", "OPENBQ_COMMAND_TIMEOUT_FRED"):
+                with self.assertRaisesRegex(RuntimeError, name):
+                    command_runner._read_deadlines({name: bad})
 
     def test_timeout_releases_the_cftc_lock(self):
         async def sleeper(**_):
@@ -129,7 +151,9 @@ class DeadlineTest(unittest.TestCase):
             self.assertEqual(await StaticCommandRunner._command(quick, cftc), "ok")
             self.assertLess(time.monotonic() - started, 2)
 
-        with mock.patch.dict(os.environ, {"OPENBQ_COMMAND_TIMEOUT_CFTC": "1"}):
+        from openbb_core.app import command_runner
+
+        with mock.patch.dict(command_runner._DEADLINES, {"cftc": 1.0}):
             asyncio.run(run())
 
     def test_default_deadline_is_504_and_server_keeps_answering(self):
@@ -148,8 +172,9 @@ class DeadlineTest(unittest.TestCase):
                     await asyncio.sleep(1)
                 return (await slow), time.monotonic() - started, polls
 
-        env = {k: v for k, v in os.environ.items() if not k.startswith("OPENBQ_COMMAND_TIMEOUT")}
-        with mock.patch.dict(os.environ, env, clear=True):
+        from openbb_core.app import command_runner
+
+        with mock.patch.dict(command_runner._DEADLINES, {"cftc": 90.0}, clear=True):
             response, seconds, polls = asyncio.run(run())
         print(f"\n/slow -> {response.status_code} after {seconds:.1f} s; "
               f"{len(polls)} /widgets.json polls, max {max(s for _, s in polls):.2f} s", file=sys.stderr)
@@ -177,6 +202,17 @@ class SharedRouteTest(unittest.TestCase):
         self.assertIsNone(default.default)  # the route stays optional
         self.assertEqual(default.json_schema_extra, {"a": {"x-widget_config": {"optional": False}}})
 
+    def test_required_data_field_gets_no_widget_stamp(self):
+        from pydantic.fields import FieldInfo
+        from openbb_core.app.provider_interface import ProviderInterface
+
+        _, extra = ProviderInterface._extract_data({
+            "openbb": {"Data": {"fields": {}}},
+            "a": {"Data": {"fields": {"value": FieldInfo(annotation=float)}}},
+        })
+        _, _, default = extra["value"]
+        self.assertFalse(default.json_schema_extra, default.json_schema_extra)
+
 
 class InstalledRoutesTest(unittest.TestCase):
     """The real app built from the installed pinned extensions."""
@@ -193,6 +229,19 @@ class InstalledRoutesTest(unittest.TestCase):
         self.assertEqual(response.status_code, 422, response.text)
         detail = response.json()["detail"]
         self.assertEqual((detail["type"], detail["loc"]), ("missing", ["code"]))
+
+    def test_timeout_and_non_json_keep_cors_headers(self):
+        # rest_api adds CORSMiddleware with the default allow_origins ["*"].
+        from openbb_core.app.command_runner import StaticCommandRunner as Runner
+
+        url = "/api/v1/cftc/cot?provider=cftc&code=045601"
+        for raised, status in ((TimeoutError("slow"), 504), (json.JSONDecodeError("x", "<html>", 0), 502)):
+            with mock.patch.object(Runner, "_command", side_effect=raised):
+                response = _get(self.app, url, headers={"Origin": "https://example.com"})
+            self.assertEqual(response.status_code, status, response.text)
+            self.assertEqual(response.headers.get("access-control-allow-origin"), "*")
+        response = _get(self.app, "/api/v1/cftc/cot?provider=cftc", headers={"Origin": "https://example.com"})
+        self.assertEqual((response.status_code, response.headers.get("access-control-allow-origin")), (422, "*"))
 
     def test_required_provider_inputs_are_not_optional(self):
         from openbb_core.app.provider_interface import ProviderInterface

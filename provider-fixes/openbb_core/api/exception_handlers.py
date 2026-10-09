@@ -48,8 +48,7 @@ class ExceptionHandlers:
             return await ExceptionHandlers._handle(
                 exception=error,
                 status_code=502,
-                detail="The upstream data source returned a non-JSON response"
-                " (it may be blocking requests).",
+                detail="The data source returned a response that is not valid JSON.",
             )
         errors = error.errors if hasattr(error, "errors") else error
         if callable(errors):
@@ -63,7 +62,9 @@ class ExceptionHandlers:
                     detail=errors.args,
                 )
             # Required parameters are missing and is not handled by ValidationError.
-            if isinstance(errors, Iterable):
+            if isinstance(errors, Iterable) and "QueryParams" in getattr(
+                error, "title", ""
+            ):
                 for err in errors:
                     if err.get("type") == "missing":
                         return await ExceptionHandlers._handle(

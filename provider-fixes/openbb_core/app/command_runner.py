@@ -262,18 +262,34 @@ _PROVIDER_LOOPS_LOCK = threading.Lock()
 # shard corrupt it.
 _ONE_AT_A_TIME = {"cboe": asyncio.Lock(), "cftc": asyncio.Lock()}
 
-# Seconds a command may run: OPENBQ_COMMAND_TIMEOUT_<PROVIDER>, else
-# OPENBQ_COMMAND_TIMEOUT, else 55, or 90 for CFTC (forex swap_trades takes ~70).
-_DEADLINES = {"cftc": 90.0}
+def _read_deadlines(environ) -> dict[str, float]:
+    """Read OPENBQ_COMMAND_TIMEOUT[_<PROVIDER>] once, failing at startup on a bad value."""
+    deadlines = {"cftc": 90.0}  # forex swap_trades takes ~70 s
+    for name, value in environ.items():
+        if value and (
+            name == "OPENBQ_COMMAND_TIMEOUT"
+            or name.startswith("OPENBQ_COMMAND_TIMEOUT_")
+        ):
+            try:
+                seconds = float(value)
+            except ValueError:
+                seconds = 0.0
+            if not seconds > 0:  # also rejects nan
+                raise RuntimeError(
+                    f"{name}={value!r} must be a positive number of seconds."
+                )
+            deadlines[name[len("OPENBQ_COMMAND_TIMEOUT_") :].lower()] = seconds
+    return deadlines
+
+
+# Seconds a command may run: OPENBQ_COMMAND_TIMEOUT_<PROVIDER>, else the
+# provider's built-in deadline, else OPENBQ_COMMAND_TIMEOUT, else 55.
+_DEADLINES = _read_deadlines(os.environ)
 
 
 def _deadline(key: str) -> float:
     """Return the provider's command deadline in seconds."""
-    return float(
-        os.environ.get(f"OPENBQ_COMMAND_TIMEOUT_{key.upper()}")
-        or os.environ.get("OPENBQ_COMMAND_TIMEOUT")
-        or _DEADLINES.get(key, 55.0)
-    )
+    return _DEADLINES.get(key, _DEADLINES.get("", 55.0))
 
 
 def _provider_loop(name: str) -> tuple[str, asyncio.AbstractEventLoop]:
