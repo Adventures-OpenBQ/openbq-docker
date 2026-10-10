@@ -94,6 +94,24 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
         again = await self.client.get("/api/v1/cftc/echo")
         self.assertEqual((again.status_code, again.json()["pid"]), (200, pid))
 
+    async def test_a_worker_that_never_finishes_starting_is_replaced(self):
+        self.make(startup=60, deadline=1.0, startup_limit=2.0)
+        hung = self.lane.proc.pid
+        await self.client.get("/api/v1/cftc/echo")  # 503: still starting, too young to replace
+        self.assertEqual(self.lane.restarts, 0)
+        await asyncio.sleep(1.5)
+        await self.client.get("/api/v1/cftc/echo")  # past the startup limit: replaced
+        self.assertEqual(self.lane.restarts, 1)
+        self.assertNotEqual(self.lane.proc.pid, hung)
+
+    async def test_the_worker_is_asked_for_an_unencoded_body_unless_the_client_says_otherwise(self):
+        self.make()
+        request = self.client.build_request("GET", "/api/v1/cftc/echo")
+        del request.headers["accept-encoding"]
+        self.assertEqual((await self.client.send(request)).json()["accept-encoding"], "identity")
+        asked = await self.client.get("/api/v1/cftc/echo", headers={"accept-encoding": "gzip"})
+        self.assertEqual(asked.json()["accept-encoding"], "gzip")
+
     async def test_a_second_call_queues_behind_the_first(self):
         self.make()
         await self.client.get("/api/v1/cftc/echo")  # lane up

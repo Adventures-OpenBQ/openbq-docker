@@ -11,7 +11,8 @@ waits on a socket.
 - One request at a time; the rest queue, up to OPENBQ_LANE_QUEUE_MAX, else 503.
 - Past OPENBQ_LANE_DEADLINE seconds (queue wait included) the lane is killed,
   the request gets 504, and the lane is respawned. A worker still starting is
-  never killed; the request gets 503 instead.
+  never killed; the request gets 503 instead, unless it has been starting for
+  over OPENBQ_LANE_STARTUP_LIMIT seconds (180), when it is replaced.
 - A lane over OPENBQ_LANE_RSS_MB after a call is restarted while idle.
 - A response over OPENBQ_MAX_RESULT_BYTES is refused with 413.
 - OPENBQ_ISOLATE lists the path prefixes; set it empty to run everything in
@@ -68,10 +69,13 @@ class Lane:
     """One worker process serving the allowlisted routes one request at a time."""
 
     def __init__(self, command, socket, prefixes, deadline=165.0, queue_max=16,
-                 rss_mb=3584.0, max_bytes=256 << 20, shard_dir=None, name="heavy"):
+                 rss_mb=3584.0, max_bytes=256 << 20, shard_dir=None, name="heavy",
+                 startup_limit=180.0):
         self.command, self.socket, self.prefixes = command, socket, prefixes
         self.deadline, self.queue_max, self.rss_mb = deadline, queue_max, rss_mb
         self.max_bytes, self.shard_dir, self.name = max_bytes, shard_dir, name
+        self.startup_limit = startup_limit
+        self.spawned_at = 0.0
         self.proc = None
         self.lock = asyncio.Lock()
         self.waiting = 0
@@ -92,6 +96,7 @@ class Lane:
             os.remove(self.socket)
         os.makedirs(os.path.dirname(self.socket), exist_ok=True)
         self.proc = subprocess.Popen(self.command, env={**os.environ, "OPENBQ_ROLE": "worker"})
+        self.spawned_at = time.monotonic()
         log.info("OpenBQ lane %s: worker pid %s starting", self.name, self.proc.pid)
 
     def stop(self):
@@ -99,11 +104,11 @@ class Lane:
             self.proc.kill()
             self.proc.wait()
 
-    def _restart(self, reason: str):
+    async def _restart(self, reason: str):
+        """Kill and respawn off the server loop: reaping a worker stuck in I/O can block."""
         self.last_kill = {"reason": reason, "pid": self.proc.pid if self.proc else None, "at": time.time()}
-        self.stop()
         self.restarts += 1
-        self.start()
+        await asyncio.get_running_loop().run_in_executor(None, lambda: (self.stop(), self.start()))
 
     async def _ready(self):
         """Wait until the worker accepts connections (any HTTP answer will do)."""
@@ -167,7 +172,10 @@ class Lane:
         started, outcome, size, status = time.monotonic(), "ok", 0, 0
         try:
             if self.proc is None or self.proc.poll() is not None:
-                self._restart("worker exited")
+                await self._restart("worker exited")
+            elif (self._ready_pid != self.proc.pid
+                  and time.monotonic() - self.spawned_at > self.startup_limit):
+                await self._restart(f"not started within {self.startup_limit:g} s")
             try:
                 status, headers, data = await asyncio.wait_for(
                     self._exchange(request, body), until - time.monotonic()
@@ -179,11 +187,11 @@ class Lane:
                     outcome = "starting-503"
                     return self._error(503, "The heavy-route worker is still starting.")
                 outcome = "killed-504"
-                self._restart("deadline")
+                await self._restart("deadline")
                 return self._error(504, f"The request did not finish within {self.deadline:g} seconds.")
             except httpx.TransportError:
                 outcome = "died-502"
-                self._restart("worker died")
+                await self._restart("worker died")
                 return self._error(502, "The heavy-route worker died during the request; it has been restarted.")
             if data is None:
                 outcome = "too-large-413"
@@ -203,7 +211,7 @@ class Lane:
                     queued * 1000, (time.monotonic() - started) * 1000, size, pid, rss,
                 )
                 if outcome == "ok" and rss > self.rss_mb:
-                    self._restart(f"rss {rss:.0f} MB over {self.rss_mb:g} MB")
+                    await self._restart(f"rss {rss:.0f} MB over {self.rss_mb:g} MB")
             finally:
                 self.lock.release()
 
@@ -211,6 +219,8 @@ class Lane:
         """Send the raw request to the worker; return (status, headers, body or None if too large)."""
         await self._ready()
         headers = [(k, v) for k, v in request.headers.raw if k.lower() not in _HOP]
+        if b"accept-encoding" not in (k.lower() for k, _ in headers):
+            headers.append((b"accept-encoding", b"identity"))  # not httpx's own gzip default
         url = request.url.path + (f"?{request.url.query}" if request.url.query else "")
         async with self._http().stream(request.method, url, headers=headers, content=body) as response:
             if int(response.headers.get("content-length", 0)) > self.max_bytes:
@@ -265,6 +275,7 @@ if os.environ.get("OPENBQ_ROLE") != "worker" and _prefixes:
         rss_mb=float(os.environ.get("OPENBQ_LANE_RSS_MB", 3584)),
         max_bytes=int(os.environ.get("OPENBQ_MAX_RESULT_BYTES", 256 << 20)),
         shard_dir=_shard_dir(),
+        startup_limit=float(os.environ.get("OPENBQ_LANE_STARTUP_LIMIT", 180)),
     )
     LANE.start()  # eagerly: its platform import overlaps the API's own
     atexit.register(LANE.stop)

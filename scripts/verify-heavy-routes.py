@@ -7,7 +7,8 @@ TMX covered calls stay in process. Passes when every probe answers 200 within
 a 5 MB document built per request, already takes 1-2.5 s on a busy 4-CPU Mac.)
 OECD is warmed first: its first call builds a ~1.5 GB metadata singleton in the
 API process and pauses the loop once for 1.5-2.6 s, and OECD stays in process
-by ruling (D8 Q5).
+by ruling (D8 Q5). Start it once the lane worker is up too (the API log shows
+"Application startup complete" twice): its ~30 s import competes for the CPUs.
 """
 import argparse
 import json

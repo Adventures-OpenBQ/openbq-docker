@@ -14,7 +14,8 @@ _hoard = []
 @app.api_route("/api/v1/cftc/echo", methods=["GET", "POST"])
 async def echo(request: Request):
     return {"pid": os.getpid(), "query": str(request.url.query),
-            "body": (await request.body()).decode(), "x-test": request.headers.get("x-test")}
+            "body": (await request.body()).decode(), "x-test": request.headers.get("x-test"),
+            "accept-encoding": request.headers.get("accept-encoding")}
 
 
 @app.get("/api/v1/cftc/spin")
