@@ -1,3 +1,7 @@
+# Derived from the OpenBB Platform (https://github.com/OpenBB-finance/OpenBB),
+# Copyright (c) 2021-2026 OpenBB Inc., licensed under the Apache License, Version 2.0.
+# Modifications Copyright 2026 SecretoftheUniverse.com LLC.
+# SPDX-License-Identifier: Apache-2.0
 """Exception handlers module."""
 
 import json

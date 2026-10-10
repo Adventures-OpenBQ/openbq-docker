@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 # Read by openbb-api from its working directory (/workspace).
 [middleware]
 # BDOBB key-mode user settings (GET /pro/user, POST /pro/display-settings), then

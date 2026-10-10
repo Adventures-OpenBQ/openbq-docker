@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """Run heavy OpenBB routes in a worker process the API can kill (OpenBQ D8).
 
 CFTC and FINRA bond routes do CPU-bound work and build 40-400 MB responses.

@@ -1,4 +1,6 @@
 #!/bin/sh
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 # Run the overlay's unit tests against the pristine pinned packages (Dockerfile.v3 stage `odp`).
 set -eu
 cd "$(git rev-parse --show-toplevel)"

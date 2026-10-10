@@ -1,3 +1,5 @@
+<!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. SPDX-License-Identifier: Apache-2.0 -->
+
 # Episode 3 — OpenBQ reference backend
 
 This is a separate FastAPI container built from OpenBQ's reference backend at

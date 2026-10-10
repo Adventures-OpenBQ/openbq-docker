@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
 pinned=be00e95019a55d57af146919ee46b7e1a4859226
 source_dir="$(cd "${1:?Usage: assemble.sh CHECKOUT_PATH}" && pwd -P)"

@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """Extend the real OpenBQ reference application with the Episode 3 fixtures."""
 import os
 from fastapi import APIRouter
