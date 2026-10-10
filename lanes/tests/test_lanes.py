@@ -10,8 +10,8 @@ import unittest
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 
 os.environ["OPENBQ_ROLE"] = "worker"  # importing the module must not spawn the production lane
 sys.path.insert(0, str(Path(__file__).parents[1]))
@@ -21,7 +21,7 @@ FAKE = [sys.executable, str(Path(__file__).with_name("fake_worker.py"))]
 
 
 class LaneTest(unittest.IsolatedAsyncioTestCase):
-    def make(self, startup=0, **options):
+    def make(self, startup=0, cors=None, **options):
         self.tmp = tempfile.mkdtemp()
         sock = os.path.join(self.tmp, "lane.sock")
         options.setdefault("deadline", 20.0)
@@ -41,12 +41,13 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
             return {"build": self.builds}
 
         @app.get("/apps.json")
-        async def apps(request: Request):  # an app with an explicit CORS origin list echoes the caller
+        async def apps():
             self.builds += 1
-            origin = request.headers.get("origin", "")
-            return JSONResponse({"build": self.builds}, headers={"access-control-allow-origin": origin})
+            return {"build": self.builds}
 
-        app.middleware("http")(self.lane.handle)
+        if cors:
+            app.add_middleware(CORSMiddleware, allow_origins=cors)
+        app.middleware("http")(self.lane.handle)  # added last: outside CORS, as openbb-api registers hooks
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api", timeout=60)
         self.direct = httpx.AsyncClient(transport=httpx.AsyncHTTPTransport(uds=sock), base_url="http://api", timeout=60)
 
@@ -84,12 +85,32 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
         with_query = await self.client.get("/widgets.json?refresh=1")
         self.assertEqual(with_query.json(), {"build": 2})  # anything but the plain catalog is not cached
 
-    async def test_a_catalog_answered_for_one_origin_is_not_cached(self):
-        self.make()
+    async def test_a_browser_gets_cors_headers_from_a_catalog_cached_without_an_origin(self):
+        self.make(cors=["*"])
+        await self.client.get("/widgets.json")  # a probe without Origin builds the cache
+        browser = await self.client.get("/widgets.json", headers={"origin": "http://localhost:4443"})
+        self.assertEqual((browser.headers.get("access-control-allow-origin"), self.builds), ("*", 1))
+
+    async def test_a_cached_catalog_answers_each_origin_for_itself(self):
+        self.make(cors=["https://a.example", "https://b.example"])
         a = await self.client.get("/apps.json", headers={"origin": "https://a.example"})
         b = await self.client.get("/apps.json", headers={"origin": "https://b.example"})
-        self.assertEqual(b.headers["access-control-allow-origin"], "https://b.example")
-        self.assertEqual((a.json(), b.json()), ({"build": 1}, {"build": 2}))
+        c = await self.client.get("/apps.json", headers={"origin": "https://c.example"})
+        self.assertEqual(a.headers.get("access-control-allow-origin"), "https://a.example")
+        self.assertEqual(b.headers.get("access-control-allow-origin"), "https://b.example")
+        self.assertNotIn("access-control-allow-origin", c.headers)
+        self.assertEqual((b.json(), self.builds), ({"build": 1}, 1))
+
+    async def test_answers_made_by_the_lane_carry_cors_headers(self):
+        self.make(cors=["*"], max_bytes=1000)
+        origin = {"origin": "http://localhost:4443"}
+        refused = await self.client.get("/api/v1/cftc/big?n=2000", headers=origin)
+        status = await self.client.get("/openbq/lanes", headers=origin)
+        forwarded = await self.client.get("/api/v1/cftc/big?n=500", headers=origin)
+        self.assertEqual(refused.status_code, 413)
+        for response in (refused, status):
+            self.assertEqual(response.headers.get("access-control-allow-origin"), "*")
+        self.assertEqual(forwarded.status_code, 200)  # the worker's own answer passes through unchanged
 
     async def test_api_answers_while_the_lane_spins(self):
         self.make()
