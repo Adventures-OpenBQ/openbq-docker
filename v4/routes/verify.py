@@ -18,7 +18,7 @@ data = r.json()['data']
 assert data['Timezone'] == 'America/New_York'
 assert data['TradingHours'] == {'Open': '09:30:00', 'Close': '16:00:00', 'WorkingDays': 'Mon, Tue, Wed, Thu, Fri'}
 holidays = data['ExchangeHolidays']
-assert holidays['2026-07-03']['Type'] == 'Official'
+assert holidays['2026-07-03'] == {'Holiday': 'July 4th', 'Type': 'Official'}
 assert holidays['2026-11-27'] == {'Holiday': 'Early close', 'Type': 'EarlyClose', 'EarlyClose': '13:00:00'}
 assert holidays['2026-11-26']['Type'] == 'Official' and holidays['2026-12-24']['Type'] == 'EarlyClose'
 assert sum(h['Type'] == 'Official' for h in holidays.values()) == 10

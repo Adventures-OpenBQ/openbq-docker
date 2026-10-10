@@ -23,7 +23,7 @@ def _hhmmss(series: pd.Series, tz: str) -> pd.Series:
     return series.dt.tz_convert(tz).dt.strftime("%H:%M:%S")
 
 
-@lru_cache(maxsize=256)
+@lru_cache(maxsize=512)  # six client MICs x 51 years = 306 keys
 def build(mic: str, year: int) -> dict | None:
     """The EODHD v2 envelope for one exchange-year, or None when there is none."""
     if mic not in xc.get_calendar_names() or not 1990 <= year <= 2040:
