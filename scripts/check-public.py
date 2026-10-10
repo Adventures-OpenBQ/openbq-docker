@@ -12,13 +12,16 @@ def git(*args):
  return subprocess.check_output(['git',*args])
 
 def main():
- parser=argparse.ArgumentParser();parser.add_argument('--history',action='store_true');args=parser.parse_args()
+ parser=argparse.ArgumentParser();parser.add_argument('--history',nargs='*',metavar='REV',help='also scan history reachable from REVs (default: all refs)');args=parser.parse_args()
  patterns=[
   ('tailscale key',r'tskey-[A-Za-z0-9-]{10,}'),
   ('GitHub token',r'gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}'),
   ('private key',r'-----BEGIN [A-Z ]*PRIVATE KEY-----'),
   ('tailnet host',r'(?i)(?:[a-z0-9-]+\.)+[a-z0-9-]+\.ts\.net\b'),
-  ('private address',r'\b(?:100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])|192\.168|10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b'),
+  # 100.100.100.100 is Tailscale's fixed MagicDNS resolver on every tailnet (rita-resolv.conf), not a deployment detail.
+  ('private address',r'\b(?!100\.100\.100\.100\b)(?:100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])|192\.168|10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b'),
+  # Tailscale ULA addresses; the trailing hex digit keeps the bare prefix (a CIDR in docs) from matching.
+  ('tailnet IPv6',r'(?i)\bfd7a:115c:a1e0:[0-9a-f:]*[0-9a-f]\b'),
   ('local home',r'/Users/[A-Za-z0-9_.-]+/|/home/[A-Za-z0-9_.-]+/'),
   ('cloud key',r'AKIA[0-9A-Z]{16}'),
   ('tailnet node ID',r'\bn[A-Za-z0-9]{10,}CNTRL\b'),
@@ -56,8 +59,8 @@ def main():
   if not item:continue
   meta,name=item.split('\t',1);oid=meta.split()[1]
   scan('index:'+name,git('cat-file','blob',oid))
- if args.history:
-  objects=git('rev-list','--objects','--all').decode().splitlines()
+ if args.history is not None:
+  objects=git('rev-list','--objects',*(args.history or ['--all'])).decode().splitlines()
   for item in objects:
    oid,_,name=item.partition(' ')
    kind=git('cat-file','-t',oid).decode().strip()
@@ -66,7 +69,7 @@ def main():
     if Path(name).name=='.DS_Store':findings.append(('history:'+name,'machine metadata'))
  for label,name in sorted(set(findings)):print('FAIL:',label,'—',name)
  if findings:return 1
- print('PASS: public-content scan'+(' including reachable history' if args.history else ''))
+ print('PASS: public-content scan'+(' including reachable history' if args.history is not None else ''))
  return 0
 if __name__=='__main__':
  try:sys.exit(main())
