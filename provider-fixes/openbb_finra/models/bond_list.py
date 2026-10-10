@@ -10,6 +10,11 @@ from pydantic import Field
 from openbb_finra.models.bond_prices import FinraBondPricesData
 from openbb_finra.utils.constants import BondTypes
 
+# OpenBQ row cap: uncapped MBS is 1.5M rows, a 2 GB response and ~11-12 GB of server
+# memory. The cap bounds TRACE paging itself (max_rows); TRACE sorts by FINRA
+# security id, so a capped list is the first N bonds in id order, not a sample.
+ROW_CAPS: dict[str, int] = {"MBS": 250_000}
+
 
 class FinraBondListQueryParams(QueryParams):
     """FINRA Bond List Query."""
@@ -60,12 +65,24 @@ class FinraBondListFetcher(Fetcher[FinraBondListQueryParams, list[FinraBondListD
         )
         from openbb_finra.utils.client import trace_session
 
+        cap = ROW_CAPS.get(query.bond_type)
         filters = FinraBondPricesQueryParams(
-            bond_type=query.bond_type, include_matured=query.include_matured
+            bond_type=query.bond_type, include_matured=query.include_matured, limit=cap
         )
 
         async with trace_session() as trace:
             rows = await read_bonds(trace, filters, query.bond_type, [])
+
+        if cap and len(rows) >= cap:
+            from warnings import warn
+
+            from openbb_core.app.model.abstract.warning import OpenBBWarning
+
+            warn(
+                f"{query.bond_type} is capped at the first {cap:,} TRACE records"
+                + " (by FINRA security id).",
+                OpenBBWarning,
+            )
 
         values = distinct_bonds([rows])
 
