@@ -12,7 +12,7 @@ def git(*args):
  return subprocess.check_output(['git',*args])
 
 def main():
- parser=argparse.ArgumentParser();parser.add_argument('--history',action='store_true');args=parser.parse_args()
+ parser=argparse.ArgumentParser();parser.add_argument('--history',nargs='*',metavar='REV',help='also scan history reachable from REVs (default: all refs)');args=parser.parse_args()
  patterns=[
   ('tailscale key',r'tskey-[A-Za-z0-9-]{10,}'),
   ('GitHub token',r'gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}'),
@@ -59,8 +59,8 @@ def main():
   if not item:continue
   meta,name=item.split('\t',1);oid=meta.split()[1]
   scan('index:'+name,git('cat-file','blob',oid))
- if args.history:
-  objects=git('rev-list','--objects','--all').decode().splitlines()
+ if args.history is not None:
+  objects=git('rev-list','--objects',*(args.history or ['--all'])).decode().splitlines()
   for item in objects:
    oid,_,name=item.partition(' ')
    kind=git('cat-file','-t',oid).decode().strip()
@@ -69,7 +69,7 @@ def main():
     if Path(name).name=='.DS_Store':findings.append(('history:'+name,'machine metadata'))
  for label,name in sorted(set(findings)):print('FAIL:',label,'—',name)
  if findings:return 1
- print('PASS: public-content scan'+(' including reachable history' if args.history else ''))
+ print('PASS: public-content scan'+(' including reachable history' if args.history is not None else ''))
  return 0
 if __name__=='__main__':
  try:sys.exit(main())
