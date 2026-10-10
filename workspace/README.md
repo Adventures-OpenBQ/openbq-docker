@@ -14,6 +14,6 @@ patch -p1 < ../patches/003-runtime-healthcheck.patch
 
 The patch pins base images and uses the published Bun dependency lock instead of the absent npm lock. Build frontend first, then runtime, to avoid overlapping memory-heavy build stages. Source and build context are not a deployment success claim. See the series Episode 2 rehearsal report for measured results.
 
-Accounts, dashboards, application secrets and Redis state live in this service's `/data` volume. They are separate from ODP settings and from BDOBB. Do not commit state or generated startup credentials; the upstream entrypoint prints a password into logs.
+Run it from the repository root with `docker compose --profile workspace up -d`; without the profile only the ODP backend starts. Accounts, dashboards, application secrets and Redis state live in this service's `/data` volume (`openbq-episode2_workspace-data`, the name the former standalone `workspace/compose.yaml` project used, so existing accounts carry over). They are separate from ODP settings and from BDOBB. Do not commit state or generated startup credentials; the upstream entrypoint prints a password into logs.
 
 Privacy gates are installed with `git config core.hooksPath .githooks` from the repository root. Keep actual node domains, IDs, credential files and raw runtime logs in ignored `local-rehearsal/` records; publish placeholder-based instructions only.
