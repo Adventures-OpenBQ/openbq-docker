@@ -29,5 +29,27 @@ class FedViewerEmptySelectionTest(unittest.TestCase):
                     self.assertEqual((response.status_code, response.json()), (200, []))
 
 
+class UsdaWeatherBulletinEmptySelectionTest(unittest.TestCase):
+    def test_null_and_missing_urls_return_empty_list(self):
+        from fastapi.testclient import TestClient
+        from openbb_core.api.rest_api import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+        endpoint = "/api/v1/usda/weather_bulletins_download?provider=usda"
+        for body in ({"urls": None}, {}):
+            with self.subTest(body=body):
+                response = client.post(endpoint, json=body)
+                self.assertEqual((response.status_code, response.json()), (200, []))
+
+    def test_selected_urls_still_parse(self):
+        from openbb_government_us.usda.models.weather_bulletin_download import (
+            UsdaWeatherBulletinDownloadFetcher as Fetcher,
+        )
+
+        for urls in ("a.pdf,b.pdf", ["a.pdf", "b.pdf"], {"urls": ["a.pdf", "b.pdf"]}):
+            with self.subTest(urls=urls):
+                self.assertEqual(Fetcher.transform_query({"urls": urls}).urls, ["a.pdf", "b.pdf"])
+
+
 if __name__ == "__main__":
     unittest.main()
