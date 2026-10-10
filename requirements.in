@@ -22,3 +22,5 @@ openbb-news==2.0.0
 openbb-econometrics==2.0.0
 openbb-quantitative==2.0.0
 openbb-technical==2.0.1
+# v4 trading-calendar route (openbq_routes); already resolved in requirements.lock.
+exchange_calendars==4.13.2
