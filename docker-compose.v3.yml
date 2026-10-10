@@ -1,15 +1,23 @@
 # Optional Episode 3 services; use together with docker-compose.yml.
 services:
   openbq-api:
-    image: openbq-local:3.0.0-candidate
+    build:
+      context: .
+      dockerfile: Dockerfile.v3
+    image: openbq-local:3.0.0
   tailscale:
     environment:
       TS_SERVE_CONFIG: /config/serve-v3.json
   episode3-demo:
     build: ./examples/episode3
-    image: openbq-episode3-demo:3.0.0-candidate
+    image: openbq-episode3-demo:3.0.0
     restart: unless-stopped
-    networks: [openbq-internal]
+    env_file:
+      - path: ./v3.env
+        required: false
+    networks:
+      openbq-internal:
+        aliases: [openbq-reference]
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

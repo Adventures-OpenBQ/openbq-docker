@@ -1,7 +1,8 @@
 {
-  "repository": "https://github.com/artcashin/openbq-yfinance.git",
-  "commit": "de1683add95be57241e918e392fd30eb591ffe90",
-  "version": "0.1.0",
+  "repository": "https://github.com/Adventures-OpenBQ/openbq-yfinance.git",
+  "tag": "v3.0.0",
+  "commit": "4026b6c0a18a50c9c311a7bf4001e9ac8cdb7231",
+  "version": "3.0.0",
   "sdk": "yfinance==1.7.0",
   "license": "Apache-2.0"
 }

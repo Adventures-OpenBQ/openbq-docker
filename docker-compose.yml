@@ -21,6 +21,8 @@ services:
     build: .
     image: openbq-local:2.0.0-candidate
     restart: unless-stopped
+    # Hard cap: if the API outgrows it, the kernel kills the API, not the host's other services.
+    mem_limit: 16g
     env_file:
       - path: ./credentials.env
         required: false

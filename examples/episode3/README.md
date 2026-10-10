@@ -1,12 +1,13 @@
 # Episode 3 — OpenBQ reference backend
 
 This is a separate FastAPI container built from OpenBQ's reference backend at
-`a6293707576e16edda8305adda95b07b6a4b968b`, with the recorded CORS and
-Python-execution-widget fixes from our tested reference recipe. The upstream MIT
+`a6293707576e16edda8305adda95b07b6a4b968b`, with the recorded CORS and PDF
+fixes from our tested reference recipe. Omni code execution (SQL, Python) is
+off unless `OPENBQ_OMNI_EXEC_ALLOWED` lists the language, e.g. `sql` or `sql,python`. The upstream MIT
 license is retained; the series additions are Apache-2.0.
 
-It advertises two apps and **73 cards** through `/apps.json`: the 69-card reference
-app and four configured pivot examples. Its actual registry contains **71 widgets**: 69 reference widgets plus two fictional example widgets;
+It advertises two apps and **74 cards** through `/apps.json`: the 70-card reference
+app and four configured pivot examples. Its actual registry contains **72 widgets**: 70 reference widgets plus two fictional example widgets;
 repeated reference cards reuse widget IDs. Every advertised card resolves locally.
 Two widgets supply deterministic fictional prices and null-handling rows.
 
@@ -86,7 +87,8 @@ Python base is pinned by digest. This is a version lock, not a claim of byte-ide
 builds across dependency artifacts or Debian package repositories.
 
 The Docker build checks catalog resolution, representative reference routes,
-PDF, forms, WebSocket delivery, CORS, logo, and absence of Python execution. It
+PDF, forms, WebSocket delivery, CORS, logo, and that Omni code execution is
+refused unless allowed. It
 also imports the application as the actual non-root runtime UID. Native BDOBB
 quit/reopen, live Yahoo/SEC requests and private HTTPS acceptance are separate
 checks before a v3.0.0 release claim.

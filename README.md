@@ -60,6 +60,16 @@ docker compose exec -T openbq-api curl -fsS 'http://127.0.0.1:6900/api/v1/cboe/e
 
 `ts.env` must still exist, even if it contains an empty key. API-only startup does not prove HTTPS access.
 
+### Heavy routes
+
+CFTC (`/api/v1/cftc/*`) and FINRA bonds run in a second `openbb-api` process, the "heavy" lane (`lanes/openbq_lanes.py`), so their CPU work and 30–160 MB responses cannot stall `/widgets.json` or other routes. One request runs at a time and the rest queue. A request still running after 165 s gets 504 and the lane is restarted; a full queue, or a lane still starting, gets 503 with `Retry-After`; a result over 256 MB gets 413. `GET /openbq/lanes` shows the lane's pid, memory and restarts (behind the API's Basic auth when that is on, open otherwise). Settings (`credentials.env`): `OPENBQ_ISOLATE` (path prefixes; empty turns the lane off), `OPENBQ_LANE_DEADLINE`, `OPENBQ_LANE_QUEUE_MAX`, `OPENBQ_LANE_RSS_MB` (restart above, default 3584), `OPENBQ_LANE_STARTUP_LIMIT` (replace a worker still starting after this, default 180 s), `OPENBQ_MAX_RESULT_BYTES`. Check them with:
+
+```sh
+python3 scripts/verify-heavy-routes.py http://127.0.0.1:6900   # widgets.json keeps answering under load
+python3 scripts/verify-lane-contract.py LANE_URL IN_PROCESS_URL  # same answers with OPENBQ_ISOLATE empty
+docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:2.0.0 python -m unittest discover -s lanes/tests
+```
+
 ## Credentials and restart
 
 Optional vendor keys go in `credentials.env`, ignored by Git and excluded from the image. Use official variable names; no inline comments after empty values. Recreate the API after editing an environment file. Its settings and OpenBBUserData persist in separate named volumes; Tailscale identity persists in `ts-state/`.

@@ -61,21 +61,25 @@ _APPS_JSON = Path(__file__).parent / "assets" / "apps.json"
 async def tmx_apps() -> list:
     """Serve the bundled TMX dashboard template."""
     apps = json.loads(_APPS_JSON.read_text(encoding="utf-8"))
+    hidden = {"tmx_equity_screener_builder_obb"}  # needs pywry, not installed
     if not CHARTING_INSTALLED:
-        chart_ids = {
+        hidden |= {
             f"tmx_derivatives_options_{name}_custom_obb"
             for name in ("term_structure", "stats", "smile", "surface")
         }
-        for app in apps:
-            for tab in app.get("tabs", {}).values():
-                tab["layout"] = [
-                    widget
-                    for widget in tab.get("layout", [])
-                    if widget.get("i") not in chart_ids
+    for app in apps:
+        for tab in app.get("tabs", {}).values():
+            tab["layout"] = [
+                widget
+                for widget in tab.get("layout", [])
+                if widget.get("i") not in hidden
+            ]
+        app["tabs"] = {
+            name: tab for name, tab in app.get("tabs", {}).items() if tab["layout"]
+        }
+        for group in app.get("groups", []):
+            if "widgetIds" in group:
+                group["widgetIds"] = [
+                    wid for wid in group["widgetIds"] if wid not in hidden
                 ]
-            for group in app.get("groups", []):
-                if "widgetIds" in group:
-                    group["widgetIds"] = [
-                        wid for wid in group["widgetIds"] if wid not in chart_ids
-                    ]
     return apps
