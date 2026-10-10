@@ -8,7 +8,8 @@ import unittest
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 os.environ["OPENBQ_ROLE"] = "worker"  # importing the module must not spawn the production lane
 sys.path.insert(0, str(Path(__file__).parents[1]))
@@ -29,6 +30,19 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
         @app.get("/ping")
         async def ping():
             return {"ok": True}
+
+        self.builds = 0
+
+        @app.get("/widgets.json")
+        async def widgets():
+            self.builds += 1
+            return {"build": self.builds}
+
+        @app.get("/apps.json")
+        async def apps(request: Request):  # an app with an explicit CORS origin list echoes the caller
+            self.builds += 1
+            origin = request.headers.get("origin", "")
+            return JSONResponse({"build": self.builds}, headers={"access-control-allow-origin": origin})
 
         app.middleware("http")(self.lane.handle)
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api", timeout=60)
@@ -58,6 +72,22 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
         response = await self.client.options("/api/v1/cftc/echo")
         self.assertEqual(response.status_code, 404)  # the API's own answer: the test app has no such route
         self.assertEqual(self.lane.restarts, 0)  # a forwarded request would have respawned the lane
+
+    async def test_the_widget_catalog_is_built_once_and_then_served_as_is(self):
+        self.make()
+        first = await self.client.get("/widgets.json")
+        again = await self.client.get("/widgets.json")
+        self.assertEqual((first.json(), again.content, self.builds), ({"build": 1}, first.content, 1))
+        self.assertEqual(again.headers["content-type"], first.headers["content-type"])
+        with_query = await self.client.get("/widgets.json?refresh=1")
+        self.assertEqual(with_query.json(), {"build": 2})  # anything but the plain catalog is not cached
+
+    async def test_a_catalog_answered_for_one_origin_is_not_cached(self):
+        self.make()
+        a = await self.client.get("/apps.json", headers={"origin": "https://a.example"})
+        b = await self.client.get("/apps.json", headers={"origin": "https://b.example"})
+        self.assertEqual(b.headers["access-control-allow-origin"], "https://b.example")
+        self.assertEqual((a.json(), b.json()), ({"build": 1}, {"build": 2}))
 
     async def test_api_answers_while_the_lane_spins(self):
         self.make()
