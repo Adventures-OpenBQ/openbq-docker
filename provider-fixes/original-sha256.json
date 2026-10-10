@@ -28,5 +28,6 @@
   "openbb_nasdaq/models/calendar_splits.py": "86709a13be112b779ce90564e7034b88570d884311d058a5a0e264701b43d272",
   "openbb_sec/models/institutions_search.py": "7b956df6e68ad218c6ad64fc12e93795461ae603d058386feea8242dd6f78fb5",
   "openbb_tmx/routers/equity.py": "2dc08ad4738b2bdff2d402608e0600a10dd75c7dea9a650411eeb14c248680ff",
-  "openbb_us_eia/eia_router.py": "5e34022b0085c74fa36c835084857884b69d7132ea4389b53a851f4bb70a8b0e"
+  "openbb_us_eia/eia_router.py": "5e34022b0085c74fa36c835084857884b69d7132ea4389b53a851f4bb70a8b0e",
+  "openbb_government_us/usda/models/weather_bulletin_download.py": "b12ea04f2427a87d8c5cce94edb55882d715ac46a47b260f3de5bf9db0b64045"
 }
