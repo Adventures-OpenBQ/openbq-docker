@@ -39,6 +39,12 @@ from starlette.responses import JSONResponse, Response
 log = logging.getLogger("uvicorn.error")
 
 DEFAULT_ISOLATE = "/api/v1/cftc/,/api/v1/finra/fixedincome/bonds"
+# Fixed for the life of the process, yet rebuilt per request upstream: ~5 MB
+# of widgets JSON serialized on the server loop, and apps.json does that again
+# and then awaits 32 provider apps endpoints on their provider loops (TMX's
+# waits behind covered_calls). Under CPU contention each probe took seconds.
+# ponytail: edits to workspace_apps.json or widget settings need a restart.
+_CATALOGS = {"/widgets.json", "/apps.json"}
 # The response's own framing; the API sets its own.
 _HOP = {b"content-length", b"transfer-encoding", b"connection", b"keep-alive"}
 
@@ -84,6 +90,7 @@ class Lane:
         self._client = None
         self._monitor = None
         self._ready_pid = None
+        self.catalogs = {}
 
     # -- process -----------------------------------------------------------
 
@@ -147,6 +154,8 @@ class Lane:
             if not _authorized(request):
                 return JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"})
             return JSONResponse(self.status())
+        if request.method == "GET" and path in _CATALOGS and not request.url.query:
+            return await self._catalog(request, call_next)
         if (request.method == "OPTIONS" or path.endswith("_choices")
                 or not any(path.startswith(p) for p in self.prefixes)):
             return await call_next(request)
@@ -166,6 +175,24 @@ class Lane:
         # Shielded: a client that gives up does not cancel the call, so the
         # lane is never handed a second request while the first still runs.
         return await asyncio.shield(asyncio.ensure_future(self._run(request, body, until)))
+
+    async def _catalog(self, request, call_next):
+        """Serve /widgets.json and /apps.json from their first successful build."""
+        path = request.url.path
+        if path not in self.catalogs:
+            response = await call_next(request)
+            if response.status_code != 200:
+                return response
+            body = b"".join([chunk async for chunk in response.body_iterator])
+            headers = [h for h in response.raw_headers if h[0].lower() not in _HOP]
+            if any(k.lower() == b"access-control-allow-origin" and v != b"*" for k, v in headers):
+                # CORS answered for this caller's origin only: not reusable.
+                return Response(body, 200, headers={k.decode(): v.decode() for k, v in headers})
+            self.catalogs[path] = (body, headers)
+        body, headers = self.catalogs[path]
+        response = Response(body, 200)
+        response.raw_headers = [*headers, (b"content-length", str(len(body)).encode())]
+        return response
 
     async def _run(self, request, body, until):
         queued = time.monotonic() - (until - self.deadline)
