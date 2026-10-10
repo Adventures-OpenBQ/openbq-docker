@@ -7,7 +7,7 @@ is installed. The source's original LICENSE and NOTICE travel with the wheel.
 Only five missing SDK packages are added, at recorded versions. Existing ODP
 package versions stay unchanged; `pip check` and the V5 discovery/query gate
 must pass during the image build. The SDK is yfinance 1.7.0 and the extension is
-openbq-yfinance 3.0.1. The recipe rebuilds the generated Python namespace.
+openbq-yfinance 3.0.0. The recipe rebuilds the generated Python namespace.
 
 The market app uses four confirmed auto-generated widgets:
 

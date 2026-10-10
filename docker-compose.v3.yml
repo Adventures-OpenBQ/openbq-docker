@@ -10,7 +10,7 @@ services:
       TS_SERVE_CONFIG: /config/serve-v3.json
   episode3-demo:
     build: ./examples/episode3
-    image: openbq-episode3-demo:3.0.0-candidate
+    image: openbq-episode3-demo:3.0.0
     restart: unless-stopped
     env_file:
       - path: ./v3.env
