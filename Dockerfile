@@ -11,6 +11,8 @@ COPY provider-fixes /tmp/provider-fixes
 RUN python /tmp/provider-fixes/apply.py && rm -rf /tmp/provider-fixes
 COPY lanes/openbq_lanes.py /usr/local/lib/python3.12/site-packages/openbq_lanes.py
 WORKDIR /workspace
+# BDOBB example dashboards, appended to /apps.json by the lanes hook (examples/bdobb/README.md).
+COPY examples/bdobb/apps.json /workspace/bdobb_apps.json
 COPY lanes/openbb.toml /workspace/openbb.toml
 HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=5 CMD curl -fsS http://127.0.0.1:6900/widgets.json > /dev/null || exit 1
 CMD ["openbb-api", "--host", "0.0.0.0", "--port", "6900"]

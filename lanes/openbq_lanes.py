@@ -28,6 +28,7 @@ import asyncio
 import atexit
 import base64
 import glob
+import json
 import logging
 import os
 import secrets
@@ -48,6 +49,10 @@ DEFAULT_ISOLATE = "/api/v1/cftc/,/api/v1/finra/fixedincome/bonds"
 # waits behind covered_calls). Under CPU contention each probe took seconds.
 # ponytail: edits to workspace_apps.json or widget settings need a restart.
 _CATALOGS = {"/widgets.json", "/apps.json"}
+# BDOBB's own example dashboards. They use BDOBB built-in cards (note, clock,
+# markdown), which openbb-api's /apps.json drops because no backend widget has
+# those ids, so they are appended to the built catalog as shipped.
+EXTRA_APPS = os.environ.get("OPENBQ_EXTRA_APPS", "/workspace/bdobb_apps.json")
 # The response's own framing; the API sets its own.
 _HOP = {b"content-length", b"transfer-encoding", b"connection", b"keep-alive"}
 # Per-caller CORS answers: never cached, _cors() recomputes them per request.
@@ -63,6 +68,19 @@ def _rss_mb(pid: int) -> float:
     except OSError:
         pass
     return 0.0
+
+
+def _with_extra_apps(body: bytes) -> bytes:
+    """The built apps.json plus EXTRA_APPS, when both are lists; else unchanged."""
+    try:
+        with open(EXTRA_APPS, encoding="utf-8") as f:
+            extra = json.load(f)
+        apps = json.loads(body)
+    except (OSError, ValueError):
+        return body
+    if not isinstance(apps, list) or not isinstance(extra, list):
+        return body
+    return json.dumps(apps + extra).encode()
 
 
 def _cors(request, response):
@@ -197,6 +215,8 @@ class Lane:
             if response.status_code != 200:
                 return response
             body = b"".join([chunk async for chunk in response.body_iterator])
+            if path == "/apps.json":
+                body = _with_extra_apps(body)
             self.catalogs[path] = (body, [
                 (k, v) for k, v in response.raw_headers
                 if k.lower() not in _HOP | _PER_CALLER and not k.lower().startswith(b"access-control-")

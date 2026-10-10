@@ -220,3 +220,24 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExtraAppsTest(unittest.TestCase):
+    """BDOBB's example apps are appended to a built apps.json list, and nothing else is touched."""
+
+    def test_appends_to_a_list_and_leaves_anything_else_alone(self):
+        import json
+        import tempfile
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump([{"name": "Example"}], f)
+        old = openbq_lanes.EXTRA_APPS
+        openbq_lanes.EXTRA_APPS = f.name
+        try:
+            merged = json.loads(openbq_lanes._with_extra_apps(b'[{"name": "BLS"}]'))
+            self.assertEqual([a["name"] for a in merged], ["BLS", "Example"])
+            self.assertEqual(openbq_lanes._with_extra_apps(b'{"build": 1}'), b'{"build": 1}')
+            openbq_lanes.EXTRA_APPS = f.name + ".absent"
+            self.assertEqual(openbq_lanes._with_extra_apps(b"[]"), b"[]")
+        finally:
+            openbq_lanes.EXTRA_APPS = old

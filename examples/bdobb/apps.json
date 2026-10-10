@@ -1,0 +1,728 @@
+[
+  {
+    "name": "Built-in widgets",
+    "description": "Every built-in widget on its own tab, plus a Grouping tab showing two Parameter echo cards sharing a Ticker group. Nothing here needs a backend, a key or a sign-up -- it opens and works the moment you import it.",
+    "img": "",
+    "img_dark": "",
+    "img_light": "",
+    "allowCustomization": true,
+    "tabs": {
+      "note": {
+        "id": "note",
+        "name": "Note",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "text": "This is a Note card. Its text is a hidden parameter, so it does not clutter the header's controls row and it travels with the dashboard on export. Click anywhere in the body to edit; Escape throws a draft away."
+              }
+            }
+          }
+        ]
+      },
+      "markdown": {
+        "id": "markdown",
+        "name": "Markdown",
+        "layout": [
+          {
+            "i": "markdown",
+            "x": 0,
+            "y": 0,
+            "w": 26,
+            "h": 16,
+            "state": {
+              "params": {
+                "text": "# Markdown card\n\nA rich-text note with a formatting toolbar. Edits save on their own about half a second after you stop typing.\n\n## What it can show\n\n- Headings, like the two above\n- A bulleted list, like this one\n- **Bold**, *italic*, and a [link to the Workspace docs](https://docs.openbb.co/workspace)\n\n```\nconst example = \"a fenced code block\";\n```\n"
+              }
+            }
+          }
+        ]
+      },
+      "clock": {
+        "id": "clock",
+        "name": "Clock",
+        "layout": [
+          {
+            "i": "clock",
+            "x": 0,
+            "y": 0,
+            "w": 18,
+            "h": 16,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo",
+                "layout": "vertical",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          },
+          {
+            "i": "clock",
+            "x": 18,
+            "y": 0,
+            "w": 22,
+            "h": 8,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo",
+                "layout": "horizontal",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          }
+        ]
+      },
+      "website": {
+        "id": "website",
+        "name": "Website",
+        "layout": [
+          {
+            "i": "website",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 24,
+            "state": {
+              "params": {
+                "url": "https://docs.openbb.co/workspace"
+              }
+            }
+          }
+        ]
+      },
+      "rss": {
+        "id": "rss",
+        "name": "RSS",
+        "layout": [
+          {
+            "i": "rss",
+            "x": 0,
+            "y": 0,
+            "w": 22,
+            "h": 20,
+            "state": {
+              "params": {
+                "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+                "limit": "20"
+              }
+            }
+          }
+        ]
+      },
+      "grouping": {
+        "id": "grouping",
+        "name": "Grouping",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 8,
+            "state": {
+              "params": {
+                "text": "The two Parameter echo cards below share a Ticker group: the chain-link beside each card's Ticker control opens the Groups menu, the numbered badge shows which group a control is in, and editing either card's Ticker moves both."
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 0,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Ticker"
+            ],
+            "state": {
+              "params": {
+                "date": "$currentDate"
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 14,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Ticker"
+            ],
+            "state": {
+              "params": {
+                "date": "$currentDate"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [
+      {
+        "name": "Ticker",
+        "type": "param",
+        "paramName": "ticker",
+        "defaultValue": "AAPL"
+      }
+    ],
+    "prompts": []
+  },
+  {
+    "name": "V4 core tools",
+    "description": "Built-ins, grouping, date expressions and fiscal period controls. No credentials required.",
+    "img": "",
+    "img_dark": "",
+    "img_light": "",
+    "allowCustomization": true,
+    "tabs": {
+      "note": {
+        "id": "note",
+        "name": "Note",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "text": "This is a Note card. Its text is a hidden parameter, so it does not clutter the header's controls row and it travels with the dashboard on export. Click anywhere in the body to edit; Escape throws a draft away."
+              }
+            }
+          }
+        ]
+      },
+      "markdown": {
+        "id": "markdown",
+        "name": "Markdown",
+        "layout": [
+          {
+            "i": "markdown",
+            "x": 0,
+            "y": 0,
+            "w": 26,
+            "h": 16,
+            "state": {
+              "params": {
+                "text": "# Markdown card\n\nA rich-text note with a formatting toolbar. Edits save on their own about half a second after you stop typing.\n\n## What it can show\n\n- Headings, like the two above\n- A bulleted list, like this one\n- **Bold**, *italic*, and a [link to the Workspace docs](https://docs.openbb.co/workspace)\n\n```\nconst example = \"a fenced code block\";\n```\n"
+              }
+            }
+          }
+        ]
+      },
+      "clock": {
+        "id": "clock",
+        "name": "Clock",
+        "layout": [
+          {
+            "i": "clock",
+            "x": 0,
+            "y": 0,
+            "w": 18,
+            "h": 16,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo",
+                "layout": "vertical",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          },
+          {
+            "i": "clock",
+            "x": 18,
+            "y": 0,
+            "w": 22,
+            "h": 8,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo",
+                "layout": "horizontal",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          }
+        ]
+      },
+      "website": {
+        "id": "website",
+        "name": "Website",
+        "layout": [
+          {
+            "i": "website",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 24,
+            "state": {
+              "params": {
+                "url": "https://docs.openbb.co/workspace"
+              }
+            }
+          }
+        ]
+      },
+      "rss": {
+        "id": "rss",
+        "name": "RSS",
+        "layout": [
+          {
+            "i": "rss",
+            "x": 0,
+            "y": 0,
+            "w": 22,
+            "h": 20,
+            "state": {
+              "params": {
+                "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+                "limit": "20"
+              }
+            }
+          }
+        ]
+      },
+      "grouping": {
+        "id": "grouping",
+        "name": "Grouping",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 8,
+            "state": {
+              "params": {
+                "text": "The two Parameter echo cards below share a Ticker group: the chain-link beside each card's Ticker control opens the Groups menu, the numbered badge shows which group a control is in, and editing either card's Ticker moves both."
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 0,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Ticker"
+            ],
+            "state": {
+              "params": {
+                "date": "$currentDate"
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 14,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Ticker"
+            ],
+            "state": {
+              "params": {
+                "date": "$currentDate"
+              }
+            }
+          }
+        ]
+      },
+      "date_probe": {
+        "id": "date_probe",
+        "name": "Date expression",
+        "layout": [
+          {
+            "i": "date_probe",
+            "x": 0,
+            "y": 0,
+            "w": 28,
+            "h": 15,
+            "state": {
+              "params": {
+                "expr": "T-5bd",
+                "as_of": "T",
+                "exchange": "XNYS"
+              }
+            }
+          }
+        ]
+      },
+      "period_echo": {
+        "id": "period_echo",
+        "name": "Period controls",
+        "layout": [
+          {
+            "i": "period_echo",
+            "x": 0,
+            "y": 0,
+            "w": 28,
+            "h": 15,
+            "state": {
+              "params": {
+                "asof": "T",
+                "start_date": "2026-01-01/T"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [
+      {
+        "name": "Ticker",
+        "type": "param",
+        "paramName": "ticker",
+        "defaultValue": "AAPL"
+      }
+    ],
+    "prompts": []
+  },
+  {
+    "name": "Parameters",
+    "description": "The v4 parameter features on their own tabs -- groups that propagate one value to many cards, the period-aware pickers (day, week, month, quarter, fiscal year, date-time and time), and the relative-date expression grammar. Nothing here needs a backend, a key or a sign-up: every card is a built-in that echoes what it would send, so it opens and works the moment you import it.",
+    "img": "",
+    "img_dark": "",
+    "img_light": "",
+    "allowCustomization": true,
+    "tabs": {
+      "groups": {
+        "id": "groups",
+        "name": "Groups",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 28,
+            "h": 8,
+            "state": {
+              "params": {
+                "text": "The two Parameter echo cards below share two groups: Symbol (on each card's Ticker) and Year. The chain-link beside a control opens the Groups menu, the numbered badge shows which group a control is in, and editing either card's Ticker -- or its Year -- moves both. Groups are per dashboard; a group here never touches another dashboard."
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 0,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Symbol",
+              "Year"
+            ],
+            "state": {
+              "params": {
+                "date": "T"
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 14,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Symbol",
+              "Year"
+            ],
+            "state": {
+              "params": {
+                "date": "T-1bd"
+              }
+            }
+          }
+        ]
+      },
+      "period-pickers": {
+        "id": "period-pickers",
+        "name": "Period pickers",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 28,
+            "h": 8,
+            "state": {
+              "params": {
+                "text": "Each Period echo card carries one control of every kind -- day, week, month, quarter, fiscal year, date-time (to the second) and time -- so a fiscal-quarter parameter picks a quarter, not a day on a calendar. The two cards share a Quarter group but end their fiscal years in different months: the same stored quarter shows two different labels, which is exactly what the fiscal-quarter alignment fixes."
+              }
+            }
+          },
+          {
+            "i": "period_echo",
+            "x": 0,
+            "y": 8,
+            "w": 20,
+            "h": 8,
+            "groups": [
+              "Quarter"
+            ],
+            "state": {
+              "params": {
+                "fy_end": "December"
+              }
+            }
+          },
+          {
+            "i": "period_echo",
+            "x": 20,
+            "y": 8,
+            "w": 20,
+            "h": 8,
+            "groups": [
+              "Quarter"
+            ],
+            "state": {
+              "params": {
+                "fy_end": "September"
+              }
+            }
+          }
+        ]
+      },
+      "expressions": {
+        "id": "expressions",
+        "name": "Dynamic expressions",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 42,
+            "h": 8,
+            "state": {
+              "params": {
+                "text": "A date parameter can store an expression instead of a frozen date, and every render resolves it fresh -- so a dashboard set up on \"26 weeks ago\" keeps meaning 26 weeks ago, not the day it was built. Each Date expression card below types one expression and shows what it resolves to today, as a date and as a datetime. Edit the Expression control to try your own; the fiscal cards read their year end from the FY end control."
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 0,
+            "y": 8,
+            "w": 14,
+            "h": 7,
+            "state": {
+              "params": {
+                "expr": "T"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 14,
+            "y": 8,
+            "w": 14,
+            "h": 7,
+            "state": {
+              "params": {
+                "expr": "T-1bd"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 28,
+            "y": 8,
+            "w": 14,
+            "h": 7,
+            "state": {
+              "params": {
+                "expr": "T-26w"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 0,
+            "y": 15,
+            "w": 14,
+            "h": 7,
+            "state": {
+              "params": {
+                "expr": "Q-1"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 14,
+            "y": 15,
+            "w": 14,
+            "h": 7,
+            "state": {
+              "params": {
+                "expr": "FQ-4",
+                "fy_end": "9"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 28,
+            "y": 15,
+            "w": 14,
+            "h": 7,
+            "state": {
+              "params": {
+                "expr": "session_open"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [
+      {
+        "name": "Symbol",
+        "type": "param",
+        "paramName": "ticker",
+        "defaultValue": "AAPL",
+        "groupType": "symbol"
+      },
+      {
+        "name": "Year",
+        "type": "param",
+        "paramName": "year",
+        "defaultValue": "2024"
+      },
+      {
+        "name": "Quarter",
+        "type": "param",
+        "paramName": "quarter",
+        "defaultValue": "T"
+      }
+    ],
+    "prompts": []
+  },
+  {
+    "name": "Example Dashboard - Version 6.0.0",
+    "description": "The v6.0.0 Rita stage: a small board Rita can see and rearrange for you. Set the Rita URL and turn on Context sharing in AI Library \u25b8 Agents so Rita can see these cards, then ask it to work the board \u2014 \"add a note summarising the day\", \"rename this dashboard to Markets\", \"move the clock to the top\", \"add a markdown widget\". Every widget here is a BDOBB built-in, so nothing needs an OpenBB backend; the point is Rita authoring the dashboard, not the data.",
+    "img": "",
+    "img_dark": "",
+    "img_light": "",
+    "allowCustomization": true,
+    "tabs": {
+      "rita": {
+        "id": "rita",
+        "name": "Rita",
+        "layout": [
+          {
+            "i": "markdown",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 10,
+            "state": {
+              "params": {
+                "text": "# Rita can work this board\n\nWith **Context Sharing** on (AI Library \u25b8 Agents), Rita sees every card here and can author the dashboard for you. Try asking it to:\n\n- **Add a note** \u2014 \"add a note summarising today's session\" (Rita writes a markdown card).\n- **Rename** \u2014 \"rename this dashboard to Markets\", or \"call the clock card World Clock\".\n- **Rearrange** \u2014 \"move the clock to the top\", \"make this note full width\".\n- **Add a tab** \u2014 \"add a Rates tab\".\n- **Add a widget** \u2014 \"add a clock\" (Rita finds it with search_widgets, then adds it).\n\nRita only sees the board while Context Sharing is on, and never sees a Keys widget. Everything it does is one **Undo** away."
+              }
+            }
+          },
+          {
+            "i": "clock",
+            "x": 0,
+            "y": 10,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo",
+                "layout": "vertical",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          },
+          {
+            "i": "note",
+            "x": 20,
+            "y": 10,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "text": "## Scratch\nA plain note for Rita to rename, move, or replace. Ask it: \"tidy this board.\""
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  },
+  {
+    "name": "Example Dashboard - Version 7.0.0",
+    "description": "The v7.0.0 iPad touch showcase: three built-in widgets chosen so each touch gesture has something to exercise it. The Note lists the gestures \u2014 including that with no mouse you tap the left rail to open it and tap outside to close it. The Clock (horizontal, four zones) reflows and takes a tap-to-open menu; the long Markdown card scrolls with a one-finger drag and zooms with a two-finger pinch. Every widget is a BDOBB built-in, so nothing here needs an OpenBB backend.",
+    "img": "",
+    "img_dark": "",
+    "img_light": "",
+    "allowCustomization": true,
+    "tabs": {
+      "touch": {
+        "id": "touch",
+        "name": "Touch",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 9,
+            "state": {
+              "params": {
+                "text": "## Try these gestures\n- **No mouse?** Tap the left rail to open it, and tap anywhere outside it to close. With a trackpad or Magic Keyboard it opens on hover, like on desktop.\n- **Two-finger pinch** anywhere to zoom.\n- **Drag** inside the Markdown card to scroll it.\n- **Tap** a card's title, then the \u22ef menu.\n- **Double-tap** a card title to maximize; **Escape**/again to restore.\n- Tap into this note and type \u2014 the pane must not collapse while focused."
+              }
+            }
+          },
+          {
+            "i": "clock",
+            "x": 0,
+            "y": 9,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo,Asia/Hong_Kong",
+                "layout": "horizontal",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          },
+          {
+            "i": "markdown",
+            "x": 0,
+            "y": 21,
+            "w": 40,
+            "h": 14,
+            "state": {
+              "params": {
+                "text": "# Scrollable content\n\nThis card holds enough text to overflow, so a one-finger drag scrolls it and a two-finger pinch zooms it.\n\n## Section 1\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\n## Section 2\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n\n## Section 3\n1. First item that runs long enough to wrap on a narrow card and give the scroll something to do.\n2. Second item, likewise padded so the list has real height.\n3. Third item, ditto.\n4. Fourth item.\n5. Fifth item.\n\n## Section 4\nMore text so the card is taller than its box. Neque porro quisquam est qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.\n\n## Section 5\nUt enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur. Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur.\n\n## Section 6\nAt vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident.\n\n## End\nIf you can pinch-zoom this text and drag to scroll, the Episode 7 touch model is working."
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  }
+]
