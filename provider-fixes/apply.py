@@ -4,8 +4,8 @@ from pathlib import Path
 from importlib.metadata import version
 root = Path(__file__).parent
 site = Path(sysconfig.get_paths()["purelib"])
-for package in ("openbb-bls", "openbb-tmx"):
-    if version(package) != "2.0.0":
+for package, expected in (("openbb-bls", "2.0.0"), ("openbb-cftc", "2.0.0"), ("openbb-core", "2.0.1"), ("openbb-federal-reserve", "2.0.0"), ("openbb-finra", "2.0.0"), ("openbb-tmx", "2.0.0")):
+    if version(package) != expected:
         raise SystemExit(f"Unexpected version for {package}")
 files = json.loads((root / "original-sha256.json").read_text())
 for name, expected in files.items():
