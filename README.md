@@ -97,7 +97,7 @@ git config core.hooksPath .githooks
 python3 scripts/check-public.py --history
 ```
 
-Commits scan tracked, staged and unignored files; pushes also scan reachable branch/tag history. Local deployment evidence and the machine-specific `scripts/scrub-private-patterns.txt` remain ignored. Reports use placeholder hostnames and addresses. The scanner reports filenames and finding categories, never matched values.
+Commits scan tracked, staged and unignored files; pushes also scan the history reachable from the pushed refs; CI and a bare `--history` scan every branch and tag. Local deployment evidence and the machine-specific `scripts/scrub-private-patterns.txt` remain ignored. Reports use placeholder hostnames and addresses. The scanner reports filenames and finding categories, never matched values.
 
 Real `credentials.env` files may be used on the NAS, but stay out of Git and Docker build contexts. Demo/example credentials must contain empty values or obvious placeholders; an `.example` suffix does not make a real key safe to publish. Screenshots still need visual review before publication.
 
