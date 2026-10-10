@@ -1,4 +1,5 @@
 # Read by openbb-api from its working directory (/workspace).
 [middleware]
-# BDOBB key-mode user settings (GET /pro/user, POST /pro/display-settings).
-hooks = ["openbq_settings:middleware"]
+# BDOBB key-mode user settings (GET /pro/user, POST /pro/display-settings), then
+# D8: CFTC and FINRA bond routes run in a worker process (openbq_lanes.py).
+hooks = ["openbq_settings:middleware", "openbq_lanes:middleware"]

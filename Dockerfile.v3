@@ -20,6 +20,7 @@ RUN python -m pip install --no-deps -r /tmp/yfinance-extra.lock \
 COPY v3/yfinance/verify.py /tmp/verify-yfinance.py
 RUN python /tmp/verify-yfinance.py && rm /tmp/verify-yfinance.py /tmp/openbq_yfinance-3.0.0-py3-none-any.whl
 COPY v3/openbq_settings.py /usr/local/lib/python3.12/site-packages/openbq_settings.py
+COPY lanes/openbq_lanes.py /usr/local/lib/python3.12/site-packages/openbq_lanes.py
 WORKDIR /workspace
 COPY v3/openbb.toml /workspace/openbb.toml
 HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=5 CMD curl -fsS http://127.0.0.1:6900/widgets.json > /dev/null || exit 1
