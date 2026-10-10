@@ -1,9 +1,7 @@
 """FINRA Bond List Model."""
 
-import warnings
 from typing import Any
 
-from openbb_core.app.model.abstract.warning import OpenBBWarning
 from openbb_core.provider.abstract.fetcher import Fetcher
 from openbb_core.provider.abstract.query_params import QueryParams
 from openbb_core.provider.utils.errors import EmptyDataError
@@ -11,11 +9,6 @@ from pydantic import Field
 
 from openbb_finra.models.bond_prices import FinraBondPricesData
 from openbb_finra.utils.constants import BondTypes
-
-# OpenBQ: uncapped, MBS is 1,510,377 rows, an ~8.2 GB fetch peak in the container
-# and ~12 GB with the JSON response; 300,000 rows fit a ~3.5 GB worker (measured
-# 2026-10-09). TRACE sorts by FINRA security identifier, so the cap keeps a prefix.
-_MBS_ROW_CAP = 300_000
 
 
 class FinraBondListQueryParams(QueryParams):
@@ -68,20 +61,11 @@ class FinraBondListFetcher(Fetcher[FinraBondListQueryParams, list[FinraBondListD
         from openbb_finra.utils.client import trace_session
 
         filters = FinraBondPricesQueryParams(
-            bond_type=query.bond_type,
-            include_matured=query.include_matured,
-            limit=_MBS_ROW_CAP if query.bond_type == "MBS" else None,
+            bond_type=query.bond_type, include_matured=query.include_matured
         )
 
         async with trace_session() as trace:
             rows = await read_bonds(trace, filters, query.bond_type, [])
-
-        if filters.limit and len(rows) == filters.limit:
-            warnings.warn(
-                f"Truncated to the first {filters.limit:,} securities by FINRA"
-                " security identifier — not a sample.",
-                OpenBBWarning,
-            )
 
         values = distinct_bonds([rows])
 
