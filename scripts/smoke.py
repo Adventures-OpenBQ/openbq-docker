@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """Verify a running Episode 1 API; failures exit nonzero. No credentials logged."""
 import argparse
 import json

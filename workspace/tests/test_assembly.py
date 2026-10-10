@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 import subprocess, tempfile, unittest
 from pathlib import Path
 SCRIPT=Path(__file__).resolve().parents[1]/'scripts/assemble.sh'

@@ -1,3 +1,5 @@
+<!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. SPDX-License-Identifier: Apache-2.0 -->
+
 # Episode 2 Workspace companion — in rehearsal
 
 Optional source-built official Workspace/Lite. Episode 1 and the direct Episode 1 → Episode 3 route do not require this service.

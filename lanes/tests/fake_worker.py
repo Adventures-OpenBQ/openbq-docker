@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """A stand-in lane worker: the same kinds of routes as the heavy ones, served on a Unix socket."""
 import asyncio
 import os

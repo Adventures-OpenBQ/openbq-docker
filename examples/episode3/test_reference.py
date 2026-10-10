@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """Integration checks against the assembled, pinned OpenBQ app (no fake registry)."""
 import base64
 import json

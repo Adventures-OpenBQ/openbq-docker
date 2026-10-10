@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 import json, shutil, subprocess, tempfile, unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]

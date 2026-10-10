@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """EIA widgets whose unfiltered default exceeds the pagination ceiling open on the newest page."""
 import unittest
 

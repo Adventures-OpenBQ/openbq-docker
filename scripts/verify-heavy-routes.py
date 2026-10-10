@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """Run the heavy routes together and require /widgets.json and /apps.json to keep answering (D8).
 
 CFTC forex swap_trades and FINRA MBS go to the worker lane; OECD dataflows and

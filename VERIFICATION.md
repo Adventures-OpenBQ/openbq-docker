@@ -1,3 +1,5 @@
+<!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. SPDX-License-Identifier: Apache-2.0 -->
+
 # Episode 1 verification
 
 Passed on October 5, 2026, on the x86-64 QNAP NAS. Release source is identified by tag `v1.0.0`; this is a local NAS image, not a published registry image.

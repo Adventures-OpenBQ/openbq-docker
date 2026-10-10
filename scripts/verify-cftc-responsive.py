@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """Fire every CFTC widget at once and require /widgets.json to keep answering meanwhile."""
 import argparse
 import json

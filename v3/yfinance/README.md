@@ -1,3 +1,5 @@
+<!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. SPDX-License-Identifier: Apache-2.0 -->
+
 # Original OpenBQ yfinance extension in ODP v3
 
 `Dockerfile.v3` installs the source pinned in `source.json` as an Apache-2.0
