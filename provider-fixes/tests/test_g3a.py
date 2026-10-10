@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """G3 code defects: SEC institutions search, Dallas Fed sheets, USDA ERS members and years."""
 import asyncio
 import io

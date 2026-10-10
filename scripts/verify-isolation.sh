@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 # Run from a second trusted device, never from the Docker host.
 set -euo pipefail
 host="${1:?usage: verify-isolation.sh <actual-tailnet-hostname>}"

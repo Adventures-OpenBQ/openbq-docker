@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """D8 worker lane: heavy routes run in a child process the API can kill."""
 import asyncio
 import os
