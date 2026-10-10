@@ -25,10 +25,10 @@ Start the backend with `docker compose up -d --no-build`. Backend settings and u
 ```sh
 cp workspace/runtime.env.example workspace/runtime.env
 cp workspace/ts.env.example workspace/ts.env
-docker compose -f workspace/compose.yaml up -d
+docker compose --profile workspace up -d
 ```
 
-Set your own account settings and dedicated Tailscale identity before starting. The original Workspace image is `sha256:04222ea5bd191fd4a2fd4db9c01714bb882fa97fb3b3610b1cad43f47b7bc142`, built from official Workspace commit `be00e95019a55d57af146919ee46b7e1a4859226` with the three included patches. Its network MTU is 1500. The saved source records the actual resolved Poetry lock and runtime package inventory.
+Set your own account settings and dedicated Tailscale identity before starting. The original Workspace image is `sha256:04222ea5bd191fd4a2fd4db9c01714bb882fa97fb3b3610b1cad43f47b7bc142`, built from official Workspace commit `be00e95019a55d57af146919ee46b7e1a4859226` with the three included patches. It runs from the main `docker-compose.yml` under the `workspace` profile, on its own `openbq-workspace` tailnet node, network (MTU 1500) and `openbq-episode2_workspace-data` volume. The saved source records the actual resolved Poetry lock and runtime package inventory.
 
 The historical browser session rendered the local login form, signed in, and discovered 927 widgets, 38 apps and 7 prompts with Validate widgets set to No. Private HTTPS and raw-port isolation passed; selected backend responses passed separately. Dashboard save/reload, persistence after recreation and backup/restore were not completed in that rehearsal. The Workspace cancellation proposal was not included in the deployed image.
 
