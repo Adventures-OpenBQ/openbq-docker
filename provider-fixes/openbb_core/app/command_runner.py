@@ -1,6 +1,7 @@
 """Command runner module."""
 
 import asyncio
+import os
 import threading
 from collections.abc import Callable
 from copy import deepcopy
@@ -246,8 +247,11 @@ class ParametersBuilder:
 # provider's loop-bound caches (cboe, deribit, nasdaq, tmx) still only ever
 # see one loop. One loop per process matters too: a fresh loop per command
 # leaked ~115 MB of native memory per CFTC swap_trades call.
-# ponytail: work on a loop cannot be cancelled, and a provider's commands
-# still queue behind its own heavy ones; per-route threads would be next.
+# A command past its provider's deadline is cancelled at its next await, which
+# also releases its provider's lock below, and its request gets a 504.
+# ponytail: synchronous CPU sections cannot be cancelled and run to their next
+# await, and a provider's commands still queue behind its own heavy ones;
+# per-route processes would be next.
 _PROVIDER_LOOPS: dict[str, asyncio.AbstractEventLoop] = {}
 _PROVIDER_LOOPS_LOCK = threading.Lock()
 
@@ -257,6 +261,35 @@ _PROVIDER_LOOPS_LOCK = threading.Lock()
 # per process (openbb_cftc/utils/store.py), so concurrent writers of one
 # shard corrupt it.
 _ONE_AT_A_TIME = {"cboe": asyncio.Lock(), "cftc": asyncio.Lock()}
+
+def _read_deadlines(environ) -> dict[str, float]:
+    """Read OPENBQ_COMMAND_TIMEOUT[_<PROVIDER>] once, failing at startup on a bad value."""
+    deadlines = {"cftc": 150.0}  # cold rates swap_trades ~100 s, forex ~70 s (D8 ruling Q2)
+    for name, value in environ.items():
+        if value and (
+            name == "OPENBQ_COMMAND_TIMEOUT"
+            or name.startswith("OPENBQ_COMMAND_TIMEOUT_")
+        ):
+            try:
+                seconds = float(value)
+            except ValueError:
+                seconds = 0.0
+            if not seconds > 0:  # also rejects nan
+                raise RuntimeError(
+                    f"{name}={value!r} must be a positive number of seconds."
+                )
+            deadlines[name[len("OPENBQ_COMMAND_TIMEOUT_") :].lower()] = seconds
+    return deadlines
+
+
+# Seconds a command may run: OPENBQ_COMMAND_TIMEOUT_<PROVIDER>, else the
+# provider's built-in deadline, else OPENBQ_COMMAND_TIMEOUT, else 55.
+_DEADLINES = _read_deadlines(os.environ)
+
+
+def _deadline(key: str) -> float:
+    """Return the provider's command deadline in seconds."""
+    return _DEADLINES.get(key, _DEADLINES.get("", 55.0))
 
 
 def _provider_loop(name: str) -> tuple[str, asyncio.AbstractEventLoop]:
@@ -294,9 +327,18 @@ class StaticCommandRunner:
         """Run a command and return the output."""
         provider = getattr(kwargs.get("provider_choices"), "provider", None)
         key, loop = _provider_loop(provider or func.__module__.split(".")[0])
-        obbject = await asyncio.wrap_future(
+        future = asyncio.wrap_future(
             asyncio.run_coroutine_threadsafe(_run_command(key, func, kwargs), loop)
         )
+        deadline = _deadline(key)
+        try:
+            obbject = await asyncio.wait_for(future, deadline)
+        except TimeoutError:
+            if not future.cancelled():  # the command's own timeout
+                raise
+            raise TimeoutError(
+                f"The {key} provider did not answer within {deadline:g} seconds."
+            ) from None
         if isinstance(obbject, (OBBject, OBBStream)):
             obbject.provider = getattr(
                 kwargs.get("provider_choices"),

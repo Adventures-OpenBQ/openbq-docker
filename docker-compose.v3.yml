@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.v3
-    image: openbq-local:3.0.0-candidate
+    image: openbq-local:3.0.0
   tailscale:
     environment:
       TS_SERVE_CONFIG: /config/serve-v3.json

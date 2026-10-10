@@ -10,7 +10,7 @@ from openbq_yfinance.models import statements
 
 assert metadata.version('openbb-core') == '2.0.1'
 assert metadata.version('openbb-platform-api') == '2.0.1'
-assert metadata.version('openbq-yfinance') == '3.0.0'
+assert metadata.version('openbq-yfinance') == '3.0.1'
 assert metadata.version('yfinance') == '1.7.0'
 try:
     metadata.version('openbb-yfinance')
