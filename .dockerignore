@@ -31,3 +31,6 @@ credentials*.json
 user_settings.json
 certs
 secrets
+funnel-gateway/node_modules
+gateway-config
+rss-ticker-config

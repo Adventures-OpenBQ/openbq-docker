@@ -1,0 +1,128 @@
+// Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+// SPDX-License-Identifier: Apache-2.0
+
+import { readFileSync } from "node:fs";
+import { isIP } from "node:net";
+import { isAbsolute, normalize } from "node:path";
+
+// The door is the stack node's Funnel port 8443: the node's :443 stays openbq-api for the
+// tailnet, and Funnel offers only 443, 8443 and 10000. A portless origin is still accepted
+// for a reader who publishes a dedicated node's :443 instead. `allowedPort` names the one
+// port an origin may carry (the wire's is 8088).
+function httpsOrigin(value, tailnet = false, allowedPort = "8443") {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== allowedPort) ||
+      url.pathname !== "/" || url.search || url.hash ||
+      (tailnet && !/^[a-z0-9-]+\.[a-z0-9-]+\.ts\.net$/.test(url.hostname))) {
+    throw new Error("Invalid HTTPS origin");
+  }
+  return url.origin;
+}
+
+// A tailnet IPv4 address (the CGNAT /10 Tailscale assigns from). The wire's address is dialled directly
+// rather than trusting whatever DNS this container has.
+function tailnetAddress(value) {
+  const parts = String(value).split(".").map(Number);
+  return isIP(value ?? "") === 4 && parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127;
+}
+
+// Every key a settings file may carry at this tag. A key from a later line (gridOrigin,
+// tickUrl...) is refused rather than ignored: a stack at this tag has no such upstream, and
+// a silently ignored setting is how an operator believes a door is configured when it is not.
+// openbq-docker serves no /ai (Rita), so ritaOrigin, ritaAddress and socksProxy are refused too.
+const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "quoteDailyLimit",
+  "requestsPerMinute", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds"]);
+
+export function validateConfig(settings, secrets) {
+  for (const key of Object.keys(settings)) if (!SETTINGS_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`);
+  const origin = httpsOrigin(settings.origin, true);
+  if (!/^[A-Za-z0-9_-]{32,256}$/.test(secrets.token ?? "") ||
+      typeof secrets.apiUsername !== "string" || !/^[A-Za-z0-9_.@-]{1,128}$/.test(secrets.apiUsername) ||
+      typeof secrets.apiPassword !== "string" || !secrets.apiPassword.length ||
+      /[\r\n\0]/.test(secrets.apiPassword) || secrets.apiPassword.length > 1024) {
+    throw new Error("Invalid machine or API credential");
+  }
+  const quoteDailyLimit = settings.quoteDailyLimit ?? 100;
+  if (!Number.isInteger(quoteDailyLimit) || quoteDailyLimit < 1 || quoteDailyLimit > 10000) {
+    throw new Error("Quote daily limit must be between 1 and 10000");
+  }
+  // The per-minute budget and the concurrency cap were hard-coded (60 and 8) while the
+  // preview served one quote card. They stay bounded: the gateway sits on a public Funnel.
+  const requestsPerMinute = settings.requestsPerMinute ?? 60;
+  if (!Number.isInteger(requestsPerMinute) || requestsPerMinute < 1 || requestsPerMinute > 600) {
+    throw new Error("Requests per minute must be between 1 and 600");
+  }
+  const maxConcurrent = settings.maxConcurrent ?? 8;
+  if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1 || maxConcurrent > 32) {
+    throw new Error("Max concurrent must be between 1 and 32");
+  }
+  const maxSockets = settings.maxSockets ?? 4;
+  if (!Number.isInteger(maxSockets) || maxSockets < 1 || maxSockets > 32) {
+    throw new Error("Max sockets must be between 1 and 32");
+  }
+  // The web preview's own origin. Naming it turns on socket tickets (server.mjs): the
+  // one Origin, besides the gateway's own, a WebSocket may arrive from. Unset = off.
+  const previewOrigin = settings.previewOrigin === undefined ? null : httpsOrigin(settings.previewOrigin, false);
+  // Where the web preview's per-user configuration is kept (server.mjs /state). A
+  // writable directory mounted into this otherwise read-only container. Unset = off.
+  const stateDir = settings.stateDir === undefined ? null : settings.stateDir;
+  if (stateDir !== null && (typeof stateDir !== "string" || !isAbsolute(stateDir) || normalize(stateDir) !== stateDir)) {
+    throw new Error("State directory must be a normalized absolute path");
+  }
+  // The wire: rss-ticker, reached by a tailnet HTTPS name for SNI and the certificate,
+  // dialled at a pinned tailnet address. Both or neither; neither = the
+  // /news family is off. Its port is :8088, the one ts-config/serve*.json publishes rss-ticker
+  // on (a portless origin stays valid for a reader who fronts the pool on a node's own :443).
+  if ((settings.rssOrigin === undefined) !== (settings.rssAddress === undefined)) {
+    throw new Error("RSS origin and address: set both or neither");
+  }
+  const rssOrigin = settings.rssOrigin === undefined ? null : httpsOrigin(settings.rssOrigin, true, "8088");
+  if (rssOrigin && !tailnetAddress(settings.rssAddress)) throw new Error("RSS address must be a tailnet IPv4 address");
+  const rssAddress = rssOrigin ? settings.rssAddress : null;
+  // The approved feeds: `{ "<https feed url>": <rss-ticker feed id> }`. The ONLY feeds the
+  // door will ever name -- the url side gates the socket's subscription frame, the id side
+  // gates /news/api/news -- so the gateway has no route through which a caller can make the
+  // pool fetch a URL nobody approved. Empty (the default) = the /news family is off: every
+  // feed_id is unapproved, so the history route 404s, and the socket answers 503.
+  const feeds = settings.feeds === undefined ? {} : settings.feeds;
+  if (!feeds || Array.isArray(feeds) || typeof feeds !== "object" || Object.keys(feeds).length > 50) {
+    throw new Error("Invalid feed map");
+  }
+  // The map is a bijection: one approved URL, one rss-ticker id. Two URLs sharing an id
+  // would make the two halves of the contract disagree -- /news/api/news would serve one
+  // feed's history under the other's approval -- so a duplicate is a misconfiguration, not
+  // a preference. `new URL` is wrapped so a malformed entry fails with this block's own
+  // message rather than the platform's bare "Invalid URL".
+  const ids = new Set();
+  for (const [feed, id] of Object.entries(feeds)) {
+    let url; try { url = new URL(feed); } catch { throw new Error("Invalid approved feed"); }
+    if (url.protocol !== "https:" || url.username || url.password || url.hash ||
+        !Number.isSafeInteger(id) || id < 1) throw new Error("Invalid approved feed");
+    if (ids.has(id)) throw new Error("Invalid approved feed: two feeds share one id");
+    ids.add(id);
+  }
+  // Approved feeds with nowhere to send them is a misconfiguration, not a degraded mode:
+  // refuse at startup rather than 404/502 per request once the door is already open.
+  if (Object.keys(feeds).length && !rssOrigin) throw new Error("Approved feeds need an RSS origin and address");
+  return {
+    origin, quoteDailyLimit, requestsPerMinute, maxConcurrent, maxSockets, previewOrigin, stateDir,
+    rssOrigin, rssAddress, feeds,
+    token: secrets.token,
+    apiAuthorization: "Basic " + Buffer.from(`${secrets.apiUsername}:${secrets.apiPassword}`).toString("base64"),
+    // Never accept a caller-supplied upstream or a configurable generic proxy.
+    apiOrigin: "http://openbq-api:6900",
+  };
+}
+
+/**
+ * Settings are a JSON file on a read-only bind mount; the three secrets come from
+ * gateway.env (compose `env_file`): the machine token, and the API's Basic pair -- the same
+ * OPENBB_API_USERNAME/OPENBB_API_PASSWORD credentials.env gives openbq-api, repeated here so
+ * the gateway never loads the provider keys credentials.env also holds.
+ */
+export function readConfig(directory = "/run/bdobb", env = process.env) {
+  return validateConfig(
+    JSON.parse(readFileSync(`${directory}/settings.json`, "utf8")),
+    { token: env.GATEWAY_TOKEN, apiUsername: env.OPENBB_API_USERNAME, apiPassword: env.OPENBB_API_PASSWORD },
+  );
+}

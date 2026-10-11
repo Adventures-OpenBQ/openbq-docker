@@ -88,6 +88,12 @@ Full reader instructions and troubleshooting: [Episode 1](https://github.com/art
 
 Copyright 2026 SecretoftheUniverse.com LLC. Apache-2.0 for this backend companion; upstream components retain their own licences.
 
+## BDOBB web preview door (v8, opt-in)
+
+`docker compose --profile web up -d` adds `funnel-gateway` and `rss-ticker` for BDOBB's browser preview: `/api` (the ODP catalogue, with the API's Basic pair injected), `/state` (per-user saved configuration) and `/news` (approved feeds only, including the `/news/ws/news` socket and its signed tickets). There is no `/ai`. Nothing is public until you also swap `ts-config/serve.json` for `ts-config/serve-funnel.json`, which funnels port 8443 alone; port 443 stays tailnet-only. Turn the API's lock on first (`OPENBB_API_AUTH=true`), and fill `gateway.env` and `gateway-config/settings.json` from their examples. See [funnel-gateway/README.md](funnel-gateway/README.md) and [docs/v8](docs/v8/news-relay-and-hidden-dashboards.md).
+
+BDOBB's locked-widget bands sync as a hidden `docks` dashboard on `/pro/dash/sync/system/docks`. Key mode serves it here (`v3/openbq_settings.py`), and the Workspace companion serves it through `workspace/patches/004-system-dashboard.patch`.
+
 ## Public repository checks
 
 Enable the local gates after cloning:

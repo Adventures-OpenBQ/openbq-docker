@@ -70,6 +70,63 @@ services:
     devices: [/dev/net/tun:/dev/net/tun]
     cap_add: [NET_ADMIN, NET_RAW]
     networks: [workspace-internal]
+  # BDOBB's web preview door (v8, opt-in): `docker compose --profile web up -d`
+  # starts these two; plain `docker compose up -d` never does. Ported from
+  # openbb-docker v8.0.3 with /api, /state and /news only (no /ai). See
+  # funnel-gateway/README.md and docs/v8/news-relay-and-hidden-dashboards.md.
+  #
+  # rss-ticker: a shared feed pool with NO authentication, so reachability is its
+  # whole access control. On the bridge only; ts-config/serve-funnel.json publishes
+  # it on tailnet port 8088, never funneled.
+  #   cp rss-ticker-config/config.yaml.example rss-ticker-config/config.yaml
+  rss-ticker:
+    profiles: [web]
+    image: ghcr.io/artcashin/rss-feedhandler:8.0.0
+    restart: unless-stopped
+    volumes:
+      - ./rss-ticker-config:/config:ro
+      - rss-ticker-data:/data
+    networks: [openbq-internal]
+  # funnel-gateway: the only service Funnel may publish (port 8443, after the
+  # deliberate swap to ts-config/serve-funnel.json). It admits nothing without
+  # GATEWAY_TOKEN, checks Host and Origin, meters every request, and forwards
+  # only funnel-gateway/policy.mjs's routes, injecting the API's Basic pair.
+  #   cp gateway.env.example gateway.env && chmod 600 gateway.env
+  #   mkdir -p gateway-config && cp funnel-gateway/settings.example.json gateway-config/settings.json
+  funnel-gateway:
+    profiles: [web]
+    build: ./funnel-gateway
+    image: openbq-funnel-gateway:8.0.0
+    restart: unless-stopped
+    expose: ["8091"]
+    depends_on: [openbq-api]
+    env_file:
+      # GATEWAY_TOKEN plus the API's Basic pair. Required: there is no
+      # configuration in which the door exists and the lock does not.
+      - path: ./gateway.env
+        required: true
+    read_only: true
+    user: "${GATEWAY_UID:-1000}:${GATEWAY_GID:-1000}"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 64
+    volumes:
+      - type: bind
+        source: ./gateway-config
+        target: /run/bdobb
+        read_only: true
+        bind: {create_host_path: false}
+      # The web preview's per-user configuration (/state); inert until
+      # settings.json names "stateDir": "/var/lib/bdobb/state".
+      - gateway-state:/var/lib/bdobb/state
+    tmpfs:
+      - "/tmp:size=16m,noexec,nosuid"
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+    networks: [openbq-internal]
 networks:
   openbq-internal:
     driver: bridge
@@ -80,6 +137,8 @@ networks:
 volumes:
   openbq-data:
   openbq-user-data:
+  rss-ticker-data:
+  gateway-state:
   # Named as the former standalone project's volume so existing Workspace
   # accounts and dashboards carry over.
   workspace-data:
