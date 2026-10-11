@@ -47,4 +47,4 @@ def test_the_gateway_examples_hold_placeholders_only():
                if line and not line.startswith('#'))
     assert env == {'GATEWAY_TOKEN': '', 'OPENBB_API_USERNAME': '', 'OPENBB_API_PASSWORD': ''}
     settings = json.loads((ROOT / 'funnel-gateway/settings.example.json').read_text())
-    assert 'example' in settings['origin'] and 'example' in settings['previewOrigin']
+    assert 'YOUR-TAILNET' in settings['origin'] and 'example' in settings['previewOrigin']
