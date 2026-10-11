@@ -83,6 +83,30 @@ def _with_extra_apps(body: bytes) -> bytes:
     return json.dumps(apps + extra).encode()
 
 
+def _is_catalog(request) -> bool:
+    return request.method == "GET" and request.url.path in _CATALOGS and not request.url.query
+
+
+async def _catalog(cache, request, call_next):
+    """Serve /widgets.json and /apps.json from their first successful build."""
+    path = request.url.path
+    if path not in cache:
+        response = await call_next(request)
+        if response.status_code != 200:
+            return response
+        body = b"".join([chunk async for chunk in response.body_iterator])
+        if path == "/apps.json":
+            body = _with_extra_apps(body)
+        cache[path] = (body, [
+            (k, v) for k, v in response.raw_headers
+            if k.lower() not in _HOP | _PER_CALLER and not k.lower().startswith(b"access-control-")
+        ])
+    body, headers = cache[path]
+    response = Response(body, 200)
+    response.raw_headers = [*headers, (b"content-length", str(len(body)).encode())]
+    return _cors(request, response)
+
+
 def _cors(request, response):
     """openbb-api adds [middleware] hooks outside its CORSMiddleware, so answers made here pass through it."""
     for entry in getattr(request.app, "user_middleware", []):
@@ -185,8 +209,8 @@ class Lane:
             if not _authorized(request):
                 return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
             return _cors(request, JSONResponse(self.status()))
-        if request.method == "GET" and path in _CATALOGS and not request.url.query:
-            return await self._catalog(request, call_next)
+        if _is_catalog(request):
+            return await _catalog(self.catalogs, request, call_next)
         if (request.method == "OPTIONS" or path.endswith("_choices")
                 or not any(path.startswith(p) for p in self.prefixes)):
             return await call_next(request)
@@ -206,25 +230,6 @@ class Lane:
         # Shielded: a client that gives up does not cancel the call, so the
         # lane is never handed a second request while the first still runs.
         return await asyncio.shield(asyncio.ensure_future(self._run(request, body, until)))
-
-    async def _catalog(self, request, call_next):
-        """Serve /widgets.json and /apps.json from their first successful build."""
-        path = request.url.path
-        if path not in self.catalogs:
-            response = await call_next(request)
-            if response.status_code != 200:
-                return response
-            body = b"".join([chunk async for chunk in response.body_iterator])
-            if path == "/apps.json":
-                body = _with_extra_apps(body)
-            self.catalogs[path] = (body, [
-                (k, v) for k, v in response.raw_headers
-                if k.lower() not in _HOP | _PER_CALLER and not k.lower().startswith(b"access-control-")
-            ])
-        body, headers = self.catalogs[path]
-        response = Response(body, 200)
-        response.raw_headers = [*headers, (b"content-length", str(len(body)).encode())]
-        return _cors(request, response)
 
     async def _run(self, request, body, until):
         queued = time.monotonic() - (until - self.deadline)
@@ -322,6 +327,7 @@ def _shard_dir():
 
 
 LANE = None
+_CATALOG_CACHE = {}  # used when no lane is configured (OPENBQ_ISOLATE empty)
 _prefixes = [p for p in os.environ.get("OPENBQ_ISOLATE", DEFAULT_ISOLATE).split(",") if p.strip()]
 if os.environ.get("OPENBQ_ROLE") != "worker" and _prefixes:
     _socket = os.environ.get("OPENBQ_LANE_SOCKET", "/run/openbq/heavy.sock")
@@ -342,6 +348,8 @@ if os.environ.get("OPENBQ_ROLE") != "worker" and _prefixes:
 
 async def middleware(request, call_next):
     """openbb.toml [middleware] hook."""
-    if LANE is None:
-        return await call_next(request)
-    return await LANE.handle(request, call_next)
+    if LANE is not None:
+        return await LANE.handle(request, call_next)
+    if _is_catalog(request):  # with the lane off, the catalogs keep their cache and BDOBB examples
+        return await _catalog(_CATALOG_CACHE, request, call_next)
+    return await call_next(request)

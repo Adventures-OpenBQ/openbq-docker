@@ -234,6 +234,37 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status["heavy"]["pid"], pid)
 
 
+class NoLaneTest(unittest.IsolatedAsyncioTestCase):
+    """With OPENBQ_ISOLATE empty there is no lane, but the catalogs keep their cache, extras and CORS."""
+
+    async def test_with_the_lane_off_the_catalog_and_extra_apps_are_still_served(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump([{"name": "Example"}], f)
+        self.addCleanup(setattr, openbq_lanes, "EXTRA_APPS", openbq_lanes.EXTRA_APPS)
+        openbq_lanes.EXTRA_APPS = f.name
+        self.assertIsNone(openbq_lanes.LANE)  # OPENBQ_ISOLATE empty: no lane in this process
+        openbq_lanes._CATALOG_CACHE.clear()
+        self.addCleanup(openbq_lanes._CATALOG_CACHE.clear)
+        builds = []
+        app = FastAPI()
+
+        @app.get("/apps.json")
+        async def apps():
+            builds.append(1)
+            return [{"build": len(builds)}]
+
+        app.add_middleware(CORSMiddleware, allow_origins=["*"])
+        app.middleware("http")(openbq_lanes.middleware)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api") as client:
+            await client.get("/apps.json")  # a probe without Origin builds the cache
+            for _ in range(2):
+                browser = await client.get("/apps.json", headers={"origin": "http://localhost:4443"})
+                self.assertEqual(browser.json(), [{"build": 1}, {"name": "Example"}])
+                self.assertEqual(int(browser.headers["content-length"]), len(browser.content))
+                self.assertEqual(browser.headers.get("access-control-allow-origin"), "*")
+        self.assertEqual(len(builds), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
 
