@@ -688,7 +688,7 @@
             "h": 9,
             "state": {
               "params": {
-                "text": "## Try these gestures\n- **No mouse?** Tap the left rail to open it, and tap anywhere outside it to close. With a trackpad or Magic Keyboard it opens on hover, like on desktop.\n- **Two-finger pinch** anywhere to zoom.\n- **Drag** inside the Markdown card to scroll it.\n- **Tap** a card's title, then the \u22ef menu.\n- **Double-tap** a card title to maximize; **Escape**/again to restore.\n- Tap into this note and type \u2014 the pane must not collapse while focused."
+                "text": "## Try these gestures\n- **No mouse?** Tap the left rail to open it, and tap anywhere outside it to close. With a trackpad or Magic Keyboard it opens on hover, like on desktop.\n- **Two-finger pinch** anywhere to zoom.\n- **Drag** inside the Markdown card to scroll it.\n- **Tap** a card's title, then the \u22ef menu.\n- **Double-tap** a card title to maximize, and again to restore.\n- Tap into this note and type \u2014 the pane must not collapse while focused."
               }
             }
           },
