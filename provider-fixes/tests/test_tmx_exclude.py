@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """The TMX screener builder needs pywry, which the image does not install; it is not offered."""
 import asyncio
 import json

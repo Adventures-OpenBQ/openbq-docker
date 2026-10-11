@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """scripts/check-public.py address rules (stdlib unittest; run: python3 -m unittest discover tests).
 
 Fixtures are split so this file does not trip the scanner it tests.

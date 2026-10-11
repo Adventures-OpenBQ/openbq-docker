@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """FINRA bond list: the MBS row cap (ROW_CAPS) bounds TRACE paging and says so, offline."""
 import asyncio
 import unittest

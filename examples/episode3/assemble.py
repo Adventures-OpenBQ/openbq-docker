@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """Assemble only the pinned OpenBQ reference recipe and reviewed local additions."""
 import json
 from pathlib import Path

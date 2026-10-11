@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """Check the v4 BDOBB routes on a running OpenBQ API (live Yahoo for AAPL).
 
 Usage: verify-v4-routes.py BASE_URL [USERNAME PASSWORD]

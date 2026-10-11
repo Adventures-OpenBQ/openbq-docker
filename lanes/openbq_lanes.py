@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """Run heavy OpenBB routes in a worker process the API can kill (OpenBQ D8).
 
 CFTC and FINRA bond routes do CPU-bound work and build 40-400 MB responses.
@@ -26,6 +28,7 @@ import asyncio
 import atexit
 import base64
 import glob
+import json
 import logging
 import os
 import secrets
@@ -34,13 +37,26 @@ import sys
 import time
 
 import httpx
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, Response
 
 log = logging.getLogger("uvicorn.error")
 
 DEFAULT_ISOLATE = "/api/v1/cftc/,/api/v1/finra/fixedincome/bonds"
+# Fixed for the life of the process, yet rebuilt per request upstream: ~5 MB
+# of widgets JSON serialized on the server loop, and apps.json does that again
+# and then awaits 32 provider apps endpoints on their provider loops (TMX's
+# waits behind covered_calls). Under CPU contention each probe took seconds.
+# ponytail: edits to workspace_apps.json or widget settings need a restart.
+_CATALOGS = {"/widgets.json", "/apps.json"}
+# BDOBB's own example dashboards. They use BDOBB built-in cards (note, clock,
+# markdown), which openbb-api's /apps.json drops because no backend widget has
+# those ids, so they are appended to the built catalog as shipped.
+EXTRA_APPS = os.environ.get("OPENBQ_EXTRA_APPS", "/workspace/bdobb_apps.json")
 # The response's own framing; the API sets its own.
 _HOP = {b"content-length", b"transfer-encoding", b"connection", b"keep-alive"}
+# Per-caller CORS answers: never cached, _cors() recomputes them per request.
+_PER_CALLER = {b"vary"}
 
 
 def _rss_mb(pid: int) -> float:
@@ -52,6 +68,27 @@ def _rss_mb(pid: int) -> float:
     except OSError:
         pass
     return 0.0
+
+
+def _with_extra_apps(body: bytes) -> bytes:
+    """The built apps.json plus EXTRA_APPS, when both are lists; else unchanged."""
+    try:
+        with open(EXTRA_APPS, encoding="utf-8") as f:
+            extra = json.load(f)
+        apps = json.loads(body)
+    except (OSError, ValueError):
+        return body
+    if not isinstance(apps, list) or not isinstance(extra, list):
+        return body
+    return json.dumps(apps + extra).encode()
+
+
+def _cors(request, response):
+    """openbb-api adds [middleware] hooks outside its CORSMiddleware, so answers made here pass through it."""
+    for entry in getattr(request.app, "user_middleware", []):
+        if entry.cls is CORSMiddleware:
+            return CORSMiddleware(response, *entry.args, **entry.kwargs)
+    return response
 
 
 def _authorized(request) -> bool:
@@ -84,6 +121,7 @@ class Lane:
         self._client = None
         self._monitor = None
         self._ready_pid = None
+        self.catalogs = {}
 
     # -- process -----------------------------------------------------------
 
@@ -145,8 +183,10 @@ class Lane:
         path = request.url.path
         if path == "/openbq/lanes":
             if not _authorized(request):
-                return JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"})
-            return JSONResponse(self.status())
+                return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+            return _cors(request, JSONResponse(self.status()))
+        if request.method == "GET" and path in _CATALOGS and not request.url.query:
+            return await self._catalog(request, call_next)
         if (request.method == "OPTIONS" or path.endswith("_choices")
                 or not any(path.startswith(p) for p in self.prefixes)):
             return await call_next(request)
@@ -154,18 +194,37 @@ class Lane:
         body = await request.body()
         until = time.monotonic() + self.deadline
         if self.waiting >= self.queue_max:
-            return self._answer(503, "The heavy-route lane's queue is full.", request, until, "queue-503")
+            return self._answer(503, "The heavy-route lane's queue is full.", request, "queue-503")
         self.waiting += 1
         try:
             await asyncio.wait_for(self.lock.acquire(), self.deadline)
         except TimeoutError:
             return self._answer(503, "The heavy-route lane stayed busy past this request's deadline.",
-                                request, until, "queue-503")
+                                request, "queue-503")
         finally:
             self.waiting -= 1
         # Shielded: a client that gives up does not cancel the call, so the
         # lane is never handed a second request while the first still runs.
         return await asyncio.shield(asyncio.ensure_future(self._run(request, body, until)))
+
+    async def _catalog(self, request, call_next):
+        """Serve /widgets.json and /apps.json from their first successful build."""
+        path = request.url.path
+        if path not in self.catalogs:
+            response = await call_next(request)
+            if response.status_code != 200:
+                return response
+            body = b"".join([chunk async for chunk in response.body_iterator])
+            if path == "/apps.json":
+                body = _with_extra_apps(body)
+            self.catalogs[path] = (body, [
+                (k, v) for k, v in response.raw_headers
+                if k.lower() not in _HOP | _PER_CALLER and not k.lower().startswith(b"access-control-")
+            ])
+        body, headers = self.catalogs[path]
+        response = Response(body, 200)
+        response.raw_headers = [*headers, (b"content-length", str(len(body)).encode())]
+        return _cors(request, response)
 
     async def _run(self, request, body, until):
         queued = time.monotonic() - (until - self.deadline)
@@ -185,17 +244,17 @@ class Lane:
                     # Still importing the platform (~30 s): killing it would only
                     # start that over, and every later request would time out too.
                     outcome = "starting-503"
-                    return self._error(503, "The heavy-route worker is still starting.")
+                    return self._error(request, 503, "The heavy-route worker is still starting.")
                 outcome = "killed-504"
                 await self._restart("deadline")
-                return self._error(504, f"The request did not finish within {self.deadline:g} seconds.")
+                return self._error(request, 504, f"The request did not finish within {self.deadline:g} seconds.")
             except httpx.TransportError:
                 outcome = "died-502"
                 await self._restart("worker died")
-                return self._error(502, "The heavy-route worker died during the request; it has been restarted.")
+                return self._error(request, 502, "The heavy-route worker died during the request; it has been restarted.")
             if data is None:
                 outcome = "too-large-413"
-                return self._error(413, f"The result is larger than {self.max_bytes} bytes.")
+                return self._error(request, 413, f"The result is larger than {self.max_bytes} bytes.")
             size = len(data)
             response = Response(data, status)
             response.raw_headers = [h for h in headers if h[0].lower() not in _HOP]
@@ -233,14 +292,14 @@ class Lane:
                 chunks.append(chunk)
             return response.status_code, response.headers.raw, b"".join(chunks)
 
-    def _error(self, status, detail):
+    def _error(self, request, status, detail):
         headers = {"Retry-After": "30"} if status == 503 else None
-        return JSONResponse({"detail": detail}, status, headers)
+        return _cors(request, JSONResponse({"detail": detail}, status, headers))
 
-    def _answer(self, status, detail, request, until, outcome):
+    def _answer(self, status, detail, request, outcome):
         log.info("OpenBQ lane %s: %s %s status=%s outcome=%s", self.name, request.method,
                  request.url.path, status, outcome)
-        return self._error(status, detail)
+        return self._error(request, status, detail)
 
 
 async def _watch_loop_lag(interval=0.1, threshold=0.25):

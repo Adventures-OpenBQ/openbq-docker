@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
 """Fail when two cards on one app tab overlap (Workspace then pushes cards down on first display).
 
 Takes an API base URL (reads /apps.json) or a path to an apps.json file.
