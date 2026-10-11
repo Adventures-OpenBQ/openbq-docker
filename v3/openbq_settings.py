@@ -6,6 +6,13 @@ GET /pro/dash/sync/shared, POST /pro/dash/sync (items upsert and delete). Apps: 
 returns owned + shared in Workspace's UserAppReturn shape; POST and DELETE /pro/user-apps/{uuid}
 upsert (body = content) and delete one app.
 
+System dashboards (v8): GET, PUT and DELETE /pro/dash/sync/system/{id}, where {id} is a reserved
+name (only "docks" at v8, BDOBB's locked-widget bands). One per credential, stored with
+"hidden": true beside the ordinary dashboards; GET /pro/dash/sync/owned never lists a hidden one
+and POST /pro/dash/sync cannot reach one (its keys are uuids). A PUT carries the client's own
+"revision" (a non-negative integer, BDOBB's edit time in ms) and the newest revision wins: an older
+one answers 409 with the stored dashboard.
+
 Authorised by the API's own Basic credential (OPENBB_API_AUTH with OPENBB_API_USERNAME and
 OPENBB_API_PASSWORD). With API auth off there is no key to check, so all routes answer 404,
 as on a backend without a settings API. One JSON object per credential, kept as sent on the
@@ -29,6 +36,8 @@ MAX_BYTES = 1_000_000
 PATHS = {"/pro/user", "/pro/display-settings", "/pro/dash/sync", "/pro/dash/sync/owned",
          "/pro/dash/sync/shared", "/pro/user-apps/sync"}
 APP_PREFIX = "/pro/user-apps/"
+SYSTEM_PREFIX = "/pro/dash/sync/system/"
+SYSTEM_IDS = {"docks"}
 MAX_SYNC_BYTES = 5_000_000
 # ponytail: one process-wide lock around every dashboard/app read-modify-write; per-credential locks if it ever contends.
 LOCK = threading.Lock()
@@ -70,7 +79,8 @@ async def middleware(request, call_next):
     from openbb_core.env import Env
 
     path = request.url.path
-    if not (path in PATHS or path.startswith(APP_PREFIX)) or request.method == "OPTIONS" or not Env().API_AUTH:
+    if (not (path in PATHS or path.startswith(APP_PREFIX) or path.startswith(SYSTEM_PREFIX))
+            or request.method == "OPTIONS" or not Env().API_AUTH):
         return await call_next(request)
     return _cors(request, await _settings(request))
 
@@ -92,6 +102,8 @@ async def _settings(request):
         return await _post_dashboards(request, STORE / f"{key}.dashboards.json")
     if route == ("GET", "/pro/user-apps/sync"):
         return JSONResponse({"owned": _owned_apps(_load(STORE / f"{key}.apps.json"), user), "shared": {}})
+    if request.url.path.startswith(SYSTEM_PREFIX):
+        return await _system(request, STORE / f"{key}.dashboards.json", request.url.path[len(SYSTEM_PREFIX):], user)
     if request.url.path.startswith(APP_PREFIX) and request.method in ("POST", "DELETE"):
         return await _app(request, STORE / f"{key}.apps.json", request.url.path[len(APP_PREFIX):])
     path = STORE / f"{key}.json"
@@ -153,19 +165,20 @@ async def _json_body(request):
 
 
 def _owned(store, user):
-    """Stored dashboards in Workspace's DashboardReturn shape."""
+    """Stored dashboards in Workspace's DashboardReturn shape; hidden (system) ones are never listed."""
     return {k: {"creator": True, "content": v["content"], "created_date": v["created_date"],
                 "updated_date": v["updated_date"], "created_by": user, "is_shared": False}
-            for k, v in store.items()}
+            for k, v in store.items() if not v.get("hidden")}
 
 
 def _ensure_root(store, now):
     """Create the root folder on the first write, adopting every dashboard that names no parent."""
-    if not store or any(v["content"].get("isRoot") for v in store.values()):
+    listed = {k: v for k, v in store.items() if not v.get("hidden")}
+    if not listed or any(v["content"].get("isRoot") for v in listed.values()):
         return
     root = str(uuidlib.uuid4())
     children = []
-    for key, v in store.items():
+    for key, v in listed.items():
         content = v["content"]
         if not content.get("isFolder") and not content.get("parentId"):
             content["parentId"] = root
@@ -233,3 +246,47 @@ async def _app(request, path, raw):
         apps[key] = {"content": body, "created_date": apps.get(key, {}).get("created_date", now), "updated_date": now}
         _save(path, apps)
     return JSONResponse({"success": True})
+
+
+def _system_record(id_, record, user):
+    """One system dashboard as GET/PUT return it: the DashboardReturn fields plus id, hidden and revision."""
+    return {"id": id_, "hidden": True, "revision": record["revision"], "creator": True, "content": record["content"],
+            "created_date": record["created_date"], "updated_date": record["updated_date"], "created_by": user,
+            "is_shared": False}
+
+
+async def _system(request, path, id_, user):
+    """GET, PUT or DELETE the one hidden dashboard a reserved id names; the newest revision wins a PUT."""
+    if id_ not in SYSTEM_IDS:
+        return JSONResponse({"detail": "No such system dashboard."}, status_code=404)
+    if request.method == "GET":
+        record = _load(path).get(id_)
+        return JSONResponse({"dashboard": _system_record(id_, record, user) if record else None})
+    if request.method == "DELETE":
+        with LOCK:
+            store = _load(path)
+            if store.pop(id_, None) is not None:
+                _save(path, store)
+        return JSONResponse({"success": True})
+    if request.method != "PUT":
+        return JSONResponse({"detail": "Method not allowed."}, status_code=405)
+    body, error = await _json_body(request)
+    if error:
+        return error
+    revision = body.get("revision") if isinstance(body, dict) else None
+    if (not isinstance(body, dict) or set(body) != {"revision", "content"} or not isinstance(body["content"], dict)
+            or type(revision) is not int or revision < 0):
+        return JSONResponse({"detail": "The body must be {revision: non-negative integer, content: object}."},
+                            status_code=400)
+    with LOCK:
+        store = _load(path)
+        stored = store.get(id_)
+        if stored and stored["revision"] > revision:
+            return JSONResponse({"detail": "A newer revision is stored.",
+                                 "dashboard": _system_record(id_, stored, user)}, status_code=409)
+        now = _now()
+        record = {"content": body["content"], "created_date": stored["created_date"] if stored else now,
+                  "updated_date": now, "hidden": True, "revision": revision}
+        store[id_] = record
+        _save(path, store)
+    return JSONResponse({"success": True, "dashboard": _system_record(id_, record, user)})

@@ -59,7 +59,7 @@ def api(tmp_path, monkeypatch, env):
     monkeypatch.setenv("OPENBQ_SETTINGS_DIR", str(tmp_path))
     module = importlib.reload(importlib.import_module("openbq_settings"))
     app = Starlette(routes=[Route("/{path:path}", lambda request: PlainTextResponse("not here", 404),
-                                  methods=["GET", "POST", "DELETE"])])
+                                  methods=["GET", "POST", "PUT", "DELETE"])])
     app.add_middleware(BaseHTTPMiddleware, dispatch=module.middleware)
     return TestClient(app), module
 
@@ -229,3 +229,128 @@ def test_settings_routes_still_work(api):
     client, _ = api
     assert client.post("/pro/display-settings", json={"theme": "dark"}, headers=AUTH).status_code == 200
     assert client.get("/pro/user", headers=AUTH).json() == {"pro_display_settings": {"theme": "dark"}}
+
+
+DOCKS = "/pro/dash/sync/system/docks"
+SYSTEM_ROUTES = [("GET", DOCKS), ("PUT", DOCKS), ("DELETE", DOCKS)]
+
+
+def docks(revision, name="Locked widgets"):
+    return {"revision": revision, "content": {"id": "docks", "name": name, "hidden": True, "tabs": []}}
+
+
+def put_docks(client, body, auth=AUTH):
+    return client.put(DOCKS, json=body, headers=auth)
+
+
+@pytest.mark.parametrize("method,path", SYSTEM_ROUTES)
+def test_system_routes_answer_404_with_api_auth_off(api, env, method, path):
+    client, _ = api
+    env.API_AUTH = False
+    assert client.request(method, path, headers=AUTH).status_code == 404
+
+
+@pytest.mark.parametrize("method,path", SYSTEM_ROUTES)
+def test_system_routes_refuse_a_missing_or_wrong_credential(api, method, path):
+    client, _ = api
+    assert client.request(method, path).status_code == 401
+    assert client.request(method, path, headers=basic("alice", "wrong")).status_code == 401
+
+
+def test_the_docks_starts_absent(api):
+    client, _ = api
+    assert client.get(DOCKS, headers=AUTH).json() == {"dashboard": None}
+
+
+def test_the_docks_round_trips_hidden_and_is_never_listed(api, monkeypatch):
+    client, module = api
+    monkeypatch.setattr(module, "_now", lambda: "2026-10-11T00:00:01Z")
+    put = put_docks(client, docks(5))
+    assert put.status_code == 200
+    expected = {"id": "docks", "hidden": True, "revision": 5, "creator": True, "content": docks(5)["content"],
+                "created_date": "2026-10-11T00:00:01Z", "updated_date": "2026-10-11T00:00:01Z",
+                "created_by": "alice", "is_shared": False}
+    assert put.json() == {"success": True, "dashboard": expected}
+    assert client.get(DOCKS, headers=AUTH).json() == {"dashboard": expected}
+    assert owned(client) == {"owned": {}}
+
+
+def test_the_docks_is_not_adopted_by_the_root_and_the_list_stays_workspace_shaped(api):
+    client, _ = api
+    put_docks(client, docks(1))
+    post(client, {DASH: dash()})
+    items = owned(client)["owned"]
+    assert "docks" not in items and DASH in items
+    root = next(v for v in items.values() if v["content"].get("isRoot"))
+    assert root["content"]["children"] == [DASH]
+    assert "parentId" not in client.get(DOCKS, headers=AUTH).json()["dashboard"]["content"]
+
+
+def test_the_newest_revision_wins(api, monkeypatch):
+    client, module = api
+    clock = iter(["2026-10-11T00:00:01Z", "2026-10-11T00:00:02Z", "2026-10-11T00:00:03Z"])
+    monkeypatch.setattr(module, "_now", lambda: next(clock))
+    put_docks(client, docks(10, "first"))
+    stale = put_docks(client, docks(9, "stale"))
+    assert stale.status_code == 409
+    assert stale.json()["dashboard"]["content"]["name"] == "first"
+    assert put_docks(client, docks(10, "same revision")).status_code == 200
+    newer = put_docks(client, docks(11, "newer")).json()["dashboard"]
+    assert (newer["revision"], newer["content"]["name"]) == (11, "newer")
+    assert (newer["created_date"], newer["updated_date"]) == ("2026-10-11T00:00:01Z", "2026-10-11T00:00:03Z")
+
+
+def test_one_docks_per_credential(api, env):
+    client, _ = api
+    put_docks(client, docks(3))
+    env.API_PASSWORD = "rotated"
+    assert client.get(DOCKS, headers=basic("alice", "rotated")).json() == {"dashboard": None}
+
+
+def test_delete_removes_the_docks_and_leaves_the_dashboards(api):
+    client, _ = api
+    post(client, {DASH: dash()})
+    put_docks(client, docks(3))
+    assert client.delete(DOCKS, headers=AUTH).json() == {"success": True}
+    assert client.delete(DOCKS, headers=AUTH).json() == {"success": True}
+    assert client.get(DOCKS, headers=AUTH).json() == {"dashboard": None}
+    assert DASH in owned(client)["owned"]
+    assert put_docks(client, docks(1)).status_code == 200
+
+
+def test_the_dashboard_sync_post_cannot_reach_the_docks(api):
+    client, _ = api
+    put_docks(client, docks(3))
+    assert post(client, {"docks": dash()}).status_code == 400
+    assert post(client, {"docks": "DELETE"}).status_code == 400
+    assert client.get(DOCKS, headers=AUTH).json()["dashboard"]["revision"] == 3
+
+
+@pytest.mark.parametrize("body", [b"not json", b"[]", b'{"content": {}}', b'{"revision": 1}',
+                                  b'{"revision": -1, "content": {}}', b'{"revision": 1.5, "content": {}}',
+                                  b'{"revision": true, "content": {}}', b'{"revision": "1", "content": {}}',
+                                  b'{"revision": 1, "content": []}', b'{"revision": 1, "content": {}, "extra": 1}'])
+def test_a_malformed_docks_body_answers_400_and_writes_nothing(api, body):
+    client, _ = api
+    assert client.put(DOCKS, content=body, headers=AUTH).status_code == 400
+    assert client.get(DOCKS, headers=AUTH).json() == {"dashboard": None}
+
+
+def test_a_docks_body_over_5_mb_answers_413(api):
+    client, _ = api
+    body = docks(1)
+    body["content"]["blob"] = "x" * 5_000_001
+    assert put_docks(client, body).status_code == 413
+    assert client.get(DOCKS, headers=AUTH).json() == {"dashboard": None}
+
+
+@pytest.mark.parametrize("path", ["/pro/dash/sync/system/other", "/pro/dash/sync/system/", "/pro/dash/sync/system/docks/x"])
+def test_an_unreserved_system_id_answers_404(api, path):
+    client, _ = api
+    assert client.put(path, json=docks(1), headers=AUTH).status_code == 404
+    assert client.get(path, headers=AUTH).status_code == 404
+
+
+def test_post_on_the_docks_is_not_allowed(api):
+    client, _ = api
+    assert client.post(DOCKS, json=docks(1), headers=AUTH).status_code == 405

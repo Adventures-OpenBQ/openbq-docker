@@ -6,6 +6,8 @@
 Usage: verify-dashboards.py BASE_URL USERNAME PASSWORD
 Writes one test dashboard and one test app under fresh uuids, then deletes both.
 On a credential with no dashboards yet, the first write leaves a root folder behind.
+The hidden docks dashboard (v8) is written and deleted only when the credential has none;
+an existing one is read, never overwritten.
 """
 import base64
 import json
@@ -47,4 +49,17 @@ assert call('POST', f'/pro/user-apps/{app}', app_content)[0] == 200, 'an app mus
 assert call('GET', '/pro/user-apps/sync')[1]['owned'][app]['content'] == app_content, 'the app must round-trip'
 assert call('DELETE', f'/pro/user-apps/{app}')[0] == 200, 'the app must delete'
 assert call('DELETE', f'/pro/user-apps/{app}')[0] == 404, 'a deleted app must be gone'
-print(json.dumps({'dashboard_checks': 12, 'status': 'passed'}))
+docks = '/pro/dash/sync/system/docks'
+status, current = call('GET', docks)
+assert status == 200 and 'dashboard' in current, 'GET docks must answer {dashboard}'
+assert 'docks' not in call('GET', '/pro/dash/sync/owned')[1]['owned'], 'the docks must never be listed'
+checks = 15
+if current['dashboard'] is None:
+    body = {'revision': 2, 'content': {'id': 'docks', 'name': 'verify-dashboards', 'hidden': True, 'tabs': []}}
+    assert call('PUT', docks, body)[1]['dashboard']['hidden'] is True, 'PUT docks must store a hidden dashboard'
+    assert 'docks' not in call('GET', '/pro/dash/sync/owned')[1]['owned'], 'a stored docks must not be listed'
+    assert call('PUT', docks, dict(body, revision=1))[0] == 409, 'an older revision must lose'
+    assert call('DELETE', docks)[1] == {'success': True}, 'DELETE docks must succeed'
+    assert call('GET', docks)[1] == {'dashboard': None}, 'a deleted docks must be gone'
+    checks += 5
+print(json.dumps({'dashboard_checks': checks, 'status': 'passed'}))
