@@ -7,12 +7,16 @@ Survey for the BDOBB v8 carry (BDOBB clean `claude/clean-v8` at v7.0.0 `8eb9ff6`
 (`775354f`, read-only clone). Donor client: bdobb-v2 **v8.1.2**, commit `a7772b2b` "feat(web): the news
 relay and socket tickets at 8.0.2".
 
-Summary:
+Summary (after the user's rulings of 2026-10-11 on the first survey):
 
-- **R6 is implemented** here (`v3/openbq_settings.py`, key-mode routes). Contract below.
-- **R3 is not implemented.** openbq-docker has no gateway layer at all, so the donor's `/news` relay has
-  nothing to sit in, and porting it means two new services and images plus a public Funnel port. That
-  needs the user's decision; the options are at the end.
+- **R3 is implemented** as the opt-in `web` compose profile: `funnel-gateway` (ported from the donor
+  with `/api`, `/state` and `/news` only, no `/ai`) and `rss-ticker`, plus `ts-config/serve-funnel.json`.
+  Section 4.
+- **R6 is implemented** in both of BDOBB's Workspace modes: key mode (`v3/openbq_settings.py`) and
+  login mode (`workspace/patches/004-system-dashboard.patch` for the source-built Workspace/Lite).
+  The contract is the same in both and covers PUT and DELETE with revision checks. Section 3.
+- Section 2 records where the repo stood before this work. The v8 line is `release/v7` (v7.0.0)
+  merged into `main`; the user approved that base (R6d).
 
 ## 1. What the donor v8.0.3 gateway does
 
@@ -119,68 +123,195 @@ dashboard/app sync.
     pinned in `workspace/source.json` and adjusted by `workspace/patches/*`. The upstream source is not
     in this repo.
 
-## 3. R6, implemented: the hidden docks dashboard (key mode)
+## 3. R6: the hidden docks dashboard (key mode and login mode)
 
-The routes are in `v3/openbq_settings.py` and the tests in `v3/tests/test_openbq_settings.py`. The live
-check is `scripts/verify-dashboards.py`.
+### Contract (identical in both modes)
 
 | Route | Request | Answer |
 |---|---|---|
 | `GET /pro/dash/sync/system/docks` | — | 200 `{"dashboard": <record>}`, or `{"dashboard": null}` when none is stored |
-| `PUT /pro/dash/sync/system/docks` | `{"revision": <int ≥ 0>, "content": {…}}`, exactly these two keys, ≤ 5 MB | 200 `{"success": true, "dashboard": <record>}`. **409** `{"detail": …, "dashboard": <stored record>}` when the stored `revision` is greater. An equal revision is accepted. 400 for a malformed body, 413 over 5 MB. |
-| `DELETE /pro/dash/sync/system/docks` | — | 200 `{"success": true}`, also when nothing was stored |
-| any other `/pro/dash/sync/system/<id>` | — | 404 |
-| any other method on the docks route | — | 405 |
+| `PUT /pro/dash/sync/system/docks` | body `{"revision": <int ≥ 0>, "content": {…}}`, exactly these two keys, ≤ 5 MB | 200 `{"success": true, "dashboard": <record>}`. **409** `{"detail", "dashboard": <stored record>}` when the stored revision is higher; an equal revision is accepted. 400 malformed, 413 over 5 MB. |
+| `DELETE /pro/dash/sync/system/docks?revision=<int ≥ 0>` | exactly one `revision` query parameter, ASCII digits, nothing else | 200 `{"success": true}`, also when nothing was stored. **409** with the stored record when its revision is higher. 400 when `revision` is missing, repeated, non-integer or joined by another parameter. |
+| `/pro/dash/sync/system/<other>` | — | 404 (only `docks` is reserved) |
 
-`<record>` = `{"id": "docks", "hidden": true, "revision": n, "content": {…}, "created_date", "updated_date", "created_by", "creator": true, "is_shared": false}`.
+`<record>` is `{"id": "docks", "hidden": true, "revision": n, "content": {…}, "created_date", "updated_date", "created_by", "creator": true, "is_shared": false}`. Dates are server-set ISO-8601 UTC strings with a `Z` suffix.
 
 Semantics:
 
-- **The flag is `hidden: true`** on the stored record, which sits beside `content`, not inside it.
-  `GET /pro/dash/sync/owned` never lists a hidden record, and the root folder's adoption ignores it.
-  `content` is kept exactly as sent.
-- **The reserved id is `docks`**, the same as BDOBB's `DOCKS_ID`. It is not a uuid, so
-  `POST /pro/dash/sync` (which takes only uuid keys) can neither write nor delete it. Both attempts
-  answer 400.
-- **One per account.** The store has one dashboards file per Basic credential, and the docks occupies
-  one fixed key in it.
-- **The newest revision wins.** `revision` is supplied by the client and compared as an integer. BDOBB
-  should send its last local docks edit time in epoch milliseconds, so two devices compare the same
-  clock. A losing PUT receives the winner in its 409 body. `updated_date` is still set by the server,
-  and `created_date` is kept across PUTs.
-- The same lock as the other routes applies: Basic auth, 404 with `OPENBB_API_AUTH` off, CORS
-  allow-origin added, atomic write under the one process lock.
+- **The flag is `hidden: true`.** The docks is never listed by `GET /pro/dash/sync/owned`, by the
+  root folder or, in login mode, by `GET /pro/dash/sync` or `/validate-and-sync` (the Workspace web
+  app's own listings). `content` is kept exactly as sent.
+- **The reserved id is `docks`**, the same as BDOBB's `DOCKS_ID`. `POST /pro/dash/sync` cannot reach
+  it in either mode.
+- **There is one docks per account**: one per Basic credential in key mode, and one per Workspace
+  user in login mode (unique on owner and id).
+- **The newest revision wins.** `revision` is the client's last docks edit time in epoch ms (ruling
+  R6a). A PUT or DELETE with an older revision answers 409 and carries the winner, which the client
+  should take.
+- **Auth.** Key mode uses the API's Basic credential and answers 404 when `OPENBB_API_AUTH` is off.
+  Login mode uses `Authorization: Bearer <access_token from POST /pro/login>`, as BDOBB already
+  sends; a missing token is refused.
 
-What the client must do:
+The client must:
 
-- Leave the docks out of the ordinary `/owned` + `POST /pro/dash/sync` plan, so that
-  `planDashboardSync`'s `uploadNew` must skip it.
-- Sync it through these routes instead.
-- On a 409, take the returned dashboard.
+- leave the docks out of the ordinary `/owned` + `POST /pro/dash/sync` plan, so that
+  `planDashboardSync`'s `uploadNew` skips it;
+- sync it through these routes, in both modes;
+- send the same `revision` on PUT and DELETE;
+- take the dashboard returned in a 409.
 
-## 4. R3: options for the user (not implemented, stop condition met)
+### Key mode (`v3/openbq_settings.py`)
 
-The `/news` relay cannot be ported mechanically. openbq-docker has no gateway to put it in. The
-donor's relay needs `rss-ticker` (a new external image) and `funnel-gateway` (a new Node image), and it
-is only useful on a public Funnel port, which this repo currently disables by policy. The choices:
+The docks is stored in the credential's dashboards file under the key `docks`, as a record with
+`hidden: true` and `revision`. Tests: `v3/tests/test_openbq_settings.py`, with 37 docks cases among
+68 in total. The live check is `scripts/verify-dashboards.py`.
 
-1. **Port the whole donor gateway as an opt-in `web` profile.** Add `funnel-gateway/` (policy, server,
-   config, verify, check-upstreams, tests; Apache-2.0, provenance to openbb-docker v8.0.3 `775354f`),
-   an `rss-ticker` service (`ghcr.io/artcashin/rss-feedhandler:8.0.0` or a pinned digest),
-   `gateway.env.example`, `gateway-config/settings.example.json`, `rss-ticker-config/config.yaml.example`
-   and `ts-config/serve-funnel.json` (`:8443` → `funnel-gateway:8091`, Funnel on). This gives the web
-   build `/api`, `/state` and `/news` together.
-   - Approval needed: two new images, the Node toolchain in this repo, and a public Funnel port.
-   - Decide whether to keep `/ai` (Rita) out.
-   - Decide whether `policy.mjs`'s header should say openbq-docker. The client's `security.test.mjs`
-     L637 regex requires `vendored from openbb-docker vX.Y.Z`.
-2. **Port only `/news`, without a gateway service:** a tailnet-only rss-ticker plus a news relay inside
-   `openbq-api`. **Not viable.** The client contract is Bearer + tickets + Origin = `previewOrigin` on
-   a public origin, and openbq-api's middleware is Basic-only HTTP with no WebSocket relay. It would
-   still need the rss-ticker image.
-3. **Pair the web build with bdobb-dev/openbb-docker v8.0.3** for its gateway, as the client already
-   does at v3.0.1. Raise `openbbDocker` to v8.0.3 and vendor its `policy.mjs` (sha `127a6b80…`), with
-   no openbq-docker change. This contradicts R3's note that the stack should be an
-   Adventures-OpenBQ/openbq-docker release.
-4. **Defer the web News relay.** Desktop News talks to an rss-ticker the user runs. The web build
-   keeps `socketTarget() === null`.
+### Login mode (`workspace/patches/004-system-dashboard.patch`)
+
+The patch targets OpenBB-finance/workspace at the pinned `be00e95` and applies after patches
+001–003 with `patch -p1`, as the workspace README describes. It adds:
+
+- the `SystemDashboard` model, table `system_dashboard`: `owner_uuid` (FK `user.uuid`, cascade),
+  `system_id`, `revision` (BigInteger), gzip-JSON `content`, dates, and a unique constraint on
+  `(owner_uuid, system_id)`;
+- Alembic revision `9b1d0c5e7a42`, following the pinned head `0d4a342f4c26` and guarded against an
+  existing table;
+- the three routes in `routers/pro/dash.py`.
+
+The docks lives in its own table, so none of Workspace's dashboard listings, sharing or versions
+code can see it.
+
+Verification, run against the pinned upstream fetched into a scratch directory:
+
+- A fresh `assemble.sh` followed by patches 001–004 applies cleanly.
+- `alembic upgrade head` runs through the whole chain on SQLite, the Lite default.
+- The backend ran under the Lite image's runtime environment with Redis, using the image's pinned
+  Python packages, slowapi at `d3442b2`, and `scripts.init_users`.
+- `workspace/scripts/verify-system-dashboard.py` signs in through `/pro/login` as BDOBB does. It
+  passed all 14 checks, which include:
+  - the owned list and the full `/pro/dash/sync` leaving the docks out;
+  - 409s on a stale PUT and on a stale DELETE;
+  - a 400 for DELETE without a revision;
+  - a 404 for an unreserved id.
+- A two-account check showed that each account has its own docks and that an ordinary dashboard
+  is still listed.
+- All of these were repeated with `dash.py` compiled by Cython, as the Lite image builds it.
+- `workspace/tests/test_patches.py` checks the patch notices, the README's apply list and the
+  migration's parent.
+
+Not run: the upstream backend's own pytest suite, which needs MySQL testcontainers and Docker, and
+a full `docker build` of the image. Docker has no daemon here.
+
+## 4. R3: the gateway, as the opt-in `web` profile
+
+### What was ported
+
+The source is donor `funnel-gateway/` at v8.0.3 (`775354f`), Apache-2.0, same copyright holder. The
+following files were ported into `funnel-gateway/`:
+
+- `policy`, `config`, `server`, `entry`, `healthcheck`, `verify` and `check-upstreams` (`.mjs`);
+- `Dockerfile`, `package.json` and `package-lock.json` (`ws` 8.21.3);
+- `settings.example.json`;
+- the tests `gateway`, `policy` and `tls` (`.test.mjs`).
+
+Removed, as ruled:
+
+- `/ai/agents.json` and `POST /ai/v1/query` (Rita), with `postRita`, `handleQuery`, `ritaOptions`
+  and the SOCKS5 dialer (`socksConnect`, `socks.test.mjs`);
+- the settings `ritaOrigin`, `ritaAddress` and `socksProxy`, which are now refused as unknown keys.
+
+openbq-specific changes:
+
+- The upstream is `http://openbq-api:6900`.
+- The gateway reads only `gateway.env`: `GATEWAY_TOKEN` plus the API's Basic pair repeated from
+  `credentials.env`, so it never loads provider keys.
+- `check-upstreams.mjs` also requires the API to answer 401 without the pair. Basic auth is optional
+  on openbq-api, and the door must not open on an unlocked API.
+
+Compose (`docker-compose.yml`) puts both services under `profiles: [web]`:
+
+| Service | Image | Notes |
+|---|---|---|
+| `rss-ticker` | `ghcr.io/artcashin/rss-feedhandler:8.0.0` | Config from `rss-ticker-config/config.yaml`; data in the `rss-ticker-data` volume. |
+| `funnel-gateway` | built, `openbq-funnel-gateway:8.0.0` | `read_only`, uid 1000, `cap_drop: ALL`, 256 MB, `gateway-state` volume, `gateway-config/` bind mounted read-only. |
+
+Neither service publishes a host port. Serve (`ts-config/serve-funnel.json`):
+
+- `:443` → openbq-api, tailnet only;
+- `:8443` → funnel-gateway, the only port with `AllowFunnel`;
+- `:8088` → rss-ticker, tailnet only.
+
+The default `ts-config/serve.json` is unchanged and funnels nothing.
+
+### Gateway contract the BDOBB web layer codes to
+
+- Every HTTP request carries `Authorization: Bearer <GATEWAY_TOKEN>`. `Host` is the `origin`, and
+  an `Origin`, if present, equals it.
+- Routes:
+  - `GET /api/widgets.json` and `GET /api/apps.json`, with no query;
+  - `GET /api/api/v1/**`, under the structural bounds;
+  - `GET /api/api/v1/calendar/trading?exchange=<MIC>&year=<1990..2040>`;
+  - `GET /news/api/news?feed_id=<approved id>&limit=<1..50>`;
+  - the WebSocket `/news/ws/news`, which takes no query;
+  - `GET /state/<digits>`, and `PUT` or `DELETE /state/<digits>/<stateFile>`;
+  - `GET /_gateway/health`.
+- Anything else answers 404, including all of `/ai`.
+- The socket accepts one text frame, `{"subscribe":[{"url":"https://…"}, …]}`, with 1–50 unique
+  urls. It is rebuilt from the approved urls, and the socket lives at most 240 s.
+- Ticket: `<13-digit expiry ms>.<22-char base64url nonce>.<43-char base64url HMAC-SHA256>`.
+  - Key: `K = HMAC-SHA256(GATEWAY_TOKEN, "bdobb socket ticket v1")`.
+  - Signed message: `"<expiry>.<nonce>.<target>"`, where `target` is `/news/ws/news`.
+  - A ticket lasts 30 s and works once.
+  - It goes last on the URL: `wss://<origin>/news/ws/news?ticket=<ticket>`.
+  - The request carries no `Authorization` header, and `Origin` must equal `previewOrigin`.
+- Config keys in `gateway-config/settings.json`:
+  - `origin`, `previewOrigin` and `stateDir`;
+  - the budgets `quoteDailyLimit`, `requestsPerMinute`, `maxConcurrent` and `maxSockets`;
+  - `rssOrigin`, `rssAddress` and `feeds`.
+- `gateway.env` holds `GATEWAY_TOKEN`, `OPENBB_API_USERNAME` and `OPENBB_API_PASSWORD`.
+
+### The policy header and BDOBB's vendored copy
+
+The `policy.mjs` docblock names openbq-docker as the source and cites `bdobb-dev/openbb-docker
+v8.0.3 (775354f)` as the donor. At this branch its sha256 is
+`dfa61ddf8872fe83d1447a62ed2347fe58c6509186e8f3772372d209b8e0bfd0`, so BDOBB's vendored first line
+would be:
+
+```
+// vendored from openbq-docker v8.0.0 funnel-gateway/policy.mjs sha256:dfa61ddf8872fe83d1447a62ed2347fe58c6509186e8f3772372d209b8e0bfd0
+```
+
+The admission logic matches the client's v8.1.2 `web/policy.mjs`, which is the donor's, except that
+`upstreamPath` no longer admits `/ai/agents.json`. A scratch check confirmed the match:
+
+- both policies give the same answers for `/api`, `/news`, `/state`, socket targets, the subscription
+  frame and `stateFile`;
+- a ticket signed by the client's own `socketTicket` opens this gateway's socket once and is refused
+  on reuse.
+
+### Tests
+
+- `cd funnel-gateway && npm ci --ignore-scripts && npm test`: 47 tests pass, steadily.
+- `pytest tests` covers the profile, the absence of host ports, both Serve configs and the
+  placeholders in the examples.
+- `docker compose --profile web config --quiet` validates, and the default set of services is
+  unchanged.
+- CI (`public-content.yml`) now runs both.
+- The donor's ticket tamper test flipped the signature's last base64url character. That character
+  carries padding bits only, so the test failed about one run in sixteen. It now flips a character
+  inside the signature. This is a test fix only: the nonce is what is single-use, so a ticket whose
+  padding bits differ cannot replay one already admitted.
+
+### Operating notes and what is still open
+
+- **Reaching rss-ticker.** The gateway dials it by its tailnet name (`rssOrigin`, port 8088) at a
+  pinned tailnet IPv4 (`rssAddress`), as the donor does. This works only if the Docker host routes
+  the bridge into the tailnet; `funnel-gateway/README.md` has the one-command check. Without that
+  route, `/news` stays off (404/503) and `/api` and `/state` still work.
+- **Image digests are not pinned.** `node:22-alpine` and `ghcr.io/artcashin/rss-feedhandler:8.0.0`
+  are referenced by tag, unlike the repo's digest-pinned images. Docker Hub rate-limited the lookup
+  and ghcr answered 403, so the rss image may need a registry login.
+- **Not built or run.** Docker has no daemon here, so the gateway image was not built and no
+  container was run.
+- **rss-ticker only runs under the `web` profile.** A desktop-only News user who wants the pool
+  without the door would need it outside the profile.
