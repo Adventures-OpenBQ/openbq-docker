@@ -709,7 +709,7 @@
             "index": 1,
             "extras": {
               "calendar": {
-                "mode": "paged",
+                "mode": "static",
                 "unit": "month",
                 "dateField": "auction_date",
                 "titleField": "security_term",
