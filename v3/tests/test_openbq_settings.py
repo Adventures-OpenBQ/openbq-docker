@@ -311,8 +311,8 @@ def test_delete_removes_the_docks_and_leaves_the_dashboards(api):
     client, _ = api
     post(client, {DASH: dash()})
     put_docks(client, docks(3))
-    assert client.delete(DOCKS, headers=AUTH).json() == {"success": True}
-    assert client.delete(DOCKS, headers=AUTH).json() == {"success": True}
+    assert client.delete(DOCKS + "?revision=3", headers=AUTH).json() == {"success": True}
+    assert client.delete(DOCKS + "?revision=0", headers=AUTH).json() == {"success": True}
     assert client.get(DOCKS, headers=AUTH).json() == {"dashboard": None}
     assert DASH in owned(client)["owned"]
     assert put_docks(client, docks(1)).status_code == 200
@@ -354,3 +354,23 @@ def test_an_unreserved_system_id_answers_404(api, path):
 def test_post_on_the_docks_is_not_allowed(api):
     client, _ = api
     assert client.post(DOCKS, json=docks(1), headers=AUTH).status_code == 405
+
+
+def test_a_delete_older_than_the_stored_docks_answers_409_and_keeps_it(api):
+    client, _ = api
+    put_docks(client, docks(10, "kept"))
+    stale = client.delete(DOCKS + "?revision=9", headers=AUTH)
+    assert stale.status_code == 409
+    assert stale.json()["dashboard"]["content"]["name"] == "kept"
+    assert client.get(DOCKS, headers=AUTH).json()["dashboard"]["revision"] == 10
+    assert client.delete(DOCKS + "?revision=11", headers=AUTH).json() == {"success": True}
+    assert client.get(DOCKS, headers=AUTH).json() == {"dashboard": None}
+
+
+@pytest.mark.parametrize("query", ["", "?revision=", "?revision=-1", "?revision=1.5", "?revision=x",
+                                   "?revision=1&revision=2", "?revision=1&extra=1", "?revision=%EF%BC%91"])
+def test_a_delete_without_one_integer_revision_answers_400_and_keeps_the_docks(api, query):
+    client, _ = api
+    put_docks(client, docks(3))
+    assert client.delete(DOCKS + query, headers=AUTH).status_code == 400
+    assert client.get(DOCKS, headers=AUTH).json()["dashboard"]["revision"] == 3

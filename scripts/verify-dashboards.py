@@ -59,7 +59,8 @@ if current['dashboard'] is None:
     assert call('PUT', docks, body)[1]['dashboard']['hidden'] is True, 'PUT docks must store a hidden dashboard'
     assert 'docks' not in call('GET', '/pro/dash/sync/owned')[1]['owned'], 'a stored docks must not be listed'
     assert call('PUT', docks, dict(body, revision=1))[0] == 409, 'an older revision must lose'
-    assert call('DELETE', docks)[1] == {'success': True}, 'DELETE docks must succeed'
+    assert call('DELETE', docks + '?revision=1')[0] == 409, 'an older DELETE must lose'
+    assert call('DELETE', docks + '?revision=2')[1] == {'success': True}, 'DELETE docks must succeed'
     assert call('GET', docks)[1] == {'dashboard': None}, 'a deleted docks must be gone'
-    checks += 5
+    checks += 6
 print(json.dumps({'dashboard_checks': checks, 'status': 'passed'}))

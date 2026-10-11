@@ -11,7 +11,7 @@ name (only "docks" at v8, BDOBB's locked-widget bands). One per credential, stor
 "hidden": true beside the ordinary dashboards; GET /pro/dash/sync/owned never lists a hidden one
 and POST /pro/dash/sync cannot reach one (its keys are uuids). A PUT carries the client's own
 "revision" (a non-negative integer, BDOBB's edit time in ms) and the newest revision wins: an older
-one answers 409 with the stored dashboard.
+one answers 409 with the stored dashboard. DELETE takes the same check as ?revision=<n>.
 
 Authorised by the API's own Basic credential (OPENBB_API_AUTH with OPENBB_API_USERNAME and
 OPENBB_API_PASSWORD). With API auth off there is no key to check, so all routes answer 404,
@@ -263,9 +263,18 @@ async def _system(request, path, id_, user):
         record = _load(path).get(id_)
         return JSONResponse({"dashboard": _system_record(id_, record, user) if record else None})
     if request.method == "DELETE":
+        raw = request.query_params.getlist("revision")
+        if len(raw) != 1 or set(request.query_params) != {"revision"} or not raw[0].isascii() \
+                or not raw[0].isdigit() or len(raw[0]) > 20:
+            return JSONResponse({"detail": "DELETE takes exactly ?revision=<non-negative integer>."}, status_code=400)
         with LOCK:
             store = _load(path)
-            if store.pop(id_, None) is not None:
+            stored = store.get(id_)
+            if stored and stored["revision"] > int(raw[0]):
+                return JSONResponse({"detail": "A newer revision is stored.",
+                                     "dashboard": _system_record(id_, stored, user)}, status_code=409)
+            if stored is not None:
+                del store[id_]
                 _save(path, store)
         return JSONResponse({"success": True})
     if request.method != "PUT":
