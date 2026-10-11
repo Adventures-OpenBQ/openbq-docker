@@ -170,3 +170,53 @@ def test_a_failed_write_leaves_the_stored_file_intact(api, monkeypatch, tmp_path
         post(client, {DASH: dash("After")})
     [stored] = tmp_path.glob("*.dashboards.json")
     assert json.loads(stored.read_text())[DASH]["content"]["data"]["name"] == "Before"
+
+
+APP_ROUTES = [("GET", "/pro/user-apps/sync"), ("POST", f"/pro/user-apps/{APP}"), ("DELETE", f"/pro/user-apps/{APP}")]
+
+
+def app_content(name="Example app"):
+    return {"name": name, "widgets": [], "groups": [], "gridLayout": {}, "prompts": []}
+
+
+@pytest.mark.parametrize("method,path", APP_ROUTES)
+def test_app_routes_answer_404_with_api_auth_off(api, env, method, path):
+    client, _ = api
+    env.API_AUTH = False
+    assert client.request(method, path, headers=AUTH).status_code == 404
+
+
+@pytest.mark.parametrize("method,path", APP_ROUTES)
+def test_app_routes_refuse_a_missing_credential(api, method, path):
+    client, _ = api
+    assert client.request(method, path).status_code == 401
+
+
+def test_an_app_upserts_lists_in_workspace_shape_and_deletes(api, monkeypatch):
+    client, module = api
+    clock = iter(["2026-10-11T00:00:01Z", "2026-10-11T00:00:02Z"])
+    monkeypatch.setattr(module, "_now", lambda: next(clock))
+    assert client.get("/pro/user-apps/sync", headers=AUTH).json() == {"owned": {}, "shared": {}}
+    assert client.post(f"/pro/user-apps/{APP}", json=app_content(), headers=AUTH).status_code == 200
+    assert client.post(f"/pro/user-apps/{APP}", json=app_content("Renamed"), headers=AUTH).status_code == 200
+    record = client.get("/pro/user-apps/sync", headers=AUTH).json()["owned"][APP]
+    assert record == {"content": app_content("Renamed"), "creator": True, "is_shared": False,
+                      "createdDate": "2026-10-11T00:00:01Z", "updatedDate": "2026-10-11T00:00:02Z",
+                      "createdBy": "alice", "sharedWith": []}
+    assert client.delete(f"/pro/user-apps/{APP}", headers=AUTH).status_code == 200
+    assert client.delete(f"/pro/user-apps/{APP}", headers=AUTH).status_code == 404
+    assert client.get("/pro/user-apps/sync", headers=AUTH).json()["owned"] == {}
+
+
+@pytest.mark.parametrize("path,body,status", [(f"/pro/user-apps/{APP}", b"[]", 400), ("/pro/user-apps/not-a-uuid", b"{}", 400),
+                                              (f"/pro/user-apps/{APP}", b'{"name": "%s"}' % (b"x" * 5_000_001), 413)])
+def test_a_refused_app_write_stores_nothing(api, path, body, status):
+    client, _ = api
+    assert client.post(path, content=body, headers=AUTH).status_code == status
+    assert client.get("/pro/user-apps/sync", headers=AUTH).json()["owned"] == {}
+
+
+def test_settings_routes_still_work(api):
+    client, _ = api
+    assert client.post("/pro/display-settings", json={"theme": "dark"}, headers=AUTH).status_code == 200
+    assert client.get("/pro/user", headers=AUTH).json() == {"pro_display_settings": {"theme": "dark"}}

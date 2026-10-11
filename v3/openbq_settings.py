@@ -1,16 +1,15 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. SPDX-License-Identifier: Apache-2.0
 """BDOBB key-mode user settings, dashboards and apps.
 
-Settings: GET /pro/user and POST /pro/display-settings. Dashboards and apps: the
-subset of OpenBB Workspace's own sync routes BDOBB speaks (GET /pro/dash/sync/owned,
-GET /pro/dash/sync/shared, POST /pro/dash/sync, GET /pro/user-apps/sync,
-POST and DELETE /pro/user-apps/{uuid}).
+Settings: GET /pro/user and POST /pro/display-settings. Dashboards: GET /pro/dash/sync/owned,
+GET /pro/dash/sync/shared, POST /pro/dash/sync (items upsert and delete). Apps: GET /pro/user-apps/sync
+returns owned + shared in Workspace's UserAppReturn shape; POST and DELETE /pro/user-apps/{uuid}
+upsert (body = content) and delete one app.
 
-Authorised by the API's own Basic credential (OPENBB_API_AUTH with
-OPENBB_API_USERNAME and OPENBB_API_PASSWORD). With API auth off there is no key
-to check, so both routes answer 404, as on a backend without a settings API.
-One JSON object per credential, replaced wholesale on POST and kept as sent
-(unknown keys included), on the persistent user-data volume.
+Authorised by the API's own Basic credential (OPENBB_API_AUTH with OPENBB_API_USERNAME and
+OPENBB_API_PASSWORD). With API auth off there is no key to check, so all routes answer 404,
+as on a backend without a settings API. One JSON object per credential, kept as sent on the
+persistent user-data volume.
 """
 import base64
 import binascii
@@ -28,7 +27,8 @@ from starlette.responses import JSONResponse
 STORE = Path(os.environ.get("OPENBQ_SETTINGS_DIR", "/root/OpenBBUserData/bdobb-settings"))
 MAX_BYTES = 1_000_000
 PATHS = {"/pro/user", "/pro/display-settings", "/pro/dash/sync", "/pro/dash/sync/owned",
-         "/pro/dash/sync/shared"}
+         "/pro/dash/sync/shared", "/pro/user-apps/sync"}
+APP_PREFIX = "/pro/user-apps/"
 MAX_SYNC_BYTES = 5_000_000
 # ponytail: one process-wide lock around every dashboard/app read-modify-write; per-credential locks if it ever contends.
 LOCK = threading.Lock()
@@ -69,7 +69,8 @@ async def middleware(request, call_next):
     """Serve the settings, dashboard and app routes; pass every other request (and preflight) through."""
     from openbb_core.env import Env
 
-    if request.url.path not in PATHS or request.method == "OPTIONS" or not Env().API_AUTH:
+    path = request.url.path
+    if not (path in PATHS or path.startswith(APP_PREFIX)) or request.method == "OPTIONS" or not Env().API_AUTH:
         return await call_next(request)
     return _cors(request, await _settings(request))
 
@@ -89,6 +90,10 @@ async def _settings(request):
         return JSONResponse({"shared": {}, "entity_shared": {}})
     if route == ("POST", "/pro/dash/sync"):
         return await _post_dashboards(request, STORE / f"{key}.dashboards.json")
+    if route == ("GET", "/pro/user-apps/sync"):
+        return JSONResponse({"owned": _owned_apps(_load(STORE / f"{key}.apps.json"), user), "shared": {}})
+    if request.url.path.startswith(APP_PREFIX) and request.method in ("POST", "DELETE"):
+        return await _app(request, STORE / f"{key}.apps.json", request.url.path[len(APP_PREFIX):])
     path = STORE / f"{key}.json"
     if (request.method, request.url.path) == ("GET", "/pro/user"):
         settings = json.loads(path.read_text()) if path.exists() else {}
@@ -195,4 +200,36 @@ async def _post_dashboards(request, path):
                               "updated_date": now}
         _ensure_root(store, now)
         _save(path, store)
+    return JSONResponse({"success": True})
+
+
+def _owned_apps(store, user):
+    """Stored apps in Workspace's UserAppReturn shape (camelCase dates)."""
+    return {k: {"content": v["content"], "creator": True, "is_shared": False, "createdDate": v["created_date"],
+                "updatedDate": v["updated_date"], "createdBy": user, "sharedWith": []}
+            for k, v in store.items()}
+
+
+async def _app(request, path, raw):
+    """POST upserts one app (the body is its content); DELETE removes it, 404 when absent."""
+    key = _uuid(raw)
+    if key is None:
+        return JSONResponse({"detail": "The app id must be a uuid."}, status_code=400)
+    if request.method == "DELETE":
+        with LOCK:
+            apps = _load(path)
+            if apps.pop(key, None) is None:
+                return JSONResponse({"detail": "No such app."}, status_code=404)
+            _save(path, apps)
+        return JSONResponse({"success": True})
+    body, error = await _json_body(request)
+    if error:
+        return error
+    if not isinstance(body, dict):
+        return JSONResponse({"detail": "The body must be a JSON object."}, status_code=400)
+    with LOCK:
+        apps = _load(path)
+        now = _now()
+        apps[key] = {"content": body, "created_date": apps.get(key, {}).get("created_date", now), "updated_date": now}
+        _save(path, apps)
     return JSONResponse({"success": True})
