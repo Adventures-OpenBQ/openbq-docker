@@ -165,13 +165,13 @@ def _ensure_root(store, now):
         return
     root = str(uuidlib.uuid4())
     children = []
-    for v in store.values():
+    for key, v in store.items():
         content = v["content"]
         if not content.get("isFolder") and not content.get("parentId"):
             content["parentId"] = root
-            children.append(content.get("index"))
+            children.append(key)
     store[root] = {"content": {"index": root, "name": "root", "isFolder": True, "isRoot": True,
-                               "children": [c for c in children if c], "data": {"name": "root"}},
+                               "children": children, "data": {"name": "root"}},
                    "created_date": now, "updated_date": now}
 
 

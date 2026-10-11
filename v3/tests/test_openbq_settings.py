@@ -109,6 +109,15 @@ def test_first_write_stores_the_item_with_server_dates_and_creates_the_root(api,
     assert record["content"]["parentId"] == root["content"]["index"] == root_key
 
 
+def test_the_root_lists_a_child_by_its_store_key_not_its_own_index_text(api):
+    client, _ = api
+    hexed = DASH.replace("-", "")
+    post(client, {DASH: dash(index=hexed)})
+    items = owned(client)["owned"]
+    root = next(v for v in items.values() if v["content"].get("isRoot"))
+    assert root["content"]["children"] == [DASH]
+
+
 def test_a_later_write_keeps_created_date_moves_updated_date_and_keeps_one_root(api, monkeypatch):
     client, module = api
     clock = iter(["2026-10-11T00:00:01Z", "2026-10-11T00:00:02Z"])
