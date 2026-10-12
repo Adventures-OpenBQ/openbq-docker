@@ -61,6 +61,9 @@ Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v3/yfinance/source/N
 openbb-eodhd (v9/eodhd/source)
 Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v9/eodhd/source/LICENSE. Ported from bdobb-dev/openbb-docker (commits recorded in v9/eodhd/source.json and docs/v9/eodhd-port.md). It uses the official EODHD Python library (EOD Historical Data, MIT per its PyPI metadata), which Dockerfile.v3 builds from the pinned commit; it is not stored in this repository.
 
+live-grid, kdb-store and kdb-ws (v10, the `live` compose profile)
+Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0. Ported from bdobb-dev/openbb-docker v10.1.7 (d606169); the donor commits are recorded in docs/v10/live-grid-kdb-port.md. Each file keeps its SPDX header. kdb-ws/startup.q inlines a minimal standalone take on Jonathon McMurray's ws.q `.wsu` namespace (https://github.com/jonathonmcmurray/ws.q, MIT), as its own header records.
+
 Third-party components used at build or run time (not included in this repository)
 -----------------------------------------------------------------------------------
 
@@ -69,3 +72,5 @@ Third-party components used at build or run time (not included in this repositor
 - Tailscale, tailscale/tailscale image (BSD-3-Clause, Tailscale Inc. and contributors).
 - OpenBB Workspace image build (workspace/): OpenBB Workspace (Apache-2.0) on node:22 (Node.js, MIT), python:3.13-slim (PSF License) and oven/bun (Bun, MIT) images. Its dependencies are pinned in workspace/resolved-poetry.lock and the upstream bun.lock and keep their own licenses.
 - The reference backend image's Python dependencies are pinned in examples/episode3/requirements.lock and keep their own licenses.
+- live-grid image (live-grid/Dockerfile): python:3.12-slim; plotly.js 2.35.2 (Plotly, MIT), downloaded at build time into app/static; the official EODHD Python library (MIT per its PyPI metadata), built from the commit live-grid/pyproject.toml pins; PyKX (KX Systems, under its own licence terms) and the other Python dependencies, which keep their own licenses. kdb-ws/live-chart.html loads TradingView Lightweight Charts 5.0.8 (Apache-2.0) from unpkg in the viewer's browser.
+- kdb+ (the `live` profile's kdb service): the operator's own KDB-X image (ghcr.io/artcashin/kdb-x:amd64) and the operator's own KX licence. This repository ships no KX software and no licence; KX's licence does not permit redistributing q.
