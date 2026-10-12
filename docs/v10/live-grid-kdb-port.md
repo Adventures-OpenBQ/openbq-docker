@@ -501,7 +501,7 @@ kdb-build override.
 
 ## The licence directory is configurable (user, 2026-10-12)
 
-The user keeps the kdb licence in the private repository bdobb-dev/openbb-kdb. The three
+The user keeps the kdb licence outside this repository (on the Mac, `~/Developer/openbb-docker/kdb-license`; first named as bdobb-dev/openbb-kdb, corrected by the user). The three
 services that mount it (kdb, live-grid, eod-dump) now take
 `${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro`, so a private checkout kept beside this
 one can be used directly (`KDB_LICENSE_DIR=../openbb-kdb/<dir>` in the shell or `.env`) and
