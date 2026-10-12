@@ -90,13 +90,17 @@ Copyright 2026 SecretoftheUniverse.com LLC. Apache-2.0 for this backend companio
 
 ## BDOBB web preview door (v8, opt-in)
 
-`docker compose --profile web up -d` adds `funnel-gateway` and `rss-ticker` for BDOBB's browser preview: `/api` (the ODP catalogue, with the API's Basic pair injected), `/state` (per-user saved configuration) and `/news` (approved feeds only, including the `/news/ws/news` socket and its signed tickets). There is no `/ai`. Nothing is public until you also swap `ts-config/serve.json` for `ts-config/serve-funnel.json`, which funnels port 8443 alone; port 443 stays tailnet-only. Turn the API's lock on first (`OPENBB_API_AUTH=true`), and fill `gateway.env` and `gateway-config/settings.json` from their examples. See [funnel-gateway/README.md](funnel-gateway/README.md) and [docs/v8](docs/v8/news-relay-and-hidden-dashboards.md).
+`docker compose --profile web up -d` adds `funnel-gateway` and `rss-ticker` for BDOBB's browser preview: `/api` (the ODP catalogue, with the API's Basic pair injected), `/state` (per-user saved configuration) and `/news` (approved feeds only, including the `/news/ws/news` socket and its signed tickets), and from v10 `/grid` (live-grid, when the `live` profile runs and `"liveGrid": true`). There is no `/ai`. Nothing is public until you also swap `ts-config/serve.json` for `ts-config/serve-funnel.json`, which funnels port 8443 alone; port 443 stays tailnet-only. Turn the API's lock on first (`OPENBB_API_AUTH=true`), and fill `gateway.env` and `gateway-config/settings.json` from their examples. See [funnel-gateway/README.md](funnel-gateway/README.md) and [docs/v8](docs/v8/news-relay-and-hidden-dashboards.md).
 
 BDOBB's locked-widget bands sync as a hidden `docks` dashboard on `/pro/dash/sync/system/docks`. Key mode serves it here (`v3/openbq_settings.py`), and the Workspace companion serves it through `workspace/patches/004-system-dashboard.patch`.
 
 ## EODHD provider (v9)
 
 `Dockerfile.v3` also installs the openbb-eodhd extension, ported from bdobb-dev/openbb-docker v9.6.3 (fixes through v9.6.6). It is served as `obb.eodhd.*` on `/api/v1/eodhd/` (52 commands; this build has no standard routers) and adds the `EODHD` app to `/apps.json`. Put your own token in `credentials.env` as `EODHD_API_KEY`. See [v9/eodhd/README.md](v9/eodhd/README.md) and [docs/v9/eodhd-port.md](docs/v9/eodhd-port.md).
+
+## Live grid and kdb+ (v10, opt-in)
+
+`docker compose --profile live up -d` adds `live-grid` (the `live_grid` widget backend: EODHD websocket quotes, symbol metadata, bars and the tick chart) and `kdb` (the kdb+ tick cache it records into, image `ghcr.io/artcashin/kdb-x:amd64`). The default stack is unchanged. Neither service has a host port or a Serve entry. Bring your own KX licence (`kdb-license/kc.lic`, git-ignored, mounted read-only) and copy the q scripts first: `mkdir -p kdb-data && cp kdb-ws/startup.q kdb-ws/persist.q kdb-data/`. Without kdb, live-grid still serves quotes and history; it reads history from `/api/v1/eodhd/` and needs `EODHD_API_KEY`. BDOBB's web preview reaches it through the gateway's `/grid` family: run both profiles and set `"liveGrid": true` in `gateway-config/settings.json`. See [live-grid/README.md](live-grid/README.md), [funnel-gateway/README.md](funnel-gateway/README.md) and [docs/v10/live-grid-kdb-port.md](docs/v10/live-grid-kdb-port.md).
 
 ## Public repository checks
 
