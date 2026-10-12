@@ -11,41 +11,17 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 class FredTipsYieldsTest(unittest.TestCase):
-    def _fetch(self, maturity, series_rows):
-        from openbb_core.provider.abstract.annotated_result import AnnotatedResult
-        from openbb_fred.models.search import FredSearchData
-        from openbb_fred.models.tips_yields import FredTipsYieldsFetcher
+    def test_five_year_is_not_a_maturity_choice(self):
+        # FRED publishes no live 5-year TIPS (every 5-year series in release 72 is discontinued).
+        from pydantic import ValidationError
+        from openbb_fred.models.tips_yields import FredTipsYieldsFetcher, FredTipsYieldsQueryParams
 
-        found = [
-            FredSearchData.model_construct(
-                series_id="DTP10J28",
-                title="10-Year 0.5% Treasury Inflation-Indexed Note, Due 1/15/2028",
-                observation_start=None,
-                observation_end=None,
-            )
-        ]
-        series = AnnotatedResult(result=series_rows, metadata={})
-        query = FredTipsYieldsFetcher.transform_query({"maturity": maturity})
-        with mock.patch(
-            "openbb_fred.models.search.FredSearchFetcher.fetch_data",
-            mock.AsyncMock(return_value=found),
-        ), mock.patch(
-            "openbb_fred.models.series.FredSeriesFetcher.fetch_data",
-            mock.AsyncMock(return_value=series),
-        ):
-            return asyncio.run(FredTipsYieldsFetcher.aextract_data(query, None))
-
-    def test_no_series_for_maturity_is_empty(self):
-        from openbb_core.provider.utils.errors import EmptyDataError
-
-        with self.assertRaises(EmptyDataError):
-            self._fetch("5", [])
-
-    def test_no_rows_is_empty(self):
-        from openbb_core.provider.utils.errors import EmptyDataError
-
-        with self.assertRaises(EmptyDataError):
-            self._fetch("10", [])
+        self.assertEqual(
+            FredTipsYieldsQueryParams.model_fields["maturity"].json_schema_extra["choices"],
+            ["10", "20", "30"],
+        )
+        with self.assertRaises(ValidationError):
+            FredTipsYieldsFetcher.transform_query({"maturity": "5"})
 
 
 class FamaFrenchCountryFilesTest(unittest.TestCase):
