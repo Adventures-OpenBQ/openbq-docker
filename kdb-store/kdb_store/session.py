@@ -68,7 +68,53 @@ _KILL_WAIT_S = 2.0
 # The choice is a deadline rather than an attempt COUNT because the hazard is
 # a rate (spawns per second), not a total -- a counter would either exhaust
 # itself during the very startup race it exists to survive, or never expire.
-_RETRY_AFTER_S = 60.0
+#
+# openbq-docker v10 (user ruling 2026-10-12, docs/v10/live-grid-kdb-port.md,
+# "Tick spool and fast reconnect"): the interval is no longer a fixed 60 s but
+# an exponential BACKOFF -- 1 s after the first failure, doubling per
+# consecutive failure, capped at 15 s. A fixed 60 s latch made live-grid sit
+# out a whole minute after a 3 s kdb restart (measured on the Mac: ~100 s of
+# crypto ticks dropped). Everything the latch protected still holds: it is
+# still a deadline (a rate bound, never a count), every call inside it still
+# fails fast without touching q or the socket, and in steady failure attempts
+# converge to one per cap. What the shorter cap costs, worst case: a reader
+# with no licence pays a doomed spawn once per 15 s instead of once per 60 s
+# (poll() makes that a few milliseconds), and a loopback port squatted by a
+# non-q listener (macOS AirPlay on :5000) holds the owner thread for the 5 s
+# connect budget once per 20 s instead of once per 65 s. The first success
+# resets the backoff.
+#
+# KDB_RETRY_INITIAL_S and KDB_RETRY_MAX_S override the two numbers; they are
+# read at each failure, so the module constants below stay the defaults (and
+# the seam the tests patch). A cap of 0 disables the latch entirely.
+_RETRY_INITIAL_S = 1.0
+_RETRY_AFTER_S = 15.0  # the cap
+
+
+def _env_seconds(name: str, default: float) -> float:
+    """A non-negative float from the environment, else `default` (logged)."""
+    import os
+
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        logger.warning("%s=%r is not a number; using %.1f", name, raw, default)
+        return default
+    if value < 0 or value != value:  # negative or NaN
+        logger.warning("%s=%r is negative; using %.1f", name, raw, default)
+        return default
+    return value
+
+
+def retry_delay(failures: int) -> float:
+    """Seconds to hold off after `failures` consecutive failed connects (>= 1)."""
+    initial = _env_seconds("KDB_RETRY_INITIAL_S", _RETRY_INITIAL_S)
+    cap = _env_seconds("KDB_RETRY_MAX_S", _RETRY_AFTER_S)
+    exponent = min(max(failures, 1) - 1, 30)  # 2**30 s is past any sane cap
+    return min(cap, initial * (2 ** exponent))
 
 
 class KdbUnavailable(Exception):
@@ -78,14 +124,18 @@ class KdbUnavailable(Exception):
 class KdbSession:
     """Owns at most one q process, one IPC connection, and the thread that may use them."""
 
-    def __init__(self, config: KdbConfig):
+    def __init__(self, config: KdbConfig, clock=time.monotonic):
         self.config = config
+        # Injected for the backoff tests; production uses time.monotonic.
+        self._clock = clock
+        # Consecutive failed connects since the last success (drives the backoff).
+        self._failures = 0
         self._conn = None
         self.endpoint: str | None = None
         self._proc: subprocess.Popen | None = None
         self._proc_log_path: str | None = None
         # Monotonic deadline before which a connect is not re-attempted. 0.0
-        # means "never failed yet". See _RETRY_AFTER_S.
+        # means "never failed yet". See _RETRY_AFTER_S and retry_delay().
         self._retry_after = 0.0
         # One worker, forever: PyKX needs the SAME thread every time, not just
         # one thread at a time. `_owner_ident` is stamped by the worker itself
@@ -246,10 +296,10 @@ class KdbSession:
         return self.run(self._connection)
 
     def _connection(self):
-        remaining = self._retry_after - time.monotonic()
+        remaining = self._retry_after - self._clock()
         if remaining > 0:
             raise KdbUnavailable(
-                f"kdb+ unreachable; not retrying for another {remaining:.0f}s"
+                f"kdb+ unreachable; not retrying for another {remaining:.1f}s"
             )
         if self._conn is not None and self._is_alive():
             return self._conn
@@ -293,17 +343,21 @@ class KdbSession:
                 errors.append(f"{self.config.host}: {exc}")
 
         if self._conn is None:
-            self._retry_after = time.monotonic() + _RETRY_AFTER_S
+            self._failures += 1
+            delay = retry_delay(self._failures)
+            self._retry_after = self._clock() + delay
             detail = "; ".join(errors) or "no kdb+ endpoint configured"
             logger.warning(
-                "kdb+ unavailable, falling back to upstream (retrying in %.0fs): %s",
-                _RETRY_AFTER_S, detail,
+                "kdb+ unavailable, falling back to upstream (attempt %d, retrying in %.1fs): %s",
+                self._failures, delay, detail,
             )
             raise KdbUnavailable(detail)
 
-        # A connect that succeeded clears the latch: the next failure gets its
-        # own full interval rather than inheriting a stale deadline.
+        # A connect that succeeded clears the latch and the backoff: the next
+        # failure starts again at the initial interval rather than inheriting a
+        # stale deadline or a long doubled one.
         self._retry_after = 0.0
+        self._failures = 0
         return self._conn
 
     def _stop_proc(self) -> None:
