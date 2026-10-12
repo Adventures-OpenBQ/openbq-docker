@@ -43,8 +43,36 @@ def test_kdb_uses_the_named_image_and_mounts_the_licence_read_only():
     kdb = SERVICES['kdb']
     assert kdb['image'] == 'ghcr.io/artcashin/kdb-x:amd64'
     assert './kdb-license:/opt/kx-license:ro' in kdb['volumes']
-    assert kdb['command'] == ['/data/startup.q']
     assert './kdb-license:/opt/kx-license:ro' in SERVICES['live-grid']['volumes']
+
+
+def test_crash_recovery_is_always_on_kdb_runs_the_repository_scripts_read_only():
+    kdb = SERVICES['kdb']
+    # No copying by hand: q runs the repo's startup.q, which loads the repo's persist.q.
+    assert './kdb-ws/startup.q:/opt/kdb-ws/startup.q:ro' in kdb['volumes']
+    assert './kdb-ws/persist.q:/opt/kdb-ws/persist.q:ro' in kdb['volumes']
+    assert kdb['command'] == ['/opt/kdb-ws/startup.q']
+    assert kdb['environment']['KDB_PERSIST_Q'] == '/opt/kdb-ws/persist.q'
+    startup = (ROOT / 'kdb-ws/startup.q').read_text()
+    assert 'getenv`KDB_PERSIST_Q' in startup and startup.rstrip().endswith('system"l ",kdbPersistQ;')
+    # No bind of the operator's ./kdb-data: nothing has to be put there first.
+    assert not any(v.startswith('./kdb-data') for v in kdb['volumes'])
+
+
+def test_the_tick_logs_live_on_a_named_volume_that_survives_recreation():
+    kdb = SERVICES['kdb']
+    assert 'kdb-data:/data' in kdb['volumes']
+    assert 'kdb-data' in COMPOSE['volumes']
+    # persist.q writes its logs under /data, i.e. on that volume
+    assert ".tlog.dir:`:/data/logs;" in (ROOT / 'kdb-ws/persist.q').read_text()
+    assert 'kdb-data' not in json.dumps({k: v for k, v in SERVICES.items() if k != 'kdb'})
+
+
+def test_kdb_and_live_grid_restart_themselves():
+    for name in LIVE:
+        assert SERVICES[name]['restart'] == 'unless-stopped', name
+    # q closes its log handle in .z.exit; compose waits for it before SIGKILL.
+    assert SERVICES['kdb']['stop_grace_period'] == '30s'
 
 
 def test_live_grid_reaches_kdb_and_the_api_on_the_bridge_and_never_spawns_q():

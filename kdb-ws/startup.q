@@ -151,4 +151,8 @@ upd:{[t;d]
  };
 
 / persistence (2026-09-01): tick log + -11! replay -- see persist.q
-system"l /data/persist.q";
+/ openbq-docker v10: KDB_PERSIST_Q names persist.q when the compose file mounts the
+/ repository copy read-only (/opt/kdb-ws/persist.q); unset, the donor's /data/persist.q.
+kdbPersistQ:$[count kdbPersistQ:getenv`KDB_PERSIST_Q; kdbPersistQ; "/data/persist.q"];
+-1 "loading ",kdbPersistQ;
+system"l ",kdbPersistQ;
