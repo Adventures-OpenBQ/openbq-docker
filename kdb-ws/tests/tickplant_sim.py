@@ -107,7 +107,9 @@ class TickPlant:
                     continue
                 record = json.loads(line)
                 frame = pd.DataFrame(record["rows"], columns=["time", "sym", "price", "size"])
-                frame["time"] = pd.to_datetime(frame["time"])
+                # ISO8601: isoformat() omits a zero microsecond part, so one
+                # log record can mix "...:00" and "...:00.040000" stamps.
+                frame["time"] = pd.to_datetime(frame["time"], format="ISO8601")
                 self.upd(record["t"], frame)
 
     def _open(self, day: date) -> None:

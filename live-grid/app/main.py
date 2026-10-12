@@ -136,10 +136,21 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
 
             from app.recorder import TickRecorder
 
+            from app.spool import from_env as spool_from_env
+            from app.watchlist import DEFAULT_PATH as _WATCHLIST_PATH
+
             config = resolve_config()
             session = KdbSession(config)
             window = timedelta(seconds=int(os.getenv("LIVE_TICK_WINDOW_SECONDS", "86400")))
-            recorder = TickRecorder(KdbStore(session), window=window)
+            # Ticks kdb does not acknowledge are spooled beside the watchlist on
+            # live-grid's volume and replayed, leftovers first, on the next flush
+            # (user ruling, docs/v10/live-grid-kdb-port.md "Tick spool and fast reconnect").
+            try:
+                spool = spool_from_env(os.getenv("LIVE_GRID_WATCHLIST", _WATCHLIST_PATH))
+            except OSError as exc:
+                log.error("tick spool unusable, failed kdb writes will be DROPPED: %s", exc)
+                spool = None
+            recorder = TickRecorder(KdbStore(session), window=window, spool=spool)
         except Exception as exc:  # noqa: BLE001 - the grid works without kdb
             log.warning("tick recording disabled: %s", exc)
             recorder = None
@@ -215,6 +226,10 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                 await sweep_task
             except asyncio.CancelledError:
                 pass
+            if recorder is not None:
+                # A graceful stop (docker compose stop/restart) spools the unflushed
+                # buffer instead of losing it; the next start replays it.
+                await asyncio.to_thread(recorder.stash)
 
     app = FastAPI(lifespan=lifespan)
     app.state.quotes = quotes

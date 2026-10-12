@@ -219,7 +219,10 @@ def test_health_omits_ticks_key_when_chart_is_disabled(monkeypatch):
 def test_health_includes_ticks_key_when_chart_is_enabled_by_default(monkeypatch):
     monkeypatch.delenv("LIVE_GRID_CHART", raising=False)
     body = make_client().get("/health").json()
-    assert set(body["ticks"]) == {"buffered", "written", "dropped", "endpoint"}
+    # REVIEW (openbq-docker v10, tick spool): the exact key set gains the spool's
+    # counters; see docs/v10/live-grid-kdb-port.md "Tick spool and fast reconnect".
+    assert set(body["ticks"]) == {"buffered", "written", "dropped", "endpoint",
+                                  "spooled", "replayed", "deduped"}
     # A session that has never connected must report None, not raise.
     assert body["ticks"]["endpoint"] is None
 

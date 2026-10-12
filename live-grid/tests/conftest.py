@@ -8,6 +8,13 @@ from unittest.mock import MagicMock
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _tick_spool_in_tmp(tmp_path, monkeypatch):
+    """create_app spools unacknowledged ticks beside the watchlist (/data/spool
+    by default, openbq-docker v10). No test may write to the real /data."""
+    monkeypatch.setenv("LIVE_GRID_SPOOL_DIR", str(tmp_path / "spool"))
+
+
 @pytest.fixture
 def fake_ws_client_factory():
     """Stand-in for feeds._build_client; records every client it builds."""
