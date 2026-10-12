@@ -38,7 +38,7 @@ Decisions marked **PROVISIONAL** are listed together at the end.
 | `kdb-license/.gitkeep` | 59a9b96 | ADD (mount point only) |
 | `live-grid/app/` | f15e08f base service; 0cea89c Basic auth; 8d852f0 /symbol_meta; e2789ee subscriptions; cd28309 unified chart; 938ee74 history by asset class; 93fcd88 /ticks and day levels (v10.1.0); 369074e /apps.json (v10.1.0); 7202f75 /health subscriptions reason (v10.1.4); b92dc97 series buckets (v10.1.4); the ta series (4fb851f, 4207888, 2f684bb, 10bfc04, f2d242a, 349aac4, 934bdf5, b26d198, 2c343b4) | ADD; one edit (`openbb_client.py`, below) |
 | `live-grid/widgets.json` | f87018a column widths (v10.1.1) | ADD, verbatim |
-| `live-grid/apps.json` | 7202f75 (v10.1.4, #72); 369074e serves it | ADD, verbatim (sha256 `26be230f…046d`, identical to the donor) |
+| `live-grid/apps.json` | 7202f75 (v10.1.4, #72); 369074e serves it | ADD, verbatim (sha256 `26be230f…046d`, identical to the donor); replaced by BDOBB's Episode 10 example in the v10 sync (see "BDOBB examples sync") |
 | `live-grid/macros/`, `scripts/`, `tests/`, `Dockerfile`, `pyproject.toml`, `README.md` | f75b599, ef0a3aa (v10.1.0), d89076c, 55b68b5, 0ceac3d, 7202f75 | ADD; edits below |
 
 The per-file record (last substantive donor commit and whether the file was new,
@@ -451,6 +451,50 @@ Needs a KX licence in `kdb-license/`, `rustfs.env` filled, and the stack built:
 5. **C8.** `DeltaTable.is_deltatable("s3://openbq/ticks_live/<key>", storage_options=...)`
    against RustFS returns promptly (or record that it hangs there too).
 6. `docker compose logs live-grid eod-dump` show no `DELTA_S3_SECRET`/`RUSTFS_SECRET_KEY` value.
+
+## BDOBB examples sync (v10)
+
+`EPISODE=10 OPENBB_DOCKER_DIR=<scratch> node scripts/apps-sync.mjs` on BDOBB
+`claude/clean-v10` 3e92d06 (12 apps: 11 to `workspace_apps.json`, 1 to
+`live-grid/apps.json`), carried by the v8/v9 method (41bc742, 69c907e):
+
+- `examples/bdobb/apps.json`: the 11 filtered to the examples whose cards are BDOBB
+  built-ins or widgets openbq-api serves (the v9 filter, against the same served
+  widget set): 9 kept, Demo providers and Video Library dropped as before. The result
+  is **byte-identical** to the file at 69c907e, so it is unchanged; only its README
+  names `EPISODE=10` and where the live-grid example goes.
+- `live-grid/apps.json`: the v10 example maps to the `live` profile. live-grid's
+  Dockerfile copies this file into its image, `GET /apps.json` serves it verbatim
+  (`app/main.py`), and the gateway relays it as `/grid/apps.json`; openbq-api's
+  catalogue and the lanes hook never see it. It is BDOBB's
+  `docs/examples/v10.0.0-live-grid.apps.json` verbatim (sha256 `0c87828d…a39b`),
+  replacing the donor's copy: *Example Dashboard - Version 10.0.0 - Live Grid*,
+  the same five cards (`live_grid`, `subscriptions`, `kdb_ticks`, `live_chart`,
+  `kdb_cache_chart`), the same saved params and layout, plus BDOBB's description
+  (minimum BDOBB 10.0.0), `chartView` defaults and its `extensions.bdobb` tab order.
+  Card ids checked against `live-grid/widgets.json` here: all five are declared;
+  `subscriptions` is published only with `LIVE_GRID_PUBLIC_URL` set (empty in
+  `credentials.env.example`, and P3 publishes no live-grid address), which BDOBB's
+  Example Dashboards page now says.
+
+Assertions changed with the file (none weakened; the selected app is the same one,
+named as BDOBB names it):
+
+- REVIEW `live-grid/tests/test_main.py` `test_the_v10_dashboard_shows_every_episode_10_widget`
+  (donor): selected the app by `"V10" in name`; now by the exact name
+  `Example Dashboard - Version 10.0.0 - Live Grid`. The five-widget assertion is unchanged.
+- REVIEW `live-grid/tests/test_openbq_v10.py` `test_without_kdb_widgets_and_apps_are_served`:
+  the served app list `== ["Example Dashboard - V10.0.0"]` becomes
+  `== ["Example Dashboard - Version 10.0.0 - Live Grid"]` (still exactly one app, exact name).
+
+Receipts (cloud, 2026-10-12): `tests/` 27 passed (5 subtests), `v3/tests` 68,
+`lanes/tests` 22, `workspace/tests` 12 (`img312`); `live-grid` 430 passed, 14
+deselected (`lg312`, `-m "not network"`); `scripts/check-public.py` PASS;
+`scripts/verify-app-layouts.py` passed for `live-grid/apps.json` and
+`examples/bdobb/apps.json`. EODHD calls: 0.
+
+BDOBB re-vendored this branch's `funnel-gateway/policy.mjs` at ebd1622 (sha256
+`1e6aa6c6…a5083`) as v10.0.0 (BDOBB c6d53f6); its `openbbDocker` pin names ebd1622.
 
 ## Appendix: per-file record (live-grid, kdb-store, kdb-ws, kdb-license)
 

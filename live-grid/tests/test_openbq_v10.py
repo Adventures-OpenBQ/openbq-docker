@@ -158,4 +158,4 @@ def test_without_kdb_widgets_and_apps_are_served(no_kdb):
     widgets = no_kdb.get("/widgets.json").json()
     assert {"live_grid", "kdb_ticks", "kdb_cache_chart", "live_chart", "ta_chart"} <= set(widgets)
     apps = no_kdb.get("/apps.json").json()
-    assert [a["name"] for a in apps] == ["Example Dashboard - V10.0.0"]
+    assert [a["name"] for a in apps] == ["Example Dashboard - Version 10.0.0 - Live Grid"]

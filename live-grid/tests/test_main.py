@@ -381,7 +381,9 @@ def test_the_v10_dashboard_shows_every_episode_10_widget():
     from pathlib import Path
 
     apps = json.loads((Path(__file__).resolve().parent.parent / "apps.json").read_text())
-    v10 = next(a for a in apps if "V10" in a["name"])
+    # BDOBB's own Episode 10 example since the v10 sync (EPISODE=10 apps-sync from
+    # docs/examples/v10.0.0-live-grid.apps.json); the donor named it "... - V10.0.0".
+    v10 = next(a for a in apps if a["name"] == "Example Dashboard - Version 10.0.0 - Live Grid")
     shown = {card["i"] for tab in v10["tabs"].values() for card in tab["layout"]}
     assert {"live_grid", "subscriptions", "kdb_ticks", "live_chart", "kdb_cache_chart"} <= shown
 

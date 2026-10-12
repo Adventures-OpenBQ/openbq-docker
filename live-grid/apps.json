@@ -1,7 +1,7 @@
 [
   {
-    "name": "Example Dashboard - V10.0.0",
-    "description": "The v10.0.0 live grid: real-time quotes over a websocket, the subscription list that feeds it, and the kdb+ tick history behind one symbol. Needs the live-grid backend configured; every widget here is served by it.",
+    "name": "Example Dashboard - Version 10.0.0 - Live Grid",
+    "description": "Episode 10 brings the live grid. Live quotes is a table that streams: its snapshot arrives over HTTP, then each quote ticks in place over live-grid's websocket, with each symbol's logo and 52-week range from live-grid's symbol_meta. Beside it, the subscription list that feeds the stream, the kdb+ tick history behind one symbol, the Live Chart and the Cached Price Chart. Every card is served by the stack's live-grid backend (its opt-in live profile), so add that backend as a connection first; this version does not draw the Live Chart's live_chart type and shows its data as raw JSON. Made for, and opens in, BDOBB 10.0.0 or later.",
     "img": "",
     "img_dark": "",
     "img_light": "",
@@ -20,6 +20,10 @@
             "state": {
               "params": {
                 "symbol": "AAPL,MSFT,NVDA,TSLA,BTC-USD,ETH-USD,EURUSD"
+              },
+              "chartView": {
+                "enabled": false,
+                "chartType": "line"
               }
             }
           },
@@ -28,10 +32,7 @@
             "x": 0,
             "y": 12,
             "w": 20,
-            "h": 14,
-            "state": {
-              "params": {}
-            }
+            "h": 14
           },
           {
             "i": "kdb_ticks",
@@ -43,6 +44,10 @@
               "params": {
                 "symbol": "AAPL",
                 "limit": "200"
+              },
+              "chartView": {
+                "enabled": false,
+                "chartType": "line"
               }
             }
           },
@@ -56,6 +61,10 @@
               "params": {
                 "symbol": "AAPL",
                 "interval": "1m"
+              },
+              "chartView": {
+                "enabled": false,
+                "chartType": "line"
               }
             }
           },
@@ -69,6 +78,10 @@
               "params": {
                 "symbol": "AAPL",
                 "interval": "1d"
+              },
+              "chartView": {
+                "enabled": false,
+                "chartType": "line"
               }
             }
           }
@@ -76,6 +89,15 @@
       }
     },
     "groups": [],
-    "prompts": []
+    "prompts": [],
+    "extensions": {
+      "bdobb": {
+        "schemaVersion": 1,
+        "profile": "v3",
+        "tabOrder": [
+          "live"
+        ]
+      }
+    }
   }
 ]
