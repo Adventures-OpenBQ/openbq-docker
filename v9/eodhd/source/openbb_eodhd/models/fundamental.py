@@ -27,7 +27,9 @@ from openbb_core.provider.standard_models.income_statement import (
     IncomeStatementQueryParams,
 )
 from openbb_core.provider.utils.errors import EmptyDataError
-from pydantic import Field
+from pydantic import Field, create_model
+
+from openbb_eodhd.aggregation import attach_widget_hints
 
 # EODHD field -> OpenBB conventional field name. Unmapped fields pass through
 # snake_cased, so these maps only need the commonly-consumed line items.
@@ -213,9 +215,48 @@ class EODHDCashFlowStatementQueryParams(CashFlowStatementQueryParams):
     exchange: str = Field(default="US", description="EODHD exchange code for bare symbols (e.g. 'US').")
 
 
+# --- Data models: the standard statement plus EODHD's mapped line items --------
+#
+# OpenBB's standard statement models declare only period_ending, fiscal_period
+# and fiscal_year; every line item is a passthrough extra. That leaves
+# widgets.json with no columnsDefs for `revenue` and friends, and no column to
+# hang an aggregation hint on. These subclasses declare the mapped line items
+# -- generated from the same maps the transform uses, so a map entry and its
+# column cannot disagree -- as optional floats, and keep `extra="allow"` for
+# EODHD's unmapped passthrough fields. Their docstrings start with "EODHD": the
+# widget generator scopes a schema to a provider by that prefix.
+#
+# attach_widget_hints then stamps every field with its dictionary hint (see
+# openbb_eodhd.aggregation, which reads this module's maps at call time rather
+# than import time, so the two modules can each import the other's names).
+# Validation is unchanged: the same rows, the same values, now also typed.
+
+
+def _statement_model(name: str, base: type, doc: str, field_map: dict[str, str]) -> type:
+    line_items = {
+        normalized: (float | None, Field(default=None, description=f"EODHD `{raw}`."))
+        for raw, normalized in field_map.items()
+    }
+    return create_model(name, __base__=base, __doc__=doc, **line_items)
+
+
+EODHDIncomeStatementData = attach_widget_hints(
+    _statement_model("EODHDIncomeStatementData", IncomeStatementData, "EODHD Income Statement Data.", INCOME_MAP),
+    "IncomeStatement",
+)
+EODHDBalanceSheetData = attach_widget_hints(
+    _statement_model("EODHDBalanceSheetData", BalanceSheetData, "EODHD Balance Sheet Data.", BALANCE_MAP),
+    "BalanceSheet",
+)
+EODHDCashFlowStatementData = attach_widget_hints(
+    _statement_model("EODHDCashFlowStatementData", CashFlowStatementData, "EODHD Cash Flow Statement Data.", CASHFLOW_MAP),
+    "CashFlowStatement",
+)
+
+
 # --- Fetchers ------------------------------------------------------------------
 class EODHDIncomeStatementFetcher(
-    Fetcher[EODHDIncomeStatementQueryParams, list[IncomeStatementData]]
+    Fetcher[EODHDIncomeStatementQueryParams, list[EODHDIncomeStatementData]]
 ):
     """EODHD income statement."""
 
@@ -228,12 +269,12 @@ class EODHDIncomeStatementFetcher(
         return await _extract("Income_Statement", INCOME_MAP, query, credentials)
 
     @staticmethod
-    def transform_data(query, data: list[dict], **kwargs) -> list[IncomeStatementData]:  # pylint: disable=unused-argument
-        return [IncomeStatementData.model_validate(r) for r in data]
+    def transform_data(query, data: list[dict], **kwargs) -> list[EODHDIncomeStatementData]:  # pylint: disable=unused-argument
+        return [EODHDIncomeStatementData.model_validate(r) for r in data]
 
 
 class EODHDBalanceSheetFetcher(
-    Fetcher[EODHDBalanceSheetQueryParams, list[BalanceSheetData]]
+    Fetcher[EODHDBalanceSheetQueryParams, list[EODHDBalanceSheetData]]
 ):
     """EODHD balance sheet."""
 
@@ -246,12 +287,12 @@ class EODHDBalanceSheetFetcher(
         return await _extract("Balance_Sheet", BALANCE_MAP, query, credentials)
 
     @staticmethod
-    def transform_data(query, data: list[dict], **kwargs) -> list[BalanceSheetData]:  # pylint: disable=unused-argument
-        return [BalanceSheetData.model_validate(r) for r in data]
+    def transform_data(query, data: list[dict], **kwargs) -> list[EODHDBalanceSheetData]:  # pylint: disable=unused-argument
+        return [EODHDBalanceSheetData.model_validate(r) for r in data]
 
 
 class EODHDCashFlowStatementFetcher(
-    Fetcher[EODHDCashFlowStatementQueryParams, list[CashFlowStatementData]]
+    Fetcher[EODHDCashFlowStatementQueryParams, list[EODHDCashFlowStatementData]]
 ):
     """EODHD cash-flow statement."""
 
@@ -264,5 +305,5 @@ class EODHDCashFlowStatementFetcher(
         return await _extract("Cash_Flow", CASHFLOW_MAP, query, credentials)
 
     @staticmethod
-    def transform_data(query, data: list[dict], **kwargs) -> list[CashFlowStatementData]:  # pylint: disable=unused-argument
-        return [CashFlowStatementData.model_validate(r) for r in data]
+    def transform_data(query, data: list[dict], **kwargs) -> list[EODHDCashFlowStatementData]:  # pylint: disable=unused-argument
+        return [EODHDCashFlowStatementData.model_validate(r) for r in data]

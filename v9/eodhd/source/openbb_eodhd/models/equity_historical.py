@@ -14,6 +14,8 @@ from openbb_core.provider.standard_models.equity_historical import (
 from openbb_core.provider.utils.descriptions import QUERY_DESCRIPTIONS
 from pydantic import Field
 
+from openbb_eodhd.aggregation import attach_widget_hints
+
 from openbb_eodhd.models._bars import INTERVAL_CHOICES, fetch_bars, rows_from_bars
 
 
@@ -58,6 +60,12 @@ class EODHDEquityHistoricalData(EquityHistoricalData):
         default=None,
         description="Split/dividend-adjusted closing price (EOD endpoint only).",
     )
+
+
+# Every column carries its aggregation hint into widgets.json; see
+# openbb_eodhd.aggregation.attach_widget_hints. Stamped after the class so the
+# class body stays the plain Data declaration it always was.
+attach_widget_hints(EODHDEquityHistoricalData, "EquityHistorical")
 
 
 class EODHDEquityHistoricalFetcher(

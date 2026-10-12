@@ -54,6 +54,23 @@ predates the SDK's typed errors, request timeouts, and the fundamentals
   more events than that is fetched in successive date windows and merged, so
   a busy three-month window returns every row instead of being cut off.
 
+## Aggregation metadata
+
+The provider-owned [aggregation dictionary](docs/aggregation-metadata.md)
+offers versioned, conditional time-aggregation guidance for normalized EOD
+price and financial-statement fields. Use
+`openbb_eodhd.aggregation.get_aggregation_metadata` to inspect it.
+Unknown fields require selection, and temporal rules are separate from
+cross-entity aggregation. It does not change fetcher responses or
+automatically aggregate data. The seven covered Data models carry each
+field's hint into `widgets.json` as a per-column `aggregation` entry (see the
+[transport section](docs/aggregation-metadata.md#transport-a-per-column-hint-in-widgetsjson)),
+which also gives the three statements typed `columnsDefs` for their mapped
+line items.
+The contract also defines the [v11 data-mastering integration boundary](docs/aggregation-metadata.md#v11-data-mastering-workstream):
+provider-owned rules, versioned canonical bindings, Bronze/Silver/Gold
+provenance, and semantics pinned in query receipts.
+
 ## Symbols
 
 EODHD symbols are `SYMBOL.EXCHANGE` (e.g. `AAPL.US`, `VOD.LSE`). Pass a bare
