@@ -97,3 +97,24 @@ def test_schema_is_reissued_on_the_new_connection(host):
     store.tick_span("AAPL")
     assert store._schema_conn is not first
     store.session.close()
+
+
+def test_an_in_doubt_write_is_resolved_by_ticks_present_after_the_restart(host):
+    """A batch applied and logged by a q that died before replying (openbq-docker v10).
+
+    The caller saw an exception, so it cannot know whether the batch landed;
+    persist.q's replay brings it back with the day, and `ticks_present` says
+    so -- which is what lets live-grid's spool skip it instead of writing it twice.
+    """
+    host.start()
+    store = _store()
+    store.write_ticks(_ticks(10))
+    host.plant.die_after_next_upd = True
+    batch = _ticks(5, start=datetime(2026, 10, 9, 15))
+    with pytest.raises(Exception):
+        store.write_ticks(batch)
+    host.start()
+    assert store.ticks_present(batch) == 5
+    assert store.ticks_present(_ticks(5, start=datetime(2026, 10, 9, 16))) == 0
+    assert len(store.read_ticks("AAPL", 1000)) == 15
+    store.session.close()

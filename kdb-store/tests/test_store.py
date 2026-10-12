@@ -619,3 +619,24 @@ def test_read_snapshot_ttl_is_judged_against_utc_not_local_wall_clock():
         else:
             os.environ["TZ"] = old_tz
         time_module.tzset()
+
+
+def test_ticks_present_probes_only_the_batch_window_and_cleans_up():
+    """The in-doubt probe of live-grid's tick spool (openbq-docker v10)."""
+    s, conn = store_with({"sum (count qwin)": 3})
+    assert s.ticks_present(_ticks_frame(rows=3)) == 3
+    assert "probe_ticks" in conn.data
+    probe = next(q for q in conn.queries if "probe_ticks`time" in q)
+    assert "within (min probe_ticks`time; max probe_ticks`time)" in probe
+    assert "qwin ? probe_ticks" in probe
+    assert conn.queries[-1] == "delete probe_ticks from `."
+    # no parameters: nothing for the lambda-binding rules to bind
+    assert all(not args for q, args in conn.calls if "probe_ticks`time" in q)
+
+
+def test_ticks_present_of_an_empty_frame_never_dials_q():
+    import pandas as pd
+
+    s, conn = store_with()
+    assert s.ticks_present(pd.DataFrame(columns=["time", "sym", "price", "size"])) == 0
+    assert conn.queries == []

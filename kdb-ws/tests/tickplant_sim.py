@@ -15,7 +15,10 @@ against it:
   through immediately, as q's handle write is), then insert;
 - the daily roll: at a UTC date change open the new day's log and delete logs
   older than 7 days;
-- `kill()` is SIGKILL: memory is lost, the files stay.
+- `kill()` is SIGKILL: memory is lost, the files stay;
+- `die_after_next_upd`: fault injection for live-grid's tick spool. The next
+  `upd` is logged and applied, then the process dies before it can reply --
+  the in-doubt write whose ticks must not be replayed twice.
 
 `kdb-ws/tests/test_persist.py` pins this model to the q source, so a change to
 persist.q that the model does not follow fails there rather than passing here.
@@ -36,6 +39,9 @@ _PRUNE = "{[qwcut] trades:: delete from trades where time < qwcut}"
 _SPAN_PREFIX = "{[qwsym] $[0 = count select from trades where sym = qwsym;"
 _READ_PREFIX = "{[qwsym;qwlim] qwlim sublist `time xdesc reverse"
 _AGG_PREFIX = "{[qwsym;qwlo;qwhi;qwbucket]"
+_PROBE = ("{qwin: select time, sym, price, size from trades"
+          " where time within (min probe_ticks`time; max probe_ticks`time);"
+          " sum (count qwin) > qwin ? probe_ticks}[]")
 
 
 class QDown(ConnectionError):
@@ -72,6 +78,7 @@ class TickPlant:
         self.logs = Path(data_dir) / "logs"
         self._today = today or (lambda: datetime.utcnow().date())
         self.alive = True
+        self.die_after_next_upd = False
         self.replayed: list[str] = []
         self.trades = self._empty()
         self._handle = None  # .tlog.h: null until after the replay
@@ -174,9 +181,23 @@ class SimConn:
             return _K(p._empty())
         if query == _UPD:
             p.upd("trades", self.globals["incoming_ticks"])
+            if p.die_after_next_upd:  # applied and logged; the reply never leaves
+                p.die_after_next_upd = False
+                p.kill()
+                raise QDown("the q at the other end has gone away")
             return _K(None)
         if query == "delete incoming_ticks from `.":
             self.globals.pop("incoming_ticks", None)
+            return _K(None)
+        if query == _PROBE:  # kdb-store's ticks_present: rows of the probe found in trades
+            probe = self.globals["probe_ticks"][["time", "sym", "price", "size"]].copy()
+            probe["time"] = pd.to_datetime(probe["time"]).astype("datetime64[ns]")
+            lo, hi = probe["time"].min(), probe["time"].max()
+            held = p.trades[(p.trades["time"] >= lo) & (p.trades["time"] <= hi)]
+            keys = set(map(tuple, held[["time", "sym", "price", "size"]].itertuples(index=False)))
+            return _K(sum(1 for row in probe.itertuples(index=False) if tuple(row) in keys))
+        if query == "delete probe_ticks from `.":
+            self.globals.pop("probe_ticks", None)
             return _K(None)
         if query == _PRUNE:
             cut = pd.Timestamp(_py(args[0]))

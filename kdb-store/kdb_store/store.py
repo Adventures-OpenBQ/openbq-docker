@@ -273,6 +273,43 @@ class KdbStore:
 
         return self._call(write)
 
+    def ticks_present(self, frame) -> int:
+        """How many rows of `frame` `trades` already holds, matching all four columns.
+
+        live-grid's tick spool (openbq-docker v10) asks this before it replays a
+        batch whose earlier write is IN DOUBT: one sent to q whose reply never
+        came back (the connection died mid-call). `write_ticks` applies a batch
+        all or nothing -- it lands in q in ONE `upd`/`insert` message, and
+        persist.q logs that message before applying it, so a q killed half way
+        replays it whole at boot -- so "every row present" means the batch was
+        applied and must not be written again, and anything less means it was
+        not. Exact float and timestamp equality is right here: the probe is the
+        very values the first attempt sent.
+
+        Only the time window the batch spans is searched (`within` on the
+        batch's own min and max), so the cost is proportional to the ticks in
+        that window, not the whole day. A probe sent to a q whose `trades` is
+        empty answers 0. Rows are found with q's table find (`qwin ? probe`): the
+        index of each probe row in the window, or `count qwin` when absent.
+        """
+        if frame is None or getattr(frame, "empty", True):
+            return 0
+
+        def probe(conn):
+            prototype = conn("0#trades").pd()
+            conn["probe_ticks"] = _conform_dtypes(frame, prototype)
+            try:
+                found = conn(
+                    "{qwin: select time, sym, price, size from trades"
+                    " where time within (min probe_ticks`time; max probe_ticks`time);"
+                    " sum (count qwin) > qwin ? probe_ticks}[]"
+                ).py()
+            finally:
+                conn("delete probe_ticks from `.")
+            return int(found or 0)
+
+        return self._call(probe)
+
     def prune_ticks(self, cutoff: datetime) -> int:
         """Drop ticks older than `cutoff` and return the row count remaining.
 
