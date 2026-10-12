@@ -214,9 +214,24 @@ services:
       LIVE_GRID_LAKE_MAX_DAYS: "10"
       # The subscriptions iframe widget needs an absolute public URL; unset, it is omitted.
       # - LIVE_GRID_PUBLIC_URL=https://<host>.<tailnet>.ts.net:<port>
+      # The tick spool (user ruling 2026-10-12, docs/v10/live-grid-kdb-port.md "Tick spool
+      # and fast reconnect"): ticks kdb does not acknowledge are appended here, on the
+      # live-grid-data volume, and replayed into kdb in order, before newer ticks, once it
+      # answers again -- and at startup, so a killed live-grid loses nothing it spooled.
+      LIVE_GRID_SPOOL_DIR: /data/spool
+      # Cap on the spool's files. Past it new ticks are dropped and counted in /health's
+      # ticks.dropped; it never fills the disk. 256 MB is ~44 h at the drill's 24 ticks/s.
+      LIVE_GRID_SPOOL_MAX_MB: "256"
+      # fsync cadence for spool appends: a host crash can cost at most ~this long; a killed
+      # live-grid loses nothing (every append is written through to the OS at once).
+      LIVE_GRID_SPOOL_FSYNC_S: "1"
+      # Reconnect backoff after kdb stops answering: 1 s, doubling, capped at 15 s (was a
+      # fixed 60 s latch). Calls inside the window fail fast; nothing hammers the port.
+      KDB_RETRY_INITIAL_S: "1"
+      KDB_RETRY_MAX_S: "15"
     volumes:
       - ${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro
-      # The durable watchlist (/data/watchlist.json).
+      # The durable watchlist (/data/watchlist.json) and the tick spool (/data/spool).
       - live-grid-data:/data
     networks: [openbq-internal]
   # The S3 tier (v10 by user ruling; donor Episode 11, bdobb-dev/openbb-docker v11.0.0):

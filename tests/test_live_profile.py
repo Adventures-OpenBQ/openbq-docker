@@ -86,6 +86,18 @@ def test_live_grid_reaches_kdb_and_the_api_on_the_bridge_and_never_spawns_q():
     assert SERVICES['live-grid']['build'] == {'context': '.', 'dockerfile': 'live-grid/Dockerfile'}
 
 
+def test_the_tick_spool_is_on_the_persistent_live_grid_volume_and_bounded():
+    """User ruling 2026-10-12: ticks are spooled to the filesystem and survive restarts."""
+    lg = SERVICES['live-grid']
+    env = lg['environment']
+    assert 'live-grid-data:/data' in lg['volumes']
+    assert 'live-grid-data' in COMPOSE['volumes']
+    assert env['LIVE_GRID_SPOOL_DIR'] == '/data/spool'  # on the named volume, not the container layer
+    assert int(env['LIVE_GRID_SPOOL_MAX_MB']) > 0
+    assert float(env['LIVE_GRID_SPOOL_FSYNC_S']) > 0
+    assert (float(env['KDB_RETRY_INITIAL_S']), float(env['KDB_RETRY_MAX_S'])) == (1.0, 15.0)
+
+
 def test_no_licence_or_key_is_tracked_and_the_examples_are_empty():
     tracked = subprocess.run(['git', 'ls-files', 'kdb-license', 'kdb-data', 'live-grid-data'],
                              cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
