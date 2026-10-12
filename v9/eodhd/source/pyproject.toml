@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openbb-eodhd"
-version = "9.6.2"
+version = "9.6.3"
 description = "EODHD provider extension for OpenBB (equity/crypto/currency historical, fundamentals, corporate actions, ownership, insider trading, analyst estimates)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,8 +24,16 @@ dependencies = [
 [project.entry-points."openbb_provider_extension"]
 eodhd = "openbb_eodhd:eodhd_provider"
 
+# Mounts the obb.eodhd.* mirror router. OpenBB mounts a core extension under
+# its entry-point name, so the key `eodhd` puts the router at /api/v1/eodhd.
+[project.entry-points."openbb_core_extension"]
+eodhd = "openbb_eodhd.eodhd_router:router"
+
 [tool.setuptools.packages.find]
 include = ["openbb_eodhd*"]
+
+[tool.setuptools.package-data]
+openbb_eodhd = ["assets/*.json"]
 
 [project.optional-dependencies]
 dev = ["ruff==0.15.22", "pytest"]

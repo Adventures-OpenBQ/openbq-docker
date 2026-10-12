@@ -215,3 +215,17 @@ eodhd_provider = Provider(
     },
     repr_name="EOD Historical Data (EODHD)",
 )
+
+# --- obb.eodhd.* mirror namespace -------------------------------------------
+# Register every fetcher under a SECOND, eodhd-only model key `Eodhd<Std>`, so
+# the mirror commands generated in eodhd_router.py have a model that no other
+# provider offers -- their provider choice is therefore exactly eodhd. This is
+# the FINRA source-package pattern (openbb_finra._key), made unconditional: our
+# images always install the standard routers, so a "mirror only when absent"
+# rule would leave obb.eodhd.* empty. Registering the alias for EVERY key
+# (including the non-standard EquityTicks) is deliberate: the extra model is
+# invisible without a router command, and the generator only mounts commands
+# for keys that have a row in its MIRRORS table (i.e. a standard path), so
+# EquityTicks gets an EodhdEquityTicks model but no route.
+for _std_key, _fetcher in list(eodhd_provider.fetcher_dict.items()):
+    eodhd_provider.fetcher_dict[f"Eodhd{_std_key}"] = _fetcher
