@@ -88,6 +88,16 @@ plain q. Nothing else in the stack changes.
 
 ## Deploy
 
+> **openbq-docker v10:** nothing to copy. The `live` profile mounts this directory's
+> `startup.q` and `persist.q` read-only at `/opt/kdb-ws/` and runs
+> `q /opt/kdb-ws/startup.q`; `KDB_PERSIST_Q` points startup.q at persist.q, and the tick
+> logs live on the named volume `kdb-data`. Start it with
+> `docker compose --profile live up -d kdb`. There is no host port on this line (the
+> donor text below describes the donor's `127.0.0.1:5999` publish).
+> `tests/test_persist.py` pins persist.q's behaviour and `tests/tickplant_sim.py`
+> models it for the crash-recovery tests in kdb-store and live-grid. The donor's
+> instructions follow.
+
     cp kdb-ws/startup.q kdb-data/startup.q
     docker compose up -d kdb
 

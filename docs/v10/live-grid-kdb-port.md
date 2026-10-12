@@ -22,7 +22,10 @@ Decisions marked **PROVISIONAL** are listed together at the end.
 | `645b49f` | live-grid/ (app, widgets.json, apps.json, macros, scripts, tests, Dockerfile) |
 | `e24ed9c` | the `live` compose profile (kdb, live-grid), credentials.env.example, NOTICE, tests/test_live_profile.py |
 | `7853cec` | funnel-gateway: the /grid family, v10.0.0 |
-| this commit | this ledger, README |
+| `1c9f3c4` | this ledger, README |
+| `a5e146b` | crash recovery always on (user ruling; see "Crash recovery and the S3 tier") |
+| `724739e` | the S3 tier: RustFS, rustfs-init, eod-dump, openbb-deltalake, live-grid read-back |
+| the ledger commit after it | the section below, README, kdb-ws/README |
 
 ## Ported paths
 
@@ -81,7 +84,8 @@ the README), `socks.test.mjs` and every /ai and SOCKS5 piece (removed at v8).
   v9 (parsed and compared against 69c907e: no default or `workspace` service changed; in
   the `web` profile only `funnel-gateway`'s image tag changed). New top-level volume
   `live-grid-data`, used only by live-grid.
-- `kdb`: `ghcr.io/artcashin/kdb-x:amd64`, `command: ["/data/startup.q"]`, `KX_PORT=5000`
+- `kdb` (as first ported; a5e146b changes the command, `/data` and the script mounts, see
+  "Crash recovery and the S3 tier"): `ghcr.io/artcashin/kdb-x:amd64`, `command: ["/data/startup.q"]`, `KX_PORT=5000`
   (all interfaces of its own container, i.e. the bridge), `QLIC=/opt/kx-license`,
   `./kdb-license:/opt/kx-license:ro`, `./kdb-data:/data`. No host port, no Serve entry (P3).
 - `live-grid`: build context `.`, `live-grid/Dockerfile`, image `openbq-live-grid:10.0.0`,
@@ -141,7 +145,7 @@ holds it.
 | The donor's `127.0.0.1:5999` publish and Serve `:5999 -> kdb:5000` | q executes arbitrary code with no auth; nothing here needs the host or tailnet path (P3). |
 | A Serve entry for live-grid `:6903` | Changing `ts-config/serve*.json` would change the default stack's sidecar; BDOBB reaches live-grid through `/grid` (P3). |
 | tick-lab, live-grid-studies (`/grid/ta_registry`, `/grid/live_grid_studies`, study sockets) | Out of scope. Not on the donor's v10.1.7 line either; the sidecar does not need them. |
-| deltalake, minio, security-master, mcp_charts/charts-mcp, stores-explorer, sip-backfill | Out of scope; live-grid imports none of them. |
+| deltalake, minio, security-master, mcp_charts/charts-mcp, stores-explorer, sip-backfill | Out of scope; live-grid imports none of them. (Superseded in part by the 2026-10-12 user rulings: openbb-deltalake and eod-dump are ported, MinIO is replaced by RustFS; see "Crash recovery and the S3 tier".) |
 | key-maint, and d606169 (its log fix) | Out of scope; live-grid does not need it, so d606169 is not taken. |
 | `api_app.py`, `api-auth.env.example`, `docker-entrypoint.sh`, `obb`, `obb-up`, `scripts/*` (scrub, widget_smoke, check-gateway-profile, patch_openbb_core_auth), `tests/test_api_app_auth.py` | The donor's own stack; this line has its own (see v9). |
 | `funnel-gateway/DEPLOYMENT.md`, `socks.test.mjs` | See the gateway table. |
@@ -182,7 +186,9 @@ openbb-core.
    provider keys as well as EODHD's and the Basic pair, as openbq-api does.
 6. **P6** live-grid's watchlist is the named volume `live-grid-data` (the donor bind-mounts
    `./live-grid-data`, which stays git-ignored); kdb's `/data` stays the donor's bind
-   `./kdb-data`, because the operator puts `startup.q` there.
+   `./kdb-data`, because the operator puts `startup.q` there. **Superseded for kdb by
+   a5e146b** (user ruling, crash recovery): kdb's `/data` is now the named volume
+   `kdb-data` and the q scripts are mounted from the repository; see C1 below.
 7. **P7** The gateway is versioned 10.0.0 (package, lock, compose tag, README).
 
 ## Test receipts (cloud, 2026-10-12)
@@ -223,6 +229,228 @@ No assertion was weakened, skipped or deleted. EODHD calls: 0.
   `verify.mjs` on the bridge and through Funnel, with `"liveGrid": true` and false.
 - `docker compose logs live-grid` after a `source=eodhd` tick chart: no `api_token` value appears.
 - BDOBB's web preview opening `/grid/live_grid_ws` and `/grid/ta_chart_ws` with tickets.
+
+## Crash recovery and the S3 tier (user rulings, 2026-10-12)
+
+### The rulings
+
+These are **user rulings**, given in this session on 2026-10-12. They are not provisional.
+
+1. **Crash recovery.** v10 needs crash recovery: the standard tick-spooling script writes
+   ticks to the filesystem, and they are replayed when a service needs a restart.
+2. **The S3 file system.** v10 also needs the S3 file system, to store the ticks for the
+   kdb cache. The donor's S3 tier first appears at v11.0.0 (Episode 11). **These are
+   Episode 11 donor items, moved into v10 by user ruling.**
+3. **RustFS instead of MinIO.** The S3 store is RustFS (`rustfs/rustfs`, Apache-2.0), not
+   MinIO. The user's reason is MinIO's licence change: they do not want people building on
+   something that will go stale. RustFS is meant to be a drop-in S3-compatible
+   replacement. Neither `mc` (the MinIO client, AGPL) nor any MinIO binary or image may
+   remain.
+4. **Keep Delta Lake.** The store format stays Delta Lake (delta-rs); no switch to DuckLake.
+
+Everything else stands as ruled for Episode 10: the opt-in `live` profile, the default
+stack unchanged, OpenBB Platform 5.0 kept, local commits only, no docker run here.
+
+### Crash recovery (a5e146b)
+
+| Path | Donor | Disposition |
+|---|---|---|
+| `kdb-ws/persist.q` | d26effb (tagged v10.1.0 line; unchanged through v10.1.7 d606169 and the donor's main) | Already ported at c6936fd; now always loaded |
+| `kdb-ws/startup.q` | f6857e1 (v10.1.5) | EDIT: the last line loads `KDB_PERSIST_Q`, default the donor's `/data/persist.q` |
+| `docker-compose.yml` `kdb` | the donor's `command: ["/data/startup.q"]` on the kdb-x entrypoint (`exec q "$@" -p $KX_PORT`, kdb-x/entrypoint.sh at d606169) | EDIT: see below |
+| `kdb-ws/tests/tickplant_sim.py`, `kdb-ws/tests/test_persist.py`, `kdb-store/tests/test_crash_recovery.py`, `live-grid/tests/test_crash_recovery.py` | none | NEW |
+
+The `kdb` service now mounts `./kdb-ws/startup.q` and `./kdb-ws/persist.q` read-only at
+`/opt/kdb-ws/`, runs `["/opt/kdb-ws/startup.q"]` with `KDB_PERSIST_Q=/opt/kdb-ws/persist.q`,
+and keeps `/data` on the named volume `kdb-data` (persist.q's `/data/logs/tlog_<date>`),
+which survives `docker compose down`/`up` and container recreation (`down -v` deletes it).
+`restart: unless-stopped` (both kdb and live-grid) and `stop_grace_period: 30s` so q's
+`.z.exit` closes the log handle. The operator copies nothing by hand any more.
+
+**Reconnection.** kdb-store's `session.py` and `store.py` and live-grid's `recorder.py` are
+byte-identical to the donor's latest (main and v11.5.4; last substantive commits b6ce372,
+93fcd88, 2fc9b6b). The behaviour the tests prove: a dead connection fails its `1+1` liveness
+check; the next call walks the chain again to `kdb:5000`; the expiring 60 s latch
+(25ba5f7's fix, in b6ce372's session.py) suppresses retries during an outage and picks up a
+q that came back; the schema statement is re-issued on the new connection; a flush during
+the outage is counted in `dropped` and does not kill the feed. Nothing to take. Not taken:
+b569994 (forex feed liveness) and 0cf96ab (drain interval), which are feed tuning, not
+restart recovery.
+
+What a restart loses, by design: ticks EODHD sends while live-grid is down (no feed), and a
+flush that fails while kdb is down (bounded buffer, counted in `/health` `ticks.dropped`).
+
+### The S3 tier (724739e)
+
+| Path | Donor commits (tag) | Disposition |
+|---|---|---|
+| `openbb-deltalake/` (22 files) | 2b02ed7, 0e1b465, c5a06ae, 6dd737b, bf07da0, 9ad866f, 7b40ab1 (v11.0.0 line, 2026-09-01); 3b10505, b6653a7 (2026-09-03/04); d999ebe, ed38326 (v11.0.1); 23f076a (docs); f69689e (openbb-core 2.0.1 floor, v11.0.6); headers 78c7af9/2e5af70/b7045aa | ADD, content = v11.0.6 (`afda165`). Edits: README preface; tests build the example tailnet suffix at run time and use `EXAMPLE_*` secrets so `check-public.py` passes (same assertions). Installed only in the openbq-lake image |
+| `scripts/eod_dump.py` | 4b84311, 7fc889b, a061853 (v11.0.0); 714d43c (v11.0.1) | ADD, from v11.0.6. Edits below |
+| `docker-compose.yml` `eod-dump` | ec5e738 (v11.0.0), 714d43c | ADD, rewritten for this line |
+| `docker-compose.yml` `rustfs`, `rustfs-init`, volume `rustfs-data` | shape from a7d5b3e/ec5e738 (`minio`, `minio-init`, `minio-data`, v11.0.0) | REPLACED by RustFS (ruling 3) |
+| `rustfs.env.example` | minio.env.example (a7d5b3e, b1374ac, d999ebe; v11.0.0..v11.0.6) | REPLACED: RustFS names, empty secrets, the `DELTA_S3_*` contract kept |
+| `eod.env.example` | 714d43c (v11.0.1) | ADD, hot mirror off |
+| `Dockerfile.lake` (`openbq-lake:10.0.0`) | the donor's `openbb-local` image as eod-dump's runtime (ec5e738) | NEW: the counterpart, separate from openbq-api |
+| `scripts/s3_init.py` | replaces `minio-init`'s `mc mb --ignore-existing` (a7d5b3e) | NEW, S3 API via pyarrow |
+| `live-grid/app/lake.py`, `live-grid/app/main.py` (`build_series(..., lake=)`), `live-grid/pyproject.toml` (+deltalake, pyarrow) | none at v11 (the donor's v11 live-grid never reads Delta; its later tick vault, d07898b, is Episode 12+) | NEW, the read-back (C4) |
+| `scripts/tests/test_lake_scripts.py`, `live-grid/tests/test_lake_readback.py`, `tests/test_lake_profile.py` | none | NEW |
+| `.gitignore`, `NOTICE`, `README.md`, `kdb-ws/README.md` | none | EDIT |
+
+Edits to `scripts/eod_dump.py`: the NAS-side HTTP read (`_read_day_http`, `KDB_HTTP_URL`,
+06ee951) is removed, so the flush reads kdb over IPC on the bridge only; `main()` exits 2
+without all of `DELTA_S3_*` (openbb-deltalake's `layer_target` would otherwise write into a
+directory inside the container, and does not read `DELTA_URI`); `EOD_HOT_SESSIONS` defaults
+to 0 (one store here; the donor's 10 would write a second copy into the same bucket).
+
+The `DELTA_S3_*` contract is the donor's (openbb-deltalake `utils.s3_options_from_env`):
+`DELTA_S3_ENDPOINT=rustfs`, `DELTA_S3_PORT=9000`, `DELTA_S3_SECURE=false` (plain HTTP on the
+bridge, so `aws_allow_http=true`), `aws_virtual_hosted_style_request=false` (path-style:
+`rustfs` is a service name, never `<bucket>.<host>`) and `aws_conditional_put=etag`, all kept.
+
+Not taken from the donor's S3 tier:
+
+| Donor path or piece | Why |
+|---|---|
+| `minio/` (Dockerfile, entrypoint.sh, cert-sync.sh, tests/) | EXCLUDE, superseded by the RustFS ruling |
+| 785fef8 (v11.0.5), 12cfc20 + d75a48d (v11.3.4), a5e6f4a (v11.2.6): MinIO from release binaries, not withdrawn images | EXCLUDE, superseded by the RustFS ruling |
+| cert-sync and the `minio-ts-state` volume | MinIO joined the tailnet with its own certificate. RustFS here is on the bridge only, no tailnet node, so nothing needs a certificate (decision under the ruling's "keep cert-sync only if needed") |
+| `minio-hdd`, `minio-hdd-init`, the hot/cold tier variables (`DELTA_S3_HOT_*`/`COLD_*`, `LAKE_*_URI`) | NAS/HDD deployment; the code that reads them is kept (it falls back to the single store) but nothing configures them |
+| eod-dump's `KDB_HTTP_URL` path and kdb's Serve `:5999` | the NAS-only production flush; nothing publishes kdb here (P3) |
+| `openbb-deltalake` in openbq-api (`provider="deltalake"`) | would change the default stack's API image (as openbb-kdb, P1) |
+| tick-lab, mcp_stores, stores-explorer, `tests/integration/*` (MinIO concurrency, provider parity) | out of scope; need the donor's API image or a live store |
+| `quay.io/minio/minio`, `quay.io/minio/mc`, any MinIO binary | ruling 3. `tests/test_lake_profile.py` fails on any `minio` service, image or volume, or `mc`, in compose |
+
+### RustFS
+
+- Image `rustfs/rustfs:1.0.1@sha256:1803faef57627e2d9c2e7d89d655d712ddded5389040054987163043fecb6a3c`,
+  the index digest (linux/amd64 and linux/arm64) read from Docker Hub's registry API on
+  2026-10-12 (metadata only; nothing pulled or run). 1.0.1 was published 2026-10-03, the
+  newest non-preview release (1.0.0 GA was 2026-09-16), and is after 2026-02-02, when
+  RustFS issue **#1458** (conditional requests failed on unquoted ETags in put_object,
+  copy_object and delete_object) was closed as fixed via s3s 0.13.0-alpha.2; that fix
+  still awaits the reporter's confirmation. RustFS is reported to enforce
+  If-None-Match/If-Match on PutObject since 1.0.0-alpha.47 (PR #409, cited second-hand in
+  rustfs/cli #385). Conditional GET (#791) does not matter for Delta commits.
+- Settings from the 1.0.1 Dockerfile, docker-compose.yml, entrypoint.sh and README (fetched
+  from raw.githubusercontent.com at the 1.0.1 tag): `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`
+  (default `rustfsadmin`, which the entrypoint only warns about, so our compose wrapper
+  refuses it), `RUSTFS_VOLUMES=/data`, `RUSTFS_ADDRESS=0.0.0.0:9000`,
+  `RUSTFS_CONSOLE_ENABLE=false`, health `curl -fsS http://127.0.0.1:9000/health`, runs as
+  uid 10001 (a fresh named volume takes the image's `/data` ownership).
+- **Maturity.** 1.0 GA is four weeks old; the 1.0.1 line shipped 17 previews in a fortnight.
+  It is young next to MinIO, and S3 compatibility is its own claim. What this stack relies
+  on: path-style addressing, CreateBucket/HeadBucket, Get/Put/List/Delete, ranged GET
+  (parquet), and **put-if-absent** (`If-None-Match: *`) on `_delta_log/*.json`, which is how
+  delta-rs makes a commit atomic with `aws_conditional_put=etag` and no lock service. eod-dump
+  is the only writer, once a day, so a conditional-put failure has no concurrent writer to
+  race; live-grid only reads.
+
+### Decisions (PROVISIONAL unless marked)
+
+- **C1** (decision under ruling 1) kdb's `/data` is the named volume `kdb-data`, not the
+  `./kdb-data` bind (P6 superseded); the scripts are read-only mounts plus `KDB_PERSIST_Q`
+  (a one-line, defaulted edit to startup.q), not files copied into the volume.
+- **C2** PROVISIONAL: RustFS conditional put. moto enforces put-if-absent (412) in the tests;
+  RustFS's support is from its issue tracker, not verified. Until the Mac check below passes.
+- **C3** PROVISIONAL: eod-dump and rustfs-init run in their own image, `openbq-lake:10.0.0`
+  (Dockerfile.lake: python:3.12-slim at the same digest as Dockerfile, `--constraint
+  requirements.lock`, openbb-core 2.0.1, deltalake 1.6.6, pykx 4.1.0, openbb-deltalake), not
+  in openbq-api's image as the donor's eod-dump does, so the default stack is unchanged.
+- **C4** PROVISIONAL: the read-back. The donor's v11 has no live-grid reader for flushed
+  ticks (its eod-dump comment says the chart's seam reads the hot mirror, but no v11 code
+  does). `live-grid/app/lake.py` is this line's own: for an intraday interval that tiles a
+  UTC day (1m, 5m, 15m, 1h, 90m; not 7m, not 1d), each whole past UTC day in the request
+  (at most `LIVE_GRID_LAKE_MAX_DAYS`, 10) that `ticks_live/<SYM>_<YYYY_MM_DD>` holds is
+  aggregated like kdb's `xbar` and owns its span from its first fully covered bar to the end
+  of the bar holding its last tick; kdb's ticks own only what follows the last such day;
+  history fills the rest. Any store error degrades to the kdb path. `1d` and wider stay on
+  history (a flushed day may be partial). Off unless `LIVE_GRID_LAKE_READBACK=true` and all
+  of `DELTA_S3_*` are set (no local fallback directory). When on, `/series` and `/grid/series`
+  `cache` gain `rows_from_lake` and `lake_days`; without it the response is unchanged.
+- **C5** PROVISIONAL: every env file of the tier is `required: false`, and the tier fails
+  closed at run time instead: rustfs exits on an empty or `rustfsadmin` pair, rustfs-init
+  exits 2 without `DELTA_S3_*`, eod-dump never starts without a successful init, eod-dump
+  exits 2 without the store. So a `--profile live` without `rustfs.env` still runs kdb and
+  live-grid.
+- **C6** PROVISIONAL: live-grid loads `rustfs.env` for the read-back, so it holds the store's
+  root pair (as the donor's readers hold MinIO's root pair, b1374ac). A read-only scoped key
+  would be better posture; RustFS IAM is not set up here.
+- **C7** PROVISIONAL: `EOD_HOT_SESSIONS` defaults to 0 and the hot/cold tiers are unconfigured
+  (one store).
+- **C8** Finding: `DeltaTable.is_deltatable` never returned against an S3 endpoint in this
+  environment (deltalake 1.6.6 and 1.1.4, moto; no request reached the server), while
+  opening a table and catching `TableNotFoundError` returns at once. `lake.py` opens and
+  catches. openbb-deltalake's `store.has()`/`read()` still call `is_deltatable`; eod-dump does
+  not use them (it writes, lists with pyarrow and deletes), and they are tested on a local
+  store. Check on the Mac against RustFS (below).
+
+### Test receipts (cloud, 2026-10-12)
+
+| Suite | Environment | Result |
+|---|---|---|
+| `kdb-ws/tests` (persist.q pins + the tick-plant simulation) | `lg312` | 9 passed |
+| `kdb-store` (incl. `test_crash_recovery.py`, 3) | `lg312` | 130 passed (was 127) |
+| `live-grid` (incl. `test_crash_recovery.py` 3, `test_lake_readback.py` 13) | `lg312` + deltalake 1.6.6, pyarrow 25.0.1, moto 5.2.4 | 430 passed, 14 deselected (was 414) |
+| `openbb-deltalake` (the donor's suite) | `lake312`: Python 3.12.3, openbb-core 2.0.1 and shared pins from requirements.lock, deltalake 1.6.6, pykx 4.1.0, moto 5.2.4, kdb-store | 95 passed |
+| `scripts/tests` (eod_dump, s3_init, against moto and a local store) | `lake312` | 13 passed |
+| `tests/` (incl. `test_lake_profile.py` 10, new crash-recovery compose checks 3) | `img312` | 27 passed (5 subtests) (was 14) |
+| `funnel-gateway` `npm test` | node 22.22.0 | 75 passed |
+| `v3/tests`, `lanes/tests`, `workspace/tests` | `img312` | 68, 22, 12 passed |
+| `examples/episode3` `test_server`, `test_assembly` | `img312` | 6 passed |
+| `provider-fixes/tests` | `pf312` | 42 OK |
+| `v9/eodhd/tests` | `img312` | 9 passed |
+| `scripts/check-public.py` | — | PASS |
+| `scripts/verify-app-layouts.py live-grid/apps.json` | — | passed |
+
+One existing assertion changed with the design, not weakened: `tests/test_live_profile.py`
+now expects live-grid's `env_file` to be exactly `credentials.env` and `rustfs.env` (both
+optional), and kdb's command `/opt/kdb-ws/startup.q` (checked in the new crash-recovery
+test). No test was skipped or deleted. EODHD calls: 0. Nothing was pulled, built or run.
+
+### Mac-pending (crash recovery and the S3 tier)
+
+Needs a KX licence in `kdb-license/`, `rustfs.env` filled, and the stack built:
+`docker compose --profile live build && docker compose --profile live up -d`.
+
+**1. kdb killed mid-session.**
+1. With live-grid recording (watchlist has symbols, market open or a crypto symbol), note
+   the count: `docker compose exec live-grid python -c "from kdb_store.config import resolve_config; from kdb_store.session import KdbSession; from kdb_store.store import KdbStore; s=KdbStore(KdbSession(resolve_config())); print(s._call(lambda c: c('count trades').py()))"`
+   and `ls` the log: `docker compose exec kdb ls -l /data/logs`.
+2. `docker compose kill -s SIGKILL kdb`, wait 10 s, `docker compose start kdb`
+   (and once with `docker compose up -d --force-recreate kdb`, which recreates the container).
+3. `docker compose logs kdb` shows `tlog: replaying tlog_<date>` and `tick log active`.
+4. Re-run the count: it equals the count before the kill plus whatever arrived after
+   live-grid reconnected (within 60 s, the retry latch), never less than before the kill.
+   `/health` `ticks.endpoint` reads `loopback` again; `ticks.dropped` counts only the outage.
+5. `/series?symbol=<sym>&interval=1m&start=<today>&end=<today>` has `cache.rows_from_ticks`
+   > 0 and the same `seam` as before the kill.
+
+**2. live-grid killed mid-session.**
+1. Note `/ticks?symbol=<sym>&limit=1000` and the kdb count.
+2. `docker compose kill -s SIGKILL live-grid`, then `docker compose up -d live-grid`
+   (and once `--force-recreate`).
+3. `/health` answers, the watchlist is back (`live-grid-data`), `/ticks` returns the same
+   rows plus new ones, `/series` 1m has `rows_from_ticks` > 0. kdb's count did not drop.
+
+**3. Both.** `docker compose --profile live restart`; repeat 1.4 and 2.3.
+
+**4. RustFS and the flush.**
+1. `docker compose ps`: rustfs healthy, rustfs-init exited 0, eod-dump running. With
+   `rustfs.env` absent or holding `rustfsadmin`, rustfs exits 1 with the message.
+2. Flush a day by hand: `docker compose exec eod-dump python /opt/eod_dump.py --date <yesterday>`;
+   re-run it (the version goes 0 then 1, row count unchanged).
+3. Read-back: `/series?symbol=<sym>&interval=1m&start=<3 days ago>&end=<today>` reports
+   `cache.lake_days` including yesterday and `rows_from_lake` > 0; stop rustfs and repeat:
+   the chart still answers (kdb + history), `rows_from_lake` 0.
+4. **Conditional put (C2).** Against the real RustFS container, from the openbq-lake image on
+   the bridge, run two concurrent delta-rs commits to the same table (two processes each
+   opening the table at the same version and committing). One must fail with a commit
+   conflict, HTTP 412 on `_delta_log/<n>.json`, not silently overwrite. Also a raw
+   `PutObject` with `If-None-Match: *` on an existing key must answer 412. Until this passes,
+   C2 stays PROVISIONAL.
+5. **C8.** `DeltaTable.is_deltatable("s3://openbq/ticks_live/<key>", storage_options=...)`
+   against RustFS returns promptly (or record that it hangs there too).
+6. `docker compose logs live-grid eod-dump` show no `DELTA_S3_SECRET`/`RUSTFS_SECRET_KEY` value.
 
 ## Appendix: per-file record (live-grid, kdb-store, kdb-ws, kdb-license)
 
