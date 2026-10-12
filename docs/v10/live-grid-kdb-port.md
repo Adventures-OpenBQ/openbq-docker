@@ -499,6 +499,17 @@ with REVIEW), check-public PASS, `docker compose config` valid for the default s
 `openbq-api`, `tailscale`), `--profile live`, `RUSTFS_DATA_DIR=/srv/lake`, and with the
 kdb-build override.
 
+## The licence directory is configurable (user, 2026-10-12)
+
+The user keeps the kdb licence in the private repository bdobb-dev/openbb-kdb. The three
+services that mount it (kdb, live-grid, eod-dump) now take
+`${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro`, so a private checkout kept beside this
+one can be used directly (`KDB_LICENSE_DIR=../openbb-kdb/<dir>` in the shell or `.env`) and
+the licence is never copied into this repository. The default is unchanged. The licence was
+not fetched into the cloud session (the user's ruling: no licence in chat or cloud).
+REVIEW: three mount assertions now name the variable; a new test checks that exactly those
+three services share the one read-only mount. Tests: `tests/` 33 passed.
+
 ## BDOBB examples sync (v10)
 
 `EPISODE=10 OPENBB_DOCKER_DIR=<scratch> node scripts/apps-sync.mjs` on BDOBB

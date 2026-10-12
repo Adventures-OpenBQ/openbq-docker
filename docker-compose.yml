@@ -135,7 +135,10 @@ services:
   #
   # kdb: the kdb+ tick cache live-grid records into and reads back (/ticks, the tick seam of
   # /series, /chart and /ta_chart). This repository ships NO KX software and NO licence:
-  # the image is the operator's own KDB-X build, and kc.lic goes in ./kdb-license/
+  # the image is the operator's own KDB-X build, and kc.lic goes in ./kdb-license/ by default.
+  # KDB_LICENSE_DIR (shell or .env) points kdb, live-grid and eod-dump at another directory
+  # instead, e.g. a private checkout kept beside this one (KDB_LICENSE_DIR=../openbb-kdb/<dir>),
+  # so the licence never has to be copied into this repository.
   # (git-ignored, mounted read-only). Without a licence q exits and live-grid runs without
   # ticks.
   #
@@ -162,7 +165,7 @@ services:
       # The tick logs (/data/logs) live here: a named volume, so recreating the container
       # keeps them.
       - kdb-data:/data
-      - ./kdb-license:/opt/kx-license:ro
+      - ${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro
       - ./kdb-ws/startup.q:/opt/kdb-ws/startup.q:ro
       - ./kdb-ws/persist.q:/opt/kdb-ws/persist.q:ro
     # The kdb-x entrypoint runs `q <args> -p $KX_PORT`.
@@ -212,7 +215,7 @@ services:
       # The subscriptions iframe widget needs an absolute public URL; unset, it is omitted.
       # - LIVE_GRID_PUBLIC_URL=https://<host>.<tailnet>.ts.net:<port>
     volumes:
-      - ./kdb-license:/opt/kx-license:ro
+      - ${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro
       # The durable watchlist (/data/watchlist.json).
       - live-grid-data:/data
     networks: [openbq-internal]
@@ -329,7 +332,7 @@ services:
       KDB_PORT: "5000"
       QLIC: /opt/kx-license
     volumes:
-      - ./kdb-license:/opt/kx-license:ro
+      - ${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro
     networks: [openbq-internal]
 networks:
   openbq-internal:

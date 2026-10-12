@@ -42,8 +42,8 @@ def test_nothing_in_the_live_profile_is_published_or_served():
 def test_kdb_uses_the_named_image_and_mounts_the_licence_read_only():
     kdb = SERVICES['kdb']
     assert kdb['image'] == 'ghcr.io/artcashin/kdb-x:amd64'
-    assert './kdb-license:/opt/kx-license:ro' in kdb['volumes']
-    assert './kdb-license:/opt/kx-license:ro' in SERVICES['live-grid']['volumes']
+    assert '${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro' in kdb['volumes']
+    assert '${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro' in SERVICES['live-grid']['volumes']
 
 
 def test_crash_recovery_is_always_on_kdb_runs_the_repository_scripts_read_only():
@@ -98,3 +98,12 @@ def test_no_licence_or_key_is_tracked_and_the_examples_are_empty():
     assert env['EODHD_API_KEY'] == '' and env['LIVE_GRID_PUBLIC_URL'] == ''
     smoke = (ROOT / 'live-grid/scripts/smoke.py').read_text()
     assert 'os.environ.get("EODHD_DEMO_WS_KEY", "")' in smoke
+
+
+def test_one_licence_directory_reaches_every_service_that_needs_it():
+    # REVIEW (user, 2026-10-12: the kdb licence lives in bdobb-dev/openbb-kdb): the mount
+    # source is overridable as KDB_LICENSE_DIR, default ./kdb-license; still read-only.
+    mount = '${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro'
+    users = sorted(k for k, v in SERVICES.items() if any('kx-license' in str(m) for m in v.get('volumes', [])))
+    assert users == ['eod-dump', 'kdb', 'live-grid']
+    assert all(mount in SERVICES[k]['volumes'] for k in users)

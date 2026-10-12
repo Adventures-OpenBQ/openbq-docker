@@ -103,7 +103,7 @@ def test_the_bucket_is_made_over_the_s3_api_before_the_flush_starts():
         assert svc['build'] == {'context': '.', 'dockerfile': 'Dockerfile.lake'}
     assert eod['entrypoint'] == ['python', '/opt/eod_dump.py', '--loop']
     assert eod['environment']['KDB_HOST'] == 'kdb' and eod['restart'] == 'unless-stopped'
-    assert './kdb-license:/opt/kx-license:ro' in eod['volumes']
+    assert '${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro' in eod['volumes']
 
 
 def test_the_lake_image_keeps_openbb_platform_5():
