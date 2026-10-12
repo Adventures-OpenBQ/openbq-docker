@@ -227,6 +227,27 @@ services:
   # (user ruling 2026-10-12: RustFS is the S3 store). On the bridge only: no host port,
   # no Serve, no Funnel, no tailnet node, so no certificate and no cert-sync. Plain HTTP,
   # path-style. The console is off.
+  # rustfs-perms: one-shot, before rustfs. The RustFS image runs as uid/gid 10001, and a
+  # host directory is created by root (or by the operator), so rustfs could not write to it.
+  # This makes the data directory exist and belong to 10001:10001; it changes ownership only
+  # when it is wrong, so a restart costs nothing. Reuses the lake image; no extra image.
+  rustfs-perms:
+    profiles: [live]
+    build:
+      context: .
+      dockerfile: Dockerfile.lake
+    image: openbq-lake:10.0.0
+    restart: "no"
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mkdir -p /data
+        [ "$$(stat -c %u:%g /data)" = 10001:10001 ] || chown -R 10001:10001 /data
+        chmod 0750 /data
+    volumes:
+      - ${RUSTFS_DATA_DIR:-./rustfs-data}:/data
+    network_mode: none
   rustfs:
     profiles: [live]
     image: rustfs/rustfs:1.0.1@sha256:1803faef57627e2d9c2e7d89d655d712ddded5389040054987163043fecb6a3c
@@ -255,8 +276,15 @@ services:
       retries: 3
       start_period: 40s
     security_opt: [no-new-privileges:true]
+    depends_on:
+      rustfs-perms:
+        condition: service_completed_successfully
     volumes:
-      - rustfs-data:/data
+      # Persistent on the host, not in a Docker volume: the store survives container
+      # recreation, image upgrades and `docker compose down -v`, and can be backed up or
+      # moved to another disk as a plain directory. Default ./rustfs-data (git-ignored);
+      # set RUSTFS_DATA_DIR in the shell or in .env to put it elsewhere.
+      - ${RUSTFS_DATA_DIR:-./rustfs-data}:/data
     networks: [openbq-internal]
   # rustfs-init: one-shot. Delta Lake does not create its own bucket; this makes it over
   # the plain S3 API (scripts/s3_init.py, pyarrow), idempotently. No vendor S3 client.
@@ -319,8 +347,7 @@ volumes:
   live-grid-data:
   # The `live` profile's kdb tick logs (kdb-ws/persist.q writes /data/logs/tlog_<date>).
   kdb-data:
-  # The `live` profile's S3 store (RustFS): the Delta Lake HDB eod-dump writes.
-  rustfs-data:
+  # (The `live` profile's S3 store is a host directory, not a volume: see rustfs.)
   # Named as the former standalone project's volume so existing Workspace
   # accounts and dashboards carry over.
   workspace-data:

@@ -452,6 +452,53 @@ Needs a KX licence in `kdb-license/`, `rustfs.env` filled, and the stack built:
    against RustFS returns promptly (or record that it hangs there too).
 6. `docker compose logs live-grid eod-dump` show no `DELTA_S3_SECRET`/`RUSTFS_SECRET_KEY` value.
 
+## Persistent RustFS and the kdb-x build recipe (user request, 2026-10-12)
+
+The user asked to continue building the kdb and RustFS containers and ruled that **RustFS
+must be persistent**.
+
+**RustFS persistence (ruling).** The store moved from the named volume `rustfs-data` to a
+host directory, `${RUSTFS_DATA_DIR:-./rustfs-data}:/data` (`./rustfs-data/` was already
+git-ignored). A named volume already survived container recreation, but `docker compose down -v`
+deleted it, and it was not a plain directory an operator could back up or move. The host
+directory survives recreation, image upgrades and `down -v`, and can sit on any disk.
+The RustFS image runs as `rustfs` (uid/gid 10001; upstream `Dockerfile` at 1.0.1:
+`USER rustfs`, `chown -R rustfs:rustfs /data`). That chown only reaches the image layer, not a
+bind mount, so a new one-shot, `rustfs-perms`, runs first: the lake image as root, with
+`network_mode: none`, creates the directory and chowns it to 10001:10001 only when the owner
+is wrong. `rustfs` waits for it (`service_completed_successfully`). No new image.
+REVIEW: `tests/test_lake_profile.py` asserted `rustfs-data:/data` and the named volume; it
+now asserts the host bind and that no named volume remains. New test:
+`test_rustfs_data_is_a_host_directory_made_writable_before_rustfs_starts`.
+kdb's tick logs stay on the named volume `kdb-data` (C1); moving them to a host directory the
+same way is an open option for the user.
+
+**kdb-x build recipe.** Ported from bdobb-dev/openbb-docker v10.1.7: `kdb-x/Dockerfile`,
+`kdb-x/entrypoint.sh`, `kdb-x/README.md` (donor 1ab20f1, e12fce1, e520b60, baee69b; the
+directory was excluded from the first v10 pass). It ships no KX software: the build downloads
+KDB-X from KX's portal (`KX_VERSION`, default `~latest~`), deletes any licence in the same
+layer, and fails on a wrong-architecture `q`. `docker-compose.yml` keeps
+`ghcr.io/artcashin/kdb-x:amd64` (the ruling's image); the new override `compose.kdb-build.yml`
+builds from `kdb-x/` and tags `openbq-kdb-x:local`, changing nothing else about `kdb`. A
+README section covers its use in this stack. New tests: `tests/test_kdb_build.py` (4).
+
+**Not done in the cloud.** Starting a Docker daemon in the cloud container was refused by the
+session's sandbox, so no image was built, pulled or run. Mac steps:
+1. `docker compose -f docker-compose.yml -f compose.kdb-build.yml --profile live build kdb`
+   (and `docker buildx build --platform linux/amd64,linux/arm64 kdb-x/` if a multi-arch image
+   is wanted); the build log ends with `no licence present`.
+2. `docker compose --profile live build` (openbq-lake, live-grid) and `up -d`; `rustfs-perms`
+   exits 0 and `./rustfs-data` (or `$RUSTFS_DATA_DIR`) is owned by 10001:10001.
+3. Persistence: write an object (or run step 4.2 above), then `docker compose --profile live
+   down -v && docker compose --profile live up -d`: the object and the flushed Delta tables
+   are still there, rustfs-init is still idempotent, and the read-back still reports
+   `lake_days`.
+
+Receipts (cloud): `tests/` 32 passed (was 28: +1 lake, +4 kdb build, one assertion changed
+with REVIEW), check-public PASS, `docker compose config` valid for the default stack (only
+`openbq-api`, `tailscale`), `--profile live`, `RUSTFS_DATA_DIR=/srv/lake`, and with the
+kdb-build override.
+
 ## BDOBB examples sync (v10)
 
 `EPISODE=10 OPENBB_DOCKER_DIR=<scratch> node scripts/apps-sync.mjs` on BDOBB

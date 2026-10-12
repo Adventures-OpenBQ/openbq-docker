@@ -70,7 +70,27 @@ def test_rustfs_fails_closed_on_an_empty_or_default_root_pair():
     assert script.rstrip().endswith('exec /entrypoint.sh rustfs')
     assert rustfs['healthcheck']['test'] == ['CMD', 'curl', '-fsS', 'http://127.0.0.1:9000/health']
     assert rustfs['restart'] == 'unless-stopped'
-    assert 'rustfs-data:/data' in rustfs['volumes'] and 'rustfs-data' in COMPOSE['volumes']
+    # REVIEW (user ruling 2026-10-12, "rustfs should be persistent"): the store moved from the
+    # named volume rustfs-data to a host directory, so `down -v` cannot delete it.
+    assert rustfs['volumes'] == ['${RUSTFS_DATA_DIR:-./rustfs-data}:/data']
+    assert 'rustfs-data' not in COMPOSE['volumes']
+
+
+def test_rustfs_data_is_a_host_directory_made_writable_before_rustfs_starts():
+    rustfs, perms = SERVICES['rustfs'], SERVICES['rustfs-perms']
+    # Same directory in both, and rustfs waits for the one-shot to finish.
+    assert perms['volumes'] == rustfs['volumes'] == ['${RUSTFS_DATA_DIR:-./rustfs-data}:/data']
+    assert rustfs['depends_on'] == {'rustfs-perms': {'condition': 'service_completed_successfully'}}
+    assert perms['profiles'] == ['live'] and perms['restart'] == 'no'
+    # The RustFS image runs as 10001:10001; only the one-shot runs as root, with no network.
+    assert perms['user'] == '0:0' and perms['network_mode'] == 'none'
+    script = perms['command'][0]
+    assert 'chown -R 10001:10001 /data' in script and 'stat -c %u:%g /data' in script
+    # It reuses the lake image rather than pulling another one.
+    assert perms['image'] == SERVICES['rustfs-init']['image'] == 'openbq-lake:10.0.0'
+    # No other service sees the store's files.
+    others = {k: v for k, v in SERVICES.items() if k not in ('rustfs', 'rustfs-perms')}
+    assert 'RUSTFS_DATA_DIR' not in json.dumps(others) and 'rustfs-data' not in json.dumps(others)
 
 
 def test_the_bucket_is_made_over_the_s3_api_before_the_flush_starts():

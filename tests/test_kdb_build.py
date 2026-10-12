@@ -1,0 +1,44 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+"""The kdb-x recipe and its compose override: a build path that ships no KX software."""
+import subprocess
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+BASE = yaml.safe_load((ROOT / 'docker-compose.yml').read_text())
+OVERRIDE = yaml.safe_load((ROOT / 'compose.kdb-build.yml').read_text())
+DOCKERFILE = (ROOT / 'kdb-x' / 'Dockerfile').read_text()
+
+
+def test_the_recipe_ships_no_kx_binary_and_no_licence():
+    tracked = subprocess.run(['git', 'ls-files', 'kdb-x'], cwd=ROOT, capture_output=True,
+                             text=True, check=True).stdout.split()
+    assert sorted(tracked) == ['kdb-x/Dockerfile', 'kdb-x/README.md', 'kdb-x/entrypoint.sh']
+
+
+def test_the_build_downloads_from_kx_and_deletes_any_licence_in_the_same_layer():
+    assert 'https://portal.dl.kx.com/assets/raw/kdb-x/kdb-x/${KX_VERSION}/${KXP}.zip' in DOCKERFILE
+    run = DOCKERFILE.split('RUN set -eux;', 1)[1].split('\nCOPY', 1)[0]
+    assert "-name '*.lic'" in run and '-delete' in run
+    # A wrong-architecture q fails the build instead of shipping.
+    assert 'e_machine' in run and 'arch mismatch' in run
+    assert 'COPY kc.lic' not in DOCKERFILE and 'QLIC=' not in DOCKERFILE.split('ENV', 1)[1]
+
+
+def test_the_override_builds_kdb_locally_and_changes_nothing_else():
+    kdb = OVERRIDE['services']['kdb']
+    assert set(OVERRIDE['services']) == {'kdb'} and set(kdb) == {'build', 'image'}
+    assert kdb['build']['context'] == 'kdb-x' and kdb['image'] == 'openbq-kdb-x:local'
+    assert kdb['build']['args'] == {'KX_VERSION': '${KX_VERSION:-~latest~}'}
+    # Without the override, the stack still pulls the operator's published image.
+    assert BASE['services']['kdb']['image'] == 'ghcr.io/artcashin/kdb-x:amd64'
+    assert 'build' not in BASE['services']['kdb']
+
+
+def test_the_entrypoint_runs_the_stacks_script_on_the_stacks_port():
+    entry = (ROOT / 'kdb-x' / 'entrypoint.sh').read_text()
+    assert 'exec "$QBIN" "$@" -p "$PORT"' in entry
+    kdb = BASE['services']['kdb']
+    assert kdb['command'] == ['/opt/kdb-ws/startup.q'] and kdb['environment']['KX_PORT'] == '5000'
