@@ -24,8 +24,10 @@ def test_kdb_and_live_grid_start_only_with_the_live_profile():
 
 
 def test_the_gateway_does_not_depend_on_the_live_profile():
-    # `--profile web` alone must still start without kdb or live-grid.
+    # `--profile web` alone must still start: /grid answers 503 until "liveGrid": true.
     assert SERVICES['funnel-gateway'].get('depends_on') == ['openbq-api']
+    settings = json.loads((ROOT / 'funnel-gateway/settings.example.json').read_text())
+    assert settings['liveGrid'] is False
 
 
 def test_nothing_in_the_live_profile_is_published_or_served():

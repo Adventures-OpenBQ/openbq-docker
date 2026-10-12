@@ -1,8 +1,10 @@
 // Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 // SPDX-License-Identifier: Apache-2.0
 
-// openbq-docker v8.0.0. Ported from bdobb-dev/openbb-docker v8.0.3 (775354f)
-// funnel-gateway/server.mjs with the /ai (Rita) family and its SOCKS5 dialer removed.
+// openbq-docker v10.0.0. Ported from bdobb-dev/openbb-docker v8.0.3 (775354f)
+// funnel-gateway/server.mjs with the /ai (Rita) family and its SOCKS5 dialer removed; the
+// /grid family (live-grid, the `live` profile) from v10.1.7 (d606169): e8c1239, 7212a1d,
+// b9545f5, d32966d, dc61be8, d7ec9d1 -- gated here by settings.json's "liveGrid".
 
 import { createServer, request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
@@ -10,10 +12,81 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
-import { upstreamPath, newsSubscription, socketTarget, socketTicketNonce, stateFile } from "./policy.mjs";
+import { upstreamPath, newsSubscription, liveGridSubscription, socketTarget, socketTicketNonce, stateFile } from "./policy.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
 const MAX_SOCKET = 65536;
+/**
+ * The /grid routes that reach a PAID vendor, and are therefore metered against the very
+ * same daily counter as /api/api/v1/**: /grid/ta_chart draws its figure over the same
+ * build_series call /grid/chart does, /grid/live_grid calls the EODHD SDK once per symbol
+ * in the watchlist (live-grid/app/quotes.py -- and SYMBOL_LIST_RE admits a long list),
+ * /grid/symbol_meta's get_meta calls get_fundamentals_data once per symbol that is not in
+ * its TTL cache (live-grid/app/symbol_meta.py), and /grid/series and /grid/chart both run
+ * build_series -> fetch_series -> openbq-api's historical route (on openbq-docker the obb.eodhd.*
+ * namespace, /api/v1/eodhd/<class>/price/historical; on the donor /api/v1/equity/price/historical) with
+ * provider=kdb|eodhd (live-grid/app/openbb_client.py) -- the same paid upstream the /api
+ * family is metered for reaching.
+ *
+ * DELIBERATE DEVIATION FROM main, which meters none of them (user ruling on the 2026-09-26
+ * review of the v10.0.3 cut, Important 1): without this the door's daily vendor cap is
+ * bypassable through /grid at the full per-minute rate, and EODHD quota exhaustion surfaces
+ * as stack-wide 502s instead of the door's own 429. Carry it back up the lines.
+ *
+ * /grid/symbol_meta is metered HERE and was not at v10.0.3. Not a change of mind: that
+ * line's live-grid has no such route, so it reached nothing there, and this line's does.
+ *
+ * Not metered: /grid/widgets.json and /grid/apps.json are live-grid's own documents (no
+ * provider is called, the same reason /api's two manifests are exempt), and /grid/ticks
+ * reads the in-memory kdb cache.
+ *
+ * THE SOCKET IS METERED TOO, and it has to be for the sentence above to be true. A params
+ * frame on /grid/live_grid_ws makes live-grid seed the vendor for every symbol in it that
+ * it has not already seen (live-grid/app/main.py: quotes.seed over the symbols missing from
+ * _prev_close), and SYMBOL_LIST_RE admits a long list, so a client that rotates symbol lists
+ * over one open socket would otherwise make unbounded paid EODHD calls for the socket's whole
+ * lifetime -- the REST cap closed, the socket leg wide open. So EVERY validated frame charges
+ * quoteAllowed() once PER SYMBOL out of this same counter, the first one included: the
+ * upgrade's spend(6) buys the door's slot and the per-minute budget for that first frame, and
+ * nothing from the vendor counter. Exempting the first frame left the hole one level up --
+ * socket CHURN rather than frames within a socket -- because ten upgrades a minute fit inside
+ * the shipped 60 rpm and would each have carried a free ~40-symbol seed. Frames after the
+ * first cost one per-minute unit as well. See the message handler in createGateway.
+ *
+ * On this line /grid/live_grid_ws is not the only metered socket: /grid/ta_chart_ws is charged
+ * the same way, with the same no-exemption rule, but on the OTHER leg. It is push-only --
+ * live-grid reads no client frame from it, it re-runs build_series and pushes a figure or a
+ * delta every TA_PUSH_INTERVAL_MS (default one a second) -- so the paid unit there is the
+ * upstream PUSH, not a client frame, and the FIRST push is charged too: the build_series the
+ * upgrade itself triggers is paid work like every later one. Metering the client's frames on
+ * that socket would meter nothing at all: it sends none.
+ */
+const METERED_GRID = new Set(["/grid/live_grid", "/grid/symbol_meta", "/grid/series",
+  "/grid/chart", "/grid/ta_chart"]);
+/**
+ * A hard ceiling per grid socket, for the whole 240s lifetime: validated CLIENT frames on
+ * /grid/live_grid_ws, upstream PUSHES on /grid/ta_chart_ws -- whichever leg that socket's
+ * paid work arrives on. It is NOT configurable and it is evaluated BEFORE either budget, so
+ * it is what bounds a single socket first: no value of quoteDailyLimit can lengthen one, and
+ * a tick-chart stream is therefore at most 60 pushes (~60 x TA_PUSH_INTERVAL_MS) before the
+ * client must reconnect. The per-frame charges below
+ * are the real accounting; this is the backstop, so that no accounting bug can turn one
+ * admitted socket into an unbounded stream of upstream work.
+ * 60 is generous for a human changing a watchlist and far below what a script can send.
+ * The wire's socket can never reach it -- its second frame is fatal by contract.
+ */
+const FRAME_CAP = 60;
+/**
+ * The documents the client PROBES rather than requires. dataClient.ts fetches both with
+ * `allow404` and matches on the literal status (`res.status === 404 && allow404`), resolving
+ * "this backend ships no apps" and "those metadata columns are blank". On THIS line live-grid
+ * really serves both, so the relay is the older-upstream fallback rather than the normal
+ * answer -- it stays because the client's contract has not changed and the door's 502 would
+ * still make fetchAppsJson throw where it is built to degrade. The relayed 404 carries the
+ * door's OWN body, never the upstream's, and every other non-200 -- a 404 on any other route
+ * included -- stays a 502.
+ */
+const OPTIONAL_DOCS = new Set(["/grid/apps.json", "/grid/symbol_meta"]);
 const digest = value => createHash("sha256").update(value).digest();
 function authorized(req, config) {
   const values = req.rawHeaders.filter((_, i) => i % 2 === 0 && req.rawHeaders[i].toLowerCase() === "authorization");
@@ -56,13 +129,25 @@ function pinned(origin, address) {
 // pool has none, and reachability is its whole access control (see docker-compose.yml), so
 // what protects it is that only this door can reach it and only the approved feeds get
 const rssOptions = config => pinned(config.rssOrigin, config.rssAddress);
-// Two upstreams at this tag (openbq-docker serves no /ai). /api/... -> openbq-api, plain HTTP
+// Three upstreams at this tag (openbq-docker serves no /ai). /api/... -> openbq-api, plain HTTP
 // on the bridge, behind the stack's Basic pair; the prefix is stripped ("/api/api/v1/x" ->
-// "/api/v1/x") and the credential injected. /news/... -> rss-ticker, on the tailnet, no
-// credential (it has none). Nothing the caller sent goes with either of them.
+// "/api/v1/x") and the credential injected. /grid/... -> live-grid (the opt-in `live`
+// profile), the same way and behind the SAME pair (below). /news/... -> rss-ticker, on the
+// tailnet, no credential (it has none). Nothing the caller sent goes with any of them.
 function target(path, config) {
   if (path.startsWith("/api/")) {
     return { url: new URL(path.slice(4), config.apiOrigin), options: {},
+      headers: { Authorization: config.apiAuthorization, Accept: "application/json" } };
+  }
+  // live-grid (v10; ported from bdobb-dev/openbb-docker e8c1239/b9545f5): a sibling
+  // container on the same openbq-internal bridge as openbq-api, so plain HTTP and no dialler
+  // of its own -- and guarded by the SAME Basic pair, which is why the credential is injected
+  // here too. live-grid appends BasicAuthMiddleware to its whole app (live-grid/app/auth.py,
+  // reading OPENBB_API_AUTH and the pair from the credentials.env compose loads into it), so
+  // with the lock on a request without the credential is refused on EVERY route, its
+  // manifest and its websocket handshake included.
+  if (path.startsWith("/grid/")) {
+    return { url: new URL(path.slice(5), config.gridOrigin), options: {},
       headers: { Authorization: config.apiAuthorization, Accept: "application/json" } };
   }
   return { url: new URL(path.slice(5), config.rssOrigin), options: rssOptions(config),
@@ -85,6 +170,35 @@ export function connectNews(config) {
   });
 }
 
+/**
+ * The grid's socket (Ep. 10), opened once a client's first params frame has passed
+ * liveGridSubscription -- so a client that opens and says nothing, or says something
+ * invalid, never opens anything upstream. `ws://`, not `wss://`: live-grid listens on the
+ * bridge with no TLS of its own, exactly like openbq-api. The upgrade carries the stack's
+ * Basic pair for the same reason the HTTP branch does -- live-grid's auth middleware sits in
+ * front of its websocket route too, and refuses the handshake before accept without it.
+ * Same bounds as the wire's socket: MAX_SOCKET on what the upstream can push, compression
+ * off (a compressed frame's expanded size is not what maxPayload measures), no redirect, and
+ * a 10s handshake deadline. `Origin` is sent for the same reason connectNews sends it -- so
+ * the dial this door makes is spelled the same way on both sockets rather than differing for
+ * no stated reason. live-grid does not check it (its CORSMiddleware is allow_origins=["*"]
+ * and Starlette's CORS layer does not see a websocket scope at all; BasicAuthMiddleware is
+ * the whole gate), so this is symmetry, not a guard.
+ */
+export function connectGrid(config, path = "/live_grid_ws") {
+  // `path` is live-grid's own route, the door's /grid prefix already stripped -- and for
+  // /ta_chart_ws it carries the query socketTarget re-serialised, because that socket takes
+  // its whole parameter set from the URL and never reads a client frame. One dialler for
+  // both: the bounds, the credential and the Origin are identical, only the target differs.
+  const url = new URL(path, config.gridOrigin);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return new WebSocket(url, {
+    headers: { Authorization: config.apiAuthorization, Origin: config.gridOrigin },
+    handshakeTimeout: 10000, followRedirects: false,
+    maxPayload: MAX_SOCKET, perMessageDeflate: false,
+  });
+}
+
 /** Bounded JSON-only request; never relay cookies, errors, redirects or credentials. */
 export async function getJson(path, config, signal) {
   const { url, headers, options } = target(path, config);
@@ -93,7 +207,13 @@ export async function getJson(path, config, signal) {
     const request = send(url, { ...options, method: "GET", headers, signal }, response => {
       if (response.statusCode !== 200 ||
           !/^application\/json(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
-        response.destroy(); return rejectPromise(new Error("Invalid upstream response"));
+        response.destroy();
+        // The STATUS travels on the error, never the body: the handler needs to tell a 404
+        // from every other refusal for the optional documents (OPTIONAL_DOCS below), and
+        // nothing upstream wrote may reach the caller either way.
+        const failure = new Error("Invalid upstream response");
+        failure.status = response.statusCode;
+        return rejectPromise(failure);
       }
       let size = 0; const parts = [];
       response.on("data", chunk => {
@@ -180,6 +300,7 @@ async function handleState(req, res, url, config) {
 
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openNews = connectNews,
+  openGrid = connectGrid,
   now = Date.now, socketMs = 240000, firstFrameMs = 10000 } = {}) {
   let budget = config.requestsPerMinute, resetAt = now() + 60000, quoteCount = 0, day = Math.floor(now() / 86400000);
   let inflight = 0, sockets = 0;
@@ -215,15 +336,29 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (url.pathname === "/_gateway/health" && !url.search) return reply(res, 200, { ok: true });
       const path = upstreamPath(url, config);
       if (!path) return reply(res, 404);
-      // The daily budget is a cap on VENDOR calls. The two manifests under /api/ are
-      // openbq-api's own static documents -- no provider is called -- so they are not metered.
-      if (inflight >= config.maxConcurrent || (path.startsWith("/api/api/v1/") && !quoteAllowed())) return reply(res, 429);
+      // live-grid is the opt-in `live` profile: until settings.json says it runs
+      // ("liveGrid": true), every /grid route answers 503, as /news does without the wire.
+      if (path.startsWith("/grid/") && !config.gridOrigin) return reply(res, 503);
+      // The daily budget is a cap on VENDOR calls, wherever they are reached from. The two
+      // manifests under /api/ are openbq-api's own static documents -- no provider is called
+      // -- so they are not metered; the grid's data routes DO reach the vendor, from the
+      // same counter (METERED_GRID above, and why that deviates from the donor's main).
+      const vendor = path.startsWith("/api/api/v1/") || METERED_GRID.has(path.split("?")[0]);
+      if (inflight >= config.maxConcurrent || (vendor && !quoteAllowed())) return reply(res, 429);
       inflight++;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 12000);
       const disconnect = () => { if (!res.writableEnded) controller.abort(); };
       res.once("close", disconnect);
       try { reply(res, 200, await requestJson(path, config, controller.signal)); }
+      catch (failure) {
+        // The one status this door relays, and only for the two documents the client probes
+        // with allow404 (OPTIONAL_DOCS above). The BODY is still the door's own; anything
+        // else -- another route's 404, a 500, a non-JSON answer -- falls through to the 502
+        // the outer catch writes.
+        if (failure?.status === 404 && OPTIONAL_DOCS.has(path.split("?")[0])) return reply(res, 404);
+        throw failure;
+      }
       finally { clearTimeout(timer); res.off("close", disconnect); inflight--; }
     } catch { if (!res.headersSent) reply(res, 502); else res.destroy(); }
   });
@@ -258,18 +393,26 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (!authorized(req, config)) return reject(socket, 401);
       if (!url || req.headers.origin !== config.origin) return reject(socket, 403);
     }
-    // One socket route at this tag: the wire. policy.mjs' socketTarget holds the rule -- the
-    // exact path, no query (the whole subscription is the first frame, not the URL) -- and is
-    // the SAME function the web layer's ticket signer consults, so the two can never drift
-    // about what may be opened. A subprotocol is refused here: the wire speaks none, and ws
-    // would otherwise have to negotiate one. Anything unmatched is 404, before the wire is
-    // consulted at all.
-    if (req.method !== "GET" || !socketTarget(url.pathname + url.search, config.origin) ||
-        req.headers["sec-websocket-protocol"]) return reject(socket, 404);
+    // THREE socket routes at this tag: the wire (Ep. 8), the quote grid (Ep. 10) and this
+    // line's tick chart. policy.mjs' socketTarget holds the rule for all three -- the exact
+    // path and no query for the first two, whose subscription is a frame, and the path plus
+    // /grid/ta_chart's own validated query for the third, whose subscription IS the URL --
+    // and it is the SAME function the web layer's ticket signer consults, so the two layers
+    // can never drift about what may be opened. The target it returns is what gets dialled,
+    // so the query that leaves is the one it re-serialised, never the caller's raw string.
+    // A subprotocol is refused here: no upstream speaks one, and ws would otherwise have to
+    // negotiate it. Anything unmatched is 404, before any upstream is consulted.
+    const target = socketTarget(url.pathname + url.search, config.origin);
+    if (req.method !== "GET" || !target || req.headers["sec-websocket-protocol"]) return reject(socket, 404);
+    const ta = url.pathname === "/grid/ta_chart_ws";
+    const grid = ta || url.pathname === "/grid/live_grid_ws";
     // Nothing to subscribe to: the operator has approved no feeds, so there is no socket to
     // open. 503, not 404 -- the route exists, the upstream is simply not configured, which
-    // is what verify.mjs's own probe distinguishes.
-    if (!Object.keys(config.feeds).length) return reject(socket, 503);
+    // is what verify.mjs's own probe distinguishes. The grid has the same state here: on
+    // openbq-docker live-grid is the opt-in `live` compose profile, so until settings.json
+    // says it runs ("liveGrid": true, config.mjs) its sockets answer 503 as well.
+    if (!grid && !Object.keys(config.feeds).length) return reject(socket, 503);
+    if (grid && !config.gridOrigin) return reject(socket, 503);
     // Both caps are charged BEFORE handleUpgrade: a refusal must cost the same whether the
     // handshake would have succeeded or not, and an upgrade that is going to be refused must
     // never get as far as allocating a ws client. Six units, a socket's price, since a socket
@@ -279,7 +422,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       sockets++;
       // The 10s handshake deadline set above must not go on applying to an open socket.
       socket.setTimeout(0);
-      let upstream, subscribed = false;
+      let upstream, subscribed = false, pending = null, frames = 0, pushes = 0;
       const close = () => { client.terminate(); upstream?.terminate(); };
       // Two deadlines: an absolute lifetime (a socket is not a lease on the door), and a
       // shorter one for the first frame -- a client that opens and says nothing is holding
@@ -290,27 +433,119 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         sockets--; clearTimeout(lifetime); clearTimeout(initial); upstream?.terminate();
       });
       client.on("error", close);
-      client.on("message", (data, binary) => {
-        // One subscription frame, ever: the wire's protocol needs no second one, so a
-        // second frame is a client doing something the contract does not describe.
-        if (binary || subscribed) return close();
-        const frame = newsSubscription(data, config);
-        if (!frame) return close();
-        subscribed = true; clearTimeout(initial);
-        // Connect upstream ONLY on the first validated frame: an invalid or missing
-        // subscription must never open an upstream connection at all.
-        try { upstream = openNews(config); } catch { return close(); }
+      /**
+       * Wiring the upstream leg is identical for all three sockets -- the same size and
+       * back-pressure bounds on what it may push, the same teardown in both directions --
+       * so it lives here once. Only WHEN it is opened differs: on the first validated
+       * frame for the wire and the quote grid, at upgrade for the tick chart, which has no
+       * client frame to wait for.
+       */
+      const connect = () => {
+        try {
+          upstream = grid ? openGrid(config, target.slice("/grid".length)) : openNews(config);
+        } catch { close(); return false; }
         upstream.on("message", (message, isBinary) => {
           if (isBinary || message.length > MAX_SOCKET || client.readyState !== WebSocket.OPEN ||
               client.bufferedAmount > 262144) return close();
+          // The tick chart's PUSHES are the paid work on that socket: each one re-runs
+          // build_series through openbq-api's historical route (live-grid/app/main.py's
+          // ta_chart_ws loop), once per TA_PUSH_INTERVAL_MS. So it is charged exactly the way
+          // the quote grid's client frames are, on the leg where the work actually is, and
+          // with the same NO-EXEMPTION rule: the FIRST push is charged too, because the
+          // build_series the upgrade itself triggers is paid work like every later one, and
+          // exempting it would let socket churn buy one free fetch per upgrade -- ten a
+          // minute fit inside the shipped 60 rpm. The upgrade's six units buy the door's slot
+          // and the per-minute budget for that first push, nothing from the vendor counter;
+          // pushes after it cost one per-minute unit as well. FRAME_CAP bounds the stream
+          // whatever the budgets allow, and is checked first. When anything refuses the relay
+          // closes and the slot comes back -- there is no way to answer 429 on an open
+          // socket, and a chart that silently stops updating is the blank-and-say-nothing
+          // failure live-grid's own handler was fixed for.
+          if (ta && (++pushes > FRAME_CAP || (pushes > 1 && !spend(1)) || !quoteAllowed())) {
+            return close();
+          }
           client.send(message, { binary: false });
         });
         upstream.on("error", close);
         upstream.once("close", close);
-        if (upstream.readyState === WebSocket.OPEN) return upstream.send(frame);
-        upstream.once("open", () => {
-          if (client.readyState === WebSocket.OPEN) upstream.send(frame);
-        });
+        return true;
+      };
+      // The tick chart's socket is PUSH-ONLY. live-grid's /ta_chart_ws reads ws.query_params
+      // and then loops on send_json; it never reads a frame. So there is no first frame to
+      // wait for -- its deadline is cleared and the upstream is dialled here, with the query
+      // socketTarget validated -- and any frame a client does send closes the relay below:
+      // live-grid would ignore it, and a door that silently swallows a frame is a door that
+      // lies about its contract.
+      if (ta) { clearTimeout(initial); if (!connect()) return; }
+      client.on("message", (data, binary) => {
+        // The wire: one subscription frame, ever -- its protocol needs no second one, so a
+        // second frame is a client doing something the contract does not describe. The grid:
+        // a params frame on open AND again on every parameter change over the same open
+        // socket, which is the protocol live-grid's own consumer loop implements, so a
+        // repeat frame is expected here and is RE-VALIDATED rather than fatal. Either way
+        // what goes upstream is the frame policy.mjs rebuilt, never the client's own bytes.
+        // The tick chart takes no frame at all (see above); the wire takes exactly one.
+        if (binary || ta || (!grid && subscribed)) return close();
+        const frame = grid ? liveGridSubscription(data) : newsSubscription(data, config);
+        if (!frame) return close();
+        // NO grid frame is free, the first included (METERED_GRID above says why, and why the
+        // REST cap is a half-measure without this). Every validated frame charges the daily
+        // VENDOR counter once per symbol it asks live-grid to seed -- the very counter the
+        // /api leg spends, so "the daily cap" means one thing on both legs.
+        //
+        // The first frame WAS exempt, on the reasoning that the upgrade's six units had
+        // bought it. That was wrong, and the hole was socket CHURN rather than frames within
+        // one socket: at the shipped 60 requests a minute an upgrade costs six, so a client
+        // could open ten sockets a minute and get ten free first frames of up to ~40 symbols
+        // each (SYMBOL_LIST_RE is 240 characters) -- on the order of 400 paid EODHD seeds a
+        // minute with quoteCount never incremented, indefinitely, since live-grid seeds a
+        // symbol once per process lifetime and rotating the universe keeps every call paid.
+        // So the six units buy the door's own slot and the PER-MINUTE budget for that first
+        // frame; they buy nothing from the vendor counter.
+        //
+        // Either refusal closes the relay, the same way a frame outside the contract does:
+        // the door has no way to answer 429 on an open socket, and a silently dropped frame
+        // would leave the client believing a watchlist it is not being sent. FRAME_CAP is
+        // checked first and independently -- a cap that only bites when a budget is tight
+        // would not be a backstop.
+        if (++frames > FRAME_CAP) return close();
+        if (grid) {
+          // The per-minute unit is what the upgrade already paid for the first frame; every
+          // frame after it costs one more.
+          if (frames > 1 && !spend(1)) return close();
+          // The rebuilt frame, not the caller's bytes: this is the list that will reach
+          // live-grid, so it is the list that is charged for.
+          const symbols = JSON.parse(frame).params.symbol.split(",").length;
+          for (let i = 0; i < symbols; i++) if (!quoteAllowed()) return close();
+        }
+        subscribed = true; clearTimeout(initial);
+        // Connect upstream ONLY on the first validated frame: an invalid or missing
+        // subscription must never open an upstream connection at all. A grid client's
+        // later frames reuse the connection this one opened.
+        if (!upstream) {
+          if (!connect()) return;
+          // ONE pending frame is held, and only until the handshake completes. A
+          // `once("open")` listener per frame -- which is what a single-frame protocol can
+          // afford -- would let a grid client that sends a params frame per parameter change
+          // add a closure and a frame to this process for every frame it manages to send
+          // during the 10s handshake. Superseding is also the correct protocol: a params
+          // frame is the client's whole state, not a delta, so the newest one is the only
+          // one live-grid needs to be told.
+          upstream.once("open", () => {
+            if (pending !== null && client.readyState === WebSocket.OPEN) upstream.send(pending);
+            pending = null;
+          });
+        }
+        // The mirror of the upstream->client check above, on the direction THIS row
+        // introduced. The wire's socket forwards one frame ever, so it needed no such bound;
+        // a grid client legitimately sends a params frame per parameter change for the
+        // socket's whole 240s lifetime, and a live-grid that is not draining would otherwise
+        // let `upstream.bufferedAmount` grow without limit inside a read_only container. 256
+        // KiB behind is closed rather than queued behind -- the same bound, in the same
+        // units, as the other direction.
+        if (upstream.bufferedAmount > 262144) return close();
+        if (upstream.readyState === WebSocket.OPEN) { pending = null; return upstream.send(frame); }
+        pending = frame;
       });
     });
   });

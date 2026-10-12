@@ -3,7 +3,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { upstreamPath, newsSubscription, stateFile, socketTicket, socketTicketNonce, socketTicketValid, socketTarget } from "./policy.mjs";
+import { upstreamPath, newsSubscription, liveGridSubscription, stateFile, socketTicket, socketTicketNonce, socketTicketValid, socketTarget } from "./policy.mjs";
 
 // Built at run time so the public-content scan never sees a literal tailnet name.
 const TAILNET = ["example-tailnet", "ts", "net"].join(".");
@@ -106,12 +106,104 @@ test("a subscription frame is rebuilt from approved feeds alone, or refused", ()
   assert.equal(newsSubscription(Buffer.from(JSON.stringify({ subscribe: [{ url: FEED }] })), { feeds: {} }), null);
 });
 
-test("families that arrive with later lines are refused at openbq-docker v8.0.0", () => {
-  for (const later of ["/grid/widgets.json", "/grid/live_grid?symbol=AAPL",
-    "/api/api/v1/calendar/trading?exchange=XNYS&year=2026", "/", "/widgets.json", "/mcp", "/keys"]) {
+test("families that arrive with later lines are refused at openbq-docker v10 (donor v10.1.4)", () => {
+  for (const later of [
+    // What the v12 family adds and this tag's live-grid genuinely does not serve. Be
+    // precise: /ta_chart and /ta_chart_ws ARE served here, so they are routes (below), and
+    // /grid/ticks -- which was on this list at v10.0.3 -- is one too, because this line's
+    // live-grid has the kdb tick reader. /snapshot is live-grid's own diagnostic, never a
+    // contract route.
+    "/grid/ta_registry", "/grid/live_grid_studies?symbol=AAPL", "/grid/snapshot",
+    // The tick chart exists, but only inside its grammar: `provider` is not a key this door
+    // maps (so a caller cannot force the vendor on a stream that refetches once a second),
+    // a macro is a filename stem, a source is local or eodhd, and indicators carry no space.
+    "/grid/ta_chart", "/grid/ta_chart?symbol=",
+    "/grid/ta_chart?symbol=AAPL&provider=eodhd", "/grid/ta_chart?symbol=AAPL&macro=../etc",
+    "/grid/ta_chart?symbol=AAPL&source=vendor", "/grid/ta_chart?symbol=AAPL&indicators=rsi period=14",
+    "/grid/ta_chart?symbol=AAPL&anchor=yesterday", "/grid/ta_chart?symbol=AAPL&theme=neon",
+    "/grid/ta_chart?symbol=AAPL,MSFT",
+    // /ticks exists, but only inside its grammar: a list, an unknown key, or a limit
+    // outside 1..1000 is refused before live-grid is dialled.
+    "/grid/ticks", "/grid/ticks?symbol=", "/grid/ticks?symbol=AAPL,MSFT",
+    "/grid/ticks?symbol=AAPL&admin=true", "/grid/ticks?symbol=AAPL&limit=0",
+    "/grid/ticks?symbol=AAPL&limit=1001", "/grid/ticks?symbol=AAPL&limit=-1",
+    "/grid/ticks?symbol=AAPL&limit=all",
+    // live-grid's own admin and page surfaces, which are never in the contract at any tag.
+    "/grid/demo", "/grid/health", "/grid/subscribe", "/grid/api/subscriptions",
+    // And the paths that were never this door's: the tick cache (q IPC), MCP, key-maint, and
+    // a bare manifest at the root (each backend's is under its own prefix).
+    "/api/api/v1/calendar/trading?exchange=XNYS&year=2026", "/", "/widgets.json", "/mcp", "/keys", "/tick"]) {
     assert.equal(route(later), later.startsWith("/api/api/v1/calendar/trading")
       ? "/api/api/v1/calendar/trading?exchange=XNYS&year=2026" : null, later);
   }
+});
+
+// ---- The grid family (Ep. 10): live-grid's own widget surface behind the door.
+
+test("the grid's REST routes take exactly what this line's live-grid serves", () => {
+  // The manifests: exact path, no query. On this line live-grid really serves apps.json
+  // (the Ep. 10 example dashboard) -- a 404 is dataClient's designed
+  // "this backend ships no apps", so forwarding it degrades where the client expects to.
+  for (const ok of ["/grid/widgets.json", "/grid/apps.json"]) assert.equal(route(ok), ok, ok);
+  // The seeds: the watchlist grammar, and nothing but `symbol`.
+  assert.equal(route("/grid/live_grid?symbol=AAPL,MSFT,^GSPC"), "/grid/live_grid?symbol=AAPL%2CMSFT%2C%5EGSPC");
+  assert.equal(route("/grid/symbol_meta?symbol=AAPL.US"), "/grid/symbol_meta?symbol=AAPL.US");
+  // The tick chart, this line's own feature: the six keys its widget declares plus the
+  // theme dataClient appends to every chart-typed widget's query.
+  assert.equal(route("/grid/ta_chart?symbol=NVDA"), "/grid/ta_chart?symbol=NVDA");
+  assert.equal(
+    route("/grid/ta_chart?symbol=NVDA&interval=1m&source=eodhd&macro=classic-momentum&indicators=supertrend:period=10,ichimoku&theme=dark"),
+    "/grid/ta_chart?symbol=NVDA&interval=1m&source=eodhd&macro=classic-momentum&indicators=supertrend%3Aperiod%3D10%2Cichimoku&theme=dark");
+  assert.equal(route("/grid/ta_chart?symbol=NVDA&anchor=2026-08-28T14:30:00-04:00"),
+    "/grid/ta_chart?symbol=NVDA&anchor=2026-08-28T14%3A30%3A00-04%3A00");
+  // The kdb tick reader, this line's own route: one symbol, an optional bounded limit.
+  assert.equal(route("/grid/ticks?symbol=AAPL"), "/grid/ticks?symbol=AAPL");
+  assert.equal(route("/grid/ticks?symbol=AAPL&limit=1000"), "/grid/ticks?symbol=AAPL&limit=1000");
+  assert.equal(route("/grid/ticks?symbol=BTC-USD&limit=1"), "/grid/ticks?symbol=BTC-USD&limit=1");
+  // The bars: the same parameter set on both, plus `theme` on the chart alone -- the client
+  // appends the resolved theme to every chart-typed widget, so refusing it would refuse the
+  // one grid chart this line publishes.
+  assert.equal(route("/grid/series?symbol=AAPL&interval=1d&provider=kdb"),
+    "/grid/series?symbol=AAPL&interval=1d&provider=kdb");
+  assert.equal(route("/grid/chart?symbol=AAPL&interval=5m&theme=dark&start=2026-09-01&end=2026-09-14T09%3A30%3A15-04%3A00"),
+    "/grid/chart?symbol=AAPL&interval=5m&theme=dark&start=2026-09-01&end=2026-09-14T09%3A30%3A15-04%3A00");
+  for (const bad of [
+    "/grid/widgets.json?x=1", "/grid/apps.json?x=1",     // a manifest takes no query
+    "/grid/live_grid",                                    // symbol is required
+    "/grid/live_grid?symbol=",                            // and non-empty
+    "/grid/live_grid?symbol=AAPL&admin=true",             // an unknown key is a refusal
+    "/grid/live_grid?symbol=AAPL;DROP TABLE",             // outside the list grammar
+    "/grid/live_grid?symbol=" + "A".repeat(241),          // past the list cap
+    "/grid/symbol_meta?symbol=AAPL&limit=5",              // not this route's key
+    "/grid/series?symbol=AAPL,MSFT",                      // one symbol, not a list
+    "/grid/series?symbol=AAPL&interval=7m",               // not an interval live-grid serves
+    "/grid/series?symbol=AAPL&provider=unapproved",       // kdb or eodhd, nothing else
+    "/grid/series?symbol=AAPL&start=yesterday",           // resolved instants only
+    "/grid/series?symbol=AAPL&theme=dark",                // theme is the chart's alone
+    "/grid/chart?symbol=AAPL&theme=neon",                 // light or dark
+    "/grid/chart?symbol=AAPL&indicators=rsi:period=14",   // a later line's parameter
+  ]) assert.equal(route(bad), null, bad);
+});
+
+test("a grid params frame is rebuilt from the one value that passed, and repeats are valid", () => {
+  const frame = value => liveGridSubscription(Buffer.from(JSON.stringify(value)));
+  // Rebuilt, not forwarded: the frame that reaches live-grid carries `params.symbol` alone.
+  assert.equal(frame({ params: { symbol: "AAPL,MSFT" } }), '{"params":{"symbol":"AAPL,MSFT"}}');
+  // Every frame goes through the same rule, so a repeat is as valid as the first -- which is
+  // the difference from the wire: live-grid's protocol re-sends this on every param change.
+  assert.equal(frame({ params: { symbol: "TSLA" } }), '{"params":{"symbol":"TSLA"}}');
+  for (const bad of [
+    '{"params":{"symbol":"AAPL"}',                                  // not JSON
+    JSON.stringify({ params: { symbol: "AAPL" }, admin: true }),    // a second top-level key
+    JSON.stringify({ subscribe: [{ url: "https://x.invalid" }] }),  // the wire's frame, not this one
+    JSON.stringify({ params: { symbol: "AAPL", limit: 5 } }),        // a second params key
+    JSON.stringify({ params: { symbol: "AAPL;DROP TABLE" } }),       // outside the grammar
+    JSON.stringify({ params: { symbol: "" } }),                      // empty
+    JSON.stringify({ params: { symbol: 7 } }),                       // not a string
+    JSON.stringify({ params: { symbol: "A".repeat(241) } }),          // past the cap
+    JSON.stringify({ params: [] }), JSON.stringify({ params: null }),
+    JSON.stringify([]), JSON.stringify(null), JSON.stringify("params"), JSON.stringify(7),
+  ]) assert.equal(liveGridSubscription(Buffer.from(bad)), null, bad);
 });
 
 test("the state allow-list names the app's own JSON files and nothing else", () => {
@@ -140,14 +232,29 @@ test("tickets: signed over the exact target, thirty seconds, base64url, refused 
   assert.equal(socketTicketNonce(TOKEN, target, "junk", 1_700_000_000_000), null);
 });
 
-test("the wire's socket is the one target a ticket may name at openbq-docker v8.0.0", () => {
+test("the wire's and the grid's two sockets are the targets a ticket may name at openbq-docker v10 (donor v10.1.4)", () => {
   assert.equal(socketTarget("/news/ws/news", ORIGIN), "/news/ws/news");
+  assert.equal(socketTarget("/grid/live_grid_ws", ORIGIN), "/grid/live_grid_ws");
+  // The tick chart's socket is the one whose query IS its subscription, so a ticket over it
+  // must name that query -- re-serialised from the validated pairs, exactly as it will be
+  // dialled, so the signer and the door agree byte for byte.
+  assert.equal(socketTarget("/grid/ta_chart_ws?symbol=NVDA&interval=1m", ORIGIN),
+    "/grid/ta_chart_ws?symbol=NVDA&interval=1m");
+  assert.equal(socketTarget("/grid/ta_chart_ws?symbol=NVDA&indicators=rsi:period=14", ORIGIN),
+    "/grid/ta_chart_ws?symbol=NVDA&indicators=rsi%3Aperiod%3D14");
   for (const raw of [
     "/news/ws/news?admin=1",            // the socket takes no query, so neither does its ticket
     "/news/ws/news#x",
-    "/grid/live_grid_ws",               // later lines
-    "/grid/ta_series_ws?symbol=AAPL&interval=5m",
+    "/grid/live_grid_ws?symbol=AAPL",   // the params frame is the subscription, not the URL
+    "/grid/live_grid_ws#x",
+    "/grid/ta_series_ws?symbol=AAPL&interval=5m",  // a later line's socket
+    "/grid/ta_chart_ws",                // this one is the reverse: no query, nothing to stream
+    "/grid/ta_chart_ws?symbol=NVDA&provider=eodhd",   // the key the door does not map
+    "/grid/ta_chart_ws?symbol=NVDA&macro=../etc",     // a macro is a filename stem
+    "/grid/ta_chart_ws?symbol=NVDA&interval=7m",
+    "/grid/ta_chart_ws?symbol=NVDA#x",
     "/news/api/news?feed_id=7&limit=1", // a REST route is not a socket target
+    "/grid/live_grid?symbol=AAPL",
     "/", "//x", "x", 7, null,
   ]) assert.equal(socketTarget(raw, ORIGIN), null, String(raw));
   // A raw target is read against the ORIGIN the caller passes, and refused off it.

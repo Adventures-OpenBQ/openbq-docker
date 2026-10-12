@@ -1,13 +1,17 @@
 <!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# funnel-gateway (openbq-docker v8.0.0, `web` profile)
+# funnel-gateway (openbq-docker v10.0.0, `web` profile)
 
 The door the sidecar publishes on Funnel port 8443 for BDOBB's browser (web) preview. Port 443
 stays `openbq-api` for your tailnet and is never funneled. Ported from bdobb-dev/openbb-docker
 **v8.0.3** (`775354f`, `funnel-gateway/`, Apache-2.0) with the `/ai` (Rita) family and its SOCKS5
 dialer removed; the route contract is otherwise unchanged, so BDOBB's vendored `web/policy.mjs`
 and this `policy.mjs` agree byte for byte on what is admitted.
+
+v10 adds the `/grid` family (live-grid, the opt-in `live` profile), ported from bdobb-dev/openbb-docker
+**v10.1.7** (`d606169`): e8c1239 and 7212a1d (v10.0.3), b9545f5, d32966d, dc61be8, d7ec9d1 and
+995e06a (v10.1.4). See [docs/v10/live-grid-kdb-port.md](../docs/v10/live-grid-kdb-port.md).
 
 ## Isolation and lock-first
 
@@ -39,6 +43,14 @@ Caller headers, cookies and credentials are never relayed.
 | `/news/ws/news` | GET + Upgrade | the wire's socket (below); `503` until `feeds` names a feed |
 | `/state/<digits>` | GET | the user's saved files `{files: {name: text}}` |
 | `/state/<digits>/<file>` | PUT, DELETE | one of the app's JSON stores (`policy.mjs` `stateFile`); 256 KiB a file, 2 MiB and 200 files a user; `application/json` only |
+| `/grid/widgets.json`, `/grid/apps.json` | GET | live-grid's root documents with the Basic pair; no query; not metered. A `404` from an older live-grid is relayed as a bare `404` (optional documents) |
+| `/grid/live_grid`, `/grid/symbol_meta` | GET | the quote grid's REST seed and its per-symbol metadata; `symbol` only, a comma list; **one unit of `quoteDailyLimit` each** |
+| `/grid/series`, `/grid/chart` | GET | the bars, raw and as a figure; `symbol` (one), `interval`, `start`, `end`, `provider` (`kdb`/`eodhd`), plus `theme` (`light`/`dark`) on `chart` alone; one unit of `quoteDailyLimit` |
+| `/grid/ticks` | GET | the kdb tick cache's newest ticks for one symbol; `symbol` (one), `limit` (1–1000); not metered (no vendor) |
+| `/grid/ta_chart` | GET | the tick chart; `symbol` (one), `interval`, `source` (`local`/`eodhd`), `macro`, `indicators`, `anchor`, `start`, `end`, `theme`; `provider` is **not** mapped; one unit of `quoteDailyLimit` |
+| `/grid/live_grid_ws` | GET + Upgrade | the quote grid's socket, no query; every params frame re-validated and metered per symbol (below) |
+| `/grid/ta_chart_ws` | GET + Upgrade | the tick chart's push-only socket; its **query is its subscription** (the `/grid/ta_chart` grammar); every push metered, the first included |
+| `/grid/**` with `liveGrid` off | — | `503` (REST and sockets) after the route rules pass; an unmatched `/grid` path is still `404` |
 | `/ai/**` | — | not served by openbq-docker: 404 (POST 405) |
 | everything else | — | 404 |
 
@@ -80,16 +92,60 @@ docker run --rm --network openbq-episode1_openbq-internal curlimages/curl \
 If it is not routable, leave the three keys unset: the door serves `/api` and `/state`, and the
 two `/news` routes answer 404/503.
 
+## The grid (`/grid`, v10)
+
+live-grid runs only under the opt-in `live` compose profile, so the door is told it runs:
+`"liveGrid": true` in `settings.json`. Unset or `false`, every `/grid` route and socket answers
+`503` once its route rules pass (the same state `/news` is in without the wire), and
+`check-upstreams.mjs` does not dial live-grid. The origin is never a setting: it is
+`http://live-grid:6903`, the compose service on `openbq-internal`, fixed in `config.mjs` like
+`apiOrigin`; a `gridOrigin` key is refused.
+
+**Credential.** Every grid request and both socket handshakes carry the stack's Basic pair (the
+`OPENBB_API_USERNAME`/`OPENBB_API_PASSWORD` in `gateway.env`). live-grid appends
+`BasicAuthMiddleware` to its whole app, reading `OPENBB_API_AUTH` and the same pair from
+`credentials.env`, so with the API's lock on it refuses everything else, its websocket handshake
+included. Admission from the outside is unchanged: the Bearer machine token (or, for a browser
+socket, a ticket) plus this route contract.
+
+**Metering.** `/grid/live_grid`, `/grid/symbol_meta`, `/grid/series`, `/grid/chart` and
+`/grid/ta_chart` reach a paid vendor (EODHD per symbol, or openbq-api's historical route), so each
+spends one unit of the same `quoteDailyLimit` counter as `/api/api/v1/**`. The two manifests and
+`/grid/ticks` are free. **Every** validated params frame on `/grid/live_grid_ws` charges one daily
+unit **per symbol** in the rebuilt frame, the first frame included (the upgrade's six units buy
+the slot and the per-minute budget for that first frame only; later frames cost one more
+per-minute unit). **Every** upstream push on `/grid/ta_chart_ws` charges one daily unit, the first
+included, and pushes after the first one per-minute unit. A charge that cannot be paid closes the
+relay and hands the slot back.
+
+**Frame cap.** `FRAME_CAP = 60` per socket lifetime (client frames on `live_grid_ws`, upstream
+pushes on `ta_chart_ws`), hard-coded and checked before either budget. One tick-chart stream is
+therefore at most 60 pushes (about 60 s at live-grid's default `TA_PUSH_INTERVAL_MS=1000`); a
+larger `quoteDailyLimit` buys more streams, not longer ones. Both directions are bounded at
+64 KiB a frame and 256 KiB of back-pressure; while live-grid's handshake is in flight only the
+newest pending params frame is held.
+
+**Frames.** `/grid/live_grid_ws` takes `{"params":{"symbol":"A,B"}}` on open and on every
+parameter change; `liveGridSubscription` validates every frame and forwards one rebuilt from the
+single value that passed. `/grid/ta_chart_ws` reads no frame at all: the door dials upstream at
+upgrade with the query `socketTarget` re-serialised, and any client frame closes the relay.
+
+**Not here.** `/grid/ta_registry`, `/grid/live_grid_studies` and the study sockets (later
+lines), live-grid's `/demo`, `/health`, `/subscribe`, `/api/subscriptions`, `/snapshot` and
+`/subscriptions`, and the kdb+ tick cache itself (q IPC executes arbitrary code with no auth).
+
 ## Socket tickets
 
 A browser cannot carry the machine token on a WebSocket, so BDOBB's web layer (which checked the
 GitHub session) signs a ticket and the browser opens
-`wss://<origin>/news/ws/news?ticket=<expiry>.<nonce>.<sig>` directly:
+`wss://<origin>/news/ws/news?ticket=<expiry>.<nonce>.<sig>` directly (likewise
+`/grid/live_grid_ws?ticket=…` and `/grid/ta_chart_ws?<validated query>&ticket=…`):
 
 - `expiry`: 13-digit epoch ms, at most 30 s ahead; `nonce`: 16 random bytes, base64url (22);
   `sig`: base64url (43) of `HMAC-SHA256(K, "<expiry>.<nonce>.<target>")` with
   `K = HMAC-SHA256(GATEWAY_TOKEN, "bdobb socket ticket v1")`; `target` is the canonical path and
-  query `socketTarget()` returns (only `/news/ws/news`).
+  query `socketTarget()` returns: `/news/ws/news`, `/grid/live_grid_ws` (no query), or
+  `/grid/ta_chart_ws?<query re-serialised by the /grid/ta_chart grammar>`.
 - The ticket is the last parameter, spelled literally, once; the request carries no
   `Authorization` and `Origin: <previewOrigin>`. Each nonce is admitted once. Tickets are off
   until `previewOrigin` is set.
@@ -102,15 +158,15 @@ GitHub session) signs a ticket and the browser opens
 - `gateway-config/settings.json` (from `funnel-gateway/settings.example.json`, read-only bind):
   `origin` (`https://openbq.<tailnet>.ts.net:8443`), `previewOrigin`, `stateDir`
   (`/var/lib/bdobb/state` to turn `/state` on), the budgets, and `rssOrigin`/`rssAddress`/`feeds`
-  (both-or-neither; feeds need them). An unknown key, including Rita's `ritaOrigin`,
+  (both-or-neither; feeds need them), and `liveGrid` (`true` when the `live` profile runs). An unknown key, including Rita's `ritaOrigin`,
   `ritaAddress` and `socksProxy`, is refused at startup.
 - `rss-ticker-config/config.yaml` (from `config.yaml.example`).
 
 ## Verification
 
 ```sh
-docker compose --profile web up -d
-docker compose --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked, wire answers
+docker compose --profile web up -d            # add --profile live (and "liveGrid": true) for /grid
+docker compose --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked, live-grid and wire answer if on
 docker compose --profile web exec funnel-gateway node verify.mjs           # the door's own lock, on the bridge
 cp ts-config/serve-funnel.json ts-config/serve.json && docker compose restart tailscale   # the door opens
 docker compose --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net:8443 funnel-gateway node verify.mjs

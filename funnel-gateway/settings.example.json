@@ -5,5 +5,6 @@
   "quoteDailyLimit": 100,
   "requestsPerMinute": 60,
   "maxConcurrent": 8,
-  "maxSockets": 4
+  "maxSockets": 4,
+  "liveGrid": false
 }

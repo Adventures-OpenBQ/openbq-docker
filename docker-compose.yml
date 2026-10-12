@@ -98,7 +98,7 @@ services:
   funnel-gateway:
     profiles: [web]
     build: ./funnel-gateway
-    image: openbq-funnel-gateway:8.0.0
+    image: openbq-funnel-gateway:10.0.0
     restart: unless-stopped
     expose: ["8091"]
     depends_on: [openbq-api]

@@ -12,7 +12,11 @@ import { getJson, connectNews } from "./server.mjs";
  * reached, no provider called. 401 means the pair is wrong. The same request WITHOUT the pair
  * must answer 401: anything else means the API's lock (OPENBB_API_AUTH in credentials.env) is
  * OFF, which is the one state in which this door must not open (lock first, then door).
- * openbq-docker serves no /ai, so there is no Rita leg. When the wire is
+ * When live-grid is on ("liveGrid": true, the `live` profile), it must answer /health WITH the
+ * same pair: it appends BasicAuthMiddleware to its whole app (live-grid/app/auth.py, reading
+ * the credentials.env compose loads into it), so /health is behind auth like every other path
+ * of its. /health stays authenticated deliberately: it reports feed status and tick-store
+ * stats. openbq-docker serves no /ai, so there is no Rita leg. When the wire is
  * configured, rss-ticker must answer both of the shapes the /news family relays: one page of
  * history for an APPROVED feed, and a socket handshake. The handshake is a handshake only --
  * no subscription frame is ever sent, so no feed is polled and no article body is fetched.
@@ -28,6 +32,20 @@ export async function checkUpstreams(config) {
   if (code !== 422) throw new Error(`API auth preflight failed (HTTP ${code})`);
   const open = await quote({});
   if (open !== 401) throw new Error(`API lock preflight failed: no credential answered HTTP ${open}, wanted 401`);
+  // Not getJson: that routes through target() and would prove the /grid prefix logic rather
+  // than live-grid's own reachability, and /health is not a route this door forwards at all.
+  // A raw dial to gridOrigin with the pair is exactly what the socket and the REST branch do
+  // on the bridge, so this proves the leg they both depend on and nothing more.
+  if (config.gridOrigin) {
+    const gridCode = await new Promise((resolve, reject) => {
+      const req = request(new URL("/health", config.gridOrigin), {
+        headers: { Authorization: config.apiAuthorization },
+        signal: AbortSignal.timeout(10000),
+      }, res => { res.destroy(); resolve(res.statusCode); });
+      req.on("error", reject); req.end();
+    });
+    if (gridCode !== 200) throw new Error(`live-grid preflight failed (HTTP ${gridCode})`);
+  }
   // The first approved feed stands in for the whole map: what is being proved is that the
   // pinned dial, the certificate and the pool itself work, not that every feed has articles.
   const feed = Object.values(config.feeds)[0];
@@ -46,6 +64,6 @@ export async function checkUpstreams(config) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     await checkUpstreams(readConfig());
-    console.log("PASS: openbq-api authenticates the stack pair and is locked; the wire's history/socket answer if configured. No quote or feed subscription requested.");
+    console.log("PASS: openbq-api authenticates the stack pair and is locked; live-grid answers /health behind that pair and the wire's history/socket answer, each if configured. No quote or feed subscription requested.");
   } catch (error) { console.error(`STOP: ${error.message}; no public route should be opened.`); process.exitCode = 1; }
 }

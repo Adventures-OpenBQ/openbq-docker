@@ -1,8 +1,8 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-# The stack's public door (openbq-docker v8.0.0, `web` profile; ported from openbb-docker
-# v8.0.3): node:22-alpine plus a pure-JS npm ci.
+# The stack's public door (openbq-docker v10.0.0, `web` profile; ported from openbb-docker
+# v8.0.3, with the /grid family from v10.1.7): node:22-alpine plus a pure-JS npm ci.
 # Built from ./funnel-gateway alone -- the policy lives beside the server now,
 # so nothing is copied from outside this directory.
 FROM node:22-alpine

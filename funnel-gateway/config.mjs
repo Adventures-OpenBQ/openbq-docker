@@ -26,12 +26,16 @@ function tailnetAddress(value) {
   return isIP(value ?? "") === 4 && parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127;
 }
 
-// Every key a settings file may carry at this tag. A key from a later line (gridOrigin,
-// tickUrl...) is refused rather than ignored: a stack at this tag has no such upstream, and
-// a silently ignored setting is how an operator believes a door is configured when it is not.
+// Every key a settings file may carry at this tag. A key from a later line (tickUrl...) is
+// refused rather than ignored: a stack at this tag has no such upstream, and a silently
+// ignored setting is how an operator believes a door is configured when it is not.
 // openbq-docker serves no /ai (Rita), so ritaOrigin, ritaAddress and socksProxy are refused too.
+// `gridOrigin` is deliberately NOT a key: like apiOrigin it is a fixed compose service name
+// (see the bottom of validateConfig), never a setting. `liveGrid` (openbq-docker v10) is the
+// one switch: live-grid is the opt-in `live` compose profile here, so the door must be told
+// it runs, and /grid answers 503 until it is.
 const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "quoteDailyLimit",
-  "requestsPerMinute", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds"]);
+  "requestsPerMinute", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid"]);
 
 export function validateConfig(settings, secrets) {
   for (const key of Object.keys(settings)) if (!SETTINGS_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`);
@@ -104,6 +108,10 @@ export function validateConfig(settings, secrets) {
   // Approved feeds with nowhere to send them is a misconfiguration, not a degraded mode:
   // refuse at startup rather than 404/502 per request once the door is already open.
   if (Object.keys(feeds).length && !rssOrigin) throw new Error("Approved feeds need an RSS origin and address");
+  // live-grid (the `live` profile) is on only when the operator says it runs. A boolean and
+  // nothing else: its origin is never a setting (gridOrigin below).
+  const liveGrid = settings.liveGrid === undefined ? false : settings.liveGrid;
+  if (typeof liveGrid !== "boolean") throw new Error("liveGrid must be true or false");
   return {
     origin, quoteDailyLimit, requestsPerMinute, maxConcurrent, maxSockets, previewOrigin, stateDir,
     rssOrigin, rssAddress, feeds,
@@ -111,6 +119,15 @@ export function validateConfig(settings, secrets) {
     apiAuthorization: "Basic " + Buffer.from(`${secrets.apiUsername}:${secrets.apiPassword}`).toString("base64"),
     // Never accept a caller-supplied upstream or a configurable generic proxy.
     apiOrigin: "http://openbq-api:6900",
+    // live-grid (v10; ported from bdobb-dev/openbb-docker e8c1239): a sibling on the same
+    // openbq-internal bridge, so a fixed service name for the same reason apiOrigin is --
+    // not something a setting or a caller can point elsewhere. It sits behind the same Basic
+    // pair as openbq-api (apiAuthorization above). Admission from the OUTSIDE is unchanged --
+    // this gateway's Bearer token plus the reviewed /grid/ route set in policy.mjs; the pair
+    // is only what the gateway then presents on the bridge. The compose SERVICE name
+    // (live-grid), since this compose file sets no container_name. null = the `live` profile
+    // is not running ("liveGrid" unset or false): every /grid route and socket answers 503.
+    gridOrigin: liveGrid ? "http://live-grid:6903" : null,
   };
 }
 

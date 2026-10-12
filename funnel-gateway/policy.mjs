@@ -5,7 +5,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
  * The route contract of the stack's public door: openbq-docker's funnel-gateway,
- * the opt-in `web` compose profile (openbq-docker v8.0.0). Ported from
+ * the opt-in `web` compose profile (openbq-docker v10.0.0). Ported from
  * bdobb-dev/openbb-docker v8.0.3 (775354f) funnel-gateway/policy.mjs, with the
  * /ai (Rita) family removed and nothing else changed in what is admitted. This
  * file is CANONICAL: BDOBB's web layer vendors a pinned copy (web/policy.mjs)
@@ -13,17 +13,25 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
  * admitted.
  *
  * Not a generic reverse proxy. If a path is not matched below, it is refused.
- * At this tag the stack serves two upstreams behind the door, plus /state:
+ * At this tag the stack serves three upstreams behind the door, plus /state:
  *   /api/...   -> openbq-api  (the whole ODP widget catalogue)
  *   /news/...  -> rss-ticker  (the wire: approved feeds only)
+ *   /grid/...  -> live-grid   (the tape's own widget surface, its kdb tick reader
+ *                              and its tick chart; v10, the opt-in `live` profile)
  *   /state/... -> the gateway's own per-user store (server.mjs, stateFile below)
- * /ai (Rita) is not served by openbq-docker. MCP, provider-key paths and the
- * API's own /docs, /openapi.json and /redoc are never routes this door forwards.
+ * /grid was ported from bdobb-dev/openbb-docker v10.1.7 (d606169): e8c1239,
+ * 7212a1d, b9545f5, d32966d, dc61be8, d7ec9d1 (v10.0.3/v10.1.4).
+ * /ai (Rita) is not served by openbq-docker. MCP, provider-key paths, the kdb+
+ * tick cache (q IPC executes arbitrary code with no auth whatsoever -- it is
+ * never served or funnelled) and the API's own /docs, /openapi.json and /redoc
+ * are never routes this door forwards.
  *
  * The /news family is where the contract stops being HTTP-only: /news/ws/news
  * is the first route served over a socket, so this file gains a second kind of
  * rule -- newsSubscription, which validates the ONE frame a client may send --
- * beside the path-and-query rules every other route takes.
+ * beside the path-and-query rules every other route takes. The /grid family
+ * adds the second socket and the first REPEATING frame: liveGridSubscription
+ * is applied to every frame a grid client sends, not just its first.
  */
 
 /**
@@ -75,11 +83,54 @@ const MAX_URL_CHARS = 4096;
 const MIC_RE = /^[A-Z]{4}$/;
 const YEAR_RE = /^(?:199\d|20[0-3]\d|2040)$/;
 
+// live-grid's grammars (Ep. 10). One symbol where the route takes one, a comma
+// list where it takes a watchlist; `^` is in the class because an index symbol
+// carries it (^GSPC) and `.` because an exchange suffix does (AAPL.US).
+const SYMBOL_RE = /^[A-Za-z0-9.^_-]{1,24}$/;
+const SYMBOL_LIST_RE = /^[A-Za-z0-9.^_,-]{1,240}$/;
+// The whole interval set live-grid's series builder accepts. Wider than this
+// line's two chart widgets declare (1d/1h/5m), because a card's interval is an
+// editable text param: a reader may type any of these and live-grid will serve
+// it. Anything outside the set is refused rather than passed through to be
+// rejected upstream.
+const INTERVAL_RE = /^(?:1s|5s|15s|30s|1m|5m|15m|30m|1h|4h|1d)$/;
+// live-grid's `provider` is build_series' branching parameter: "kdb" reads the
+// read-through cache, "eodhd" the vendor directly. Two values, nothing else.
+const PROVIDER_RE = /^(?:kdb|eodhd)$/;
+// The tick chart's own parameters (Ep. 10's /ta_chart on this line). Each mirrors what
+// live-grid/widgets.json declares for the `ta_chart` widget and what the handler reads:
+//   source   the INDICATOR source -- "local" reads the bars already fetched, "eodhd" the
+//            vendor directly (live-grid/app/ta/sources.py, throttled by
+//            TA_EODHD_MIN_REFETCH_S). Two values, nothing else.
+//   macro    a named pane layout, which is a YAML FILENAME STEM under the macro directories
+//            (live-grid/app/ta/macros.py: `Macro(path.stem, ...)` over `*.yml`), plus the
+//            literal "none". A filename slug, so no dot-dot, no slash, no percent: the
+//            lookup is a dict hit, and bounding it here means nothing shaped like a path
+//            ever reaches the loader.
+//   indicators  the spec string the widget sends, e.g. "supertrend:period=10,ichimoku" --
+//            names, colons, "key=value" pairs and commas, and a value may itself hold
+//            colons and dashes (avwap:anchor=2026-08-28T14:30:00). A bounded character
+//            class with NO space (parse_indicators strips them, but what leaves this door
+//            should be exactly what a client wrote) and no "%", capped at 240 characters.
+const SOURCE_RE = /^(?:local|eodhd)$/;
+const MACRO_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+const INDICATORS_RE = /^[A-Za-z0-9:=.,+_-]{0,240}$/;
+// live-grid's /ticks `limit`: 1..1000. live-grid caps anything larger itself and
+// 422s a value below 1, so the door refuses outside that window rather than
+// relaying a value it knows will be clamped or rejected -- a clamped parameter
+// hides a client that is wrong (the same reasoning as /news/api/news' limit).
+const TICK_LIMIT_RE = /^(?:[1-9]|[1-9][0-9]{1,2}|1000)$/;
+// Client-side date expressions (T, FY, FQ, bd, @time) are resolved to absolute
+// instants BEFORE the wire: date -> "2026-09-01", datetime ->
+// "2026-09-14T09:30:15-04:00" (offset, never Z, no fractional second). A raw
+// expression on start/end is refused here, not relayed.
+const DATETIME_RE = /^[0-9T:.Z+-]{1,40}$/;
+
 function onlyKeys(params, allowed) {
   return ![...params.keys()].some(k => !allowed.includes(k));
 }
 
-/** The /api family takes bounds; the /news family takes reviewed routes with their own tests. */
+/** The /api family takes bounds; /news and /grid take reviewed routes with their own tests. */
 export function upstreamPath(url, config) {
   const params = url.searchParams;
   if (new Set(params.keys()).size !== [...params.keys()].length) return null;
@@ -143,6 +194,108 @@ export function upstreamPath(url, config) {
     return "/news/api/news?" + params.toString();
   }
 
+  // --- the live-grid family (Ep. 10). Every parameter set mirrors what THIS
+  // line's live-grid actually serves (live-grid/app/main.py) and what the
+  // client actually sends; unknown keys are a refusal, never a passthrough.
+  // Routes a later line adds (/grid/ta_chart, /grid/ta_registry and the rest of
+  // the v12 study family) are absent here because this stack's live-grid does
+  // not serve them. /grid/ticks IS here: the v10.1 line's live-grid has the kdb
+  // tick reader that the v10.0 line's does not.
+
+  // The same two root documents as the /api side, for the grid backend: exact
+  // path, no query. On THIS line live-grid really serves /grid/apps.json -- it
+  // is the Ep. 10 example dashboard, and an empty list rather than a 404 when
+  // the file is absent -- so the optional-document path is a fallback here
+  // rather than the normal answer. It stays in server.mjs' OPTIONAL_DOCS all
+  // the same: dataClient fetches it with `allow404` and matches on the literal
+  // status (`res.status === 404 && allow404`), so against an older live-grid
+  // the door must relay the bare 404 or fetchAppsJson throws on the 502.
+  if (url.pathname === "/grid/widgets.json" || url.pathname === "/grid/apps.json") {
+    if (url.search) return null;
+    return url.pathname;
+  }
+
+  // The quote grid's REST seed, and the per-symbol metadata the grid renderer
+  // fetches beside it (logo, 52-week range). Both take the watchlist, so the
+  // list grammar. /grid/symbol_meta really answers on this line too, from its
+  // own TTL cache over EODHD's /fundamentals; it stays in OPTIONAL_DOCS for the
+  // older-upstream case, where the bare 404 is what the renderer reads as
+  // "those columns are blank".
+  // BOTH are METERED routes here (server.mjs' METERED_GRID): live_grid calls
+  // the vendor once per symbol in the list, and symbol_meta's get_meta calls
+  // get_fundamentals_data once per symbol that is not in its cache -- on the
+  // v10.0 line symbol_meta had no route at all, which is why it was exempt
+  // there and is not here.
+  if (url.pathname === "/grid/live_grid" || url.pathname === "/grid/symbol_meta") {
+    if (!onlyKeys(params, ["symbol"])) return null;
+    if (!SYMBOL_LIST_RE.test(params.get("symbol") ?? "")) return null;
+    return url.pathname + "?" + params.toString();
+  }
+
+  // The bars themselves: /grid/series is the raw OHLCV envelope with its cache
+  // metadata, /grid/chart the same bars already rendered as a Plotly figure
+  // (this line's "Cached Price Chart" widget). Identical parameter sets
+  // upstream, plus `theme` on the chart: it is declared `type: chart`, and the
+  // client appends the resolved theme to every chart-typed widget's query
+  // (dataClient's THEMED_TYPES), so refusing it would refuse every real call.
+  // Both are METERED routes (server.mjs' METERED_GRID): build_series reaches
+  // openbb-api's paid historical route, the same upstream /api is metered for.
+  if (url.pathname === "/grid/series" || url.pathname === "/grid/chart") {
+    const allowed = ["symbol", "interval", "start", "end", "provider"];
+    if (!onlyKeys(params, url.pathname === "/grid/chart" ? [...allowed, "theme"] : allowed)) return null;
+    if (!SYMBOL_RE.test(params.get("symbol") ?? "")) return null;
+    if (params.has("interval") && !INTERVAL_RE.test(params.get("interval"))) return null;
+    if (params.has("provider") && !PROVIDER_RE.test(params.get("provider"))) return null;
+    if (params.has("theme") && !/^(?:light|dark)$/.test(params.get("theme"))) return null;
+    for (const key of ["start", "end"]) {
+      if (params.has(key) && !DATETIME_RE.test(params.get(key))) return null;
+    }
+    return url.pathname + "?" + params.toString();
+  }
+
+  // The kdb tick reader, this line's own route (live-grid/app/main.py's /ticks,
+  // absent on the v10.0 line). One symbol, newest-first, `limit` bounded above.
+  // NOT metered: it reads the in-memory kdb cache and reaches no vendor -- an
+  // empty answer is a cold store, which live-grid returns as a 200 with no
+  // ticks rather than an error, and the widget reads as "no ticks".
+  if (url.pathname === "/grid/ticks") {
+    if (!onlyKeys(params, ["symbol", "limit"])) return null;
+    if (!SYMBOL_RE.test(params.get("symbol") ?? "")) return null;
+    if (params.has("limit") && !TICK_LIMIT_RE.test(params.get("limit"))) return null;
+    return url.pathname + "?" + params.toString();
+  }
+
+  // The tick chart, this line's own feature: bars with server-computed studies drawn into a
+  // Plotly figure, over HTTP here and pushed over /grid/ta_chart_ws below. live-grid serves
+  // it (live-grid/app/main.py's @app.get("/ta_chart")) and live-grid/widgets.json PUBLISHES
+  // the widget -- and that manifest is relayed through /grid/widgets.json, so refusing the
+  // route would have shown a Workspace a card the door will not answer. The v10.0 line's
+  // live-grid has neither, which is why this is the first line that maps it.
+  //
+  // The keys are exactly the six the widget declares, plus `theme`: it is `type: chart`, so
+  // dataClient's THEMED_TYPES appends the resolved theme to every call, and refusing it
+  // would refuse every real one. `provider` is deliberately NOT mapped although the handler
+  // accepts it -- the widget never sends it, and leaving it out pins every call and every
+  // socket push to live-grid's own default, the kdb read-through cache, instead of letting a
+  // caller force `eodhd` on a stream that refetches once a second.
+  if (url.pathname === "/grid/ta_chart") {
+    if (!onlyKeys(params, ["symbol", "interval", "source", "macro", "indicators",
+                           "anchor", "start", "end", "theme"])) return null;
+    if (!SYMBOL_RE.test(params.get("symbol") ?? "")) return null;
+    if (params.has("interval") && !INTERVAL_RE.test(params.get("interval"))) return null;
+    if (params.has("source") && !SOURCE_RE.test(params.get("source"))) return null;
+    if (params.has("macro") && !MACRO_RE.test(params.get("macro"))) return null;
+    if (params.has("indicators") && !INDICATORS_RE.test(params.get("indicators"))) return null;
+    if (params.has("theme") && !/^(?:light|dark)$/.test(params.get("theme"))) return null;
+    // `anchor` is the avwap anchor the widget folds into the indicator list
+    // (live-grid/app/ta/payload.py's with_anchor). It is an absolute instant on the wire,
+    // like start and end, so it takes the same rule.
+    for (const key of ["start", "end", "anchor"]) {
+      if (params.has(key) && !DATETIME_RE.test(params.get(key))) return null;
+    }
+    return url.pathname + "?" + params.toString();
+  }
+
   return null;
 }
 
@@ -171,6 +324,29 @@ export function newsSubscription(data, config) {
 }
 
 /**
+ * A /grid/live_grid_ws frame: `{"params":{"symbol":"A,B"}}`, sent on open and
+ * again on every parameter change over the SAME open socket (live-grid's own
+ * stated protocol, and what the client's socket hook does). So unlike the
+ * wire's one-frame contract a repeat frame is EXPECTED here and must be
+ * re-validated rather than close the socket -- which is why this rule exists
+ * as its own function: every frame goes through it, not just the first.
+ *
+ * The frame that reaches live-grid is rebuilt from the one value that passed,
+ * so no extra property, no second key and no display name of the caller's is
+ * ever forwarded. Returns the frame to forward, or null to close the socket.
+ */
+export function liveGridSubscription(data) {
+  let frame;
+  try { frame = JSON.parse(data.toString()); } catch { return null; }
+  if (!frame || typeof frame !== "object" || Object.keys(frame).join() !== "params") return null;
+  const params = frame.params;
+  if (!params || typeof params !== "object" || Object.keys(params).join() !== "symbol") return null;
+  const raw = params.symbol;
+  if (typeof raw !== "string" || !SYMBOL_LIST_RE.test(raw)) return null;
+  return JSON.stringify({ params: { symbol: raw } });
+}
+
+/**
  * Socket tickets. A socket relayed through a Vercel Function bills function time
  * for as long as it stays open (and needs the WebSockets beta permission), and the
  * preview's sockets are always open. So the browser opens them on the gateway
@@ -183,9 +359,8 @@ export function newsSubscription(data, config) {
  * a connect; the gateway also refuses a nonce it has already admitted.
  *
  * The verifier shipped at v2.1.0, before any socket route did, so that the contract
- * the web layer signs against was the stack's from the first tag that had a door. At
- * this tag it finally has a route to admit: /news/ws/news, the first socket family
- * (Ep. 8). Ep. 10 adds /grid/live_grid_ws.
+ * the web layer signs against was the stack's from the first tag that had a door. It
+ * admits two routes at this tag: /news/ws/news (Ep. 8) and /grid/live_grid_ws (Ep. 10).
  */
 const TICKET_MS = 30_000;
 const ticketKey = token => createHmac("sha256", token).update("bdobb socket ticket v1").digest();
@@ -210,16 +385,30 @@ export function socketTicketNonce(token, target, ticket, now = Date.now()) {
 export const socketTicketValid = (...args) => socketTicketNonce(...args) !== null;
 
 /**
- * The socket a ticket may name, under exactly the rules the upgrade handler applies.
- * Returns the canonical target, or null. Exactly one route at this tag --
- * /news/ws/news, which takes no query, so a ticket over a query string is not a
- * ticket over anything this gateway will open. Ep. 10 adds /grid/live_grid_ws.
+ * The socket a ticket may name, under exactly the rules the upgrade handler applies
+ * -- and the SAME function the handler calls, so the two can never drift about what
+ * may be opened. Returns the canonical target, or null. Two routes at this tag, and
+ * neither takes a query: the whole subscription is the first frame, so a ticket over
+ * a query string is not a ticket over anything this gateway will open.
  */
 export function socketTarget(raw, origin) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//")) return null;
   let url; try { url = new URL(raw, origin); } catch { return null; }
   if (url.origin !== origin || url.hash) return null;
-  if (url.pathname === "/news/ws/news") return url.search ? null : url.pathname;
+  if (url.pathname === "/news/ws/news" || url.pathname === "/grid/live_grid_ws") {
+    return url.search ? null : url.pathname;
+  }
+  // The tick chart's socket is the exception to "no query": live-grid's /ta_chart_ws reads
+  // ws.query_params and never reads a client frame at all (live-grid/app/main.py), so the
+  // query is not decoration, it IS the subscription -- a socket with no query would stream
+  // a chart of nothing anybody asked for. It is validated by the SAME grammar the REST
+  // /grid/ta_chart takes, by delegating to upstreamPath, so the two can never diverge about
+  // what a tick chart may be asked for. config is not consulted for this family, so the
+  // second argument is unused here.
+  if (url.pathname === "/grid/ta_chart_ws") {
+    const rest = upstreamPath(new URL("/grid/ta_chart" + url.search, origin), null);
+    return rest ? url.pathname + rest.slice("/grid/ta_chart".length) : null;
+  }
   return null;
 }
 

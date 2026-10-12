@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
 import { validateConfig, readConfig } from "./config.mjs";
-import { createGateway, getJson } from "./server.mjs";
+import { createGateway, getJson, connectGrid } from "./server.mjs";
 import { verify } from "./verify.mjs";
 import { checkUpstreams } from "./check-upstreams.mjs";
 
@@ -26,8 +26,10 @@ const RSS_ADDRESS = [100, 64, 0, 3].join(".");
 const FEED = "https://feeds.example.com/news.xml";
 // The wire is ON in the default fixture -- it is this tag's own row. openbq-docker serves no
 // /ai (Rita), so her settings are unknown keys and her routes unmatched (tests below).
+// live-grid (the `live` profile, v10) is ON in the default fixture too, so the /grid tests
+// ported from the donor run as written; the off state (503) has its own tests.
 const settings = { origin: ORIGIN, quoteDailyLimit: 100,
-  rssOrigin: RSS_ORIGIN, rssAddress: RSS_ADDRESS, feeds: { [FEED]: 7 } };
+  rssOrigin: RSS_ORIGIN, rssAddress: RSS_ADDRESS, feeds: { [FEED]: 7 }, liveGrid: true };
 const secrets = { token: TOKEN, apiUsername: "testuser", apiPassword: "synthetic-password" };
 const config = () => validateConfig(settings, secrets);
 const HEADERS = { Host: new URL(ORIGIN).host, Authorization: `Bearer ${TOKEN}` };
@@ -68,6 +70,10 @@ function wsConnect(port, headers = { ...HEADERS, Origin: ORIGIN }, path = "/news
 test("configuration fails closed; secrets come from the environment", () => {
   assert.equal(config().origin, ORIGIN);
   assert.equal(config().apiOrigin, "http://openbq-api:6900");
+  // live-grid is a fixed compose service name too, not an operator setting -- which is why
+  // the matrix below still refuses a settings file that names `gridOrigin`. The fixture turns
+  // the `live` profile on ("liveGrid": true); the off state has its own test below.
+  assert.equal(config().gridOrigin, "http://live-grid:6903");
   assert.equal(config().apiAuthorization, "Basic " + Buffer.from("testuser:synthetic-password").toString("base64"));
   for (const change of [{ token: "" }, { token: TOKEN + "\n" }, { token: "short" }, { apiUsername: "x:y" }, { apiPassword: "" }]) {
     assert.throws(() => validateConfig(settings, { ...secrets, ...change }));
@@ -82,8 +88,12 @@ test("configuration fails closed; secrets come from the environment", () => {
     { previewOrigin: "http://preview.example.com" }, { previewOrigin: "https://preview.example.com/x" },
     { previewOrigin: "https://user@preview.example.com" }, { previewOrigin: 7 },
     { stateDir: "relative/state" }, { stateDir: "/var/lib/../etc" }, { stateDir: 7 }, { stateDir: "" },
-    // Settings of later lines are not silently accepted: a stack at this tag has no such upstream.
-    { gridOrigin: "http://openbb-live-grid:6903" }, { tickUrl: `wss://kdb.${TAILNET}` },
+    // Not silently accepted: `tickUrl` is a later line's upstream, and `gridOrigin` is THIS
+    // line's but is fixed in code rather than configured -- naming either in settings.json
+    // means an operator believes something is configurable that is not. `liveGrid` is a
+    // boolean and nothing else.
+    { gridOrigin: "http://openbb-live-grid:6903" }, { gridOrigin: "http://live-grid:6903" },
+    { tickUrl: `wss://kdb.${TAILNET}` }, { liveGrid: "true" }, { liveGrid: 1 }, { liveGrid: null },
     // The wire: both settings or neither, its origin is a tailnet name on :8088 (the port
     // ts-config publishes rss-ticker on) or portless, its address a tailnet IPv4, and the
     // approved feeds are https urls mapped to positive integer ids.
@@ -184,7 +194,7 @@ test("canonical Host/Origin, methods and exact path handling", async t => {
 test("only bounded OpenBB and approved News queries reach upstream; later families are refused", async t => {
   const { port, calls } = await fixture(t);
   for (const path of ["/", "/tick", "/keys", "/mcp", "/stores", "/live/widgets.json",
-    "/grid/widgets.json", quote + "&symbol=MSFT",
+    quote + "&symbol=MSFT",
     // The wire's own refusals: an unapproved id, a limit past 50, a duplicated name, and the
     // socket path asked for over plain HTTP (an upgrade is the only way to reach it).
     news.replace("=7", "=8"), news.replace("limit=1", "limit=51"), news + "&feed_id=7",
@@ -384,6 +394,23 @@ test("operator verifier makes no upstream or provider calls, wire on or off", as
   await verify(off, `http://127.0.0.1:${bare.port}`); assert.equal(bare.calls.length, 0);
 });
 
+/**
+ * live-grid's own leg of the preflight, as a loopback fixture: it answers /health, behind the
+ * SAME Basic pair as openbb-api (its BasicAuthMiddleware wraps its whole app, /health
+ * included), and records what it was asked. `grid.status` lets a test make it fail.
+ */
+async function gridStub(t) {
+  const grid = { status: 200, seen: [] };
+  const server = createServer((req, res) => {
+    grid.seen.push({ path: req.url, auth: req.headers.authorization });
+    res.writeHead(grid.status, { "Content-Type": "application/json" }); res.end("{}");
+  });
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
+  grid.origin = `http://127.0.0.1:${server.address().port}`;
+  return grid;
+}
+
 test("upstream preflight validates Basic auth and the API's lock without querying a quote", async t => {
   let withPair = 422, withoutPair = 401;
   const seen = [];
@@ -393,10 +420,11 @@ test("upstream preflight validates Basic auth and the API's lock without queryin
   });
   upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
   t.after(() => new Promise(resolve => upstream.close(resolve)));
+  const grid = await gridStub(t);
   // The wire is left OUT of this config: what is under test is the API leg, and the wire's
   // own preflight has its own test below (it would otherwise dial a real tailnet address).
   const cfg = { ...config(), rssOrigin: null, rssAddress: null, feeds: {},
-    apiOrigin: `http://127.0.0.1:${upstream.address().port}` };
+    apiOrigin: `http://127.0.0.1:${upstream.address().port}`, gridOrigin: grid.origin };
   await checkUpstreams(cfg);
   assert.deepEqual(seen, [{ path: "/api/v1/equity/price/quote", auth: cfg.apiAuthorization },
     { path: "/api/v1/equity/price/quote", auth: undefined }]);
@@ -404,6 +432,27 @@ test("upstream preflight validates Basic auth and the API's lock without queryin
   withPair = 200; await assert.rejects(checkUpstreams(cfg), /API auth preflight failed/);
   // OPENBB_API_AUTH off: the pair is "accepted" because nothing is checked. The door stays shut.
   withPair = 422; withoutPair = 422; await assert.rejects(checkUpstreams(cfg), /API lock preflight failed/);
+});
+
+test("the preflight proves live-grid answers /health behind the stack's own Basic pair", async t => {
+  // A locked API (422 with the pair, 401 without): openbq-docker's preflight also proves the lock.
+  const api = createServer((req, res) => { res.writeHead(req.headers.authorization ? 422 : 401); res.end(); });
+  api.listen(0, "127.0.0.1"); await once(api, "listening");
+  t.after(() => new Promise(resolve => api.close(resolve)));
+  const grid = await gridStub(t);
+  const cfg = { ...config(), rssOrigin: null, rssAddress: null, feeds: {},
+    apiOrigin: `http://127.0.0.1:${api.address().port}`, gridOrigin: grid.origin };
+  await checkUpstreams(cfg);
+  // Asked for /health and nothing else, WITH the credential. Without it live-grid answers
+  // 401 and the preflight would stop a healthy stack from opening its door -- which is the
+  // whole reason this leg carries the pair.
+  assert.deepEqual(grid.seen, [{ path: "/health", auth: cfg.apiAuthorization }]);
+  // Anything but a 200 stops the door: 401 (the pair is wrong or absent) and 503 (live-grid
+  // is up but not ready) are both refusals, not warnings.
+  for (const status of [401, 503, 500]) {
+    grid.status = status;
+    await assert.rejects(checkUpstreams(cfg), new RegExp(`live-grid preflight failed \\(HTTP ${status}\\)`));
+  }
 });
 
 test("the wire's preflight pages the approved feed, refuses a bad page, and sends no credential", async t => {
@@ -422,7 +471,9 @@ test("the wire's preflight pages the approved feed, refuses a bad page, and send
   // here is the history leg's own contract and its refusals. The SOCKET leg needs a real
   // certificate and a pinned dial, so its happy path is proved in tls.test.mjs instead --
   // connectNews always speaks wss:// and cannot be pointed at a loopback HTTP fixture.
+  const grid = await gridStub(t);
   const cfg = { ...config(), apiOrigin: `http://127.0.0.1:${api.address().port}`,
+    gridOrigin: grid.origin,
     rssOrigin: `http://127.0.0.1:${rss.address().port}`, rssAddress: null };
   // A wire that answers anything but a 200 JSON page stops the door from opening, and it is
   // asked only for the ONE approved id, with no credential of anyone's attached.
@@ -477,12 +528,14 @@ test("tickets are off until the operator names the preview origin", async t => {
 
 test("the WS gate wants the credential, the Origin, the exact path and a configured wire", async t => {
   const { port } = await fixture(t, {}, { openNews: () => new WebSocket("ws://127.0.0.1:9") });
+  // Nothing in this test reaches an upstream: every assertion below is a refusal.
   assert.equal((await wsConnect(port, { Host: HEADERS.Host, Origin: ORIGIN })).status, 401);
   assert.equal((await wsConnect(port, HEADERS)).status, 403);
   assert.equal((await wsConnect(port, { ...HEADERS, Origin: "https://untrusted.invalid" })).status, 403);
   // The socket takes no query and no subprotocol, and no other path is a socket at all.
   assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/news/ws/news?admin=1")).status, 404);
-  assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/grid/live_grid_ws")).status, 404);
+  assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/grid/live_grid_ws?symbol=AAPL")).status, 404);
+  assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/grid/ta_series_ws")).status, 404);
   assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/news/api/news?feed_id=7&limit=1")).status, 404);
   assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN, "Sec-WebSocket-Protocol": "chat" })).status, 404);
   // The route exists but the operator has approved nothing: 503, not 404.
@@ -637,10 +690,627 @@ test("the socket cap and the six-unit socket price come from settings, charged b
 
 test("a refused upgrade never allocates a socket slot, so the cap is not consumed by 404s", async t => {
   const { port } = await fixture(t, { maxSockets: 1 }, { openNews: () => new WebSocket("ws://127.0.0.1:9") });
-  for (const path of ["/news/ws/news?x=1", "/grid/live_grid_ws", "/nope"]) {
+  for (const path of ["/news/ws/news?x=1", "/grid/live_grid_ws?x=1", "/grid/ta_chart_ws", "/nope"]) {
     assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, path)).status, 404, path);
   }
   const admitted = await wsConnect(port); assert.equal(admitted.status, 101); admitted.ws.terminate();
+});
+
+// ---- The grid family (Ep. 10): live-grid's REST surface and its socket, the second socket
+// route this door serves and the first whose frames repeat.
+
+const GRID_WS = "/grid/live_grid_ws";
+const gridConnect = (f, headers) => wsConnect(f.port, headers, GRID_WS);
+
+test("the grid's REST routes reach live-grid with the prefix stripped and the stack's pair", async t => {
+  const seen = [];
+  const upstream = createServer((req, res) => {
+    seen.push({ url: req.url, headers: req.headers });
+    res.writeHead(200, { "Content-Type": "application/json", "Set-Cookie": "sensitive=test" });
+    res.end('{"rows":[]}');
+  });
+  upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
+  t.after(() => new Promise(resolve => upstream.close(resolve)));
+  const { port } = await fixture(t, { gridOrigin: `http://127.0.0.1:${upstream.address().port}` },
+    { requestJson: getJson });
+  const response = await http(port, "/grid/live_grid?symbol=AAPL,MSFT",
+    { ...HEADERS, Cookie: "viewer=session", "X-Forwarded-For": "untrusted" });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers["set-cookie"], undefined);
+  // "/grid" and nothing else is stripped -- live-grid's own route is /live_grid.
+  assert.equal(seen[0].url, "/live_grid?symbol=AAPL%2CMSFT");
+  // The pair live-grid's own BasicAuthMiddleware demands, and none of the caller's headers.
+  assert.equal(seen[0].headers.authorization, config().apiAuthorization);
+  assert.equal(seen[0].headers.accept, "application/json");
+  assert.equal(seen[0].headers.cookie, undefined);
+  assert.equal(seen[0].headers["x-forwarded-for"], undefined);
+  assert.ok(!response.text.includes(TOKEN));
+  // The manifest keeps its own name, and the chart's theme rides through re-serialised.
+  assert.equal((await http(port, "/grid/widgets.json")).status, 200);
+  assert.equal(seen[1].url, "/widgets.json");
+  assert.equal((await http(port, "/grid/chart?symbol=AAPL&interval=1d&theme=dark")).status, 200);
+  assert.equal(seen[2].url, "/chart?symbol=AAPL&interval=1d&theme=dark");
+  assert.equal((await http(port, "/grid/live_grid?symbol=AAPL")).status, 200);
+  // The kdb tick reader, this line's own route: "/grid" and nothing else stripped, limit
+  // re-serialised from the parsed pair.
+  assert.equal((await http(port, "/grid/ticks?symbol=AAPL&limit=50")).status, 200);
+  assert.equal(seen[4].url, "/ticks?symbol=AAPL&limit=50");
+  assert.equal(seen[4].headers.authorization, config().apiAuthorization);
+  // The tick chart's REST leg, this line's own route: the query is re-serialised from the
+  // validated pairs, so what live-grid sees is the door's encoding and not the caller's.
+  assert.equal((await http(port, "/grid/ta_chart?symbol=NVDA&indicators=rsi:period=14&theme=dark")).status, 200);
+  assert.equal(seen[5].url, "/ta_chart?symbol=NVDA&indicators=rsi%3Aperiod%3D14&theme=dark");
+  assert.equal(seen[5].headers.authorization, config().apiAuthorization);
+  assert.equal(seen.length, 6);
+});
+
+test("the daily vendor cap covers the grid's data routes, out of the SAME counter as /api", async t => {
+  // /grid/live_grid calls the EODHD SDK once per symbol in the watchlist
+  // (live-grid/app/quotes.py), and /grid/series and /grid/chart both run build_series ->
+  // fetch_series -> openbb-api /api/v1/equity/price/historical with provider=kdb|eodhd
+  // (live-grid/app/openbb_client.py) -- the same paid upstream /api/api/v1/** is metered for
+  // reaching. A DELIBERATE deviation from main, which meters none of them (review ruling
+  // 2026-09-26): otherwise the door's daily vendor cap is bypassable through /grid at the
+  // full per-minute rate, and EODHD quota exhaustion surfaces as stack-wide 502s.
+  for (const metered of ["/grid/live_grid?symbol=AAPL", "/grid/symbol_meta?symbol=AAPL",
+    "/grid/series?symbol=AAPL", "/grid/chart?symbol=AAPL", "/grid/ta_chart?symbol=AAPL"]) {
+    const { port } = await fixture(t, { quoteDailyLimit: 1 });
+    assert.equal((await http(port, metered)).status, 200, metered);
+    assert.equal((await http(port, metered)).status, 429, metered);
+    // ONE counter, not a second grid-only budget: the /api quote is refused by the unit the
+    // grid call just spent.
+    assert.equal((await http(port, quote)).status, 429, metered);
+  }
+  // And the other direction: an /api quote spends the unit a grid call then cannot have.
+  const shared = await fixture(t, { quoteDailyLimit: 1 });
+  assert.equal((await http(shared.port, quote)).status, 200);
+  assert.equal((await http(shared.port, "/grid/series?symbol=AAPL")).status, 429);
+  // Unmetered, for the same reason /api's two manifests are: no provider is called for a
+  // document, and /grid/ticks reads the in-memory kdb cache. Four of them do not exhaust a
+  // budget of one. (/grid/symbol_meta is NOT on this list on this line -- its route exists
+  // here and calls get_fundamentals_data per uncached symbol.)
+  const { port } = await fixture(t, { quoteDailyLimit: 1 });
+  for (const free of ["/grid/widgets.json", "/grid/apps.json", "/grid/ticks?symbol=AAPL",
+    "/grid/ticks?symbol=AAPL&limit=1000", "/grid/widgets.json"])
+    assert.equal((await http(port, free)).status, 200, free);
+  assert.equal((await http(port, "/grid/chart?symbol=AAPL")).status, 200);
+  assert.equal((await http(port, "/grid/live_grid?symbol=AAPL")).status, 429);
+});
+
+test("the grid's optional documents relay a bare 404; every other non-200 is the door's 502", async t => {
+  // dataClient fetches apps.json and symbol_meta with `allow404` and matches on the literal
+  // status, so the door's own 502 would make fetchAppsJson THROW where it is built to resolve
+  // "this backend ships no apps". This line's live-grid really serves both, so the relay is
+  // the OLDER-UPSTREAM fallback -- which is exactly what this fixture models, and why the
+  // route keeps it. The status is relayed; nothing else about the answer is.
+  let status = 404;
+  const upstream = createServer((_, res) => {
+    res.writeHead(status, { "Content-Type": "application/json" });
+    res.end('{"detail":"Not Found","upstream":"live-grid"}');
+  });
+  upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
+  t.after(() => new Promise(resolve => upstream.close(resolve)));
+  const { port } = await fixture(t, { gridOrigin: `http://127.0.0.1:${upstream.address().port}` },
+    { requestJson: getJson });
+  for (const optional of ["/grid/apps.json", "/grid/symbol_meta?symbol=AAPL"]) {
+    const response = await http(port, optional);
+    assert.equal(response.status, 404, optional);
+    // The door's OWN body: live-grid's document never reaches the caller.
+    assert.deepEqual(JSON.parse(response.text), { error: "Request refused" });
+  }
+  // A 404 on any OTHER route is still the door's 502 -- widgets.json is required, and a
+  // missing grid seed or tick answer is a broken upstream, not an answer.
+  assert.equal((await http(port, "/grid/widgets.json")).status, 502);
+  assert.equal((await http(port, "/grid/live_grid?symbol=AAPL")).status, 502);
+  assert.equal((await http(port, "/grid/ticks?symbol=AAPL")).status, 502);
+  // And only the 404 is relayed: the same optional document behind a 500 is a 502.
+  status = 500;
+  assert.equal((await http(port, "/grid/apps.json")).status, 502);
+});
+
+/** A live-grid socket fixture, shaped exactly like the wire's: cap of one, a queue of
+ *  upstream connections, and the grid's own opener injected. */
+async function gridFixture(t, overrides = {}) {
+  const grid = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+  await once(grid, "listening");
+  const nextConnection = connectionQueue(grid);
+  t.after(() => new Promise(resolve => {
+    for (const ws of grid.clients) ws.terminate(); grid.close(resolve);
+  }));
+  const gw = await fixture(t, { maxSockets: 1, ...overrides },
+    { openGrid: () => new WebSocket(`ws://127.0.0.1:${grid.address().port}`) });
+  return { ...gw, nextConnection };
+}
+/** A live grid relay: a client through the door, its first params frame sent, and the
+ *  live-grid side of the connection that frame caused. */
+async function gridRelayed(f, symbol = "AAPL") {
+  const { ws } = await gridConnect(f);
+  ws.send(JSON.stringify({ params: { symbol } }));
+  // BOUNDED. nextConnection() never rejects, so a regression that stops the first frame
+  // opening the upstream -- a budget refusal charged where it should not be, say -- would
+  // hang the whole suite instead of failing it. Same reason every teardown assertion here
+  // goes through within(), and it fails naming what never came.
+  let timer;
+  const up = await Promise.race([
+    f.nextConnection().finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("live-grid was never dialled within 2000ms")), 2000);
+    }),
+  ]);
+  return { ws, up };
+}
+/** The grid's slot is back: with maxSockets at 1, a second grid socket only opens if the
+ *  first was released. */
+async function gridSlotReleased(f) {
+  const again = await gridConnect(f);
+  assert.equal(again.status, 101, "the socket slot was not released");
+  again.ws.terminate();
+}
+
+test("the grid socket relays a rebuilt params frame, and a REPEAT frame is forwarded, not fatal", async t => {
+  const f = await gridFixture(t);
+  const { ws, up } = await gridRelayed(f);
+  const frames = [];
+  up.on("message", data => frames.push(JSON.parse(data)));
+  const first = within(up, "message");
+  up.send('{"type":"quote"}');
+  assert.equal((await within(ws, "message"))[0].toString(), '{"type":"quote"}');
+  await first;
+  // The parameter change the wire's socket could never accept: a SECOND frame over the same
+  // open socket, re-validated and forwarded rather than closing the relay. This is the whole
+  // difference between liveGridSubscription and newsSubscription.
+  const second = within(up, "message");
+  ws.send(JSON.stringify({ params: { symbol: "TSLA,NVDA" } }));
+  await second;
+  assert.deepEqual(frames, [{ params: { symbol: "AAPL" } }, { params: { symbol: "TSLA,NVDA" } }]);
+  // Still one upstream connection: a repeat frame reuses the one the first frame opened.
+  assert.equal(ws.readyState, WebSocket.OPEN);
+  // And a frame OUTSIDE the contract still closes it, however many valid ones came before.
+  const closed = within(ws, "close");
+  ws.send(JSON.stringify({ params: { symbol: "AAPL", admin: true } }));
+  await closed;
+  await gridSlotReleased(f);
+});
+
+test("only the newest params frame is held while live-grid's handshake is in flight", async t => {
+  // The frames are sent before the upstream is open, so they take the pending path. A
+  // `once(\"open\")` listener per frame would forward all three and grow one closure per
+  // frame; one pending frame means live-grid is told the newest state once.
+  const grid = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+  await once(grid, "listening");
+  t.after(() => new Promise(resolve => { for (const c of grid.clients) c.terminate(); grid.close(resolve); }));
+  const frames = [];
+  grid.on("connection", up => up.on("message", data => frames.push(JSON.parse(data))));
+  const { port } = await fixture(t, {},
+    { openGrid: () => new WebSocket(`ws://127.0.0.1:${grid.address().port}`) });
+  const { ws } = await gridConnect({ port });
+  for (const symbol of ["AAPL", "MSFT", "TSLA"]) ws.send(JSON.stringify({ params: { symbol } }));
+  // One frame, and it is the last one sent -- a params frame is the client's whole state,
+  // not a delta, so superseding is also what live-grid needs to be told.
+  await within(grid, "connection").catch(() => {});
+  for (let i = 0; i < 20 && frames.length < 1; i++) await new Promise(r => setTimeout(r, 25));
+  assert.deepEqual(frames, [{ params: { symbol: "TSLA" } }]);
+  ws.terminate();
+});
+
+test("a params frame outside the contract never opens live-grid", async t => {
+  let opened = 0;
+  const { port } = await fixture(t, {}, { openGrid: () => { opened++; throw new Error("Must not connect"); } });
+  for (const frame of ["not-json", '{"params":{}}', '{"params":{"symbol":""}}',
+    JSON.stringify({ params: { symbol: "AAPL" }, admin: true }),
+    JSON.stringify({ params: { symbol: "AAPL;DROP TABLE" } }),
+    JSON.stringify({ subscribe: [{ url: FEED }] }),   // the wire's frame is not this one's
+    Buffer.from("binary"), "x".repeat(65537)]) {
+    const { ws } = await gridConnect({ port }); const closed = once(ws, "close");
+    ws.send(frame); await closed;
+  }
+  assert.equal(opened, 0);
+});
+
+test("live-grid closing tears down the grid client, and hands the slot back", async t => {
+  const f = await gridFixture(t);
+  const { ws, up } = await gridRelayed(f);
+  const closed = within(ws, "close");
+  up.close();
+  await closed;
+  await gridSlotReleased(f);
+});
+
+test("a grid client going away terminates live-grid's connection, and hands the slot back", async t => {
+  const f = await gridFixture(t);
+  const { ws, up } = await gridRelayed(f);
+  const upClosed = within(up, "close");
+  ws.terminate();
+  await upClosed;
+  await gridSlotReleased(f);
+});
+
+test("a grid client too far behind is closed rather than queued behind, and hands the slot back", async t => {
+  const f = await gridFixture(t);
+  const { ws, up } = await gridRelayed(f);
+  // Same reasoning as the wire's version: `client.bufferedAmount` is read off the
+  // server-side socket inside createGateway, so the getter is stubbed for this one send
+  // rather than a test-only handle added to the server. Restored immediately and in t.after.
+  const real = Object.getOwnPropertyDescriptor(WebSocket.prototype, "bufferedAmount");
+  const restore = () => Object.defineProperty(WebSocket.prototype, "bufferedAmount", real);
+  t.after(restore);
+  Object.defineProperty(WebSocket.prototype, "bufferedAmount", { configurable: true, get: () => 262145 });
+  const closed = within(ws, "close");
+  up.send('{"type":"quote"}');
+  await closed;
+  restore();
+  await gridSlotReleased(f);
+});
+
+test("a grid client outrunning live-grid is closed rather than queued upstream, and hands the slot back", async t => {
+  const f = await gridFixture(t);
+  const { ws, up } = await gridRelayed(f);
+  // The mirror of the test above, on the direction this row introduced: a params frame per
+  // parameter change for the socket's whole lifetime, against a live-grid that is not
+  // draining. `upstream.bufferedAmount` is read off the gateway's own client socket inside
+  // createGateway, so the prototype getter is stubbed for this one frame rather than a
+  // test-only handle added to the server. Restored immediately and in t.after.
+  const real = Object.getOwnPropertyDescriptor(WebSocket.prototype, "bufferedAmount");
+  const restore = () => Object.defineProperty(WebSocket.prototype, "bufferedAmount", real);
+  t.after(restore);
+  Object.defineProperty(WebSocket.prototype, "bufferedAmount", { configurable: true, get: () => 262145 });
+  const closed = within(ws, "close");
+  const upClosed = within(up, "close");
+  ws.send(JSON.stringify({ params: { symbol: "TSLA" } }));
+  await closed;
+  await upClosed;
+  restore();
+  await gridSlotReleased(f);
+});
+
+test("an oversized or binary frame from live-grid closes the relay, and hands the slot back", async t => {
+  for (const [what, send] of [
+    ["oversized", up => up.send("x".repeat(65537))],
+    ["binary", up => up.send(Buffer.from("quote"), { binary: true })],
+  ]) {
+    const f = await gridFixture(t);
+    const { ws, up } = await gridRelayed(f);
+    const closed = within(ws, "close", 2000);
+    send(up);
+    await closed.catch(error => { throw new Error(`${what}: ${error.message}`); });
+    await gridSlotReleased(f);
+  }
+});
+
+test("EVERY grid params frame charges the daily counter once per symbol, the FIRST included", async t => {
+  // No exemption (2026-09-26 ruling). Exempting the first frame left the hole one level up:
+  // an upgrade costs six units, so at the shipped 60 rpm a client could open ten sockets a
+  // minute and carry ten free ~40-symbol seeds. So the first frame is charged like any other.
+  const f = await gridFixture(t, { quoteDailyLimit: 5 });
+  const { ws, up } = await gridRelayed(f, "MSFT,TSLA,NVDA");
+  await within(up, "message");
+  // Three symbols on the FIRST frame, three units of the SAME counter /api spends: two left.
+  assert.equal((await http(f.port, quote)).status, 200);
+  assert.equal((await http(f.port, quote)).status, 200);
+  assert.equal((await http(f.port, quote)).status, 429);
+  ws.terminate();
+});
+
+test("a grid frame the daily cap cannot pay for closes the relay, and hands the slot back", async t => {
+  const f = await gridFixture(t, { quoteDailyLimit: 3 });
+  const { ws, up } = await gridRelayed(f);          // one symbol on the first frame: one unit
+  await within(up, "message");
+  const second = within(up, "message");
+  ws.send(JSON.stringify({ params: { symbol: "MSFT,TSLA" } }));   // two more: three of three
+  await second;
+  assert.equal((await http(f.port, quote)).status, 429, "the counter should be spent");
+  const closed = within(ws, "close");
+  const upClosed = within(up, "close");
+  // Nothing left, so the next frame cannot be paid for at all and the relay closes rather
+  // than forwarding a list the door has not paid for.
+  ws.send(JSON.stringify({ params: { symbol: "AAPL" } }));
+  await closed;
+  await upClosed;
+  await gridSlotReleased(f);
+});
+
+test("the upgrade's six units pay the per-minute budget for the FIRST frame, and nothing more", async t => {
+  // The other half of the ruling, and the half a symbol-counting test cannot see: the six
+  // units buy the door's slot and the PER-MINUTE budget for that first frame. With
+  // requestsPerMinute at exactly six the upgrade spends the whole minute, so a first frame
+  // that charged spend(1) as well would close the relay instead of seeding the grid.
+  const f = await gridFixture(t, { requestsPerMinute: 6 });
+  const { ws, up } = await gridRelayed(f);
+  assert.equal((await within(up, "message"))[0].toString(),
+    JSON.stringify({ params: { symbol: "AAPL" } }));
+  // And a LATER frame does cost a per-minute unit, of which there is now none: it closes.
+  // (No gridSlotReleased here -- a second upgrade would need six units this fixture has
+  // deliberately spent. Three other tests prove the slot comes back.)
+  const closed = within(ws, "close");
+  const upClosed = within(up, "close");
+  ws.send(JSON.stringify({ params: { symbol: "MSFT" } }));
+  await closed;
+  await upClosed;
+});
+
+test("a grid socket whose FIRST frame the daily cap cannot pay for never relays it", async t => {
+  // The churn case directly: the counter is already spent, so an upgrade buys a slot and a
+  // per-minute unit and nothing else -- the first frame is refused like any other.
+  const f = await gridFixture(t, { quoteDailyLimit: 1 });
+  assert.equal((await http(f.port, quote)).status, 200);          // the only unit, spent
+  const { ws } = await gridConnect(f);
+  const closed = within(ws, "close");
+  ws.send(JSON.stringify({ params: { symbol: "AAPL,MSFT" } }));
+  await closed;
+  await gridSlotReleased(f);
+});
+
+test("a grid socket's frames are capped over its lifetime whatever the budgets allow", async t => {
+  // The backstop on its own: budgets wide enough that neither is what refuses, single
+  // symbols so the daily charge is one a frame, and 60 more frames after the first.
+  const f = await gridFixture(t, { quoteDailyLimit: 10000, requestsPerMinute: 600 });
+  const { ws, up } = await gridRelayed(f);
+  await within(up, "message");
+  const closed = within(ws, "close", 4000);
+  const upClosed = within(up, "close", 4000);
+  // 60 validated frames a socket, all charged: the first plus 59 more are accepted, the 61st
+  // closes it. Single symbols, and both budgets wide enough that neither is what refuses.
+  for (let i = 0; i < 60; i++) ws.send(JSON.stringify({ params: { symbol: "AAPL" } }));
+  await closed;
+  await upClosed;
+  await gridSlotReleased(f);
+});
+
+// ---- The tick chart's socket: this line's own, and the only PUSH-ONLY one the door
+// carries. live-grid reads no client frame from it -- the query is the subscription -- so
+// everything about it differs from live_grid_ws except the bounds.
+
+const TA_WS = "/grid/ta_chart_ws?symbol=NVDA&interval=1m";
+
+/** A tick-chart fixture: the same cap of one, the same connection queue, and openGrid
+ *  injected so the TARGET it is asked to dial can be asserted. */
+async function taFixture(t, overrides = {}) {
+  const grid = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+  await once(grid, "listening");
+  const nextConnection = connectionQueue(grid);
+  t.after(() => new Promise(resolve => {
+    for (const ws of grid.clients) ws.terminate(); grid.close(resolve);
+  }));
+  const dialled = [];
+  const gw = await fixture(t, { maxSockets: 1, ...overrides }, {
+    openGrid: (_, path) => {
+      dialled.push(path);
+      return new WebSocket(`ws://127.0.0.1:${grid.address().port}`);
+    },
+  });
+  return { ...gw, nextConnection, dialled };
+}
+/** The live-grid side of the tick chart's connection, BOUNDED. nextConnection() never
+ *  rejects, so a regression that stops dialling at upgrade would hang the suite instead of
+ *  failing it -- the same reason every teardown assertion here uses within(). */
+function dialled(f, ms = 2000) {
+  let timer;
+  return Promise.race([
+    f.nextConnection().finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`live-grid was never dialled within ${ms}ms`)), ms);
+    }),
+  ]);
+}
+/** The slot came back: with maxSockets at 1, a second tick-chart socket only opens if the
+ *  first was released. */
+async function taSlotReleased(f) {
+  const again = await wsConnect(f.port, undefined, TA_WS);
+  assert.equal(again.status, 101, "the socket slot was not released");
+  again.ws.terminate();
+}
+
+test("the tick chart's socket dials live-grid at upgrade, with the validated query and no frame", async t => {
+  const f = await taFixture(t);
+  const { ws, status } = await wsConnect(f.port, undefined, TA_WS);
+  assert.equal(status, 101);
+  // Opened WITHOUT a client frame: live-grid's /ta_chart_ws reads ws.query_params and loops
+  // on send_json, so there is nothing to wait for and the upstream is dialled here.
+  const up = await dialled(f);
+  // The target socketTarget validated, with the door's own /grid prefix stripped.
+  assert.deepEqual(f.dialled, ["/ta_chart_ws?symbol=NVDA&interval=1m"]);
+  // A push relays; the figure is forwarded unchanged.
+  const pushed = within(ws, "message");
+  up.send('{"type":"figure","rev":0}');
+  assert.equal((await pushed)[0].toString(), '{"type":"figure","rev":0}');
+  // And a frame from the CLIENT closes the relay: live-grid would ignore it, so a door that
+  // swallowed it silently would be lying about the contract.
+  const closed = within(ws, "close");
+  const upClosed = within(up, "close");
+  ws.send(JSON.stringify({ params: { symbol: "NVDA" } }));
+  await closed;
+  await upClosed;
+  await taSlotReleased(f);
+});
+
+test("EVERY tick-chart push charges the daily counter, the FIRST included, and the cap closes the stream", async t => {
+  const f = await taFixture(t, { quoteDailyLimit: 3 });
+  const { ws } = await wsConnect(f.port, undefined, TA_WS);
+  const up = await dialled(f);
+  // The paid unit on THIS socket is the upstream push -- each one re-runs build_series
+  // through openbb-api's historical route -- and there is NO exemption (2026-09-26 ruling):
+  // the build_series the upgrade itself triggers is paid work like every later one, and
+  // exempting it would let socket churn buy one free fetch per upgrade.
+  for (const push of ['{"rev":0}', '{"rev":1}', '{"rev":2}']) {
+    const seen = within(ws, "message");
+    up.send(push);
+    await seen;
+  }
+  // Three pushes, THREE units of the same counter /api spends: nothing left at all.
+  assert.equal((await http(f.port, quote)).status, 429);
+  // The next push cannot be paid for, so the stream closes rather than going quietly stale.
+  const closed = within(ws, "close");
+  const upClosed = within(up, "close");
+  up.send('{"rev":3}');
+  await closed;
+  await upClosed;
+  await taSlotReleased(f);
+});
+
+test("a tick-chart socket whose FIRST push the daily cap cannot pay for relays nothing", async t => {
+  // The churn case on this leg: the counter is spent before the upgrade, so the socket opens,
+  // live-grid is dialled, and its very first push is refused like any other.
+  const f = await taFixture(t, { quoteDailyLimit: 1 });
+  assert.equal((await http(f.port, quote)).status, 200);          // the only unit, spent
+  const { ws } = await wsConnect(f.port, undefined, TA_WS);
+  const up = await dialled(f);
+  const closed = within(ws, "close");
+  const upClosed = within(up, "close");
+  up.send('{"rev":0}');
+  await closed;
+  await upClosed;
+  await taSlotReleased(f);
+});
+
+test("the upgrade's six units pay the per-minute budget for the FIRST push, and nothing more", async t => {
+  // The other half of the ruling on this leg. With requestsPerMinute at exactly six the
+  // upgrade spends the whole minute, so a first push that ALSO charged spend(1) would close
+  // the stream instead of relaying the figure. (No taSlotReleased -- a second upgrade would
+  // need six units this fixture has deliberately spent.)
+  const f = await taFixture(t, { requestsPerMinute: 6 });
+  const { ws } = await wsConnect(f.port, undefined, TA_WS);
+  const up = await dialled(f);
+  const seen = within(ws, "message");
+  up.send('{"type":"figure","rev":0}');
+  assert.equal((await seen)[0].toString(), '{"type":"figure","rev":0}');
+  // And a LATER push does cost a per-minute unit, of which there is now none: it closes.
+  const closed = within(ws, "close");
+  const upClosed = within(up, "close");
+  up.send('{"rev":1}');
+  await closed;
+  await upClosed;
+});
+
+test("a tick chart's pushes are capped over its lifetime whatever the budgets allow", async t => {
+  const f = await taFixture(t, { quoteDailyLimit: 10000, requestsPerMinute: 600 });
+  const { ws } = await wsConnect(f.port, undefined, TA_WS);
+  const up = await dialled(f);
+  const closed = within(ws, "close", 4000);
+  const upClosed = within(up, "close", 4000);
+  // 60 pushes a socket, all charged: the first plus 59 more relay, the 61st closes it on the
+  // cap alone. This is what bounds a stream -- no quoteDailyLimit lengthens it.
+  for (let i = 0; i <= 60; i++) up.send(`{"rev":${i}}`);
+  await closed;
+  await upClosed;
+  await taSlotReleased(f);
+});
+
+/**
+ * The real dial, not the fake openGrid every relay test injects: connectGrid is what carries
+ * the stack's credential onto live-grid's websocket handshake, and the brief's row-own names
+ * "the Basic pair on every grid request AND socket". live-grid is plain HTTP on the bridge,
+ * so unlike the wire's equivalent test this needs no certificate -- there is no TLS leg to
+ * prove, which is the whole reason connectGrid dials ws:// rather than wss://.
+ */
+test("connectGrid dials live-grid bounded, uncompressed, credentialled and without following a redirect", async t => {
+  const seen = [];
+  const grid = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+  await once(grid, "listening");
+  grid.on("connection", (_, req) => seen.push({ url: req.url, headers: req.headers }));
+  t.after(() => new Promise(resolve => {
+    for (const c of grid.clients) c.terminate(); grid.close(resolve);
+  }));
+  const cfg = { ...config(), gridOrigin: `http://127.0.0.1:${grid.address().port}` };
+  const ws = connectGrid(cfg);
+  await within(ws, "open");
+  // live-grid's own route, and the "/grid" prefix the door strips never reaches the wire.
+  assert.equal(seen[0].url, "/live_grid_ws");
+  // The pair live-grid's BasicAuthMiddleware demands on the handshake as on every path, and
+  // the Origin connectNews sends. Nothing of the caller's: the machine token never travels.
+  assert.equal(seen[0].headers.authorization, cfg.apiAuthorization);
+  assert.equal(seen[0].headers.origin, cfg.gridOrigin);
+  assert.ok(!JSON.stringify(seen[0].headers).includes(TOKEN));
+  // perMessageDeflate: false -- the handshake offers NO extension, so live-grid cannot
+  // negotiate one (a compressed frame's expanded size is not what maxPayload measures).
+  assert.equal(seen[0].headers["sec-websocket-extensions"], undefined);
+  // maxPayload: an oversize frame from live-grid is refused by this client rather than
+  // buffered. 65537 is one byte past MAX_SOCKET, the same number the relay tests use.
+  const failed = within(ws, "error");
+  grid.clients.values().next().value.send("x".repeat(65537));
+  const [tooBig] = await failed;
+  assert.match(tooBig.message, /[Mm]ax payload/);
+  ws.terminate();
+  // followRedirects: false -- a redirect on the handshake is an error, never a second dial
+  // to wherever live-grid was told to point.
+  const redirect = createServer((_, res) => {
+    res.writeHead(302, { Location: "http://127.0.0.1:9/live_grid_ws" }); res.end();
+  });
+  redirect.listen(0, "127.0.0.1"); await once(redirect, "listening");
+  t.after(() => new Promise(resolve => redirect.close(resolve)));
+  const refused = connectGrid({ ...cfg, gridOrigin: `http://127.0.0.1:${redirect.address().port}` });
+  const [moved] = await within(refused, "error");
+  assert.match(moved.message, /302/);
+  refused.terminate();
+  // And the scheme follows the origin's: an https gridOrigin would be dialled wss://, which
+  // is the branch a TLS-fronted live-grid would take. No such deployment exists at this tag.
+  const secure = connectGrid({ ...cfg, gridOrigin: "https://openbb-live-grid.invalid:6903" });
+  secure.on("error", () => {});
+  assert.ok(secure.url.startsWith("wss://"), secure.url);
+  secure.terminate();
+});
+
+// ---- openbq-docker v10: live-grid is the opt-in `live` compose profile, so the door must be
+// told it runs ("liveGrid": true). Off -- the default when the key is absent -- every /grid
+// route and socket that passes its route rules answers 503 and live-grid is never dialled; an
+// unmatched /grid path is still the 404 it always was.
+
+test("liveGrid off: gridOrigin is null, /grid answers 503 after the route rules, nothing is dialled", async t => {
+  const { liveGrid, ...off } = settings;
+  assert.equal(liveGrid, true, "the default fixture turns the live profile on");
+  const cfg = validateConfig(off, secrets);
+  assert.equal(cfg.gridOrigin, null);
+  assert.equal(validateConfig({ ...off, liveGrid: false }, secrets).gridOrigin, null);
+  let dialled = 0;
+  const { port, calls } = await fixture(t, { gridOrigin: null }, {
+    openGrid: () => { dialled++; throw new Error("live-grid must not be dialled"); },
+  });
+  for (const path of ["/grid/widgets.json", "/grid/apps.json", "/grid/live_grid?symbol=AAPL",
+    "/grid/symbol_meta?symbol=AAPL", "/grid/series?symbol=AAPL", "/grid/chart?symbol=AAPL",
+    "/grid/ticks?symbol=AAPL", "/grid/ta_chart?symbol=AAPL"]) {
+    assert.equal((await http(port, path)).status, 503, path);
+  }
+  // The route rules still run first: an unmatched or out-of-grammar path is a 404, never a 503.
+  for (const path of ["/grid/demo", "/grid/ticks?symbol=AAPL&limit=0", "/grid/ta_chart?symbol=AAPL&provider=eodhd"]) {
+    assert.equal((await http(port, path)).status, 404, path);
+  }
+  assert.equal((await gridConnect({ port })).status, 503);
+  assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/grid/ta_chart_ws?symbol=AAPL")).status, 503);
+  assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/grid/ta_chart_ws")).status, 404);
+  assert.equal(calls.length, 0);
+  assert.equal(dialled, 0);
+  // Off is not "free": a 503 never touched the daily vendor counter. With a cap of one,
+  // the /api quote after eight refused grid calls still answers.
+  const capped = await fixture(t, { gridOrigin: null, quoteDailyLimit: 1 });
+  for (let i = 0; i < 3; i++) assert.equal((await http(capped.port, "/grid/live_grid?symbol=AAPL")).status, 503);
+  assert.equal((await http(capped.port, quote)).status, 200);
+});
+
+test("liveGrid off: the preflight does not dial live-grid; on, it does", async t => {
+  const api = createServer((req, res) => { res.writeHead(req.headers.authorization ? 422 : 401); res.end(); });
+  api.listen(0, "127.0.0.1"); await once(api, "listening");
+  t.after(() => new Promise(resolve => api.close(resolve)));
+  const grid = await gridStub(t);
+  grid.status = 500; // would fail the preflight if it were asked
+  const base = { ...config(), rssOrigin: null, rssAddress: null, feeds: {},
+    apiOrigin: `http://127.0.0.1:${api.address().port}` };
+  await checkUpstreams({ ...base, gridOrigin: null });
+  assert.deepEqual(grid.seen, []);
+  await assert.rejects(checkUpstreams({ ...base, gridOrigin: grid.origin }), /live-grid preflight failed \(HTTP 500\)/);
+  assert.deepEqual(grid.seen.map(r => r.path), ["/health"]);
+});
+
+test("the grid socket's own first-frame and lifetime deadlines are bounded, and it costs six", async t => {
+  const first = await fixture(t, {}, { firstFrameMs: 30, openGrid: () => new WebSocket("ws://127.0.0.1:9") });
+  const a = await gridConnect(first); await once(a.ws, "close");
+  const second = await fixture(t, {}, { firstFrameMs: 1000, socketMs: 30, openGrid: () => new WebSocket("ws://127.0.0.1:9") });
+  const b = await gridConnect(second); await once(b.ws, "close");
+  // Charged before handleUpgrade, out of the same per-minute budget the REST side spends
+  // from: with six units left one grid socket is admitted and /_gateway/health is then 429.
+  const metered = await fixture(t, { requestsPerMinute: 6 }, { openGrid: () => new WebSocket("ws://127.0.0.1:9") });
+  const only = await gridConnect(metered); assert.equal(only.status, 101);
+  assert.equal((await http(metered.port, "/_gateway/health")).status, 429);
+  assert.equal((await gridConnect(metered)).status, 429);
+  only.ws.terminate();
 });
 
 // ---- Per-user state: the web preview's saved configuration, on the NAS (user ruling
