@@ -110,5 +110,5 @@ def test_standard_routes_are_loaded():
     # The parity tests are parametrized over ROUTABLE, which comes from the
     # loaded CommandMap. With only openbb-core installed it is empty and every
     # one of them passes by collecting nothing -- install the standard
-    # extensions (CI: openbb==<Dockerfile OPENBB_VERSION>) so they check.
+    # extensions (CI: openbb[routers]==<Dockerfile OPENBB_VERSION>) so they check.
     assert ROUTABLE, "no standard routes loaded: install openbb, not just openbb-core"
