@@ -287,6 +287,15 @@ class KdbSession:
         except Exception:
             return False
 
+    def retry_in(self) -> float:
+        """Seconds until the backoff allows the next connect attempt (0.0: now).
+
+        Plain float arithmetic on the caller's thread, no PyKX: live-grid's
+        tick spool asks this so it does not stage a replay (and fsync its
+        cursor) on every 0.2 s flush while the session would refuse anyway.
+        """
+        return max(0.0, self._retry_after - self._clock())
+
     def connection(self):
         """Return a live connection, spawning or respawning as needed.
 

@@ -144,3 +144,18 @@ def test_the_module_cap_is_still_the_seam_the_older_tests_patch(monkeypatch):
     assert retry_delay(1) == 0.0
     monkeypatch.setattr(session, "_RETRY_AFTER_S", 60.0)
     assert retry_delay(7) == 60.0
+
+
+def test_retry_in_reports_the_remaining_window(monkeypatch):
+    clock = Clock()
+    _down_then(monkeypatch, lambda: False)
+    s = KdbSession(cfg(may_spawn=False, host=None), clock=clock)
+    assert s.retry_in() == 0.0
+    with pytest.raises(KdbUnavailable):
+        s.connection()
+    assert s.retry_in() == pytest.approx(1.0)
+    clock.now += 0.75
+    assert s.retry_in() == pytest.approx(0.25)
+    clock.now += 5
+    assert s.retry_in() == 0.0
+    s.close()
