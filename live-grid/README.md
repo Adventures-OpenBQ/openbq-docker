@@ -37,7 +37,8 @@ a chart that joins cached history to bars built from the live feed.
 - `GET /snapshot?symbol=AAPL` — one symbol's delayed REST snapshot (EODHD,
   15-20 minutes behind), for callers that want a quote without the live feed.
 - `GET /health` — per-feed connection state, plus a `ticks` block
-  (`buffered`, `written`, `dropped`) when the chart is enabled.
+  (`buffered`, `written`, `dropped`, `spooled`, `replayed`, `deduped`,
+  `endpoint`) when the chart is enabled; see "The tick spool" below.
 - `GET /chart?symbol=AAPL&interval=1d` — Plotly figure JSON, the Workspace
   `kdb_cache_chart` widget.
 - `GET /series?symbol=AAPL&interval=1d&start=&end=` — `{bars, cache}` for
@@ -98,6 +99,45 @@ guessing. Ticks accumulate in a bounded in-process buffer
 ~250 ms cadence — per-tick IPC would not keep up. On overflow the buffer
 drops the oldest tick, counts the drop, and reports it on `/health`.
 
+### The tick spool and the reconnect backoff (openbq-docker v10)
+
+A user ruling (2026-10-12) requires that ticks be spooled to the filesystem
+and recovered when a service restarts. The Mac crash drill had shown live-grid
+dropping ~100 s of crypto ticks while kdb was down, then waiting out a fixed
+60 s retry latch. Details, tests and the drill are in
+[docs/v10/live-grid-kdb-port.md](../docs/v10/live-grid-kdb-port.md#tick-spool-and-fast-reconnect-user-ruling-2026-10-12).
+
+- **Spool.** A batch kdb does not acknowledge goes to `app/spool.py`'s files
+  under `LIVE_GRID_SPOOL_DIR` (compose: `/data/spool`, on the `live-grid-data`
+  volume; default: a `spool/` directory beside `LIVE_GRID_WATCHLIST`), one
+  JSON array per line, `ticks_<UTC date>_<seq>.jsonl`. While the spool holds
+  anything, new ticks join its tail, so kdb receives them in arrival order.
+  Each flush replays it, oldest first, up to 5,000 ticks per write and about
+  1 s per flush. A file is deleted only after kdb confirms every line in it.
+  Leftovers are replayed on the first flush after startup, and a graceful
+  stop spools the unflushed buffer.
+- **No duplicates.** A segment is staged on disk (`spool.state`) before it is
+  sent. A segment that may already have reached kdb is in doubt: one staged
+  when live-grid died, or one whose write raised after sending. kdb-store's
+  `ticks_present` probes kdb for it, and it is skipped (`deduped`) when kdb
+  already holds every row, for instance after persist.q replayed it at boot.
+- **Bounded.** `LIVE_GRID_SPOOL_MAX_MB` (default 256, about 44 h at 24 ticks/s).
+  Past it, new ticks are dropped, logged and counted in `dropped`. The disk
+  is never filled silently.
+- **Durability.** Every append is written through to the OS, so a killed
+  live-grid loses nothing it spooled. fsync runs at most once per
+  `LIVE_GRID_SPOOL_FSYNC_S` (default 1 s), so a host crash costs at most about
+  that long. The cursor is fsynced whenever it changes, which is once per
+  replayed segment.
+- **`/health` `ticks`.** `spooled` is the number of ticks on disk now.
+  `replayed` and `deduped` count since start. `written` includes `replayed`.
+  `dropped` counts only ticks truly lost: buffer overflow, the cap, or a
+  spool I/O error.
+- **Reconnect backoff** (kdb-store `session.py`). After kdb stops answering,
+  live-grid retries after 1 s, doubling each time, capped at 15 s
+  (`KDB_RETRY_INITIAL_S`, `KDB_RETRY_MAX_S`). This replaces the fixed 60 s
+  latch. Calls inside the window still fail fast without dialling.
+
 **Retention is a rolling window**, `LIVE_TICK_WINDOW_SECONDS` (default
 86400 = 1 day). A pruning pass drops ticks older than the window so a busy
 feed's tick storage cannot grow without bound or compete with the historical
@@ -121,7 +161,8 @@ match; the seam marker exists precisely because the two sides are different
 data.
 
 **Turning it off.** Set `LIVE_GRID_CHART=false` (or leave kdb+ unreachable —
-recording degrades to a logged warning) and `live_grid` / `live_grid_ws`
+recording degrades to a logged warning, and ticks wait in the spool up to its
+cap) and `live_grid` / `live_grid_ws`
 behave exactly as they did before Ep. 10; `/chart` and `/series` still serve
 history-only data with no ticks contributed.
 

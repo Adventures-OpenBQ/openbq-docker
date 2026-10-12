@@ -131,6 +131,34 @@ check("read_ticks breaks a time tie with the later arrival first",
       bool(newest_two) and newest_two[0]["price"] == 202.0,
       f"got {newest_two[:2] if newest_two else newest_two}")
 
+# --- ticks_present: live-grid's in-doubt probe (openbq-docker v10) -----------
+#
+# The tick spool asks this before re-sending a batch whose write raised after
+# it was sent. Only the simulator has answered it in the cloud; this is the
+# real q's table find (`qwin ? probe_ticks`) on the shapes live-grid sends.
+check("ticks_present: a written batch is all present", store.ticks_present(ticks) == 4,
+      f"got {store.ticks_present(ticks)}")
+absent = ticks.assign(price=ticks["price"] + 0.5)
+check("ticks_present: an unwritten batch is absent", store.ticks_present(absent) == 0,
+      f"got {store.ticks_present(absent)}")
+mixed = pd.concat([ticks.iloc[:2], absent.iloc[:1]], ignore_index=True)
+check("ticks_present counts row by row", store.ticks_present(mixed) == 2,
+      f"got {store.ticks_present(mixed)}")
+from datetime import timezone  # noqa: E402 - live-grid's stamps are tz-aware UTC
+
+utc = pd.DataFrame({
+    "time": [datetime(2025, 6, 10, 15, 0, 0, 123456, tzinfo=timezone.utc),
+             datetime(2025, 6, 10, 15, 0, 1, tzinfo=timezone.utc)],
+    "sym": ["TICKCHK", "TICKCHK"],
+    "price": [62000.123456789, 62000.25],
+    "size": [0.00012, 0.0],
+})
+check("ticks_present before a tz-aware write", store.ticks_present(utc) == 0,
+      f"got {store.ticks_present(utc)}")
+store.write_ticks(utc)
+check("ticks_present after a tz-aware write (live-grid's shape)", store.ticks_present(utc) == 2,
+      f"got {store.ticks_present(utc)}")
+
 store.prune_ticks(datetime(2030, 1, 1))
 check("prune clears the window", store.tick_span("TICKCHK") is None)
 

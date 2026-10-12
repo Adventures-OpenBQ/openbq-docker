@@ -26,6 +26,7 @@ Decisions marked **PROVISIONAL** are listed together at the end.
 | `a5e146b` | crash recovery always on (user ruling; see "Crash recovery and the S3 tier") |
 | `724739e` | the S3 tier: RustFS, rustfs-init, eod-dump, openbb-deltalake, live-grid read-back |
 | the ledger commit after it | the section below, README, kdb-ws/README |
+| `2718052`..`9b98f50` + docs | tick spool and fast reconnect (user ruling; see "Tick spool and fast reconnect") |
 
 ## Ported paths
 
@@ -553,6 +554,339 @@ deselected (`lg312`, `-m "not network"`); `scripts/check-public.py` PASS;
 
 BDOBB re-vendored this branch's `funnel-gateway/policy.mjs` at ebd1622 (sha256
 `1e6aa6c6…a5083`) as v10.0.0 (BDOBB c6d53f6); its `openbbDocker` pin names ebd1622.
+
+## Tick spool and fast reconnect (user ruling, 2026-10-12)
+
+### The finding (Mac, 2026-10-12)
+
+The user ran the `live` profile on the Mac with a licensed KDB-X and EODHD and did the
+crash-recovery drill above:
+
+| Step | kdb `count trades` |
+|---|---|
+| before `docker compose kill -s SIGKILL kdb` | 1948 |
+| after `docker compose start kdb` (log: `tlog: replaying tlog_2026.10.12`) | 1948 |
+| 60 s later | 2435 |
+
+kdb's own recovery (kdb-ws/persist.q) works. But live-grid's `/health` read
+`{'buffered': 0, 'written': 2436, 'dropped': 2459, 'endpoint': 'loopback'}`. While kdb was
+down, live-grid **dropped** about 100 s of BTC-USD and ETH-USD ticks (about 24 ticks/s),
+for two reasons:
+
+- `TickRecorder.flush` discarded every batch whose write failed. That was the donor's
+  design: a cache was never promised to keep ticks.
+- kdb-store's `KdbSession` latched every connect attempt off for a fixed 60 s after one
+  failure (`_RETRY_AFTER_S`), so live-grid sat out a whole minute after a kdb restart that
+  took seconds.
+
+The same read showed a third, smaller loss. `flush` copied the buffer, wrote the copy, then
+cleared the buffer. A tick that `record()` (on the event loop) appended during the write
+(on a worker thread) was cleared without being written or counted.
+
+### The ruling
+
+**Ticks must be spooled to the filesystem and recovered when a service restarts.** This is
+a user ruling, given in this session on 2026-10-12. It is not provisional.
+
+### Design
+
+**Where.** `live-grid/app/spool.py`, under `LIVE_GRID_SPOOL_DIR`. Compose sets
+`/data/spool`, on the persistent named volume `live-grid-data`, beside the watchlist. With
+the variable unset, the spool is a `spool/` directory next to `LIVE_GRID_WATCHLIST`. The
+directory is created on the first append.
+
+**Format.** Append-only JSON lines in `ticks_<UTC date>_<seq>.jsonl`, one compact array
+per tick: `["2026-10-12T14:00:00.123456+00:00","BTC-USD",62000.5,0.001]`. A fifth element,
+a batch id, marks the lines of an in-doubt batch. The date is the UTC date the tick was
+spooled, not the tick's own stamp. `seq` (six digits) rises with every file opened that
+day: at startup, and at each roll (an eighth of the cap, at most 16 MB). A lexical sort of
+the names is therefore append order, and replay frees disk a file at a time while a
+backlog drains. JSON lines rather than a binary format, for three reasons:
+
+- it is about 70 bytes a tick, so the default cap holds about 3.8 M ticks (about 44 h at
+  the drill's 24 ticks/s);
+- a torn final line is detectable, and is cut at startup and counted as dropped;
+- prices and stamps round-trip exactly (`repr` floats, ISO stamps with their UTC offset),
+  which the duplicate probe below relies on.
+
+**When.** Spooling depends on how a direct write to kdb fails:
+
+- `KdbUnavailable` is raised before anything is sent, so the batch is spooled as plain
+  lines.
+- Any other exception means the batch may have reached kdb, so it is spooled as one
+  in-doubt batch.
+
+While the spool holds anything, every new batch is appended to its tail rather than
+written to kdb. kdb therefore receives ticks in arrival order: the backlog first, then the
+live ticks.
+
+**Replay.** Every flush (every 0.2 s) replays the spool oldest first. A segment is up to
+5,000 plain lines, or one whole in-doubt batch; the two are never mixed or split. Each
+flush spends about 1 s at most, so a long backlog does not stall quote draining. For each
+segment:
+
+1. **Stage.** The cursor `spool.state` (`{file, offset, inflight}`) records
+   `inflight = segment end`. It is written to a temp file, fsynced, renamed, and the
+   directory is fsynced. This happens before any byte goes to kdb.
+2. **Send.** `write_ticks` sends the segment as one batch.
+3. **Acknowledge.** Only after kdb confirms: `offset` advances and `inflight` is cleared.
+   A file is deleted only once every line in it is acknowledged.
+
+If the send raises `KdbUnavailable`, nothing was sent, so the segment is unstaged; it
+stays in doubt only if it already was. Any other exception leaves it staged, so it is in
+doubt next time. While the session is backing off (`KdbSession.retry_in() > 0`), no
+replay is staged, so an outage costs no cursor fsync per flush.
+
+**Startup.** `TickSpool` counts what an earlier process left (streamed, not read into
+memory) and cuts any torn tail. The first flush replays the leftovers before any new tick.
+A graceful stop (`docker compose stop` or `restart`) also spools the unflushed buffer. A
+SIGKILL loses only the in-memory buffer of at most 0.2 s, plus the ticks the feed sends
+while live-grid is down, which it never receives.
+
+**Durability.** Every append is written through to the OS (`flush()`), so a killed
+live-grid loses nothing that reached the spool. fsync runs at most once per
+`LIVE_GRID_SPOOL_FSYNC_S` (default 1 s), from `append` or from `sync()`. The recorder calls
+`sync()` on every flush, so an idle spool is synced within that interval plus 0.2 s. A host
+crash or power loss can therefore cost about the last second of appends. The cursor is
+fsynced on every change, which is once per replayed segment and never once per tick.
+
+**Duplicates.** The spool holds only ticks kdb never acknowledged, and persist.q replays
+only what kdb itself logged. The two overlap only for an **in-doubt** segment: one sent to
+a kdb that applied it and then died before replying, or one staged when live-grid itself
+died after kdb confirmed but before the acknowledgement. A batch lands all or nothing:
+
+- `write_ticks` applies it in one `upd` (or `insert`) message;
+- persist.q logs that message before applying it;
+- so a q killed half way through replays the whole batch at boot.
+
+The recorder therefore probes before re-sending an in-doubt segment.
+`KdbStore.ticks_present(frame)` counts the segment's rows found in `trades`, matching all
+four columns, within the segment's own time window. If every row is present, the segment
+is acknowledged without being sent and counted in `deduped`. Otherwise it is sent. In the
+normal path (kdb unreachable, so `KdbUnavailable`) nothing is in doubt and no probe runs.
+That every tick lands exactly once is proved by the tests below. Two limits apply:
+
+- An in-doubt segment that was **not** applied, but whose every row coincidentally
+  already exists in `trades` (identical time, sym, price and size), would be skipped.
+  Only a segment of identical repeated prints could do that.
+- A segment whose ticks have since been pruned (older than the 1-day window) would be
+  re-sent and then pruned again.
+
+**Bounded.** `LIVE_GRID_SPOOL_MAX_MB` (default 256) caps the total size of the tick files.
+Past the cap, the newest ticks are refused, so the spool's order stays intact. They are
+counted in `dropped`, and the first refusal of a run is logged as a warning. An I/O error
+(for example ENOSPC) is handled the same way, and a partly written line is cut back so the
+next append starts clean. The disk is never filled silently.
+
+**`/health` `ticks`.** It now carries `buffered`, `written`, `dropped`, `spooled`,
+`replayed`, `deduped` and `endpoint`:
+
+- `spooled` is the number of ticks on disk now.
+- `replayed` and `deduped` count since the process started.
+- `written` counts every tick kdb confirmed, including the replayed ones.
+- `dropped` counts only ticks truly lost: buffer overflow, the spool cap, or a spool I/O
+  error. Without a spool, the class's library default, it also counts a failed batch; the
+  donor's recorder tests pin that path.
+
+**Fast reconnect.** kdb-store `session.py` replaces the fixed 60 s latch with a backoff:
+1 s after the first failed connect, doubling per consecutive failure, capped at 15 s
+(`KDB_RETRY_INITIAL_S`, `KDB_RETRY_MAX_S`, read at each failure). The first success resets
+it. What the latch protected is kept:
+
+- It is still a **deadline**, so the hazard stays bounded as a rate, never a count. That
+  is the comment's point about the donor's cold-start race, where live-grid's drain loop
+  reaches q before openbb-api has bound :5000.
+- Every call inside the window still fails fast without dialling q.
+- In steady failure, attempts converge to one per 15 s.
+
+The worst cases, against the old 60 s:
+
+- A reader with no licence pays a doomed spawn once per 15 s instead of once per 60 s.
+  `poll()` makes that a few milliseconds.
+- A loopback port squatted by a non-q listener (macOS AirPlay on :5000) holds the owner
+  thread for the 5 s connect budget once per 20 s, not once per 65 s.
+
+In this stack live-grid never spawns (`KDB_EMBEDDED=false`) and dials `kdb:5000` on the
+bridge, so neither case applies here. `KdbSession` takes an injectable clock.
+
+**The flush race** is fixed. `flush` now pops exactly the ticks it takes
+(`deque.popleft`), so a tick recorded during a write stays buffered for the next flush.
+
+### Commits
+
+| Commit | What |
+|---|---|
+| `2718052` | kdb-store: the exponential backoff, `test_backoff.py` |
+| `f60a0df` | kdb-store: `ticks_present`; the kdb-ws simulator models the probe and a q that dies after applying an upd |
+| `4f4c627` | kdb-store: `KdbSession.retry_in` |
+| `8fcf04a` | live-grid: `app/spool.py`, the recorder, `/health`, the flush-race fix, `tests/test_spool.py` |
+| `9b98f50` | compose: the spool and backoff variables; `tests/test_live_profile.py` |
+| the docs commit after it | this section, live-grid/README.md, `kdb-store/scripts/tick_check.py` (real-q checks of `ticks_present`) |
+
+New compose variables on `live-grid` (each commented in `docker-compose.yml`):
+`LIVE_GRID_SPOOL_DIR=/data/spool`, `LIVE_GRID_SPOOL_MAX_MB=256`,
+`LIVE_GRID_SPOOL_FSYNC_S=1`, `KDB_RETRY_INITIAL_S=1`, `KDB_RETRY_MAX_S=15`.
+
+### Tests and REVIEW notes
+
+The new tests run against the kdb-ws simulator (startup.q + persist.q, its log and boot
+replay), with the real `KdbSession`, `KdbStore`, `TickRecorder` and `TickSpool`. Only
+`_connect` and the session clock are replaced. There is no q binary here.
+
+- `live-grid/tests/test_spool.py` (22 tests):
+  - a kdb outage mid-stream spools 250 ticks with `dropped` 0; after the restart, every
+    tick is in kdb exactly once, in feed order, with live ticks behind the backlog; a
+    second kdb restart replays the same set from kdb's log;
+  - reconnect happens 1 s after the refusal, not 60 s;
+  - no replay is staged during backoff;
+  - an in-doubt live write that kdb applied before dying is deduped; one it did not apply
+    is sent;
+  - an in-doubt replay write is deduped;
+  - a live-grid killed with a non-empty spool replays it on its first flush;
+  - a live-grid killed between kdb's confirmation and the acknowledgement does not
+    duplicate the staged segment;
+  - through `create_app`, `/health` shows `replayed` 30, `spooled` 0, `dropped` 0;
+  - a graceful stop stashes the buffer;
+  - the cap is honoured and counted, keeping the oldest ticks;
+  - the cap, fsync interval and directory come from the environment; the default
+    directory sits beside the watchlist;
+  - the fsync cadence holds under an injected clock;
+  - a torn tail is cut;
+  - files replay oldest first and are deleted only after the acknowledgement; files roll
+    by size and free disk while a backlog drains;
+  - in-doubt batches are never merged with plain lines;
+  - an ENOSPC part way through a write leaves no partial line;
+  - the flush race;
+  - replayed frames are identical to live ones.
+- `kdb-store/tests/test_backoff.py` (10 tests), with an injected clock: the delays are
+  1, 2, 4, 8, 15, 15 s; under a 0.25 s poll for 60 s, attempts land at
+  0, 1, 3, 7, 15, 30, 45 and 60 s; calls inside the window do not dial; success resets
+  the backoff; the environment overrides work and bad values fall back; a cap of 0
+  disables the latch; `retry_in`.
+- `kdb-store/tests/test_store.py` +2 (the probe's statement and cleanup; no q call for an
+  empty frame). `kdb-store/tests/test_crash_recovery.py` +1 (an in-doubt write is resolved
+  by `ticks_present` after the restart).
+- `tests/test_live_profile.py` +1: the spool is on `live-grid-data` and bounded, and the
+  backoff is 1 s and 15 s.
+- REVIEW `live-grid/tests/test_main.py`
+  `test_health_includes_ticks_key_when_chart_is_enabled_by_default`: the exact key set
+  `{buffered, written, dropped, endpoint}` becomes
+  `{buffered, written, dropped, endpoint, spooled, replayed, deduped}`. It is still an
+  exact set, so it is not weakened.
+- Unchanged and still green, because they pin the spool-less recorder (the class default):
+  `live-grid/tests/test_recorder.py` (a failed flush drops and counts the batch) and
+  `live-grid/tests/test_crash_recovery.py`
+  `test_a_kdb_killed_mid_session_comes_back_with_the_day_and_recording_resumes`
+  (`dropped == 5` during the outage, with `_RETRY_AFTER_S` patched to 0). Production
+  always passes a spool (`app/main.py`).
+- The older latch tests (`test_session.py`, `test_crash_recovery.py`) patch the module's
+  `_RETRY_AFTER_S`, which is now the cap. They pass unchanged. In
+  `test_the_retry_latch_holds_off_then_picks_up_a_q_that_came_back` the window that holds
+  off is now the 1 s first step, where it was 60 s.
+- Test infrastructure: `live-grid/tests/conftest.py` gains an autouse fixture that points
+  `LIVE_GRID_SPOOL_DIR` at `tmp_path`, so no test writes to a real `/data`. The kdb-ws
+  simulator parses mixed-precision ISO stamps in its own log; `isoformat()` drops a zero
+  microsecond part.
+
+Receipts (cloud, 2026-10-12): `live-grid` 452 passed, 14 deselected (`lg312`,
+`-m "not network"`; was 430); `kdb-store` 143 passed (was 130; `lg312` and `kdb312`);
+`kdb-ws/tests` 9; `tests/` 34 passed, 5 subtests (was 33); `v3/tests` 68, `lanes/tests` 22,
+`workspace/tests` 12 (`img312`); `scripts/check-public.py` PASS. No test was skipped,
+deleted or weakened. EODHD calls: 0. Nothing was pushed, built or run, and no docker
+command was run.
+
+### Mac drill, revised
+
+The first run needs a rebuild of live-grid; kdb-store is copied into its image:
+`docker compose --profile live build live-grid && docker compose --profile live up -d`.
+**After** drills A to C (not before: its last step, `prune_ticks(2030)`, empties `trades`
+in kdb's memory; the tick log keeps the rows, and a kdb restart brings them back), run
+`kdb-store/scripts/tick_check.py` against the real q:
+`docker compose cp kdb-store/scripts/tick_check.py live-grid:/tmp/ && docker compose exec
+live-grid python /tmp/tick_check.py`. It must report `FAILURES: none`, including the new
+`ticks_present` checks. `ticks_present` is the one statement the cloud could only
+simulate. Then run `docker compose restart kdb` to restore the day from the log. The
+script's own `TICKCHK` rows come back too; they are dated 2025-06-10, so live-grid's next
+rolling-window prune drops them.
+
+Helpers, pasted once into the shell. `/health` takes the API's Basic pair when
+`OPENBB_API_AUTH=true`.
+
+```sh
+lg_ticks() { docker compose exec -T live-grid python - <<'PY'
+import base64, json, os, urllib.request as u
+r = u.Request("http://127.0.0.1:6903/health")
+if os.environ.get("OPENBB_API_USERNAME"):
+    pair = f"{os.environ['OPENBB_API_USERNAME']}:{os.environ.get('OPENBB_API_PASSWORD', '')}"
+    r.add_header("Authorization", "Basic " + base64.b64encode(pair.encode()).decode())
+print(json.load(u.urlopen(r))["ticks"])
+PY
+}
+kdb_count() { docker compose exec -T live-grid python - <<'PY'
+from kdb_store.config import resolve_config
+from kdb_store.session import KdbSession
+from kdb_store.store import KdbStore
+s = KdbStore(KdbSession(resolve_config()))
+print(s._call(lambda c: c("(count trades; count distinct select time, sym, price, size from trades)").py()))
+s.session.close()
+PY
+}
+```
+
+`kdb_count` prints `[rows, distinct rows]`.
+
+**A. kdb killed mid-session** (crypto in the watchlist, so ticks flow at any hour).
+
+1. `kdb_count; lg_ticks`. Note `C0` (the rows), the distinct count `D0`, and `W0`
+   (`written`).
+2. `docker compose kill -s SIGKILL kdb`, then wait 100 s. During the wait, `lg_ticks`
+   shows `spooled` rising (about 24/s) and `dropped` 0. `docker compose exec live-grid
+   ls -l /data/spool` shows `ticks_<date>_000000.jsonl`.
+3. `docker compose start kdb`. `docker compose logs kdb | grep tlog` shows
+   `tlog: replaying tlog_<date>`.
+4. Within a few seconds (backoff of at most 15 s; usually the next 1 to 8 s step):
+   `lg_ticks` shows `spooled` 0, `replayed` about equal to the step-2 peak, and `dropped`
+   0. `docker compose logs live-grid | grep "tick spool"` shows `replayed N ticks`.
+5. Wait 60 s, then `kdb_count; lg_ticks` again for `C1`, `D1` and `W1`.
+
+**Pass criteria for A.**
+
+- `dropped: 0`;
+- `C1 - C0 == W1 - W0`: every tick live-grid wrote, including the outage's, is in kdb;
+- the final count covers the outage: `C1 - C0` is roughly (100 s + 60 s) × 24 ticks/s,
+  not 60 s × 24;
+- `C1 - D1 == C0 - D0`: no new duplicate rows;
+- the kdb log shows the `tlog: replaying` line.
+
+Repeat once with `docker compose up -d --force-recreate kdb` in place of `start`.
+
+**B. live-grid SIGKILLed mid-outage.**
+
+1. `kdb_count; lg_ticks`. Note `C0`, `D0` and `W0`.
+2. `docker compose kill -s SIGKILL kdb`, then wait 30 s. `lg_ticks` shows `spooled` `S`
+   (about 700) and `W1` (`written`, unchanged since kdb died).
+3. `docker compose kill -s SIGKILL live-grid`, then wait 10 s, then
+   `docker compose start live-grid`.
+4. `lg_ticks` (the new process; kdb is still down): `spooled` ≥ `S`, because the
+   leftovers were counted at startup and new ticks are added to them. `replayed` is 0 and
+   `dropped` is 0. `docker compose logs live-grid | grep "left by a previous run"`.
+5. `docker compose start kdb`. Within a few seconds `lg_ticks` shows `spooled` 0,
+   `replayed` ≥ `S` and `dropped` 0.
+6. Wait 60 s, then `kdb_count; lg_ticks` for `C2`, `D2` and `W2` (the new process's
+   `written`).
+
+**Pass criteria for B.**
+
+- `dropped: 0` in both processes;
+- `C2 - C0 == (W1 - W0) + W2`;
+- `C2 - D2 == C0 - D0`;
+- the kdb log shows `tlog: replaying`.
+
+The only gap allowed is the 10 s live-grid was down, whose ticks it never received, plus
+at most its 0.2 s in-memory buffer at the SIGKILL.
+
+**C. Graceful.** `docker compose --profile live restart` gives `dropped: 0`, and the new
+process's `replayed` covers any ticks it stashed at stop.
 
 ## Appendix: per-file record (live-grid, kdb-store, kdb-ws, kdb-license)
 
