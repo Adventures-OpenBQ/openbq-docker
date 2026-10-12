@@ -58,6 +58,9 @@ examples/episode3 assembles it at build time; the upstream code is not stored in
 OpenBQ yfinance (v3/yfinance/source)
 Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v3/yfinance/source/NOTICE. It uses yfinance (Ran Aroussi and contributors, Apache-2.0) as a dependency.
 
+openbb-eodhd (v9/eodhd/source)
+Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v9/eodhd/source/LICENSE. Ported from bdobb-dev/openbb-docker (commits recorded in v9/eodhd/source.json and docs/v9/eodhd-port.md). It uses the official EODHD Python library (EOD Historical Data, MIT per its PyPI metadata), which Dockerfile.v3 builds from the pinned commit; it is not stored in this repository.
+
 Third-party components used at build or run time (not included in this repository)
 -----------------------------------------------------------------------------------
 

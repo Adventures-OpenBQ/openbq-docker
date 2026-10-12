@@ -5,6 +5,13 @@ COPY v3/yfinance/source /source
 RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /source
 COPY v4/routes /routes
 RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /routes
+# v9: openbb-eodhd (ported from bdobb-dev/openbb-docker v9.6.3, fixes through v9.6.6;
+# v9/eodhd/source.json) and the official EODHD SDK at the commit its pyproject pins.
+RUN python -m pip install setuptools==84.0.0
+COPY v9/eodhd/source /eodhd
+RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /eodhd \
+    && python -m pip wheel --no-deps --wheel-dir /wheels \
+       "eodhd @ https://github.com/EodHistoricalData/EODHD-APIs-Python-Financial-Library/archive/f98e69d797140ca03f16fa7451046d84aab9643e.tar.gz"
 
 # Copyright 2026 SecretoftheUniverse.com LLC. SPDX-License-Identifier: Apache-2.0
 FROM python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS odp
@@ -30,6 +37,16 @@ COPY --from=yfinance-build /wheels/openbq_routes-4.0.0-py3-none-any.whl /tmp/ope
 COPY v4/routes/verify.py /tmp/verify-routes.py
 RUN python -m pip install --no-deps /tmp/openbq_routes-4.0.0-py3-none-any.whl && python -m pip check && openbb-build \
     && python /tmp/verify-routes.py && rm /tmp/verify-routes.py /tmp/openbq_routes-4.0.0-py3-none-any.whl
+# v9: EODHD provider extension, served as obb.eodhd.* (/api/v1/eodhd/*) with its "EODHD" app.
+# The SDK's own dependencies resolve under the ODP lock as constraints, so no locked
+# package moves; record what they add in v9/eodhd/README.md (Mac build pending).
+COPY --from=yfinance-build /wheels/eodhd-*.whl /wheels/openbb_eodhd-9.6.3-py3-none-any.whl /tmp/eodhd/
+RUN python -m pip install --constraint /tmp/requirements.lock /tmp/eodhd/eodhd-*.whl \
+    && python -m pip install --no-deps /tmp/eodhd/openbb_eodhd-9.6.3-py3-none-any.whl \
+    && python -m pip check && openbb-build && rm -rf /tmp/eodhd
+COPY v9/eodhd/verify.py /tmp/eodhd-verify/verify.py
+COPY v9/eodhd/tests /tmp/eodhd-verify/tests
+RUN python /tmp/eodhd-verify/verify.py && rm -rf /tmp/eodhd-verify
 COPY lanes/openbq_lanes.py /usr/local/lib/python3.12/site-packages/openbq_lanes.py
 WORKDIR /workspace
 # BDOBB example dashboards, appended to /apps.json by the lanes hook (examples/bdobb/README.md).

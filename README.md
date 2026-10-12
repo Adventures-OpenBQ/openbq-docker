@@ -94,6 +94,10 @@ Copyright 2026 SecretoftheUniverse.com LLC. Apache-2.0 for this backend companio
 
 BDOBB's locked-widget bands sync as a hidden `docks` dashboard on `/pro/dash/sync/system/docks`. Key mode serves it here (`v3/openbq_settings.py`), and the Workspace companion serves it through `workspace/patches/004-system-dashboard.patch`.
 
+## EODHD provider (v9)
+
+`Dockerfile.v3` also installs the openbb-eodhd extension, ported from bdobb-dev/openbb-docker v9.6.3 (fixes through v9.6.6). It is served as `obb.eodhd.*` on `/api/v1/eodhd/` (52 commands; this build has no standard routers) and adds the `EODHD` app to `/apps.json`. Put your own token in `credentials.env` as `EODHD_API_KEY`. See [v9/eodhd/README.md](v9/eodhd/README.md) and [docs/v9/eodhd-port.md](docs/v9/eodhd-port.md).
+
 ## Public repository checks
 
 Enable the local gates after cloning:
