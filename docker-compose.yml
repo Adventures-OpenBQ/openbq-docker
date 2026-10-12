@@ -187,6 +187,9 @@ services:
     env_file:
       - path: ./credentials.env
         required: false
+      # DELTA_S3_* for the chart seam's read-back of flushed days (below).
+      - path: ./rustfs.env
+        required: false
     environment:
       LIVE_GRID_CHART: "true"
       LIVE_TICK_WINDOW_SECONDS: "86400"
@@ -201,12 +204,104 @@ services:
       OPENBB_HISTORY_NAMESPACE: eodhd
       TA_PUSH_INTERVAL_MS: "1000"
       TA_EODHD_MIN_REFETCH_S: "60"
+      # The chart seam reads whole past UTC days back from the Delta store eod-dump
+      # writes (app/lake.py). Off by itself when DELTA_S3_* is not set.
+      LIVE_GRID_LAKE_READBACK: "true"
+      LIVE_GRID_LAKE_LIBRARY: ticks_live
+      LIVE_GRID_LAKE_MAX_DAYS: "10"
       # The subscriptions iframe widget needs an absolute public URL; unset, it is omitted.
       # - LIVE_GRID_PUBLIC_URL=https://<host>.<tailnet>.ts.net:<port>
     volumes:
       - ./kdb-license:/opt/kx-license:ro
       # The durable watchlist (/data/watchlist.json).
       - live-grid-data:/data
+    networks: [openbq-internal]
+  # The S3 tier (v10 by user ruling; donor Episode 11, bdobb-dev/openbb-docker v11.0.0):
+  # the kdb day is flushed nightly into a Delta Lake store on S3, and live-grid's chart seam
+  # reads flushed days back. Same opt-in `live` profile; the default stack is unchanged.
+  # Needs rustfs.env (cp rustfs.env.example rustfs.env && chmod 600 rustfs.env); without
+  # it rustfs refuses to start, the bucket is never made, eod-dump never runs, and kdb and
+  # live-grid carry on without the store. See docs/v10/live-grid-kdb-port.md.
+  #
+  # rustfs: the S3 store. RustFS (Apache-2.0), used as its upstream image, unmodified
+  # (user ruling 2026-10-12: RustFS is the S3 store). On the bridge only: no host port,
+  # no Serve, no Funnel, no tailnet node, so no certificate and no cert-sync. Plain HTTP,
+  # path-style. The console is off.
+  rustfs:
+    profiles: [live]
+    image: rustfs/rustfs:1.0.1@sha256:1803faef57627e2d9c2e7d89d655d712ddded5389040054987163043fecb6a3c
+    restart: unless-stopped
+    env_file:
+      - path: ./rustfs.env
+        required: false
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ENABLE: "false"
+    # Fail closed: no store with an empty or public-default root pair.
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        case "$${RUSTFS_ACCESS_KEY:-}:$${RUSTFS_SECRET_KEY:-}" in
+          :*|*:|rustfsadmin:*|*:rustfsadmin)
+            echo "rustfs: set RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY in rustfs.env (not empty, not the default)" >&2
+            exit 1 ;;
+        esac
+        exec /entrypoint.sh rustfs
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - rustfs-data:/data
+    networks: [openbq-internal]
+  # rustfs-init: one-shot. Delta Lake does not create its own bucket; this makes it over
+  # the plain S3 API (scripts/s3_init.py, pyarrow), idempotently. No vendor S3 client.
+  rustfs-init:
+    profiles: [live]
+    build:
+      context: .
+      dockerfile: Dockerfile.lake
+    image: openbq-lake:10.0.0
+    restart: "no"
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    env_file:
+      - path: ./rustfs.env
+        required: false
+    command: ["python", "/opt/s3_init.py"]
+    networks: [openbq-internal]
+  # eod-dump: the kdb day cycle's .u.end as a sidecar. At 00:05 UTC it reads the UTC day
+  # that just ended out of kdb over IPC on the bridge and writes one Delta table per
+  # (symbol, day) to the `ticks_live` library -- the HDB. It does not purge kdb's RAM
+  # (live-grid's rolling window does). On start it also flushes yesterday, so a host that
+  # was down at 00:05 catches up. The donor's NAS-side flush over HTTP is not carried.
+  eod-dump:
+    profiles: [live]
+    build:
+      context: .
+      dockerfile: Dockerfile.lake
+    image: openbq-lake:10.0.0
+    restart: unless-stopped
+    depends_on:
+      rustfs-init:
+        condition: service_completed_successfully
+    entrypoint: ["python", "/opt/eod_dump.py", "--loop"]
+    env_file:
+      - path: ./rustfs.env
+        required: false
+      - path: ./eod.env
+        required: false
+    environment:
+      KDB_HOST: kdb
+      KDB_PORT: "5000"
+      QLIC: /opt/kx-license
+    volumes:
+      - ./kdb-license:/opt/kx-license:ro
     networks: [openbq-internal]
 networks:
   openbq-internal:
@@ -224,6 +319,8 @@ volumes:
   live-grid-data:
   # The `live` profile's kdb tick logs (kdb-ws/persist.q writes /data/logs/tlog_<date>).
   kdb-data:
+  # The `live` profile's S3 store (RustFS): the Delta Lake HDB eod-dump writes.
+  rustfs-data:
   # Named as the former standalone project's volume so existing Workspace
   # accounts and dashboards carry over.
   workspace-data:

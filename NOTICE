@@ -64,6 +64,9 @@ Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v9/eodhd/source/LICE
 live-grid, kdb-store and kdb-ws (v10, the `live` compose profile)
 Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0. Ported from bdobb-dev/openbb-docker v10.1.7 (d606169); the donor commits are recorded in docs/v10/live-grid-kdb-port.md. Each file keeps its SPDX header. kdb-ws/startup.q inlines a minimal standalone take on Jonathon McMurray's ws.q `.wsu` namespace (https://github.com/jonathonmcmurray/ws.q, MIT), as its own header records.
 
+openbb-deltalake, scripts/eod_dump.py (v10, the `live` profile's S3 tier; Episode 11 donor items moved into v10 by user ruling)
+Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; openbb-deltalake/ carries its own LICENSE. Ported from bdobb-dev/openbb-docker v11.0.0..v11.0.6 (78c7af9..afda165); the donor commits are recorded in docs/v10/live-grid-kdb-port.md. Each file keeps its SPDX header. scripts/s3_init.py and live-grid/app/lake.py are this repository's own.
+
 Third-party components used at build or run time (not included in this repository)
 -----------------------------------------------------------------------------------
 
@@ -73,4 +76,6 @@ Third-party components used at build or run time (not included in this repositor
 - OpenBB Workspace image build (workspace/): OpenBB Workspace (Apache-2.0) on node:22 (Node.js, MIT), python:3.13-slim (PSF License) and oven/bun (Bun, MIT) images. Its dependencies are pinned in workspace/resolved-poetry.lock and the upstream bun.lock and keep their own licenses.
 - The reference backend image's Python dependencies are pinned in examples/episode3/requirements.lock and keep their own licenses.
 - live-grid image (live-grid/Dockerfile): python:3.12-slim; plotly.js 2.35.2 (Plotly, MIT), downloaded at build time into app/static; the official EODHD Python library (MIT per its PyPI metadata), built from the commit live-grid/pyproject.toml pins; PyKX (KX Systems, under its own licence terms) and the other Python dependencies, which keep their own licenses. kdb-ws/live-chart.html loads TradingView Lightweight Charts 5.0.8 (Apache-2.0) from unpkg in the viewer's browser.
+- RustFS (the `live` profile's S3 store): the upstream image rustfs/rustfs:1.0.1 (RustFS Team, Apache-2.0), pulled by docker compose and run unmodified as a separate container that this repository's services reach only over the S3 API. No RustFS source or binary is stored in, built by, or linked into anything in this repository. No MinIO software (server, image or the mc client) is used or shipped.
+- openbq-lake image (Dockerfile.lake): python:3.12-slim; openbb-core and shared dependencies from requirements.lock (Apache-2.0 and their own licenses); delta-rs's Python package deltalake (Apache-2.0); PyArrow (Apache-2.0); PyKX (KX Systems, under its own licence terms). The live-grid image adds deltalake and PyArrow for the read-back.
 - kdb+ (the `live` profile's kdb service): the operator's own KDB-X image (ghcr.io/artcashin/kdb-x:amd64) and the operator's own KX licence. This repository ships no KX software and no licence; KX's licence does not permit redistributing q.

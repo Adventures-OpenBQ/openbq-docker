@@ -60,3 +60,10 @@ live-grid-data/
 *.lic
 *.egg-info/
 .pytest_cache/
+
+# The v10 `live` profile's S3 tier (RustFS) and the nightly flush. Never commit the
+# store's data or its credentials (rustfs.env and eod.env are covered by *.env above).
+rustfs-data/
+minio-data/
+rustfs.env
+eod.env

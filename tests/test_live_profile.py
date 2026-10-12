@@ -80,7 +80,9 @@ def test_live_grid_reaches_kdb_and_the_api_on_the_bridge_and_never_spawns_q():
     assert env['KDB_EMBEDDED'] == 'false' and env['KDB_BIND_HOST'] == 'kdb' and env['KDB_PORT'] == '5000'
     assert env['OPENBB_URL'] == 'http://openbq-api:6900'
     assert env['OPENBB_HISTORY_NAMESPACE'] == 'eodhd'
-    assert SERVICES['live-grid']['env_file'] == [{'path': './credentials.env', 'required': False}]
+    # v10 S3 tier: rustfs.env (DELTA_S3_*) joins credentials.env, both optional.
+    assert SERVICES['live-grid']['env_file'] == [{'path': './credentials.env', 'required': False},
+                                                 {'path': './rustfs.env', 'required': False}]
     assert SERVICES['live-grid']['build'] == {'context': '.', 'dockerfile': 'live-grid/Dockerfile'}
 
 

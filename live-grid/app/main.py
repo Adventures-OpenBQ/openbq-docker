@@ -65,14 +65,28 @@ def _parse_symbols(raw: str) -> list[str]:
     return [s.strip().upper() for s in raw.split(",") if s.strip()]
 
 
-async def build_series(symbol, interval, start, end, recorder, window, provider="kdb"):
-    """History joined to tick-derived bars at the first fully-covered bar."""
+async def build_series(symbol, interval, start, end, recorder, window, provider="kdb",
+                       lake=None):
+    """History joined to tick-derived bars at the first fully-covered bar.
+
+    openbq-docker v10: with `lake` (app.lake.LakeTicks, the Delta store eod-dump
+    flushes into) and an intraday day-aligned interval, whole past UTC days come
+    from their flushed ticks as well; see app/lake.py. Without it, the donor's
+    path below, unchanged.
+    """
     from app.series import seam_boundary, stitch, tick_capable, window_end
 
     history, meta = await fetch_series(symbol, interval, start, end, provider)
     meta = dict(meta)
     meta["rows_from_ticks"] = 0
     meta["seam"] = None
+
+    if lake is not None:
+        from app.lake import day_aligned, series_with_lake
+
+        if day_aligned(interval):
+            return await series_with_lake(symbol, interval, start, end, recorder, window,
+                                          history, meta, lake)
 
     if recorder is None or not tick_capable(interval, window):
         return history, meta
@@ -129,6 +143,12 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         except Exception as exc:  # noqa: BLE001 - the grid works without kdb
             log.warning("tick recording disabled: %s", exc)
             recorder = None
+
+    # The S3 tier's read-back (openbq-docker v10): None unless LIVE_GRID_LAKE_READBACK and
+    # DELTA_S3_* are set, and then build_series reads flushed days back (app/lake.py).
+    from app.lake import LakeTicks
+
+    lake = LakeTicks.from_env()
 
     quotes = QuoteTable(
         on_tick=recorder.record if recorder else None,
@@ -298,7 +318,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         s, e = _window(start, end)
         try:
             bars, meta = await build_series(
-                symbol, interval, s, e, recorder, _tick_window(), provider
+                symbol, interval, s, e, recorder, _tick_window(), provider, lake=lake
             )
         except Exception as exc:  # noqa: BLE001
             log.warning("series failed for %s: %s", symbol, exc)
@@ -320,7 +340,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         s, e = _window(start, end)
         try:
             bars, _ = await build_series(
-                symbol, interval, s, e, recorder, _tick_window(), provider
+                symbol, interval, s, e, recorder, _tick_window(), provider, lake=lake
             )
         except Exception as exc:  # noqa: BLE001
             log.warning("chart failed for %s: %s", symbol, exc)
@@ -345,7 +365,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         bars_error = None
         try:
             bars, _ = await build_series(
-                symbol, interval, s, e, recorder, _tick_window(), provider
+                symbol, interval, s, e, recorder, _tick_window(), provider, lake=lake
             )
         except Exception as exc:  # noqa: BLE001 - a bad macro must still be reported below
             log.warning("ta_chart bars unavailable for %s: %s", symbol, exc)
@@ -400,7 +420,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                 try:
                     bars, _ = await build_series(
                         params.symbol, params.interval, s, e, recorder,
-                        _tick_window(), params.provider
+                        _tick_window(), params.provider, lake=lake
                     )
                 # Degrade like /ta_chart: keep the connection open with a
                 # blank-and-say-why chart instead of going silently dark
