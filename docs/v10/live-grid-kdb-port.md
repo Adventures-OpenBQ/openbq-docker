@@ -833,7 +833,7 @@ PY
 }
 ```
 
-`kdb_count` prints `[rows, distinct rows]`.
+`kdb_count` prints `[rows, distinct rows]`; the distinct count is informational only (see the note under A's pass criteria).
 
 **A. kdb killed mid-session** (crypto in the watchlist, so ticks flow at any hour).
 
@@ -855,7 +855,7 @@ PY
 - `C1 - C0 == W1 - W0`: every tick live-grid wrote, including the outage's, is in kdb;
 - the final count covers the outage: `C1 - C0` is roughly (100 s + 60 s) × 24 ticks/s,
   not 60 s × 24;
-- `C1 - D1 == C0 - D0`: no new duplicate rows;
+- no distinct-row criterion. EODHD's crypto feed itself repeats byte-identical trade messages (no trade id or venue in a message): measured 2026-10-13, 30 s of BTC-USD and ETH-USD raw from EODHD gave 2,588 trades, 1,509 distinct (time, sym, price, size), groups up to 59; the Mac kdb showed the same shape (groups up to 70). kdb stores what the feed sends, so `C1 - C0 == W1 - W0` (with `deduped` for any in-doubt batch) is the test that nothing was written twice;
 - the kdb log shows the `tlog: replaying` line.
 
 Repeat once with `docker compose up -d --force-recreate kdb` in place of `start`.
@@ -879,7 +879,7 @@ Repeat once with `docker compose up -d --force-recreate kdb` in place of `start`
 
 - `dropped: 0` in both processes;
 - `C2 - C0 == (W1 - W0) + W2`;
-- `C2 - D2 == C0 - D0`;
+- no distinct-row criterion (see A);
 - the kdb log shows `tlog: replaying`.
 
 The only gap allowed is the 10 s live-grid was down, whose ticks it never received, plus
