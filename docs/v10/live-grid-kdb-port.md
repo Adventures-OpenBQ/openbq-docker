@@ -860,6 +860,22 @@ PY
 
 Repeat once with `docker compose up -d --force-recreate kdb` in place of `start`.
 
+**Receipt, drill A (Mac, 2026-10-13, `drill-a.sh`, branch at 83690fa).** live-grid
+rebuilt as `openbq-live-grid:10.0.0`; `/health` carries `spooled`, `replayed` and
+`deduped`. BTC-USD and ETH-USD leased; kdb SIGKILLed for 100 s.
+
+| | rows | written | dropped | spooled | replayed | endpoint |
+|---|---|---|---|---|---|---|
+| before | 191752 | 4903..5246 | 0 | 0 | 0 | loopback |
+| +20 s .. +100 s | | 5246 | 0 | 2032 → 11221 | | None |
+| after (+60 s) | 220807 | 34279..34346 | 0 | 0 | 15320 | loopback |
+
+Verdict PASS on all five: `dropped` flat at 0; spool peaked at 11221 and drained to 0;
+kdb rows rose 29055, inside the bracketed `written` delta 29033..29443; kdb reconnected;
+kdb logged `tlog: replaying tlog_2026.10.13`. `deduped` 0 (no in-doubt batch). Compare
+drill 1 on the pre-spool build: 2,459 dropped and a 60 s reconnect latch. Still to run:
+the `--force-recreate` variant, B, C and `tick_check.py`.
+
 **B. live-grid SIGKILLed mid-outage.**
 
 1. `kdb_count; lg_ticks`. Note `C0`, `D0` and `W0`.
