@@ -280,6 +280,24 @@ class NoLaneTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(logo.content.startswith(b"<svg"))
         self.assertEqual(logo.headers.get("access-control-allow-origin"), "*")
 
+    async def test_providers_json_lists_names_and_follows_basic_auth(self):
+        app = FastAPI()
+        app.middleware("http")(openbq_lanes.middleware)
+        self.addCleanup(setattr, openbq_lanes, "_provider_credentials", openbq_lanes._provider_credentials)
+        openbq_lanes._provider_credentials = lambda: {"fred": ["fred_api_key"], "cftc": ["cftc_app_token"], "sec": []}
+        os.environ.update(OPENBB_API_AUTH="true", OPENBB_API_USERNAME="u", OPENBB_API_PASSWORD="p")
+        for name in ("OPENBB_API_AUTH", "OPENBB_API_USERNAME", "OPENBB_API_PASSWORD"):
+            self.addCleanup(os.environ.pop, name)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api") as client:
+            self.assertEqual((await client.get("/providers.json")).status_code, 401)
+            body = (await client.get("/providers.json", auth=("u", "p"))).json()
+        self.assertEqual([(p["id"], p["auth"], p["env_vars"]) for p in body], [
+            ("cftc", "optional", ["CFTC_APP_TOKEN"]),
+            ("fred", "required", ["FRED_API_KEY"]),
+            ("sec", "not_required", []),
+        ])
+        self.assertEqual(body[1]["name"], "FRED")
+
 
 if __name__ == "__main__":
     unittest.main()
