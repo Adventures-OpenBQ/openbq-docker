@@ -904,6 +904,26 @@ at most its 0.2 s in-memory buffer at the SIGKILL.
 **C. Graceful.** `docker compose --profile live restart` gives `dropped: 0`, and the new
 process's `replayed` covers any ticks it stashed at stop.
 
+**Receipt, drills B and C (Mac, 2026-10-13, `drill-bc.sh`, live-grid from 83690fa).**
+
+B: before, rows 318398 and `written` 131874..131891. kdb SIGKILLed; after 30 s `written`
+131891 (frozen), `spooled` 3572, `dropped` 0. live-grid SIGKILLed, down 10 s, restarted with
+kdb still down: the new process logged `tick spool: 3587 ticks left by a previous run in
+/data/spool; replaying them first`, showed `spooled` 3595, `replayed` 0, `dropped` 0. kdb
+started (`tlog: replaying tlog_2026.10.13`); after 60 s rows 332939, new `written`
+14521..14541, `spooled` 0, `replayed` 4144, `deduped` 0, `dropped` 0. Rows rose 14541,
+inside the bracket 14521..14558 for (old written) + (new written). PASS on all nine checks.
+
+C: `docker compose --profile live restart` (all nine running containers, 4 s). Rows
+333448 → 337422 (+3974); the new process's `written` 3963..3974, `dropped` 0, `spooled` 0,
+`replayed` 0. Lower bound 3963 and upper bound 4275 both hold: PASS. Limit of this check:
+ticks the old process wrote in the second or so between the script's last read and the
+stop are inside the upper slack, so a loss confined to that window would not show; the
+delta here (+3974 against a final read of 3974) leaves no room for one of more than about
+a dozen ticks.
+
+Still to run: drill A with `--force-recreate`, and `tick_check.py`.
+
 ## Appendix: per-file record (live-grid, kdb-store, kdb-ws, kdb-license)
 
 Last substantive donor commit (licence-header-only commits a10ac7d, e520b60, baee69b and
