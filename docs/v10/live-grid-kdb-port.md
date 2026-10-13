@@ -922,7 +922,14 @@ stop are inside the upper slack, so a loss confined to that window would not sho
 delta here (+3974 against a final read of 3974) leaves no room for one of more than about
 a dozen ticks.
 
-Still to run: drill A with `--force-recreate`, and `tick_check.py`.
+Still to run: drill A with `--force-recreate`.
+
+**Receipt, `tick_check.py` (Mac, 2026-10-13, real KDB-X Community Edition q, endpoint
+loopback).** 23 checks, `FAILURES: none`, including the four `ticks_present` checks the
+cloud could only simulate (a written batch all present, 4; an unwritten batch absent, 0;
+row-by-row counting, 2; absent before and present after a tz-aware write in live-grid's
+shape, 0 then 2). Followed by `docker compose restart kdb` to reload the day from the tick
+log.
 
 ## Appendix: per-file record (live-grid, kdb-store, kdb-ws, kdb-license)
 
