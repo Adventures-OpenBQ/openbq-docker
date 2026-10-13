@@ -50,6 +50,9 @@ Caller headers, cookies and credentials are never relayed.
 | `/grid/ta_chart` | GET | the tick chart; `symbol` (one), `interval`, `source` (`local`/`eodhd`), `macro`, `indicators`, `anchor`, `start`, `end`, `theme`; `provider` is **not** mapped; one unit of `quoteDailyLimit` |
 | `/grid/live_grid_ws` | GET + Upgrade | the quote grid's socket, no query; every params frame re-validated and metered per symbol (below) |
 | `/grid/ta_chart_ws` | GET + Upgrade | the tick chart's push-only socket; its **query is its subscription** (the `/grid/ta_chart` grammar); every push metered, the first included |
+| `/grid/subscriptions` | GET | live-grid's Subscriptions page, **the one route served without the token** (a frame cannot send one): exact path, no query, no body, this Host; HTML from memory after one fetch, with its own CSP. The page then asks BDOBB for the credential (`openbb-connect` → `openbb-auth`) |
+| `/grid/api/subscriptions` | GET, POST | the watchlist behind the lock; POST takes `{"symbol": …}` (JSON, ≤ 1 KiB, one-symbol grammar), the body rebuilt from the validated symbol, **one unit of `quoteDailyLimit`** |
+| `/grid/api/subscriptions/<symbol>` | DELETE | remove one symbol (one-symbol grammar, `^` literal) |
 | `/grid/**` with `liveGrid` off | — | `503` (REST and sockets) after the route rules pass; an unmatched `/grid` path is still `404` |
 | `/ai/**` | — | not served by openbq-docker: 404 (POST 405) |
 | everything else | — | 404 |
@@ -131,8 +134,17 @@ single value that passed. `/grid/ta_chart_ws` reads no frame at all: the door di
 upgrade with the query `socketTarget` re-serialised, and any client frame closes the relay.
 
 **Not here.** `/grid/ta_registry`, `/grid/live_grid_studies` and the study sockets (later
-lines), live-grid's `/demo`, `/health`, `/subscribe`, `/api/subscriptions`, `/snapshot` and
-`/subscriptions`, and the kdb+ tick cache itself (q IPC executes arbitrary code with no auth).
+lines), live-grid's `/demo`, `/health`, `/subscribe` and `/snapshot`, and the kdb+ tick cache
+itself (q IPC executes arbitrary code with no auth).
+
+**Subscriptions (V10-P5, 2026-10-13).** `/grid/widgets.json` rewrites the `subscriptions` iframe
+widget's endpoint to `<origin>/grid/subscriptions`, so BDOBB frames this door's page, and
+because the frame shares the backend's origin BDOBB hands it the Bearer header over the widget
+postMessage protocol. live-grid refusals (404, 409, 422, 507) come back as the door's own short
+messages. These routes are in `server.mjs`, not `policy.mjs` (vendored by BDOBB's web layer
+under a hash test): the web preview's browser never holds this token, so the card works in the
+desktop app, not the preview. `verify.mjs` does not probe the page to 200 (its first answer
+fetches from live-grid); it proves the exception narrow instead.
 
 ## Socket tickets
 

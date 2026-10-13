@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
 import { validateConfig, readConfig } from "./config.mjs";
-import { createGateway, getJson, connectGrid } from "./server.mjs";
+import { createGateway, getJson, connectGrid, subscriptionRoute, rewriteGridWidgets } from "./server.mjs";
 import { verify } from "./verify.mjs";
 import { checkUpstreams } from "./check-upstreams.mjs";
 
@@ -1479,4 +1479,183 @@ test("the package version is this release", () => {
   const compose = readFileSync(new URL("../docker-compose.yml", import.meta.url), "utf8");
   assert.match(compose, new RegExp(`image: openbq-funnel-gateway:${version.replaceAll(".", "\\.")}\\n`));
   assert.match(readFileSync(new URL("./README.md", import.meta.url), "utf8"), new RegExp(`v${version.replaceAll(".", "\\.")}`));
+});
+
+// --- live-grid's Subscriptions page and watchlist API behind /grid (V10-P5, 2026-10-13) ---
+
+function sendBody(port, path, { method = "POST", headers = HEADERS, body } = {}) {
+  return new Promise((resolve, reject) => {
+    const h = { ...headers };
+    if (body !== undefined) { h["Content-Type"] ??= "application/json"; h["Content-Length"] = String(Buffer.byteLength(body)); }
+    const req = request({ host: "127.0.0.1", port, path, method, headers: h }, res => {
+      const parts = [];
+      res.on("data", c => parts.push(c));
+      res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, text: Buffer.concat(parts).toString() }));
+    });
+    req.on("error", reject); req.end(body);
+  });
+}
+async function subscriptionsFixture(t, overrides = {}, answer = () => ({ status: 200, json: { used: 1, cap: 50 } })) {
+  const sent = [], fetched = [];
+  const fx = await fixture(t, overrides, {
+    sendSubscription: async (method, path, body) => { sent.push({ method, path, body }); return answer(method, path, body); },
+    fetchPage: async () => { fetched.push(1); return "<!doctype html><p>subscriptions</p>"; },
+  });
+  return { ...fx, sent, fetched };
+}
+
+test("the Subscriptions page loads WITHOUT the token -- a frame cannot send one -- from memory, with its own CSP", async t => {
+  const { port, fetched, calls } = await subscriptionsFixture(t);
+  const anon = { Host: new URL(ORIGIN).host };
+  for (let i = 0; i < 3; i++) {
+    const r = await http(port, "/grid/subscriptions", anon);
+    assert.equal(r.status, 200);
+    assert.match(r.headers["content-type"], /^text\/html/);
+    assert.equal(r.text, "<!doctype html><p>subscriptions</p>");
+    assert.match(r.headers["content-security-policy"], /default-src 'none'/);
+    assert.match(r.headers["content-security-policy"], /connect-src 'self'/);
+    assert.doesNotMatch(r.headers["content-security-policy"], /frame-ancestors/);
+    assert.equal(r.headers["cache-control"], "no-store");
+  }
+  // Fetched from live-grid once; nothing else was asked of any upstream.
+  assert.equal(fetched.length, 1);
+  assert.equal(calls.length, 0);
+  // The token is accepted too, and it is the same page.
+  assert.equal((await http(port, "/grid/subscriptions")).status, 200);
+  assert.equal(fetched.length, 1);
+});
+
+test("the token exception is the page alone: exact path, GET, no query, this Host", async t => {
+  const { port, fetched } = await subscriptionsFixture(t);
+  const anon = { Host: new URL(ORIGIN).host };
+  for (const path of ["/grid/subscriptions?x=1", "/grid/subscriptions/", "/grid/api/subscriptions",
+    "/grid/widgets.json", "/grid/demo", "/grid/health", "/_gateway/health"]) {
+    assert.equal((await http(port, path, anon)).status, 401, path);
+  }
+  assert.equal((await http(port, "/grid/subscriptions", anon, "POST")).status, 401);
+  assert.equal((await http(port, "/grid/subscriptions", { Host: "evil.example" })).status, 421);
+  assert.equal(fetched.length, 0);
+  // With the token, a query on the page is still not a route.
+  assert.equal((await http(port, "/grid/subscriptions?x=1")).status, 404);
+});
+
+test("the page answers 503 with live-grid off, and a failed fetch is retried, not cached", async t => {
+  const off = await subscriptionsFixture(t, { gridOrigin: null });
+  assert.equal((await http(off.port, "/grid/subscriptions", { Host: new URL(ORIGIN).host })).status, 503);
+  assert.equal(off.fetched.length, 0);
+  let fail = true; const tries = [];
+  const flaky = await fixture(t, {}, { fetchPage: async () => {
+    tries.push(1); if (fail) throw new Error("down"); return "<p>ok</p>";
+  } });
+  assert.equal((await http(flaky.port, "/grid/subscriptions", { Host: new URL(ORIGIN).host })).status, 502);
+  fail = false;
+  assert.equal((await http(flaky.port, "/grid/subscriptions", { Host: new URL(ORIGIN).host })).text, "<p>ok</p>");
+  assert.equal(tries.length, 2);
+});
+
+test("the watchlist API is behind the lock, and live-grid's payload is relayed", async t => {
+  const { port, sent } = await subscriptionsFixture(t);
+  assert.equal((await http(port, "/grid/api/subscriptions", { Host: new URL(ORIGIN).host })).status, 401);
+  assert.equal(sent.length, 0);
+  const r = await http(port, "/grid/api/subscriptions");
+  assert.equal(r.status, 200);
+  assert.deepEqual(JSON.parse(r.text), { used: 1, cap: 50 });
+  assert.deepEqual(sent, [{ method: "GET", path: "/api/subscriptions", body: undefined }]);
+});
+
+test("POST rebuilds the body from a validated symbol and charges one vendor unit", async t => {
+  const { port, sent } = await subscriptionsFixture(t, { quoteDailyLimit: 1 },
+    (method) => (method === "POST" ? { status: 201, json: { used: 2, cap: 50 } } : { status: 200, json: {} }));
+  const r = await sendBody(port, "/grid/api/subscriptions", { body: JSON.stringify({ symbol: " BTC-USD ", extra: "dropped" }) });
+  assert.equal(r.status, 201);
+  assert.deepEqual(JSON.parse(r.text), { used: 2, cap: 50 });
+  assert.deepEqual(sent, [{ method: "POST", path: "/api/subscriptions", body: JSON.stringify({ symbol: "BTC-USD" }) }]);
+  // The daily vendor cap of one is spent.
+  assert.equal((await sendBody(port, "/grid/api/subscriptions", { body: JSON.stringify({ symbol: "ETH-USD" }) })).status, 429);
+  assert.equal(sent.length, 1);
+});
+
+test("POST refuses a bad symbol, a non-JSON body and an oversized one before any upstream call", async t => {
+  const { port, sent } = await subscriptionsFixture(t);
+  for (const symbol of ["", "A B", "x".repeat(25), "../x", 7, null]) {
+    const r = await sendBody(port, "/grid/api/subscriptions", { body: JSON.stringify({ symbol }) });
+    assert.equal(r.status, 422, String(symbol));
+    assert.equal(JSON.parse(r.text).detail, "Not a symbol.");
+  }
+  assert.equal((await sendBody(port, "/grid/api/subscriptions", { body: "{", })).status, 400);
+  assert.equal((await sendBody(port, "/grid/api/subscriptions",
+    { body: JSON.stringify({ symbol: "AAPL" }), headers: { ...HEADERS, "Content-Type": "text/plain" } })).status, 415);
+  assert.equal((await sendBody(port, "/grid/api/subscriptions", { body: JSON.stringify({ symbol: "A".repeat(2000) }) })).status, 413);
+  assert.equal(sent.length, 0);
+});
+
+test("DELETE takes one symbol in the path; other methods and shapes are not routes", async t => {
+  const { port, sent } = await subscriptionsFixture(t);
+  assert.equal((await http(port, "/grid/api/subscriptions/BTC-USD", HEADERS, "DELETE")).status, 200);
+  assert.equal((await http(port, "/grid/api/subscriptions/^GSPC", HEADERS, "DELETE")).status, 200);
+  assert.deepEqual(sent.map(s => [s.method, s.path]),
+    [["DELETE", "/api/subscriptions/BTC-USD"], ["DELETE", "/api/subscriptions/^GSPC"]]);
+  for (const [path, method] of [["/grid/api/subscriptions", "DELETE"], ["/grid/api/subscriptions/BTC-USD", "GET"],
+    ["/grid/api/subscriptions/BTC-USD", "POST"], ["/grid/api/subscriptions/A/B", "DELETE"],
+    ["/grid/api/subscriptions?symbol=X", "GET"], ["/grid/api/subscriptions", "PUT"],
+    ["/grid/api/subscriptions/" + "A".repeat(25), "DELETE"]]) {
+    assert.equal((await http(port, path, HEADERS, method)).status, 404, `${method} ${path}`);
+  }
+  assert.equal(sent.length, 2);
+});
+
+test("live-grid's refusals become the door's own messages; anything else is a 502", async t => {
+  let status = 409;
+  const { port } = await subscriptionsFixture(t, {}, () => ({ status }));
+  for (const [code, text] of [[409, "already subscribed"], [507, "cap is reached"], [404, "not on the watchlist"]]) {
+    status = code;
+    const r = await sendBody(port, "/grid/api/subscriptions", { body: JSON.stringify({ symbol: "AAPL" }) });
+    assert.equal(r.status, code);
+    assert.match(JSON.parse(r.text).detail, new RegExp(text));
+  }
+  status = 500;
+  assert.equal((await http(port, "/grid/api/subscriptions")).status, 502);
+});
+
+test("a foreign Origin and live-grid off both refuse the watchlist API", async t => {
+  const { port, sent } = await subscriptionsFixture(t);
+  assert.equal((await sendBody(port, "/grid/api/subscriptions",
+    { body: JSON.stringify({ symbol: "AAPL" }), headers: { ...HEADERS, Origin: "https://evil.example" } })).status, 403);
+  // The page's own fetches carry this door's origin and pass.
+  assert.equal((await sendBody(port, "/grid/api/subscriptions",
+    { body: JSON.stringify({ symbol: "AAPL" }), headers: { ...HEADERS, Origin: ORIGIN } })).status, 200);
+  assert.equal(sent.length, 1);
+  const off = await subscriptionsFixture(t, { gridOrigin: null });
+  assert.equal((await http(off.port, "/grid/api/subscriptions")).status, 503);
+});
+
+test("/grid/widgets.json points the Subscriptions frame at this door; nothing else is rewritten", async t => {
+  const spec = {
+    subscriptions: { type: "iframe", endpoint: "http://live-grid:6903/subscriptions" },
+    live_grid: { type: "live_grid", endpoint: "live_grid" },
+  };
+  const { port } = await fixture(t, {}, { requestJson: async () => structuredClone(spec) });
+  const body = JSON.parse((await http(port, "/grid/widgets.json")).text);
+  assert.equal(body.subscriptions.endpoint, `${ORIGIN}/grid/subscriptions`);
+  assert.deepEqual(body.live_grid, spec.live_grid);
+  // No subscriptions widget, or one that is not a frame: untouched.
+  assert.deepEqual(rewriteGridWidgets({ a: { type: "table" } }, config()), { a: { type: "table" } });
+  assert.deepEqual(rewriteGridWidgets({ subscriptions: { type: "table", endpoint: "x" } }, config()),
+    { subscriptions: { type: "table", endpoint: "x" } });
+  // The /api manifest is never rewritten.
+  const api = await fixture(t, {}, { requestJson: async () => structuredClone(spec) });
+  assert.deepEqual(JSON.parse((await http(api.port, "/api/widgets.json")).text), spec);
+});
+
+test("subscriptionRoute: the whole grammar", () => {
+  const u = p => new URL(p, ORIGIN);
+  assert.deepEqual(subscriptionRoute(u("/grid/api/subscriptions"), "GET"), { method: "GET", path: "/api/subscriptions" });
+  assert.deepEqual(subscriptionRoute(u("/grid/api/subscriptions"), "POST"), { method: "POST", path: "/api/subscriptions" });
+  assert.deepEqual(subscriptionRoute(u("/grid/api/subscriptions/EURUSD"), "DELETE"),
+    { method: "DELETE", path: "/api/subscriptions/EURUSD" });
+  assert.equal(subscriptionRoute(u("/grid/api/subscriptions/a.b_c-d"), "DELETE").path, "/api/subscriptions/a.b_c-d");
+  for (const [p, m] of [["/grid/api/subscriptions?x=1", "GET"], ["/grid/api/subscriptions", "DELETE"],
+    ["/grid/api/subscriptions/x", "PUT"], ["/grid/api/subscriptionsX", "GET"]]) {
+    assert.equal(subscriptionRoute(u(p), m), null, `${m} ${p}`);
+  }
 });

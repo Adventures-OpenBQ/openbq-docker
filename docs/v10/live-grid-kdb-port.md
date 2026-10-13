@@ -1029,3 +1029,47 @@ in v9.6.3..v10.1.7. Content is the donor's d606169 file except where "Edits" abo
 | `live-grid/tests/test_ta_sources.py` | 349aac4 (v10.1.0) | new in v9.6.3..v10.1.7 |
 | `live-grid/tests/test_watchlist.py` | e2789ee (v10.1.0) | new in v9.6.3..v10.1.7 |
 | `live-grid/widgets.json` | f87018a (v10.1.1) | changed v9.6.3..v10.1.7 |
+
+## Subscriptions through the gateway (V10-P5, user request 2026-10-13)
+
+The example dashboard's Subscriptions card (live-grid's `/subscriptions` iframe page) now works
+through the gateway, the option V10-P5 named. live-grid still has no host port (P3).
+
+- `funnel-gateway/server.mjs`:
+  - `GET /grid/subscriptions` serves the page;
+  - `GET`/`POST /grid/api/subscriptions` and `DELETE /grid/api/subscriptions/<symbol>` relay
+    the watchlist API;
+  - `/grid/widgets.json` rewrites the `subscriptions` widget's endpoint to
+    `<origin>/grid/subscriptions`.
+- **PROVISIONAL, server P8: the page is served without the Bearer token.** It is the one
+  exception to "the lock precedes everything". A frame is a navigation and cannot carry a
+  header; BDOBB has no ticket for frames. The exception is narrow: exact path, GET, no query,
+  no body, this door's Host. The page is fetched from live-grid once and served from memory,
+  so an anonymous caller costs no upstream dial and no per-minute budget. It holds no data;
+  every watchlist call is behind the lock. The page gets the Bearer header from BDOBB's
+  `openbb-connect` → `openbb-auth` handshake, which BDOBB sends only to a frame on the
+  backend's own origin. Alternative if this is not acceptable: a frame ticket, which would
+  need a BDOBB change.
+- POST charges one unit of `quoteDailyLimit` (a new EODHD subscription). The body is rebuilt
+  from the validated one-symbol grammar. live-grid's 404/409/422/507 come back as the door's
+  own messages.
+- Not in `policy.mjs`, which BDOBB's web layer vendors under a hash test. The web preview
+  cannot use the card: its browser never holds the token. The desktop app can.
+- `live-grid/app/static/subscriptions.html`: the API path is resolved relative to the page; when
+  framed, the page asks the parent for the credential (2 s timeout; only `window.parent` is
+  trusted). `^` stays literal in a DELETE path.
+- `docker-compose.yml`: `LIVE_GRID_PUBLIC_URL: ${LIVE_GRID_PUBLIC_URL:-http://live-grid:6903}`,
+  so live-grid publishes the widget for the gateway to reframe.
+- REVIEW `verify.mjs`: `/grid/api/subscriptions` with the token moves from "refused 404" (it
+  is a route now) to the without-token 401 list. New refusals prove the exception narrow:
+  `/grid/subscriptions?x=1` and `/grid/subscriptions/` without the token are 401; the watchlist
+  API's query, nested-path and GET-one-symbol shapes are 404 with it. The page is not probed to
+  200, because that would dial live-grid.
+- REVIEW `live-grid/tests/test_auth_routes.py`
+  `test_the_page_and_its_api_share_one_origin`: `"/api/subscriptions" in page.text` would
+  now pass on a comment alone. It becomes a check for the relative resolution, plus checks that
+  no call names the root-absolute path. Stronger, not weaker.
+
+Receipts (cloud): funnel-gateway 88 passed (was 77; +11); live-grid 454 passed, 14 deselected
+(+1 for the handshake); `tests/` 35 passed (+1); `scripts/check-public.py` PASS. Not run: the
+desktop app framing the page (Mac).

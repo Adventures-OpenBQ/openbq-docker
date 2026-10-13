@@ -233,6 +233,126 @@ export async function getJson(path, config, signal) {
 }
 
 /**
+ * live-grid's Subscriptions page and its watchlist API, behind this door (V10-P5, user
+ * request 2026-10-13). Not in policy.mjs: that file is vendored by BDOBB's web layer under a
+ * hash test, and the web preview cannot use these routes anyway -- its browser never holds
+ * this door's token, and a framed page gets the credential only from the desktop app's
+ * openbb-connect handshake (BDOBB useWidgetMessages.ts).
+ *
+ *   GET    /grid/subscriptions                -> the page (SUBSCRIPTIONS_PAGE), no query
+ *   GET    /grid/api/subscriptions            -> the watchlist, no query
+ *   POST   /grid/api/subscriptions            -> add {"symbol": SYMBOL}, JSON, <= 1 KiB
+ *   DELETE /grid/api/subscriptions/<SYMBOL>   -> remove
+ *
+ * SYMBOL is the grid's one-symbol grammar. What leaves is re-serialised: the POST body is
+ * rebuilt from the validated symbol, never relayed. live-grid's own answers are relayed for
+ * 200 and 201 (its watchlist payload, JSON, bounded); its refusals become this door's own
+ * fixed messages for the four it gives (404, 409, 422, 507), so the page can say why.
+ */
+export const SUBSCRIPTIONS_PAGE = "/grid/subscriptions";
+const SUBSCRIPTION_SYMBOL_RE = /^[A-Za-z0-9.^_-]{1,24}$/;
+const SUBSCRIPTION_REFUSALS = {
+  404: "That symbol is not on the watchlist.",
+  409: "That symbol is already subscribed.",
+  422: "Not a symbol.",
+  507: "The symbol cap is reached; remove a symbol first.",
+};
+export function subscriptionRoute(url, method) {
+  if (url.search) return null;
+  if (url.pathname === "/grid/api/subscriptions") {
+    return method === "GET" || method === "POST" ? { method, path: "/api/subscriptions" } : null;
+  }
+  const one = /^\/grid\/api\/subscriptions\/([^/]+)$/.exec(url.pathname);
+  if (one && method === "DELETE" && SUBSCRIPTION_SYMBOL_RE.test(one[1])) {
+    return { method, path: `/api/subscriptions/${one[1]}` };
+  }
+  return null;
+}
+/** One bounded JSON exchange with live-grid: the status, and the body only on 200/201. */
+export async function sendGrid(method, path, body, config, signal) {
+  const url = new URL(path, config.gridOrigin);
+  const headers = { Authorization: config.apiAuthorization, Accept: "application/json" };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    headers["Content-Length"] = String(Buffer.byteLength(body));
+  }
+  return new Promise((resolve, rejectPromise) => {
+    const request = httpRequest(url, { method, headers, signal }, response => {
+      const ok = response.statusCode === 200 || response.statusCode === 201;
+      if (!ok || !/^application\/json(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
+        response.destroy();
+        return resolve({ status: ok ? 502 : response.statusCode });
+      }
+      let size = 0; const parts = [];
+      response.on("data", chunk => {
+        size += chunk.length;
+        if (size > MAX_BODY) { response.destroy(); rejectPromise(new Error("Body limit")); }
+        else parts.push(chunk);
+      });
+      response.on("error", rejectPromise);
+      response.on("end", () => {
+        try { resolve({ status: response.statusCode, json: JSON.parse(Buffer.concat(parts).toString("utf8")) }); }
+        catch { rejectPromise(new Error("Invalid JSON")); }
+      });
+    });
+    request.once("error", rejectPromise);
+    request.end(body);
+  });
+}
+/** The page itself, as text: live-grid's /subscriptions, HTML only, at most 64 KiB. */
+export async function getGridPage(config, signal) {
+  const url = new URL("/subscriptions", config.gridOrigin);
+  return new Promise((resolve, rejectPromise) => {
+    const request = httpRequest(url, { method: "GET", signal,
+      headers: { Authorization: config.apiAuthorization, Accept: "text/html" } }, response => {
+      if (response.statusCode !== 200 || !/^text\/html(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
+        response.destroy(); return rejectPromise(new Error("Invalid upstream page"));
+      }
+      let size = 0; const parts = [];
+      response.on("data", chunk => {
+        size += chunk.length;
+        if (size > 65536) { response.destroy(); rejectPromise(new Error("Body limit")); }
+        else parts.push(chunk);
+      });
+      response.on("error", rejectPromise);
+      response.on("end", () => resolve(Buffer.concat(parts).toString("utf8")));
+    });
+    request.once("error", rejectPromise);
+    request.end();
+  });
+}
+// The framed page runs script, so it gets a policy of its own: inline script and style (the
+// page is one file), fetch to this origin only, nothing else loaded, no base or form target.
+// No frame-ancestors: being framed by the app is the point.
+const PAGE_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; " +
+  "connect-src 'self'; base-uri 'none'; form-action 'none'";
+function replyPage(res, html) {
+  res.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Content-Security-Policy": PAGE_CSP,
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow, noarchive",
+  });
+  res.end(html);
+}
+/**
+ * The one widget whose endpoint the door rewrites: live-grid names its Subscriptions page by
+ * its own LIVE_GRID_PUBLIC_URL, which on this stack is the internal compose address
+ * (docker-compose.yml). Relayed through /grid, the frame must open THIS door's page --
+ * an absolute URL on this origin, which is also what lets BDOBB hand it the credential
+ * (WidgetCard.tsx messagingFor: frame origin === backend origin).
+ */
+export function rewriteGridWidgets(spec, config) {
+  const sub = spec?.subscriptions;
+  if (sub && typeof sub === "object" && sub.type === "iframe") {
+    sub.endpoint = config.origin + SUBSCRIPTIONS_PAGE;
+  }
+  return spec;
+}
+
+/**
  * Per-user state: the web preview's saved configuration (user ruling 2026-09-20: on
  * the NAS, behind this gateway). The one place a method other than GET is taken.
  * The web layer supplies the id -- the GitHub
@@ -300,7 +420,7 @@ async function handleState(req, res, url, config) {
 
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openNews = connectNews,
-  openGrid = connectGrid,
+  openGrid = connectGrid, sendSubscription = sendGrid, fetchPage = getGridPage,
   now = Date.now, socketMs = 240000, firstFrameMs = 10000 } = {}) {
   let budget = config.requestsPerMinute, resetAt = now() + 60000, quoteCount = 0, day = Math.floor(now() / 86400000);
   let inflight = 0, sockets = 0;
@@ -317,10 +437,59 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     if (quoteCount >= config.quoteDailyLimit) return false;
     quoteCount++; return true;
   }
+  // The Subscriptions page, fetched from live-grid once and kept: it is the one route served
+  // before the lock (below), so an unauthenticated caller must cost no upstream dial and no
+  // share of the per-minute budget. A failed fetch is not kept; the next request retries.
+  let page = null;
+  function subscriptionsPage() {
+    if (!page) page = fetchPage(config, AbortSignal.timeout(10000)).catch(error => { page = null; throw error; });
+    return page;
+  }
+  async function handleSubscriptions(req, res, route) {
+    if (!config.gridOrigin) return reply(res, 503);
+    // Before the vendor unit is charged, so a refusal for load never spends the day.
+    if (inflight >= config.maxConcurrent) return reply(res, 429);
+    let body;
+    if (route.method === "POST") {
+      const raw = await jsonBody(req, 1024);
+      if (typeof raw === "number") return reply(res, raw);
+      const symbol = JSON.parse(raw.toString("utf8"))?.symbol;
+      if (typeof symbol !== "string" || !SUBSCRIPTION_SYMBOL_RE.test(symbol.trim())) {
+        return reply(res, 422, { detail: SUBSCRIPTION_REFUSALS[422] });
+      }
+      // A new symbol is a new EODHD subscription: charged to the vendor day like a quote.
+      if (!quoteAllowed()) return reply(res, 429);
+      body = JSON.stringify({ symbol: symbol.trim() });
+    } else if (req.headers["transfer-encoding"] ||
+               (req.headers["content-length"] && req.headers["content-length"] !== "0")) {
+      return reply(res, 405);
+    }
+    inflight++;
+    try {
+      const answer = await sendSubscription(route.method, route.path, body, config, AbortSignal.timeout(12000));
+      if (answer.json !== undefined) return reply(res, answer.status, answer.json);
+      const message = SUBSCRIPTION_REFUSALS[answer.status];
+      return message ? reply(res, answer.status, { detail: message }) : reply(res, 502);
+    } finally { inflight--; }
+  }
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_SOCKET, perMessageDeflate: false });
   const server = createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000,
     keepAliveTimeout: 5000 }, async (req, res) => {
     try {
+      // The ONE exception to "the lock precedes everything": the Subscriptions page. A frame
+      // is a navigation, and a navigation cannot carry the Bearer token, so the page loads
+      // without it -- then asks the app for the credential (openbb-connect) and sends it on
+      // every watchlist call, which ARE behind the lock. The page holds no data and no
+      // secret; it is served from memory after the first fetch, GET only, no query, no
+      // body, on this door's own Host, before any other route is consulted.
+      if (req.method === "GET" && req.url === SUBSCRIPTIONS_PAGE) {
+        const pageUrl = requestUrl(req, config);
+        if (!pageUrl) return reply(res, 421);
+        if (req.headers["transfer-encoding"] ||
+            (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
+        if (!config.gridOrigin) return reply(res, 503);
+        return replyPage(res, await subscriptionsPage());
+      }
       // The lock precedes route discovery, health, Host and Origin validation.
       if (!authorized(req, config)) return reply(res, 401);
       const url = requestUrl(req, config);
@@ -329,6 +498,12 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (url.pathname.startsWith("/state/")) {
         if (!spend(1)) return reply(res, 429);
         return await handleState(req, res, url, config);
+      }
+      if (url.pathname.startsWith("/grid/api/subscriptions")) {
+        const route = subscriptionRoute(url, req.method);
+        if (!route) return reply(res, 404);
+        if (!spend(1)) return reply(res, 429);
+        return await handleSubscriptions(req, res, route);
       }
       if (req.method !== "GET" || req.headers["transfer-encoding"] ||
           (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
@@ -350,7 +525,10 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       const timer = setTimeout(() => controller.abort(), 12000);
       const disconnect = () => { if (!res.writableEnded) controller.abort(); };
       res.once("close", disconnect);
-      try { reply(res, 200, await requestJson(path, config, controller.signal)); }
+      try {
+        const answer = await requestJson(path, config, controller.signal);
+        reply(res, 200, path === "/grid/widgets.json" ? rewriteGridWidgets(answer, config) : answer);
+      }
       catch (failure) {
         // The one status this door relays, and only for the two documents the client probes
         // with allow404 (OPTIONAL_DOCS above). The BODY is still the door's own; anything

@@ -46,6 +46,28 @@
 <script>
 const $ = (id) => document.getElementById(id);
 
+// The API sits beside this page, wherever the page is served: /api/subscriptions on
+// live-grid itself, /grid/api/subscriptions behind the gateway (funnel-gateway server.mjs).
+const API = new URL("api/subscriptions", location.href).pathname;
+
+// Behind the gateway the page loads without a credential -- a frame cannot send one -- and
+// asks the app that framed it (the OpenBB widget protocol, which BDOBB speaks: openbb-connect,
+// answered by openbb-auth when this frame shares the backend's origin, then always by
+// openbb-params-update). Opened directly on live-grid, the browser's own Basic credential
+// already covers same-origin fetches, so no header is needed and none is waited for long.
+const auth = new Promise((resolve) => {
+  if (window.parent === window) return resolve({});
+  const done = (headers) => { window.removeEventListener("message", onMessage); resolve(headers); };
+  function onMessage(e) {
+    if (e.source !== window.parent || !e.data || typeof e.data !== "object") return;
+    if (e.data.type === "openbb-auth" && e.data.headers && typeof e.data.headers === "object") done(e.data.headers);
+    else if (e.data.type === "openbb-params-update") done({});
+  }
+  window.addEventListener("message", onMessage);
+  window.parent.postMessage({ type: "openbb-connect" }, "*");
+  setTimeout(() => done({}), 2000);
+});
+
 function render(d) {
   $("count").textContent = `${d.used} / ${d.cap}`;
   $("fill").style.width = `${Math.min(100, (d.used / d.cap) * 100)}%`;
@@ -69,7 +91,8 @@ function render(d) {
       li.append(label);
       const b = document.createElement("button");
       b.textContent = "Remove";
-      b.onclick = () => call("DELETE", `/api/subscriptions/${encodeURIComponent(s)}`);
+      // `^` stays literal (^GSPC): the gateway refuses a percent sign in a path.
+      b.onclick = () => call("DELETE", `${API}/${encodeURIComponent(s).replace(/%5E/gi, "^")}`);
       li.append(b);
       ul.append(li);
     }
@@ -97,9 +120,11 @@ function render(d) {
 async function call(method, url, body) {
   $("err").textContent = "";
   try {
+    const headers = { ...(await auth) };
+    if (body) headers["content-type"] = "application/json";
     const r = await fetch(url, {
       method,
-      headers: body ? { "content-type": "application/json" } : undefined,
+      headers,
       body: body ? JSON.stringify(body) : undefined,
     });
     const d = await r.json();
@@ -115,11 +140,11 @@ $("add").onsubmit = (e) => {
   const v = $("sym").value.trim();
   if (!v) return;
   $("sym").value = "";
-  call("POST", "/api/subscriptions", { symbol: v });
+  call("POST", API, { symbol: v });
 };
 
-call("GET", "/api/subscriptions");
-setInterval(() => call("GET", "/api/subscriptions"), 15000);
+call("GET", API);
+setInterval(() => call("GET", API), 15000);
 </script>
 </body>
 </html>

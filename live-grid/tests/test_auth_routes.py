@@ -126,9 +126,26 @@ def test_the_subscriptions_page_itself_is_guarded(guarded):
 
 
 def test_the_page_and_its_api_share_one_origin(guarded):
-    """The page fetches /api/subscriptions with a root-relative URL, so the
-    browser sends the same credentials it used for the page. If these ever
-    diverge in origin, the widget breaks silently for authenticated users."""
+    """The page resolves its API RELATIVE to itself -- /api/subscriptions here,
+    /grid/api/subscriptions behind the gateway (V10-P5) -- so it is always the
+    page's own origin, and the browser sends the same credentials it used for
+    the page. If these ever diverge in origin, the widget breaks silently for
+    authenticated users."""
     page = guarded.get("/subscriptions", headers=_hdr())
-    assert "/api/subscriptions" in page.text
+    assert 'new URL("api/subscriptions", location.href)' in page.text
+    # No call still names the root-absolute path, which behind /grid would miss.
+    assert 'call("POST", "/api/subscriptions"' not in page.text
+    assert 'call("GET", "/api/subscriptions"' not in page.text
     assert "http://" not in page.text and "https://" not in page.text
+
+
+def test_the_page_asks_its_framing_app_for_the_credential_and_trusts_only_it(guarded):
+    """Behind the gateway the frame loads without a credential and asks the app
+    that framed it (openbb-connect -> openbb-auth, BDOBB useWidgetMessages.ts).
+    Only a message from window.parent is read; opened directly it waits for
+    nothing (window.parent === window)."""
+    page = guarded.get("/subscriptions", headers=_hdr()).text
+    assert 'postMessage({ type: "openbb-connect" }' in page
+    assert "e.source !== window.parent" in page
+    assert '"openbb-auth"' in page and '"openbb-params-update"' in page
+    assert "if (window.parent === window) return resolve({});" in page
