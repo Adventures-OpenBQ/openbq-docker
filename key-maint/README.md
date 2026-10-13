@@ -12,8 +12,8 @@ three postures:
 
 | Tier | How you connect | Sees |
 |---|---|---|
-| 1 | `http://127.0.0.1:8447` on the host, or anything not on the tailnet | key status + demo flag |
-| 2 | `https://openbq-keys.<your-tailnet>.ts.net` from a tailnet device | + `run_tests` live probes |
+| 1 | anything forwarded from outside the tailnet | key status + demo flag |
+| 2 | `https://openbq-keys.<your-tailnet>.ts.net` from a tailnet device, or `http://127.0.0.1:8447` on the host | + `run_tests` live probes |
 | 3 | Unix socket on the host, via an SSH exec session | + the key values, and writing a key |
 
 **Auth follows the API.** key-maint reads the same `credentials.env` as the
@@ -38,7 +38,10 @@ key-maint is part of the Episode 3 overlay (`docker-compose.v3.yml`).
 2. `docker compose -f docker-compose.yml -f docker-compose.v3.yml up -d key-maint`
    (pulls `ghcr.io/adventures-openbq/openbq-key-maint:3.0.0`; add `--build`
    to build it from this directory instead).
-3. On the host it answers on `http://127.0.0.1:8447` only.
+3. On the host it answers on `http://127.0.0.1:8447` only. That port is
+   loopback-only, so the compose file sets `KEYMAINT_DIRECT_TIER=2`: a direct,
+   un-forwarded caller (the host itself) gets live tests. Without it a direct
+   caller is tier 1. It cannot be raised to 3.
    Docker Desktop on macOS cannot chmod a unix socket on a bind-mounted host
    folder, so key-maint exits at start there. On a Mac, mount a named volume
    at `/config/admin` instead of `./key-maint-admin`; tier 3 is then reached

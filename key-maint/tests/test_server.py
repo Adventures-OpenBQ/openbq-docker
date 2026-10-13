@@ -78,6 +78,39 @@ class TestTiers:
         assert body["tier"] == 1
 
 
+class TestDirectTier:
+    """KEYMAINT_DIRECT_TIER=2: a direct (un-forwarded) connection, i.e. the
+    host's own loopback-published port, gets live tests -- never values."""
+
+    def test_direct_connection_gets_tier_2(self, files, monkeypatch):
+        monkeypatch.setenv("KEYMAINT_DIRECT_TIER", "2")
+        body = keys(client(files, "network")).json()
+        assert body["tier"] == 2
+        assert all("value" not in r for r in body["rows"])
+
+    def test_cannot_raise_direct_to_tier_3(self, files, monkeypatch):
+        monkeypatch.setenv("KEYMAINT_DIRECT_TIER", "3")
+        body = keys(client(files, "network")).json()
+        assert body["tier"] == 1
+        assert all("value" not in r for r in body["rows"])
+
+    def test_forwarded_public_caller_stays_tier_1(self, files, monkeypatch):
+        monkeypatch.setenv("KEYMAINT_DIRECT_TIER", "2")
+        body = keys(client(files, "network"), headers={"X-Forwarded-For": "96.225.78.180"}).json()
+        assert body["tier"] == 1
+
+    def test_direct_tier_2_can_test_a_row(self, files, monkeypatch):
+        from app.probes import Check
+
+        async def fake(env_var, values, descriptor, base_url, auth):
+            return [Check("credential", "ok", "HTTP 200", None, "t")]
+        monkeypatch.setattr("app.server.probe_one_provider", fake)
+        monkeypatch.setenv("KEYMAINT_DIRECT_TIER", "2")
+        r = client(files, "network").get("/keys/FMP_API_KEY/test", headers=AUTH)
+        assert r.status_code == 200
+        assert r.json()["test"]["result"] == "ok"
+
+
 class TestRunTests:
     def test_tier_1_ignores_run_tests(self, files, monkeypatch):
         async def fail(*a, **k):

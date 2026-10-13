@@ -128,7 +128,14 @@ def _check_dict(c: Check) -> dict:
 def _tier(role: str, request: Request) -> int:
     if role == "admin":
         return 3
-    xff = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    raw = request.headers.get("x-forwarded-for")
+    if raw is None:
+        # A direct connection, not one Tailscale Serve (or any proxy) forwarded.
+        # The compose file publishes :8447 on the host's loopback only, so it
+        # sets KEYMAINT_DIRECT_TIER=2 to give the host live tests; values stay
+        # behind the admin socket, so it is capped at 2.
+        return 2 if os.environ.get("KEYMAINT_DIRECT_TIER", "1").strip() == "2" else 1
+    xff = raw.split(",")[0].strip()
     try:
         if ipaddress.ip_address(xff) in _CGNAT:
             return 2

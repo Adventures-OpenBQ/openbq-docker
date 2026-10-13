@@ -45,6 +45,9 @@ services:
     depends_on: [openbq-api]
     environment:
       KEYMAINT_NETWORK_HOST: 0.0.0.0
+      # :8447 is published on the host loopback only, so a direct caller is the
+      # host itself: live tests (tier 2), never key values.
+      KEYMAINT_DIRECT_TIER: "2"
       OPENBB_API_URL: http://openbq-api:6900
       PYTHONDONTWRITEBYTECODE: "1"
     ports: ["127.0.0.1:8447:8447"]
