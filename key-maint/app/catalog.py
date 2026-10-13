@@ -30,34 +30,37 @@ def _ex(pid, path, params, doc, expect="results_nonempty", demo_ok=False):
     return Example(pid, path, {"provider": pid, **params}, expect, demo_ok, doc)
 
 
+# Paths follow OpenBQ's API, which routes most installed providers under their
+# own id (/api/v1/fred/..., /api/v1/sec/...). Providers OpenBQ does not install
+# keep their OpenBB paths; key-maint marks them "not installed" and never calls.
 EXAMPLES: dict[str, Example] = {e.provider_id: e for e in [
-    _ex("yfinance", "/api/v1/equity/price/quote", {"symbol": "AAPL"},
+    _ex("yfinance", "/api/v1/yfinance/equity/quote", {"symbol": "AAPL"},
         f"{_D}/equity/price/quote", demo_ok=True),
-    _ex("sec", "/api/v1/equity/fundamental/filings", {"symbol": "AAPL", "limit": "1"},
+    _ex("sec", "/api/v1/sec/company_filings", {"symbol": "AAPL", "limit": "1"},
         f"{_D}/equity/fundamental/filings", demo_ok=True),
-    _ex("federal_reserve", "/api/v1/economy/money_measures", {},
+    _ex("federal_reserve", "/api/v1/federal_reserve/money_measures", {},
         f"{_D}/economy/money_measures", demo_ok=True),
-    _ex("imf", "/api/v1/economy/available_indicators", {"query": "GDP"},
+    _ex("imf", "/api/v1/imf/available_indicators", {"query": "GDP"},
         f"{_D}/economy/available_indicators", demo_ok=True),
-    _ex("oecd", "/api/v1/economy/gdp/real", {"country": "united_states"},
+    _ex("oecd", "/api/v1/oecd/gdp_real", {"country": "united_states"},
         f"{_D}/economy/gdp/real", demo_ok=True),
     _ex("government_us", "/api/v1/fixedincome/government/treasury_auctions", {},
         f"{_D}/fixedincome/government/treasury_auctions", demo_ok=True),
     _ex("eodhd", "/api/v1/equity/price/quote", {"symbol": "AAPL"},
         f"{_D}/equity/price/quote", demo_ok=True),
     _ex("fmp", "/api/v1/equity/profile", {"symbol": "AAPL"}, f"{_D}/equity/profile"),
-    _ex("fred", "/api/v1/economy/fred_series", {"symbol": "GNPCA"}, f"{_D}/economy/fred_series"),
+    _ex("fred", "/api/v1/fred/economy/fred_series", {"symbol": "GNPCA"}, f"{_D}/economy/fred_series"),
     _ex("tiingo", "/api/v1/equity/price/historical", {"symbol": "AAPL"},
         f"{_D}/equity/price/historical"),
     _ex("intrinio", "/api/v1/equity/profile", {"symbol": "AAPL"}, f"{_D}/equity/profile"),
-    _ex("eia", "/api/v1/commodity/short_term_energy_outlook", {},
+    _ex("eia", "/api/v1/eia/short_term_energy_outlook", {},
         f"{_D}/commodity/short_term_energy_outlook", demo_ok=True),
     _ex("congress_gov", "/api/v1/uscongress/bills", {"limit": "1"},
         f"{_D}/uscongress/bills", demo_ok=True),
     # bls is keyed, not demo-capable: the platform 400s "Missing credential"
     # for it without a key (verified against an isolated stack run), unlike
     # cftc/econdb below which answer keyless.
-    _ex("bls", "/api/v1/economy/survey/bls_series", {"symbol": "CUUR0000SA0"},
+    _ex("bls", "/api/v1/bls/series", {"symbol": "CUUR0000SA0"},
         f"{_D}/economy/survey/bls_series"),
     _ex("cftc", "/api/v1/cftc/cot", {"code": "CFTC_088691"}, f"{_D}/cftc/cot", demo_ok=True),
     _ex("econdb", "/api/v1/economy/country_profile", {"country": "us"},
