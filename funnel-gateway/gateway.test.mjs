@@ -426,12 +426,52 @@ test("upstream preflight validates Basic auth and the API's lock without queryin
   const cfg = { ...config(), rssOrigin: null, rssAddress: null, feeds: {},
     apiOrigin: `http://127.0.0.1:${upstream.address().port}`, gridOrigin: grid.origin };
   await checkUpstreams(cfg);
-  assert.deepEqual(seen, [{ path: "/api/v1/equity/price/quote", auth: cfg.apiAuthorization },
-    { path: "/api/v1/equity/price/quote", auth: undefined }]);
+  // openbq-api serves the quote only under /api/v1/eodhd/; that path is asked first, and it
+  // answered, so the standard path is never dialled.
+  assert.deepEqual(seen, [{ path: "/api/v1/eodhd/equity/price/quote", auth: cfg.apiAuthorization },
+    { path: "/api/v1/eodhd/equity/price/quote", auth: undefined }]);
   withPair = 401; await assert.rejects(checkUpstreams(cfg), /API auth preflight failed/);
   withPair = 200; await assert.rejects(checkUpstreams(cfg), /API auth preflight failed/);
   // OPENBB_API_AUTH off: the pair is "accepted" because nothing is checked. The door stays shut.
   withPair = 422; withoutPair = 422; await assert.rejects(checkUpstreams(cfg), /API lock preflight failed/);
+});
+
+test("upstream preflight falls back to the standard quote route only on a 404, and fails on two", async t => {
+  // A stack whose API has no EODHD extension: /api/v1/eodhd/... is 404 with the pair.
+  let standard = true;
+  const seen = [];
+  const upstream = createServer((req, res) => {
+    seen.push({ path: req.url, auth: req.headers.authorization });
+    const known = standard && req.url === "/api/v1/equity/price/quote";
+    res.writeHead(!req.headers.authorization ? 401 : known ? 422 : 404); res.end();
+  });
+  upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
+  t.after(() => new Promise(resolve => upstream.close(resolve)));
+  const cfg = { ...config(), rssOrigin: null, rssAddress: null, feeds: {}, gridOrigin: null,
+    apiOrigin: `http://127.0.0.1:${upstream.address().port}` };
+  await checkUpstreams(cfg);
+  // The lock is proved on the path that answered, not on the 404.
+  assert.deepEqual(seen, [
+    { path: "/api/v1/eodhd/equity/price/quote", auth: cfg.apiAuthorization },
+    { path: "/api/v1/equity/price/quote", auth: cfg.apiAuthorization },
+    { path: "/api/v1/equity/price/quote", auth: undefined }]);
+  // Neither route served: the 404 that stopped the old preflight still stops this one, and
+  // the message names the last path asked.
+  standard = false;
+  await assert.rejects(checkUpstreams(cfg),
+    /API auth preflight failed \(HTTP 404 on \/api\/v1\/equity\/price\/quote\)/);
+});
+
+test("upstream preflight does not fall back past a refusal on the EODHD route", async t => {
+  // 401 on the first path is a wrong pair, not a missing route: it stops at once.
+  const seen = [];
+  const upstream = createServer((req, res) => { seen.push(req.url); res.writeHead(401); res.end(); });
+  upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
+  t.after(() => new Promise(resolve => upstream.close(resolve)));
+  const cfg = { ...config(), rssOrigin: null, rssAddress: null, feeds: {}, gridOrigin: null,
+    apiOrigin: `http://127.0.0.1:${upstream.address().port}` };
+  await assert.rejects(checkUpstreams(cfg), /API auth preflight failed \(HTTP 401 on \/api\/v1\/eodhd\//);
+  assert.deepEqual(seen, ["/api/v1/eodhd/equity/price/quote"]);
 });
 
 test("the preflight proves live-grid answers /health behind the stack's own Basic pair", async t => {

@@ -8,10 +8,11 @@ import { getJson, connectNews } from "./server.mjs";
 
 /**
  * The preflight before the door opens: openbq-api, reached on the bridge with the stack's
- * Basic pair, must answer 422 to a symbol-less quote -- credentials accepted, validation
- * reached, no provider called. 401 means the pair is wrong. The same request WITHOUT the pair
- * must answer 401: anything else means the API's lock (OPENBB_API_AUTH in credentials.env) is
- * OFF, which is the one state in which this door must not open (lock first, then door).
+ * Basic pair, must answer 422 to a symbol-less quote (QUOTE_PROBES below) -- credentials
+ * accepted, validation reached, no provider called. 401 means the pair is wrong. The same
+ * request WITHOUT the pair must answer 401: anything else means the API's lock
+ * (OPENBB_API_AUTH in credentials.env) is OFF, which is the one state in which this door
+ * must not open (lock first, then door).
  * When live-grid is on ("liveGrid": true, the `live` profile), it must answer /health WITH the
  * same pair: it appends BasicAuthMiddleware to its whole app (live-grid/app/auth.py, reading
  * the credentials.env compose loads into it), so /health is behind auth like every other path
@@ -21,16 +22,25 @@ import { getJson, connectNews } from "./server.mjs";
  * history for an APPROVED feed, and a socket handshake. The handshake is a handshake only --
  * no subscription frame is ever sent, so no feed is polled and no article body is fetched.
  */
+// openbq-api (OpenBB Platform 5.0) mounts EODHD only as a core extension, under
+// /api/v1/eodhd/, and has no standard /equity router; a stack that does carry the standard
+// route still answers on it. The first path that is not a 404 is the one probed.
+export const QUOTE_PROBES = ["/api/v1/eodhd/equity/price/quote", "/api/v1/equity/price/quote"];
+
 export async function checkUpstreams(config) {
-  const quote = headers => new Promise((resolve, reject) => {
-    const req = request(new URL("/api/v1/equity/price/quote", config.apiOrigin), {
+  const quote = (path, headers) => new Promise((resolve, reject) => {
+    const req = request(new URL(path, config.apiOrigin), {
       headers, signal: AbortSignal.timeout(10000),
     }, res => { res.destroy(); resolve(res.statusCode); });
     req.on("error", reject); req.end();
   });
-  const code = await quote({ Authorization: config.apiAuthorization });
-  if (code !== 422) throw new Error(`API auth preflight failed (HTTP ${code})`);
-  const open = await quote({});
+  let path, code;
+  for (path of QUOTE_PROBES) {
+    code = await quote(path, { Authorization: config.apiAuthorization });
+    if (code !== 404) break;
+  }
+  if (code !== 422) throw new Error(`API auth preflight failed (HTTP ${code} on ${path})`);
+  const open = await quote(path, {});
   if (open !== 401) throw new Error(`API lock preflight failed: no credential answered HTTP ${open}, wanted 401`);
   // Not getJson: that routes through target() and would prove the /grid prefix logic rather
   // than live-grid's own reachability, and /health is not a route this door forwards at all.
