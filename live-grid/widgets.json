@@ -51,7 +51,8 @@
       "renderFnParams": {
        "colorValueKey": "change"
       },
-      "align": "right"
+      "align": "right",
+      "abbreviate": false
      },
      {
       "field": "change",
@@ -77,7 +78,8 @@
       "width": 84,
       "headerName": "Day Low",
       "enableCellChangeWs": false,
-      "align": "right"
+      "align": "right",
+      "abbreviate": false
      },
      {
       "field": "day_range",
@@ -98,14 +100,16 @@
       "width": 84,
       "headerName": "Day High",
       "enableCellChangeWs": false,
-      "align": "left"
+      "align": "left",
+      "abbreviate": false
      },
      {
       "field": "week52_low",
       "width": 84,
       "headerName": "52w Low",
       "enableCellChangeWs": false,
-      "align": "right"
+      "align": "right",
+      "abbreviate": false
      },
      {
       "field": "week52_range",
@@ -126,7 +130,8 @@
       "width": 84,
       "headerName": "52w High",
       "enableCellChangeWs": false,
-      "align": "left"
+      "align": "left",
+      "abbreviate": false
      },
      {
       "field": "volume",
@@ -138,13 +143,15 @@
       "field": "bid",
       "width": 84,
       "headerName": "Bid",
-      "hide": true
+      "hide": true,
+      "abbreviate": false
      },
      {
       "field": "ask",
       "width": 84,
       "headerName": "Ask",
-      "hide": true
+      "hide": true,
+      "abbreviate": false
      },
      {
       "field": "last_size",
@@ -162,7 +169,8 @@
       "field": "day_open",
       "width": 88,
       "headerName": "Open",
-      "hide": true
+      "hide": true,
+      "abbreviate": false
      }
     ]
    }

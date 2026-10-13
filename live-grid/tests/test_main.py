@@ -175,6 +175,18 @@ def test_price_keeps_the_change_flash():
     assert defs["price"].get("enableCellChangeWs") is not False
 
 
+def test_price_columns_print_in_full_and_volume_stays_abbreviated():
+    # A live price must show every tick: abbreviated, 2,493.47 -> 2,494.29 both
+    # read "2.49K" and the cell looks frozen (web test, 2026-10-12). BDOBB
+    # honours a column's `abbreviate: false` (widgetsJson.ts); volume is a
+    # magnitude and keeps the K/M suffix.
+    body = make_client().get("/widgets.json").json()
+    defs = {c["field"]: c for c in body["live_grid"]["data"]["table"]["columnsDefs"]}
+    for field in ("price", "day_open", "day_low", "day_high", "week52_low", "week52_high", "bid", "ask"):
+        assert defs[field]["abbreviate"] is False, field
+    assert "abbreviate" not in defs["volume"]
+
+
 def test_kdb_ticks_is_a_plain_table_widget():
     body = make_client().get("/widgets.json").json()
     w = body["kdb_ticks"]
