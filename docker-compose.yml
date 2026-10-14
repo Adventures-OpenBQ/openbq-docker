@@ -76,12 +76,12 @@ services:
   # funnel-gateway/README.md and docs/v8/news-relay-and-hidden-dashboards.md.
   #
   # rss-ticker: a shared feed pool with NO authentication, so reachability is its
-  # whole access control. On the bridge only; ts-config/serve-funnel.json publishes
-  # it on tailnet port 8088, never funneled.
+  # whole access control. On the bridge only; both ts-config/serve*.json publish
+  # it on tailnet port 8088 (a 502 there until the web profile runs), never funneled.
   #   cp rss-ticker-config/config.yaml.example rss-ticker-config/config.yaml
   rss-ticker:
     profiles: [web]
-    image: ghcr.io/artcashin/rss-feedhandler:8.0.0
+    image: ghcr.io/artcashin/rss-feedhandler:8.0.1@sha256:bbe5e391249176d91490b570d4defeb934d1ddf8d56dcbee8c423bed2c3ea49c
     restart: unless-stopped
     volumes:
       - ./rss-ticker-config:/config:ro

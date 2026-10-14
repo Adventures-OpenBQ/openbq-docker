@@ -25,7 +25,7 @@ Summary (after the user's rulings of 2026-10-11 on the first survey):
 | Service | Image | Role for `/news` |
 |---|---|---|
 | `funnel-gateway` | `openbb-funnel-gateway:8.0.3`, built from `./funnel-gateway` (Node, `ws`) | The public door. It runs under `profiles: ["web"]`, is published only on Funnel port **8443** through `ts-config/serve-funnel.json`, and is `read_only` with `cap_drop: [ALL]`, 256 MB and 64 pids. It reads the bind mount `./gateway-config/settings.json` and writes only the `gateway-state` volume. |
-| `rss-ticker` | `ghcr.io/artcashin/rss-feedhandler:8.0.0` (prebuilt, external) | A shared feed pool that is not tied to any user. It polls the union of the subscribed feed URLs, streams new articles tagged by `feed_id` over `/ws/news`, and pages history at `/api/news`. It has **no authentication**, so the only access control is who can reach it. Serve publishes it on tailnet port `:8088`, and it is never funneled. Its config is `rss-ticker-config/config.yaml` (`retention_days`, `default_poll_interval_s`, `max_concurrent_polls`, `bind_host`), and it keeps its data in the `rss-ticker-data` volume. |
+| `rss-ticker` | `ghcr.io/artcashin/rss-feedhandler:8.0.1` (prebuilt, external, digest-pinned) | A shared feed pool that is not tied to any user. It polls the union of the subscribed feed URLs, streams new articles tagged by `feed_id` over `/ws/news`, and pages history at `/api/news`. It has **no authentication**, so the only access control is who can reach it. Serve publishes it on tailnet port `:8088`, and it is never funneled. Its config is `rss-ticker-config/config.yaml` (`retention_days`, `default_poll_interval_s`, `max_concurrent_polls`, `bind_host`), and it keeps its data in the `rss-ticker-data` volume. |
 | `openbb-api` | `openbb-local:8.0.3` | The `/api` upstream. Not part of `/news`. |
 
 ### Env and settings
@@ -232,7 +232,7 @@ Compose (`docker-compose.yml`) puts both services under `profiles: [web]`:
 
 | Service | Image | Notes |
 |---|---|---|
-| `rss-ticker` | `ghcr.io/artcashin/rss-feedhandler:8.0.0` | Config from `rss-ticker-config/config.yaml`; data in the `rss-ticker-data` volume. |
+| `rss-ticker` | `ghcr.io/artcashin/rss-feedhandler:8.0.1@sha256:bbe5e391…` (amd64 + arm64) | Config from `rss-ticker-config/config.yaml`; data in the `rss-ticker-data` volume. |
 | `funnel-gateway` | built, `openbq-funnel-gateway:8.0.0` | `read_only`, uid 1000, `cap_drop: ALL`, 256 MB, `gateway-state` volume, `gateway-config/` bind mounted read-only. |
 
 Neither service publishes a host port. Serve (`ts-config/serve-funnel.json`):
@@ -241,7 +241,7 @@ Neither service publishes a host port. Serve (`ts-config/serve-funnel.json`):
 - `:8443` → funnel-gateway, the only port with `AllowFunnel`;
 - `:8088` → rss-ticker, tailnet only.
 
-The default `ts-config/serve.json` is unchanged and funnels nothing.
+The default `ts-config/serve.json` publishes the same ports minus `:8443`, and carries no `AllowFunnel` at all (`tests/test_web_profile.py` checks both). Its `:8088` answers 502 until the `web` profile runs. To open the door, write `serve-funnel.json` to `serve.json.new`, check it with `jq empty`, and `mv` it over `serve.json`: the sidecar live-applies the file, and a malformed one would kill it.
 
 ### Gateway contract the BDOBB web layer codes to
 
@@ -308,9 +308,9 @@ The admission logic matches the client's v8.1.2 `web/policy.mjs`, which is the d
   pinned tailnet IPv4 (`rssAddress`), as the donor does. This works only if the Docker host routes
   the bridge into the tailnet; `funnel-gateway/README.md` has the one-command check. Without that
   route, `/news` stays off (404/503) and `/api` and `/state` still work.
-- **Image digests are not pinned.** `node:22-alpine` and `ghcr.io/artcashin/rss-feedhandler:8.0.0`
-  are referenced by tag, unlike the repo's digest-pinned images. Docker Hub rate-limited the lookup
-  and ghcr answered 403, so the rss image may need a registry login.
+- **One image digest is not pinned.** `node:22-alpine` is referenced by tag. The rss image is pinned
+  (8.0.1, `sha256:bbe5e391…`), but its GHCR package is private, so pulling it needs a registry login
+  with access to `artcashin/rss-feedhandler`.
 - **Not built or run.** Docker has no daemon here, so the gateway image was not built and no
   container was run.
 - **rss-ticker only runs under the `web` profile.** A desktop-only News user who wants the pool

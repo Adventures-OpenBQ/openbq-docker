@@ -112,7 +112,7 @@ GitHub session) signs a ticket and the browser opens
 docker compose --profile web up -d
 docker compose --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked, wire answers
 docker compose --profile web exec funnel-gateway node verify.mjs           # the door's own lock, on the bridge
-cp ts-config/serve-funnel.json ts-config/serve.json && docker compose restart tailscale   # the door opens
+cp ts-config/serve-funnel.json ts-config/serve.json.new && jq empty ts-config/serve.json.new && mv ts-config/serve.json.new ts-config/serve.json   # the door opens; the sidecar live-applies it, and a malformed file would kill it
 docker compose --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net:8443 funnel-gateway node verify.mjs
 ```
 
