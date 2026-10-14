@@ -10,7 +10,7 @@ import { readConfig } from "./config.mjs";
 /**
  * Proves the lock without opening anything: every probe is either refused or answers the
  * gateway's own health document. `base` is where the gateway is reached -- the container's
- * own loopback by default, or the public door (GATEWAY_URL=https://openbq.<tailnet>.ts.net:8443)
+ * own loopback by default, or the public door (GATEWAY_URL=https://openbq.<tailnet>.ts.net:10000)
  * once Serve publishes it. The Host header is always the configured origin's, so a probe
  * through the door proves Serve preserved it. The last three probes are WebSocket
  * upgrades on this tag's one socket route: the lock, the Origin rule, and then the route

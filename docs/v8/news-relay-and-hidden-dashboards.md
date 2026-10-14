@@ -24,7 +24,7 @@ Summary (after the user's rulings of 2026-10-11 on the first survey):
 
 | Service | Image | Role for `/news` |
 |---|---|---|
-| `funnel-gateway` | `openbb-funnel-gateway:8.0.3`, built from `./funnel-gateway` (Node, `ws`) | The public door. It runs under `profiles: ["web"]`, is published only on Funnel port **8443** through `ts-config/serve-funnel.json`, and is `read_only` with `cap_drop: [ALL]`, 256 MB and 64 pids. It reads the bind mount `./gateway-config/settings.json` and writes only the `gateway-state` volume. |
+| `funnel-gateway` | `openbb-funnel-gateway:8.0.3`, built from `./funnel-gateway` (Node, `ws`) | The public door. It runs under `profiles: ["web"]`, is published only on Funnel port **10000** through `ts-config/serve-funnel.json` (or `serve-v3-funnel.json` with the v3 overlay), and is `read_only` with `cap_drop: [ALL]`, 256 MB and 64 pids. It reads the bind mount `./gateway-config/settings.json` and writes only the `gateway-state` volume. |
 | `rss-ticker` | `ghcr.io/artcashin/rss-feedhandler:8.0.1` (prebuilt, external, digest-pinned) | A shared feed pool that is not tied to any user. It polls the union of the subscribed feed URLs, streams new articles tagged by `feed_id` over `/ws/news`, and pages history at `/api/news`. It has **no authentication**, so the only access control is who can reach it. Serve publishes it on tailnet port `:8088`, and it is never funneled. Its config is `rss-ticker-config/config.yaml` (`retention_days`, `default_poll_interval_s`, `max_concurrent_polls`, `bind_host`), and it keeps its data in the `rss-ticker-data` volume. |
 | `openbb-api` | `openbb-local:8.0.3` | The `/api` upstream. Not part of `/news`. |
 
@@ -238,10 +238,10 @@ Compose (`docker-compose.yml`) puts both services under `profiles: [web]`:
 Neither service publishes a host port. Serve (`ts-config/serve-funnel.json`):
 
 - `:443` → openbq-api, tailnet only;
-- `:8443` → funnel-gateway, the only port with `AllowFunnel`;
+- `:10000` → funnel-gateway, the only port with `AllowFunnel` (8443 stays the episode 3 reference's);
 - `:8088` → rss-ticker, tailnet only.
 
-The default `ts-config/serve.json` publishes the same ports minus `:8443`, and carries no `AllowFunnel` at all (`tests/test_web_profile.py` checks both). Its `:8088` answers 502 until the `web` profile runs. To open the door, write `serve-funnel.json` to `serve.json.new`, check it with `jq empty`, and `mv` it over `serve.json`: the sidecar live-applies the file, and a malformed one would kill it.
+The default `ts-config/serve.json` publishes the same ports minus `:10000`, and carries no `AllowFunnel` at all (`tests/test_web_profile.py` checks both). Its `:8088` answers 502 until the `web` profile runs. To open the door, write `serve-funnel.json` to `serve.json.new`, check it with `jq empty`, and `mv` it over `serve.json`: the sidecar live-applies the file, and a malformed one would kill it. With the v3 overlay, the pair is `serve-v3.json` (443, the reference on 8443, 8088) and `serve-v3-funnel.json` (the same plus `:10000`), so the reference and the door run on one node. `funnel-gateway/README.md` has the full port table.
 
 ### Gateway contract the BDOBB web layer codes to
 

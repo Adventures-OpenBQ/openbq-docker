@@ -8,7 +8,7 @@ import { upstreamPath, newsSubscription, stateFile, socketTicket, socketTicketNo
 // Built at run time so the public-content scan never sees a literal tailnet name.
 const TAILNET = ["example-tailnet", "ts", "net"].join(".");
 
-const ORIGIN = `https://openbq.${TAILNET}:8443`;
+const ORIGIN = `https://openbq.${TAILNET}:10000`;
 const TOKEN = "synthetic_test_credential_not_for_deployment";
 const at = path => new URL(path, ORIGIN);
 // The approved-feed allowlist the /news rules read: url -> rss-ticker feed id. `route`

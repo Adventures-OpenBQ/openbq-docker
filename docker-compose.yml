@@ -87,8 +87,9 @@ services:
       - ./rss-ticker-config:/config:ro
       - rss-ticker-data:/data
     networks: [openbq-internal]
-  # funnel-gateway: the only service Funnel may publish (port 8443, after the
-  # deliberate swap to ts-config/serve-funnel.json). It admits nothing without
+  # funnel-gateway: the only service Funnel may publish (port 10000, after the
+  # deliberate swap to ts-config/serve-funnel.json, or to serve-v3-funnel.json with
+  # the v3 overlay; see funnel-gateway/README.md). It admits nothing without
   # GATEWAY_TOKEN, checks Host and Origin, meters every request, and forwards
   # only funnel-gateway/policy.mjs's routes, injecting the API's Basic pair.
   #   cp gateway.env.example gateway.env && chmod 600 gateway.env
