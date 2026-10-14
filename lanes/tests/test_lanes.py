@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """D8 worker lane: heavy routes run in a child process the API can kill."""
 import asyncio
+import json
 import os
 import sys
 import tempfile
@@ -14,6 +15,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 os.environ["OPENBQ_ROLE"] = "worker"  # importing the module must not spawn the production lane
+os.environ["OPENBQ_EXTRA_APPS"] = "/nonexistent/bdobb_apps.json"  # tests set their own extras
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import openbq_lanes  # noqa: E402
 
@@ -43,7 +45,7 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
         @app.get("/apps.json")
         async def apps():
             self.builds += 1
-            return {"build": self.builds}
+            return [{"build": self.builds}]  # a list, as openbb-api's apps.json
 
         if cors:
             app.add_middleware(CORSMiddleware, allow_origins=cors)
@@ -99,7 +101,21 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(a.headers.get("access-control-allow-origin"), "https://a.example")
         self.assertEqual(b.headers.get("access-control-allow-origin"), "https://b.example")
         self.assertNotIn("access-control-allow-origin", c.headers)
-        self.assertEqual((b.json(), self.builds), ({"build": 1}, 1))
+        self.assertEqual((b.json(), self.builds), ([{"build": 1}], 1))
+
+    async def test_extra_apps_join_the_cached_apps_catalog_once(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump([{"name": "Example"}], f)
+        self.addCleanup(setattr, openbq_lanes, "EXTRA_APPS", openbq_lanes.EXTRA_APPS)
+        openbq_lanes.EXTRA_APPS = f.name
+        self.make(cors=["*"])
+        await self.client.get("/apps.json")  # a probe without Origin builds the cache
+        for _ in range(2):
+            browser = await self.client.get("/apps.json", headers={"origin": "http://localhost:4443"})
+            self.assertEqual(browser.json(), [{"build": 1}, {"name": "Example"}])
+            self.assertEqual(int(browser.headers["content-length"]), len(browser.content))
+            self.assertEqual(browser.headers.get("access-control-allow-origin"), "*")
+        self.assertEqual(self.builds, 1)
 
     async def test_answers_made_by_the_lane_carry_cors_headers(self):
         self.make(cors=["*"], max_bytes=1000)
@@ -218,5 +234,57 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status["heavy"]["pid"], pid)
 
 
+class NoLaneTest(unittest.IsolatedAsyncioTestCase):
+    """With OPENBQ_ISOLATE empty there is no lane, but the catalogs keep their cache, extras and CORS."""
+
+    async def test_with_the_lane_off_the_catalog_and_extra_apps_are_still_served(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump([{"name": "Example"}], f)
+        self.addCleanup(setattr, openbq_lanes, "EXTRA_APPS", openbq_lanes.EXTRA_APPS)
+        openbq_lanes.EXTRA_APPS = f.name
+        self.assertIsNone(openbq_lanes.LANE)  # OPENBQ_ISOLATE empty: no lane in this process
+        openbq_lanes._CATALOG_CACHE.clear()
+        self.addCleanup(openbq_lanes._CATALOG_CACHE.clear)
+        builds = []
+        app = FastAPI()
+
+        @app.get("/apps.json")
+        async def apps():
+            builds.append(1)
+            return [{"build": len(builds)}]
+
+        app.add_middleware(CORSMiddleware, allow_origins=["*"])
+        app.middleware("http")(openbq_lanes.middleware)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api") as client:
+            await client.get("/apps.json")  # a probe without Origin builds the cache
+            for _ in range(2):
+                browser = await client.get("/apps.json", headers={"origin": "http://localhost:4443"})
+                self.assertEqual(browser.json(), [{"build": 1}, {"name": "Example"}])
+                self.assertEqual(int(browser.headers["content-length"]), len(browser.content))
+                self.assertEqual(browser.headers.get("access-control-allow-origin"), "*")
+        self.assertEqual(len(builds), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExtraAppsTest(unittest.TestCase):
+    """BDOBB's example apps are appended to a built apps.json list, and nothing else is touched."""
+
+    def test_appends_to_a_list_and_leaves_anything_else_alone(self):
+        import json
+        import tempfile
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump([{"name": "Example"}], f)
+        old = openbq_lanes.EXTRA_APPS
+        openbq_lanes.EXTRA_APPS = f.name
+        try:
+            merged = json.loads(openbq_lanes._with_extra_apps(b'[{"name": "BLS"}]'))
+            self.assertEqual([a["name"] for a in merged], ["BLS", "Example"])
+            self.assertEqual(openbq_lanes._with_extra_apps(b'{"build": 1}'), b'{"build": 1}')
+            openbq_lanes.EXTRA_APPS = f.name + ".absent"
+            self.assertEqual(openbq_lanes._with_extra_apps(b"[]"), b"[]")
+        finally:
+            openbq_lanes.EXTRA_APPS = old
