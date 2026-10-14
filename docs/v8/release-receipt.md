@@ -14,7 +14,7 @@ Gated tree: `2a4d087`. This receipt commit changes only this file. `release/v8` 
   - 8.0.1 is built for amd64 and arm64; 8.0.0 was amd64 only.
   - It changes no application code from 8.0.0.
   - It started healthy (`{"status":"ok","version":"8.0.1"}`) on `rss-ticker-config/config.yaml.example`.
-  - The GHCR package is private, so pulling it needs a login with access to `artcashin/rss-feedhandler`.
+  - The GHCR package is public, so it pulls without a registry login.
 - **Serve/Funnel: the door is on Funnel port 10000**, so the episode 3 reference keeps 8443 and both run on one node (user ruling, option B). Funnel offers only 443, 8443 and 10000, and 443 stays ODP's. One sidecar applies exactly one serve file; each tailnet file has a Funnel variant that adds only the door:
 
   | Serve file | Applied by | 443 | 8443 | 8088 | 10000 |

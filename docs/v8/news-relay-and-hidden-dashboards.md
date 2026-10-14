@@ -309,8 +309,7 @@ The admission logic matches the client's v8.1.2 `web/policy.mjs`, which is the d
   the bridge into the tailnet; `funnel-gateway/README.md` has the one-command check. Without that
   route, `/news` stays off (404/503) and `/api` and `/state` still work.
 - **One image digest is not pinned.** `node:22-alpine` is referenced by tag. The rss image is pinned
-  (8.0.1, `sha256:bbe5e391…`), but its GHCR package is private, so pulling it needs a registry login
-  with access to `artcashin/rss-feedhandler`.
+  (8.0.1, `sha256:bbe5e391…`), and its GHCR package is public, so it pulls without a registry login.
 - **Not built or run.** Docker has no daemon here, so the gateway image was not built and no
   container was run.
 - **rss-ticker only runs under the `web` profile.** A desktop-only News user who wants the pool
