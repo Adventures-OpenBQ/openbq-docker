@@ -127,9 +127,9 @@ docker compose -f docker-compose.yml -f docker-compose.v3.yml build
 docker compose -f docker-compose.yml -f docker-compose.v3.yml up -d
 ```
 
-The reference `/apps.json` advertises 73 self-contained cards with zero missing
+The reference `/apps.json` advertises 74 self-contained cards with zero missing
 widget references. Its `/bundle.apps.json` download adds the keyless ODP market
-examples for a 79-card BDOBB file import. The two Episode 3 app entries carry
+examples for an 80-card BDOBB file import. The two Episode 3 app entries carry
 the BDOBB logo in standard image fields. Workspace is an optional Episode 2
 comparison, not a prerequisite for this setup.
 
