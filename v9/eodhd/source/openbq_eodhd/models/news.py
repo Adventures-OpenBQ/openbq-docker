@@ -18,8 +18,8 @@ from openbb_core.provider.standard_models.world_news import (
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 from pydantic import Field
 
-from openbb_eodhd.models._client import rest_json, sdk_call
-from openbb_eodhd.models._fundamentals import qualify
+from openbq_eodhd.models._client import rest_json, sdk_call
+from openbq_eodhd.models._fundamentals import qualify
 
 
 def _fetch_news(credentials, params: dict, context: str) -> list[dict]:

@@ -1,21 +1,21 @@
 <!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# openbb-eodhd: FMP-parity provider interface
+# openbq-eodhd: FMP-parity provider interface
 
 **Date:** 2026-08-29
 **Status:** design approved (scope + phasing); pending spec review → implementation plan
 
 ## Goal
 
-Make `openbb-eodhd` a broad OpenBB provider interface, using **FMP as the reference
+Make `openbq-eodhd` a broad OpenBB provider interface, using **FMP as the reference
 surface**: for every OpenBB standard model FMP registers (69 of them), add an EODHD
 fetcher wherever EODHD's API can supply the data. Registering under the same
 standard-model names FMP uses makes OpenBB auto-generate the parallel
 `..._eodhd_obb` widget IDs, which bdobb-v2 and OpenBB Workspace pick up for free
 after a container rebuild + `widgets.json` regeneration.
 
-Today `openbb-eodhd` (v9.0.0) implements **9** fetchers: EquityHistorical,
+Today `openbq-eodhd` (v9.0.0) implements **9** fetchers: EquityHistorical,
 EtfHistorical, CryptoHistorical, CurrencyHistorical, IncomeStatement, BalanceSheet,
 CashFlowStatement, HistoricalDividends, HistoricalSplits.
 
@@ -31,12 +31,12 @@ ConsumerPriceIndex, Unemployment).
 
 ## Existing pattern (followed as-is)
 
-- One model file per domain under `openbb_eodhd/models/`, each defining
+- One model file per domain under `openbq_eodhd/models/`, each defining
   `Fetcher` subclass(es) that map an OpenBB standard `QueryParams`/`Data` pair onto
-  EODHD's API via `openbb_eodhd/models/_client.py`.
+  EODHD's API via `openbq_eodhd/models/_client.py`.
 - Well-known fields mapped to OpenBB conventional names; unmapped fields pass
   through snake_cased (standard models allow extras) — see `models/fundamental.py`.
-- Fetchers registered in `openbb_eodhd/__init__.py` `eodhd_provider.fetcher_dict`,
+- Fetchers registered in `openbq_eodhd/__init__.py` `eodhd_provider.fetcher_dict`,
   keyed by the standard-model name.
 - Credential `eodhd_api_key` (env `EODHD_API_KEY`) already declared.
 - Symbol handling (`TICKER.EXCHANGE`, default `.US`) already in `_client`.
@@ -53,7 +53,7 @@ The three statement fetchers already fetch this (today via per-section `filter=`
 calls — to be refactored onto the shared path). ~18 of the new fetchers are also
 sections of this same payload. So add a shared helper:
 
-- `openbb_eodhd/models/_fundamentals.py` — fetches the **whole** `/fundamentals`
+- `openbq_eodhd/models/_fundamentals.py` — fetches the **whole** `/fundamentals`
   payload once per symbol (honoring `_client`'s symbol/credential logic), with typed
   section accessors (`general()`, `highlights()`, `valuation()`, `holders()`,
   `insider()`, `earnings()`, `analyst_ratings()`, `shares_stats()`, `esg()`,
@@ -90,7 +90,7 @@ TTL window across the whole stack, not once per render/worker/restart.
   gated with the cheap `read_metadata` before reading the ~1 MB payload.
 - **Best-effort / graceful:** every L2 read and write is wrapped so any ArcticDB
   problem (or its absence — e.g. standalone Mac dev, MinIO down) falls back to a live
-  EODHD fetch and never breaks a request. `openbb-eodhd` gains **no hard dependency**
+  EODHD fetch and never breaks a request. `openbq-eodhd` gains **no hard dependency**
   on `openbb-arcticdb`; L2 simply self-disables when unavailable.
 - Auto-enabled when the Arctic library resolves; otherwise L1-only.
 
@@ -197,7 +197,7 @@ Low value and approximate; excluded from the default scope per design review:
 
 ## Extension version semantics
 
-The `openbb-eodhd` package version states **what the extension covers**, not
+The `openbq-eodhd` package version states **what the extension covers**, not
 which chapter it shipped in:
 
 | Extension version | Meaning | Fetchers |
@@ -267,7 +267,7 @@ which is where this design's ArcticDB L2 tier gets rebuilt on Delta Lake.
   `eodhd_provider.fetcher_dict` and its fetcher returns a non-empty, schema-valid
   result for `AAPL.US` (ETF models against a known ETF, forex/index against known
   symbols).
-- Bump `openbb-eodhd` version and note new providers in the README/description.
+- Bump `openbq-eodhd` version and note new providers in the README/description.
 
 ## Risks / open items
 
@@ -304,6 +304,6 @@ which is where this design's ArcticDB L2 tier gets rebuilt on Delta Lake.
   Mac-built image) must be confirmed in the implementation plan so the new providers
   actually reach production; the `update-openbb-docker` skill's `--container`/`--push`
   covers the Mac→GHCR path.
-- **Standalone github repo drift:** `github.com/artcashin/openbb-eodhd` is a stale
+- **Standalone github repo drift:** `github.com/artcashin/openbq-eodhd` is a stale
   0.1.0; the live source is this in-repo copy (v9.0.0). Decide whether to re-sync the
   standalone repo or leave it (out of scope here).

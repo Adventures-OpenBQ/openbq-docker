@@ -13,8 +13,8 @@ from openbb_core.provider.standard_models.insider_trading import (
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 from pydantic import Field
 
-from openbb_eodhd.models._client import get_client, raise_sdk_error
-from openbb_eodhd.models._fundamentals import qualify
+from openbq_eodhd.models._client import get_client, raise_sdk_error
+from openbq_eodhd.models._fundamentals import qualify
 
 
 def _date(v):

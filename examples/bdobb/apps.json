@@ -1069,7 +1069,7 @@
   },
   {
     "name": "Example Dashboard - Version 9.0.0 - Calendars",
-    "description": "Episode 9 brings EODHD to the stack. Markets: two EODHD price histories, a table and a chart, sharing one Symbol and one Interval group, and EODHD's quarterly income statement in the Statement view, twelve quarters. Calendars: the EODHD U.S. economic calendar as a paged month, U.S. Treasury auction results as an endless week grid, and the EODHD earnings calendar as a horizontal day ribbon filtered to seven names, each with its EODHD stock logo -- each a Calendar view over the table the backend already serves. The EODHD cards need an openbb-api with the openbb-eodhd extension and an EODHD_API_KEY; the Treasury card is openbb-api's own keyless widget. Its Calendar and Statement views travel in BDOBB's v5 extension; made for, and opens in, BDOBB 9.0.0 or later.",
+    "description": "Episode 9 brings EODHD to the stack. Markets: two EODHD price histories, a table and a chart, sharing one Symbol and one Interval group, and EODHD's quarterly income statement in the Statement view, twelve quarters. Calendars: the EODHD U.S. economic calendar as a paged month, U.S. Treasury auction results as an endless week grid, and the EODHD earnings calendar as a horizontal day ribbon filtered to seven names, each with its EODHD stock logo -- each a Calendar view over the table the backend already serves. The EODHD cards need an openbb-api with the openbq-eodhd extension and an EODHD_API_KEY; the Treasury card is openbb-api's own keyless widget. Its Calendar and Statement views travel in BDOBB's v5 extension; made for, and opens in, BDOBB 9.0.0 or later.",
     "img": "",
     "img_dark": "",
     "img_light": "",

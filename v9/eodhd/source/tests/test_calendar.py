@@ -1,7 +1,7 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for openbb_eodhd.models.calendar.
+"""Tests for openbq_eodhd.models.calendar.
 
 Sample rows are trimmed live responses recorded 2026-09-01 against the
 account key (calendar endpoints are core-API, no marketplace add-on).
@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 
-from openbb_eodhd.models.calendar import (
+from openbq_eodhd.models.calendar import (
     EODHDCalendarEarningsFetcher,
     EODHDCalendarEarningsQueryParams,
     EODHDCalendarIpoFetcher,
@@ -168,7 +168,7 @@ class TestCalendarEarnings:
             start_date=date(2026, 9, 1), end_date=date(2026, 9, 3)
         )
         client = _client("get_upcoming_earnings_data", EARNINGS_RESP)
-        with patch("openbb_eodhd.models.calendar.get_client", return_value=client):
+        with patch("openbq_eodhd.models.calendar.get_client", return_value=client):
             rows = run_async(
                 EODHDCalendarEarningsFetcher.aextract_data, query, CREDS
             )
@@ -252,7 +252,7 @@ class TestEconomicCalendar:
     def test_extract_passes_filters(self):
         query = EODHDEconomicCalendarQueryParams(country="US", comparison="yoy")
         client = _client("get_economic_events_data", ECON_RESP)
-        with patch("openbb_eodhd.models.calendar.get_client", return_value=client):
+        with patch("openbq_eodhd.models.calendar.get_client", return_value=client):
             rows = run_async(
                 EODHDEconomicCalendarFetcher.aextract_data, query, CREDS
             )
@@ -264,7 +264,7 @@ class TestEconomicCalendar:
     def test_error_dict_raises(self):
         query = EODHDEconomicCalendarQueryParams()
         client = _client("get_economic_events_data", {"message": "denied"})
-        with patch("openbb_eodhd.models.calendar.get_client", return_value=client):
+        with patch("openbq_eodhd.models.calendar.get_client", return_value=client):
             with pytest.raises(UnauthorizedError):
                 run_async(EODHDEconomicCalendarFetcher.aextract_data, query, CREDS)
 
@@ -277,7 +277,7 @@ class TestEconomicCalendar:
         """Fewer than 1,000 rows back means the range is already complete."""
         query = EODHDEconomicCalendarQueryParams()
         client = _client_series("get_economic_events_data", [ECON_RESP])
-        with patch("openbb_eodhd.models.calendar.get_client", return_value=client):
+        with patch("openbq_eodhd.models.calendar.get_client", return_value=client):
             rows = run_async(EODHDEconomicCalendarFetcher.aextract_data, query, CREDS)
         assert rows == ECON_RESP
         assert client.get_economic_events_data.call_count == 1
@@ -290,7 +290,7 @@ class TestEconomicCalendar:
         page2 = _econ_page([("2026-09-01", 50)])
         client = _client_series("get_economic_events_data", [page1, page2])
         query = EODHDEconomicCalendarQueryParams()
-        with patch("openbb_eodhd.models.calendar.get_client", return_value=client):
+        with patch("openbq_eodhd.models.calendar.get_client", return_value=client):
             rows = run_async(EODHDEconomicCalendarFetcher.aextract_data, query, CREDS)
 
         assert client.get_economic_events_data.call_count == 2
@@ -313,7 +313,7 @@ class TestEconomicCalendar:
             "get_economic_events_data", [page1, page2, page3]
         )
         query = EODHDEconomicCalendarQueryParams()
-        with patch("openbb_eodhd.models.calendar.get_client", return_value=client):
+        with patch("openbq_eodhd.models.calendar.get_client", return_value=client):
             rows = run_async(EODHDEconomicCalendarFetcher.aextract_data, query, CREDS)
 
         assert client.get_economic_events_data.call_count == 3
@@ -331,7 +331,7 @@ class TestEconomicCalendar:
         page2 = _econ_page([("2026-09-01", 200)])  # walk totals 1,100
         client = _client_series("get_economic_events_data", [page1, page2])
         query = EODHDEconomicCalendarQueryParams(limit=50)
-        with patch("openbb_eodhd.models.calendar.get_client", return_value=client):
+        with patch("openbq_eodhd.models.calendar.get_client", return_value=client):
             rows = run_async(EODHDEconomicCalendarFetcher.aextract_data, query, CREDS)
         assert len(rows) == 50
 
@@ -344,7 +344,7 @@ class TestEconomicCalendar:
             "get_economic_events_data", lambda **kw: page
         )
         query = EODHDEconomicCalendarQueryParams()
-        with patch("openbb_eodhd.models.calendar.get_client", return_value=client):
+        with patch("openbq_eodhd.models.calendar.get_client", return_value=client):
             with pytest.warns(UserWarning):
                 run_async(EODHDEconomicCalendarFetcher.aextract_data, query, CREDS)
         assert client.get_economic_events_data.call_count == 20

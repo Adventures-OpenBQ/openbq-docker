@@ -1,9 +1,9 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for openbb_eodhd.economic_taxonomy."""
+"""Tests for openbq_eodhd.economic_taxonomy."""
 
-from openbb_eodhd.economic_taxonomy import EVENT_INDEX, TAXONOMY, classify
+from openbq_eodhd.economic_taxonomy import EVENT_INDEX, TAXONOMY, classify
 
 
 def test_event_index_is_unique():

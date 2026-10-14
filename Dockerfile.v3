@@ -5,7 +5,8 @@ COPY v3/yfinance/source /source
 RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /source
 COPY v4/routes /routes
 RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /routes
-# v9: openbb-eodhd (ported from bdobb-dev/openbb-docker v9.6.3, fixes through v9.6.6;
+# v9: openbq-eodhd 9.0.0 (Adventures-OpenBQ/openbq-eodhd v9.0.0: bdobb-dev/openbb-docker's openbb-eodhd v9.6.3,
+# fixes through v9.6.6, renamed;
 # v9/eodhd/source.json) and the official EODHD SDK at the commit its pyproject pins.
 RUN python -m pip install setuptools==84.0.0
 COPY v9/eodhd/source /eodhd
@@ -40,9 +41,9 @@ RUN python -m pip install --no-deps /tmp/openbq_routes-4.0.0-py3-none-any.whl &&
 # v9: EODHD provider extension, served as obb.eodhd.* (/api/v1/eodhd/*) with its "EODHD" app.
 # The SDK's own dependencies resolve under the ODP lock as constraints, so no locked
 # package moves; record what they add in v9/eodhd/README.md (Mac build pending).
-COPY --from=yfinance-build /wheels/eodhd-*.whl /wheels/openbb_eodhd-9.6.3-py3-none-any.whl /tmp/eodhd/
+COPY --from=yfinance-build /wheels/eodhd-*.whl /wheels/openbq_eodhd-9.0.0-py3-none-any.whl /tmp/eodhd/
 RUN python -m pip install --constraint /tmp/requirements.lock /tmp/eodhd/eodhd-*.whl \
-    && python -m pip install --no-deps /tmp/eodhd/openbb_eodhd-9.6.3-py3-none-any.whl \
+    && python -m pip install --no-deps /tmp/eodhd/openbq_eodhd-9.0.0-py3-none-any.whl \
     && python -m pip check && openbb-build && rm -rf /tmp/eodhd
 COPY v9/eodhd/verify.py /tmp/eodhd-verify/verify.py
 COPY v9/eodhd/tests /tmp/eodhd-verify/tests

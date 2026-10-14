@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # tests/test_ownership.py
-from openbb_eodhd.models.ownership import EODHDInstitutionalOwnershipFetcher as Fetcher
-from openbb_eodhd.models.ownership import EODHDInstitutionalOwnershipQueryParams as QP
-from openbb_eodhd.models.ownership import EODHDEquityOwnershipFetcher as OFetcher
-from openbb_eodhd.models.ownership import EODHDEquityOwnershipQueryParams as OQP
+from openbq_eodhd.models.ownership import EODHDInstitutionalOwnershipFetcher as Fetcher
+from openbq_eodhd.models.ownership import EODHDInstitutionalOwnershipQueryParams as QP
+from openbq_eodhd.models.ownership import EODHDEquityOwnershipFetcher as OFetcher
+from openbq_eodhd.models.ownership import EODHDEquityOwnershipQueryParams as OQP
 
 BUNDLE = {"Holders": {"Institutions": {
     "0": {"name": "BlackRock Inc", "date": "2026-03-31", "totalShares": 7.83,

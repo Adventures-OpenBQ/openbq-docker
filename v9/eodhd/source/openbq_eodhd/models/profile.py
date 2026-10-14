@@ -22,7 +22,7 @@ from openbb_core.provider.standard_models.share_statistics import (
 from openbb_core.provider.utils.errors import EmptyDataError
 from pydantic import Field
 
-from openbb_eodhd.models import _fundamentals as F
+from openbq_eodhd.models import _fundamentals as F
 
 
 def _date(v):

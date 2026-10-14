@@ -1,14 +1,14 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for openbb_eodhd.models.fundamental."""
+"""Tests for openbq_eodhd.models.fundamental."""
 
 import asyncio
 from datetime import date
 
 import pytest
 
-from openbb_eodhd.models.fundamental import (
+from openbq_eodhd.models.fundamental import (
     _snake,
     _num,
     _transform,
@@ -215,7 +215,7 @@ class TestFiscalYearEnd:
 
 def test_extract_reads_fiscal_year_end_from_general(monkeypatch):
     """The statement fetchers label periods by General.FiscalYearEnd, from the same bundle."""
-    from openbb_eodhd.models import _fundamentals as F
+    from openbq_eodhd.models import _fundamentals as F
 
     F._reset_cache_for_tests()
     bundle = {
@@ -357,7 +357,7 @@ class TestCashFlowFetcher:
 
 def test_three_statements_one_symbol_share_one_fetch(monkeypatch):
     """Income+Balance+CashFlow for one symbol -> ONE /fundamentals fetch."""
-    from openbb_eodhd.models import _fundamentals as F
+    from openbq_eodhd.models import _fundamentals as F
 
     F._reset_cache_for_tests()
     calls = {"n": 0}

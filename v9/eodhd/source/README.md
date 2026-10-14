@@ -1,7 +1,9 @@
 <!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# openbb-eodhd
+# openbq-eodhd
+
+The EODHD provider extension for the OpenBB Platform, for the *Adventures in OpenBQ* stack (openbq-docker v9 vendors it under `v9/eodhd/source`). It is bdobb-dev/openbb-docker's `openbb-eodhd` (v9.6.3, fixes through v9.6.6), renamed; see NOTICE for provenance. The provider is still `eodhd` and its routes are still `obb.eodhd.*`.
 
 An [EODHD](https://eodhd.com) (EOD Historical Data) provider extension for the
 [OpenBB Platform](https://github.com/OpenBB-finance/OpenBB). Adds `provider="eodhd"`
@@ -59,7 +61,7 @@ predates the SDK's typed errors, request timeouts, and the fundamentals
 The provider-owned [aggregation dictionary](docs/aggregation-metadata.md)
 offers versioned, conditional time-aggregation guidance for normalized EOD
 price and financial-statement fields. Use
-`openbb_eodhd.aggregation.get_aggregation_metadata` to inspect it.
+`openbq_eodhd.aggregation.get_aggregation_metadata` to inspect it.
 Unknown fields require selection, and temporal rules are separate from
 cross-entity aggregation. It does not change fetcher responses or
 automatically aggregate data. The seven covered Data models carry each
@@ -97,7 +99,7 @@ symbols (`AAPL.US`, `MCD.US`, `TSLA.US`, `VTI.US`) and is handy for testing.
 ## Install
 
 ```bash
-pip install openbb-eodhd        # or: pip install /path/to/openbb-eodhd
+pip install openbq-eodhd        # or: pip install /path/to/openbq-eodhd
 python -c "import openbb; openbb.build()"   # regenerate the static package
 ```
 

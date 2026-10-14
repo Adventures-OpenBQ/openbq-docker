@@ -28,7 +28,7 @@ from openbb_core.provider.standard_models.etf_sectors import (
 from openbb_core.provider.utils.errors import EmptyDataError
 from pydantic import Field
 
-from openbb_eodhd.models import _fundamentals as F
+from openbq_eodhd.models import _fundamentals as F
 
 _PCT = {"x-unit_measurement": "percent", "x-frontend_multiply": 100}
 

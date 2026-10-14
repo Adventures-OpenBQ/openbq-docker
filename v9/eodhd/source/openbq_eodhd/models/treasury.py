@@ -22,7 +22,7 @@ from openbb_core.provider.standard_models.yield_curve import (
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 from pydantic import Field
 
-from openbb_eodhd.models._client import sdk_call
+from openbq_eodhd.models._client import sdk_call
 
 # EODHD tenor → standard-model maturity name. "1.5M" has no standard slot and
 # is dropped; "4M" rides along as a provider extra.

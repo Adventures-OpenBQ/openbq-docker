@@ -6,7 +6,7 @@ Mirror commands over the eodhd fetchers, GENERATED rather than hand-written
 (user ruling 2026-09-30). For every key in eodhd_provider.fetcher_dict that has
 a row in MIRRORS, one command is registered at the standard path under the
 eodhd prefix, with model "Eodhd" + <standard model>. That model is a second
-key for the very same fetcher (see openbb_eodhd/__init__.py), so the command's
+key for the very same fetcher (see openbq_eodhd/__init__.py), so the command's
 only provider is eodhd and its rows, errors and HTTP statuses are identical to
 the standard command with provider=eodhd. No data code lives here.
 
@@ -38,7 +38,7 @@ from openbb_core.app.provider_interface import (
 from openbb_core.app.query import Query as OBBQuery
 from openbb_core.app.router import Router
 
-from openbb_eodhd import eodhd_provider
+from openbq_eodhd import eodhd_provider
 
 # standard model -> (standard path, widget subCategory)
 MIRRORS: dict[str, tuple[str, str]] = {

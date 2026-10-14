@@ -14,17 +14,17 @@ from openbb_core.provider.standard_models.balance_sheet import BalanceSheetData
 from openbb_core.provider.standard_models.cash_flow import CashFlowStatementData
 from openbb_core.provider.standard_models.equity_historical import EquityHistoricalData
 from openbb_core.provider.standard_models.income_statement import IncomeStatementData
-from openbb_eodhd.aggregation import (
+from openbq_eodhd.aggregation import (
     HISTORICAL_INTERVALS,
     RULESET_VERSION,
     STATEMENT_PERIODS,
     get_aggregation_metadata,
     widget_hint,
 )
-from openbb_eodhd.models.crypto_historical import EODHDCryptoHistoricalData
-from openbb_eodhd.models.currency_historical import EODHDCurrencyHistoricalData
-from openbb_eodhd.models.equity_historical import EODHDEquityHistoricalData
-from openbb_eodhd.models.fundamental import (
+from openbq_eodhd.models.crypto_historical import EODHDCryptoHistoricalData
+from openbq_eodhd.models.currency_historical import EODHDCurrencyHistoricalData
+from openbq_eodhd.models.equity_historical import EODHDEquityHistoricalData
+from openbq_eodhd.models.fundamental import (
     CASHFLOW_MAP,
     INCOME_MAP,
     EODHDBalanceSheetData,

@@ -13,7 +13,7 @@ import pytest
 from openbb_core.app.model.abstract.error import OpenBBError
 from openbb_core.provider.utils.errors import UnauthorizedError
 
-from openbb_eodhd.models.macro import (
+from openbq_eodhd.models.macro import (
     EODHDConsumerPriceIndexFetcher, EODHDConsumerPriceIndexQueryParams,
     EODHDCountryProfileFetcher, EODHDCountryProfileQueryParams,
     EODHDEconomicIndicatorsFetcher, EODHDEconomicIndicatorsQueryParams,
@@ -70,7 +70,7 @@ def _client():
 
 def _patched(fetcher, query):
     client = _client()
-    with patch("openbb_eodhd.models._client.get_client", return_value=client):
+    with patch("openbq_eodhd.models._client.get_client", return_value=client):
         raw = run_async(fetcher.aextract_data, query, CREDS)
     return client, fetcher.transform_data(query, raw)
 
@@ -167,6 +167,6 @@ class TestCountryProfile:
         client.__enter__ = MagicMock(return_value=client)
         client.__exit__ = MagicMock(return_value=False)
         client.get_macro_indicators_data.return_value = {"message": "denied"}
-        with patch("openbb_eodhd.models._client.get_client", return_value=client):
+        with patch("openbq_eodhd.models._client.get_client", return_value=client):
             with pytest.raises(UnauthorizedError):
                 run_async(EODHDCountryProfileFetcher.aextract_data, q, CREDS)

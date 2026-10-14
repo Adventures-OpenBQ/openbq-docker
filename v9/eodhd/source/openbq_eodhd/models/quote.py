@@ -18,8 +18,8 @@ from openbb_core.provider.standard_models.equity_quote import (
 from openbb_core.provider.utils.errors import EmptyDataError
 from pydantic import Field
 
-from openbb_eodhd.models._client import sdk_call
-from openbb_eodhd.models._fundamentals import qualify
+from openbq_eodhd.models._client import sdk_call
+from openbq_eodhd.models._fundamentals import qualify
 
 
 class EODHDEquityQuoteQueryParams(EquityQuoteQueryParams):

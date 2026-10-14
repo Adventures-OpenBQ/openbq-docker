@@ -1,9 +1,10 @@
 <!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. SPDX-License-Identifier: Apache-2.0 -->
 
-# openbb-eodhd in ODP v9
+# openbq-eodhd in ODP v9
 
-`source/` is the openbb-eodhd provider extension (9.6.3), ported from
-bdobb-dev/openbb-docker v9.6.3 with its openbb-eodhd fixes through v9.6.6
+`source/` is the openbq-eodhd provider extension 9.0.0, vendored from
+Adventures-OpenBQ/openbq-eodhd at tag `v9.0.0`. That package is bdobb-dev/openbb-docker's
+`openbb-eodhd` (v9.6.3, fixes through v9.6.6), renamed `openbq-eodhd` (module `openbq_eodhd`)
 (`source.json`; per-file record in [docs/v9/eodhd-port.md](../../docs/v9/eodhd-port.md)).
 Its own README describes the data. `Dockerfile.v3` builds it as a wheel and
 installs it on the locked ODP recipe with the provider-fixes overlay applied.
@@ -17,7 +18,7 @@ one per standard model EODHD implements, each offering only `eodhd`. Their
 widgets are `eodhd_<path>_eodhd_obb`, category EODHD; for example
 `eodhd_equity_price_historical_eodhd_obb` is `/api/v1/eodhd/equity/price/historical`.
 
-`source/openbb_eodhd/assets/apps.json` holds one app, `EODHD` (Company,
+`source/openbq_eodhd/assets/apps.json` holds one app, `EODHD` (Company,
 Ownership and Markets tabs, eight cards). The extension serves it on
 `/api/v1/eodhd/apps.json` and openbb-api merges it into `/apps.json`, as it
 does the other provider apps. It does not go in `examples/bdobb/apps.json`.

@@ -29,7 +29,7 @@ from openbb_core.provider.standard_models.income_statement import (
 from openbb_core.provider.utils.errors import EmptyDataError
 from pydantic import Field, create_model
 
-from openbb_eodhd.aggregation import attach_widget_hints
+from openbq_eodhd.aggregation import attach_widget_hints
 
 # EODHD field -> OpenBB conventional field name. Unmapped fields pass through
 # snake_cased, so these maps only need the commonly-consumed line items.
@@ -177,7 +177,7 @@ def _transform(
 async def _extract(section: str, field_map: dict, query, credentials) -> list[dict]:
     """Shared extract: read the section from the shared /fundamentals bundle, then map to standard rows."""
     # pylint: disable=import-outside-toplevel
-    from openbb_eodhd.models._fundamentals import general, get_bundle
+    from openbq_eodhd.models._fundamentals import general, get_bundle
 
     bundle = await get_bundle(query.symbol, query.exchange, credentials)
     financials = bundle.get("Financials") or {}
@@ -227,7 +227,7 @@ class EODHDCashFlowStatementQueryParams(CashFlowStatementQueryParams):
 # widget generator scopes a schema to a provider by that prefix.
 #
 # attach_widget_hints then stamps every field with its dictionary hint (see
-# openbb_eodhd.aggregation, which reads this module's maps at call time rather
+# openbq_eodhd.aggregation, which reads this module's maps at call time rather
 # than import time, so the two modules can each import the other's names).
 # Validation is unchanged: the same rows, the same values, now also typed.
 

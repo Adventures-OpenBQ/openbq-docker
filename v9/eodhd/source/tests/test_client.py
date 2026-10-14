@@ -12,7 +12,7 @@ that gap, and the SDK-internal attribute names it depends on.
 
 import pytest
 
-from openbb_eodhd.models._client import apply_openbb_http_settings, get_client
+from openbq_eodhd.models._client import apply_openbb_http_settings, get_client
 
 
 def test_pinned_sdk_still_exposes_the_attributes_we_configure():
@@ -39,7 +39,7 @@ def test_session_is_replaced_with_openbbs_configured_session():
 
 
 def test_configured_timeout_is_applied(monkeypatch):
-    import openbb_eodhd.models._client as mod
+    import openbq_eodhd.models._client as mod
     from eodhd import APIClient
 
     client = APIClient("demo")

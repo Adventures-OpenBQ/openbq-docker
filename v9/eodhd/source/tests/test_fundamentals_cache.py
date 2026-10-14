@@ -6,7 +6,7 @@
 import asyncio
 import pytest
 
-from openbb_eodhd.models import _fundamentals as F
+from openbq_eodhd.models import _fundamentals as F
 
 
 BUNDLE = {

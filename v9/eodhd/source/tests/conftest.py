@@ -1,7 +1,7 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Shared fixtures for openbb-eodhd tests."""
+"""Shared fixtures for openbq-eodhd tests."""
 
 import asyncio
 from typing import Any
@@ -89,7 +89,7 @@ def mock_eodhd_client():
 
     Every SDK method returns `response` (or, when `response` is callable, its
     per-call result). Patch `get_client` at the module under test, e.g.
-    `patch("openbb_eodhd.models._bars.get_client", return_value=client)`.
+    `patch("openbq_eodhd.models._bars.get_client", return_value=client)`.
     """
 
     def _make(response: Any) -> MagicMock:

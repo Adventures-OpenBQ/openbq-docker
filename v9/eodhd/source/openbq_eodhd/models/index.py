@@ -21,8 +21,8 @@ from openbb_core.provider.utils.descriptions import QUERY_DESCRIPTIONS
 from openbb_core.provider.utils.errors import EmptyDataError
 from pydantic import Field
 
-from openbb_eodhd.models._bars import fetch_bars, rows_from_bars
-from openbb_eodhd.models._client import sdk_call
+from openbq_eodhd.models._bars import fetch_bars, rows_from_bars
+from openbq_eodhd.models._client import sdk_call
 
 
 class EODHDAvailableIndicesQueryParams(AvailableIndicesQueryParams):

@@ -21,7 +21,7 @@ from openbb_core.provider.standard_models.currency_snapshots import (
 from openbb_core.provider.utils.errors import EmptyDataError
 from pydantic import Field
 
-from openbb_eodhd.models._client import sdk_call
+from openbq_eodhd.models._client import sdk_call
 
 # The default counter set for a snapshot with no counter_currencies given.
 _DEFAULT_COUNTERS = ["EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY", "MXN", "INR"]

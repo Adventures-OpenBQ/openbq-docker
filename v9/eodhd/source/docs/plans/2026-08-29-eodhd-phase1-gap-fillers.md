@@ -9,14 +9,14 @@
 
 **Architecture:** A shared `_fundamentals.py` helper fetches the whole EODHD `/fundamentals` payload once per symbol behind a single-flight TTL cache; fundamentals-derived fetchers are thin section-extractors over it. InsiderTrading uses EODHD's dedicated insider endpoint. Each fetcher maps an OpenBB standard model FMP already registers, so OpenBB auto-generates the parallel `_eodhd_obb` widget ids.
 
-**Tech Stack:** Python 3.10+, `openbb-core` provider framework, the official `eodhd` SDK (via `openbb_eodhd/models/_client.py`), pydantic v2, pytest.
+**Tech Stack:** Python 3.10+, `openbb-core` provider framework, the official `eodhd` SDK (via `openbq_eodhd/models/_client.py`), pydantic v2, pytest.
 
-**Spec:** `openbb-eodhd/docs/specs/2026-08-29-eodhd-fmp-parity-design.md`
+**Spec:** `openbq-eodhd/docs/specs/2026-08-29-eodhd-fmp-parity-design.md`
 
 ## Global Constraints
 
 - Register each fetcher under the **exact** OpenBB standard-model name FMP uses (`InstitutionalOwnership`, `EquityOwnership`, `InsiderTrading`, `HistoricalEps`, `AnalystEstimates`, `ForwardEpsEstimates`, `PriceTargetConsensus`) — that is what yields matching `_eodhd_obb` widget ids.
-- All EODHD HTTP goes through `openbb_eodhd.models._client.get_client()`; never build a session directly. Map SDK exceptions with `raise_sdk_error(exc, context)`.
+- All EODHD HTTP goes through `openbq_eodhd.models._client.get_client()`; never build a session directly. Map SDK exceptions with `raise_sdk_error(exc, context)`.
 - Symbols are qualified `TICKER.EXCHANGE`, default exchange `US`; each QueryParams subclass adds `exchange: str = Field(default="US", ...)`.
 - Credential is `eodhd_api_key` (already declared on the provider).
 - The fundamentals cache is **two-tier**: L1 in-process single-flight (stdlib: `time.monotonic()` + dict + `asyncio.Lock`, `_TTL_SECONDS = 120.0`) for burst coalescing, and L2 an **ArcticDB read-through** for persistence. L2 soft-imports `openbb_arcticdb.utils.get_library` and is **best-effort**: any ArcticDB error or its absence falls back to a live EODHD fetch and never breaks a request (no hard dependency on `openbb-arcticdb`). L2 TTL is `EODHD_FUNDAMENTALS_TTL_HOURS` (default 24), library `eodhd_fundamentals_cache`.
@@ -28,7 +28,7 @@
 ### Task 1: Shared `/fundamentals` helper with single-flight TTL cache
 
 **Files:**
-- Create: `openbb_eodhd/models/_fundamentals.py`
+- Create: `openbq_eodhd/models/_fundamentals.py`
 - Test: `tests/test_fundamentals_cache.py`
 
 **Interfaces:**
@@ -51,7 +51,7 @@
 import asyncio
 import pytest
 
-from openbb_eodhd.models import _fundamentals as F
+from openbq_eodhd.models import _fundamentals as F
 
 
 BUNDLE = {
@@ -171,13 +171,13 @@ def test_l2_unavailable_falls_back_to_live_fetch(monkeypatch):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd openbb-eodhd && python -m pytest tests/test_fundamentals_cache.py -v`
-Expected: FAIL — `ModuleNotFoundError: openbb_eodhd.models._fundamentals`.
+Run: `cd openbq-eodhd && python -m pytest tests/test_fundamentals_cache.py -v`
+Expected: FAIL — `ModuleNotFoundError: openbq_eodhd.models._fundamentals`.
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# openbb_eodhd/models/_fundamentals.py
+# openbq_eodhd/models/_fundamentals.py
 """Shared EODHD /fundamentals fetch with a single-flight TTL cache.
 
 OpenBB invokes each widget's fetcher independently, so a dashboard of N
@@ -199,7 +199,7 @@ from typing import Any
 from openbb_core.app.model.abstract.error import OpenBBError
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 
-from openbb_eodhd.models._client import get_client, raise_sdk_error
+from openbq_eodhd.models._client import get_client, raise_sdk_error
 
 _TTL_SECONDS = 120.0            # L1 in-process burst-coalescing TTL
 _L2_LIBRARY = "eodhd_fundamentals_cache"
@@ -392,7 +392,7 @@ Expected: PASS (8 tests: qualify, rows, accessors, single-flight, TTL expiry, L2
 - [ ] **Step 5: Commit**
 
 ```bash
-git add openbb-eodhd/openbb_eodhd/models/_fundamentals.py openbb-eodhd/tests/test_fundamentals_cache.py
+git add openbq-eodhd/openbq_eodhd/models/_fundamentals.py openbq-eodhd/tests/test_fundamentals_cache.py
 git commit -m "feat(eodhd): shared /fundamentals single-flight TTL cache"
 ```
 
@@ -401,7 +401,7 @@ git commit -m "feat(eodhd): shared /fundamentals single-flight TTL cache"
 ### Task 2: Refactor the 3 statement fetchers onto the shared bundle
 
 **Files:**
-- Modify: `openbb_eodhd/models/fundamental.py` (its `_fetch_section`/`_fetch_section_sync` → use `_fundamentals.get_bundle`)
+- Modify: `openbq_eodhd/models/fundamental.py` (its `_fetch_section`/`_fetch_section_sync` → use `_fundamentals.get_bundle`)
 - Test: `tests/test_fundamental.py` (add one coalescing test; keep existing green)
 
 **Interfaces:**
@@ -413,8 +413,8 @@ git commit -m "feat(eodhd): shared /fundamentals single-flight TTL cache"
 ```python
 # append to tests/test_fundamental.py
 import asyncio
-from openbb_eodhd.models import _fundamentals as F
-from openbb_eodhd.models.fundamental import (
+from openbq_eodhd.models import _fundamentals as F
+from openbq_eodhd.models.fundamental import (
     EODHDIncomeStatementFetcher, EODHDBalanceSheetFetcher, EODHDCashFlowStatementFetcher,
     EODHDIncomeStatementQueryParams, EODHDBalanceSheetQueryParams, EODHDCashFlowStatementQueryParams,
 )
@@ -457,7 +457,7 @@ In `fundamental.py`, replace the section fetch so `aextract_data` reads the shar
 ```python
     @staticmethod
     async def aextract_data(query, credentials, **kwargs):  # pylint: disable=unused-argument
-        from openbb_eodhd.models._fundamentals import get_bundle
+        from openbq_eodhd.models._fundamentals import get_bundle
         bundle = await get_bundle(query.symbol, query.exchange, credentials)
         financials = bundle.get("Financials") or {}
         return financials.get("Income_Statement") or {}   # Balance_Sheet / Cash_Flow per fetcher
@@ -473,7 +473,7 @@ Expected: PASS — existing transform tests still pass, plus the new coalescing 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add openbb-eodhd/openbb_eodhd/models/fundamental.py openbb-eodhd/tests/test_fundamental.py
+git add openbq-eodhd/openbq_eodhd/models/fundamental.py openbq-eodhd/tests/test_fundamental.py
 git commit -m "refactor(eodhd): statements read the shared /fundamentals bundle (3 calls -> 1)"
 ```
 
@@ -482,7 +482,7 @@ git commit -m "refactor(eodhd): statements read the shared /fundamentals bundle 
 ### Task 3: InstitutionalOwnership fetcher
 
 **Files:**
-- Create: `openbb_eodhd/models/ownership.py`
+- Create: `openbq_eodhd/models/ownership.py`
 - Test: `tests/test_ownership.py`
 
 **Interfaces:**
@@ -493,8 +493,8 @@ git commit -m "refactor(eodhd): statements read the shared /fundamentals bundle 
 
 ```python
 # tests/test_ownership.py
-from openbb_eodhd.models.ownership import EODHDInstitutionalOwnershipFetcher as Fetcher
-from openbb_eodhd.models.ownership import EODHDInstitutionalOwnershipQueryParams as QP
+from openbq_eodhd.models.ownership import EODHDInstitutionalOwnershipFetcher as Fetcher
+from openbq_eodhd.models.ownership import EODHDInstitutionalOwnershipQueryParams as QP
 
 BUNDLE = {"Holders": {"Institutions": {
     "0": {"name": "BlackRock Inc", "date": "2026-03-31", "totalShares": 7.83,
@@ -521,12 +521,12 @@ def test_empty_holders_returns_empty_list():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_ownership.py -v`
-Expected: FAIL — `ModuleNotFoundError: openbb_eodhd.models.ownership`.
+Expected: FAIL — `ModuleNotFoundError: openbq_eodhd.models.ownership`.
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# openbb_eodhd/models/ownership.py
+# openbq_eodhd/models/ownership.py
 """EODHD ownership models: institutional & fund holders from /fundamentals."""
 
 from typing import Any
@@ -540,7 +540,7 @@ from openbb_core.provider.standard_models.equity_ownership import (
 )
 from pydantic import Field
 
-from openbb_eodhd.models import _fundamentals as F
+from openbq_eodhd.models import _fundamentals as F
 
 
 def _date(v):
@@ -608,7 +608,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add openbb-eodhd/openbb_eodhd/models/ownership.py openbb-eodhd/tests/test_ownership.py
+git add openbq-eodhd/openbq_eodhd/models/ownership.py openbq-eodhd/tests/test_ownership.py
 git commit -m "feat(eodhd): InstitutionalOwnership fetcher (Holders.Institutions)"
 ```
 
@@ -617,7 +617,7 @@ git commit -m "feat(eodhd): InstitutionalOwnership fetcher (Holders.Institutions
 ### Task 4: EquityOwnership fetcher
 
 **Files:**
-- Modify: `openbb_eodhd/models/ownership.py` (add the EquityOwnership classes)
+- Modify: `openbq_eodhd/models/ownership.py` (add the EquityOwnership classes)
 - Test: `tests/test_ownership.py` (add cases)
 
 **Interfaces:**
@@ -628,8 +628,8 @@ git commit -m "feat(eodhd): InstitutionalOwnership fetcher (Holders.Institutions
 
 ```python
 # append to tests/test_ownership.py
-from openbb_eodhd.models.ownership import EODHDEquityOwnershipFetcher as OFetcher
-from openbb_eodhd.models.ownership import EODHDEquityOwnershipQueryParams as OQP
+from openbq_eodhd.models.ownership import EODHDEquityOwnershipFetcher as OFetcher
+from openbq_eodhd.models.ownership import EODHDEquityOwnershipQueryParams as OQP
 
 def test_equity_ownership_uses_investor_name_and_filing_date():
     q = OQP(symbol="AAPL")
@@ -703,7 +703,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add openbb-eodhd/openbb_eodhd/models/ownership.py openbb-eodhd/tests/test_ownership.py
+git add openbq-eodhd/openbq_eodhd/models/ownership.py openbq-eodhd/tests/test_ownership.py
 git commit -m "feat(eodhd): EquityOwnership fetcher (holders)"
 ```
 
@@ -712,7 +712,7 @@ git commit -m "feat(eodhd): EquityOwnership fetcher (holders)"
 ### Task 5: InsiderTrading fetcher (dedicated endpoint)
 
 **Files:**
-- Create: `openbb_eodhd/models/insider.py`
+- Create: `openbq_eodhd/models/insider.py`
 - Test: `tests/test_insider.py`
 
 **Interfaces:**
@@ -725,8 +725,8 @@ git commit -m "feat(eodhd): EquityOwnership fetcher (holders)"
 
 ```python
 # tests/test_insider.py
-from openbb_eodhd.models.insider import EODHDInsiderTradingFetcher as Fetcher
-from openbb_eodhd.models.insider import EODHDInsiderTradingQueryParams as QP
+from openbq_eodhd.models.insider import EODHDInsiderTradingFetcher as Fetcher
+from openbq_eodhd.models.insider import EODHDInsiderTradingQueryParams as QP
 
 RAW = [
     {"date": "2026-08-01", "code": "AAPL", "ownerName": "COOK TIMOTHY D",
@@ -755,12 +755,12 @@ def test_maps_insider_rows():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_insider.py -v`
-Expected: FAIL — `ModuleNotFoundError: openbb_eodhd.models.insider`.
+Expected: FAIL — `ModuleNotFoundError: openbq_eodhd.models.insider`.
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# openbb_eodhd/models/insider.py
+# openbq_eodhd/models/insider.py
 """EODHD insider transactions (/api/insider-transactions)."""
 
 from typing import Any
@@ -773,8 +773,8 @@ from openbb_core.provider.standard_models.insider_trading import (
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 from pydantic import Field
 
-from openbb_eodhd.models._client import get_client, raise_sdk_error
-from openbb_eodhd.models._fundamentals import qualify
+from openbq_eodhd.models._client import get_client, raise_sdk_error
+from openbq_eodhd.models._fundamentals import qualify
 
 
 def _date(v):
@@ -856,7 +856,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add openbb-eodhd/openbb_eodhd/models/insider.py openbb-eodhd/tests/test_insider.py
+git add openbq-eodhd/openbq_eodhd/models/insider.py openbq-eodhd/tests/test_insider.py
 git commit -m "feat(eodhd): InsiderTrading fetcher (dedicated endpoint)"
 ```
 
@@ -865,7 +865,7 @@ git commit -m "feat(eodhd): InsiderTrading fetcher (dedicated endpoint)"
 ### Task 6: HistoricalEps fetcher
 
 **Files:**
-- Create: `openbb_eodhd/models/estimates.py`
+- Create: `openbq_eodhd/models/estimates.py`
 - Test: `tests/test_estimates.py`
 
 **Interfaces:**
@@ -876,8 +876,8 @@ git commit -m "feat(eodhd): InsiderTrading fetcher (dedicated endpoint)"
 
 ```python
 # tests/test_estimates.py
-from openbb_eodhd.models.estimates import EODHDHistoricalEpsFetcher as EpsFetcher
-from openbb_eodhd.models.estimates import EODHDHistoricalEpsQueryParams as EpsQP
+from openbq_eodhd.models.estimates import EODHDHistoricalEpsFetcher as EpsFetcher
+from openbq_eodhd.models.estimates import EODHDHistoricalEpsQueryParams as EpsQP
 
 BUNDLE = {"Earnings": {"History": {
     "0": {"reportDate": "2026-10-29", "date": "2026-09-30", "epsActual": None, "epsEstimate": 1.98},
@@ -903,12 +903,12 @@ def test_historical_eps_maps_actual_and_estimate():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest tests/test_estimates.py -k historical_eps -v`
-Expected: FAIL — `ModuleNotFoundError: openbb_eodhd.models.estimates`.
+Expected: FAIL — `ModuleNotFoundError: openbq_eodhd.models.estimates`.
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```python
-# openbb_eodhd/models/estimates.py
+# openbq_eodhd/models/estimates.py
 """EODHD earnings/estimates models from /fundamentals (History + Trend)."""
 
 from typing import Any
@@ -919,7 +919,7 @@ from openbb_core.provider.standard_models.historical_eps import (
 )
 from pydantic import Field
 
-from openbb_eodhd.models import _fundamentals as F
+from openbq_eodhd.models import _fundamentals as F
 
 
 def _date(v):
@@ -986,7 +986,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add openbb-eodhd/openbb_eodhd/models/estimates.py openbb-eodhd/tests/test_estimates.py
+git add openbq-eodhd/openbq_eodhd/models/estimates.py openbq-eodhd/tests/test_estimates.py
 git commit -m "feat(eodhd): HistoricalEps fetcher (Earnings.History)"
 ```
 
@@ -995,7 +995,7 @@ git commit -m "feat(eodhd): HistoricalEps fetcher (Earnings.History)"
 ### Task 7: AnalystEstimates fetcher
 
 **Files:**
-- Modify: `openbb_eodhd/models/estimates.py` (add AnalystEstimates classes)
+- Modify: `openbq_eodhd/models/estimates.py` (add AnalystEstimates classes)
 - Test: `tests/test_estimates.py` (add cases; reuse `BUNDLE`)
 
 **Interfaces:**
@@ -1006,8 +1006,8 @@ git commit -m "feat(eodhd): HistoricalEps fetcher (Earnings.History)"
 
 ```python
 # append to tests/test_estimates.py
-from openbb_eodhd.models.estimates import EODHDAnalystEstimatesFetcher as AeFetcher
-from openbb_eodhd.models.estimates import EODHDAnalystEstimatesQueryParams as AeQP
+from openbq_eodhd.models.estimates import EODHDAnalystEstimatesFetcher as AeFetcher
+from openbq_eodhd.models.estimates import EODHDAnalystEstimatesQueryParams as AeQP
 
 def test_analyst_estimates_maps_trend():
     q = AeQP(symbol="AAPL")
@@ -1096,7 +1096,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add openbb-eodhd/openbb_eodhd/models/estimates.py openbb-eodhd/tests/test_estimates.py
+git add openbq-eodhd/openbq_eodhd/models/estimates.py openbq-eodhd/tests/test_estimates.py
 git commit -m "feat(eodhd): AnalystEstimates fetcher (Earnings.Trend)"
 ```
 
@@ -1105,7 +1105,7 @@ git commit -m "feat(eodhd): AnalystEstimates fetcher (Earnings.Trend)"
 ### Task 8: ForwardEpsEstimates fetcher
 
 **Files:**
-- Modify: `openbb_eodhd/models/estimates.py` (add ForwardEpsEstimates classes)
+- Modify: `openbq_eodhd/models/estimates.py` (add ForwardEpsEstimates classes)
 - Test: `tests/test_estimates.py` (add cases)
 
 **Interfaces:**
@@ -1116,8 +1116,8 @@ git commit -m "feat(eodhd): AnalystEstimates fetcher (Earnings.Trend)"
 
 ```python
 # append to tests/test_estimates.py
-from openbb_eodhd.models.estimates import EODHDForwardEpsEstimatesFetcher as FeFetcher
-from openbb_eodhd.models.estimates import EODHDForwardEpsEstimatesQueryParams as FeQP
+from openbq_eodhd.models.estimates import EODHDForwardEpsEstimatesFetcher as FeFetcher
+from openbq_eodhd.models.estimates import EODHDForwardEpsEstimatesQueryParams as FeQP
 
 def test_forward_eps_maps_trend():
     q = FeQP(symbol="AAPL")
@@ -1200,7 +1200,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add openbb-eodhd/openbb_eodhd/models/estimates.py openbb-eodhd/tests/test_estimates.py
+git add openbq-eodhd/openbq_eodhd/models/estimates.py openbq-eodhd/tests/test_estimates.py
 git commit -m "feat(eodhd): ForwardEpsEstimates fetcher (Earnings.Trend)"
 ```
 
@@ -1209,7 +1209,7 @@ git commit -m "feat(eodhd): ForwardEpsEstimates fetcher (Earnings.Trend)"
 ### Task 9: PriceTargetConsensus fetcher
 
 **Files:**
-- Modify: `openbb_eodhd/models/estimates.py` (add PriceTargetConsensus classes)
+- Modify: `openbq_eodhd/models/estimates.py` (add PriceTargetConsensus classes)
 - Test: `tests/test_estimates.py` (add cases)
 
 **Interfaces:**
@@ -1222,8 +1222,8 @@ git commit -m "feat(eodhd): ForwardEpsEstimates fetcher (Earnings.Trend)"
 
 ```python
 # append to tests/test_estimates.py
-from openbb_eodhd.models.estimates import EODHDPriceTargetConsensusFetcher as PtcFetcher
-from openbb_eodhd.models.estimates import EODHDPriceTargetConsensusQueryParams as PtcQP
+from openbq_eodhd.models.estimates import EODHDPriceTargetConsensusFetcher as PtcFetcher
+from openbq_eodhd.models.estimates import EODHDPriceTargetConsensusQueryParams as PtcQP
 
 BUNDLE_RATINGS = {
     "General": {"Name": "Apple Inc."},
@@ -1306,7 +1306,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add openbb-eodhd/openbb_eodhd/models/estimates.py openbb-eodhd/tests/test_estimates.py
+git add openbq-eodhd/openbq_eodhd/models/estimates.py openbq-eodhd/tests/test_estimates.py
 git commit -m "feat(eodhd): PriceTargetConsensus fetcher (AnalystRatings)"
 ```
 
@@ -1315,7 +1315,7 @@ git commit -m "feat(eodhd): PriceTargetConsensus fetcher (AnalystRatings)"
 ### Task 10: Register the new fetchers on the provider
 
 **Files:**
-- Modify: `openbb_eodhd/__init__.py`
+- Modify: `openbq_eodhd/__init__.py`
 - Modify: `pyproject.toml` (version bump)
 - Test: `tests/test_provider_registration.py`
 
@@ -1327,7 +1327,7 @@ git commit -m "feat(eodhd): PriceTargetConsensus fetcher (AnalystRatings)"
 
 ```python
 # tests/test_provider_registration.py
-from openbb_eodhd import eodhd_provider
+from openbq_eodhd import eodhd_provider
 
 def test_phase1_models_registered():
     for key in [
@@ -1348,11 +1348,11 @@ Expected: FAIL — keys not yet in `fetcher_dict`.
 In `__init__.py`, add imports and `fetcher_dict` entries:
 
 ```python
-from openbb_eodhd.models.ownership import (
+from openbq_eodhd.models.ownership import (
     EODHDInstitutionalOwnershipFetcher, EODHDEquityOwnershipFetcher,
 )
-from openbb_eodhd.models.insider import EODHDInsiderTradingFetcher
-from openbb_eodhd.models.estimates import (
+from openbq_eodhd.models.insider import EODHDInsiderTradingFetcher
+from openbq_eodhd.models.estimates import (
     EODHDHistoricalEpsFetcher, EODHDAnalystEstimatesFetcher,
     EODHDForwardEpsEstimatesFetcher, EODHDPriceTargetConsensusFetcher,
 )
@@ -1380,7 +1380,7 @@ Expected: PASS — the registration test plus the full suite.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add openbb-eodhd/openbb_eodhd/__init__.py openbb-eodhd/pyproject.toml openbb-eodhd/tests/test_provider_registration.py
+git add openbq-eodhd/openbq_eodhd/__init__.py openbq-eodhd/pyproject.toml openbq-eodhd/tests/test_provider_registration.py
 git commit -m "feat(eodhd): register Phase-1 ownership/insider/estimates fetchers; bump 9.1.0"
 ```
 
@@ -1398,7 +1398,7 @@ git commit -m "feat(eodhd): register Phase-1 ownership/insider/estimates fetcher
 
 - [ ] **Step 1: Run the extension unit suite (offline gate)**
 
-Run: `cd openbb-eodhd && python -m pytest tests/ -q`
+Run: `cd openbq-eodhd && python -m pytest tests/ -q`
 Expected: PASS (all tasks' tests).
 
 - [ ] **Step 2: Rebuild the container at the extension ceilings**
@@ -1410,8 +1410,8 @@ Expected: image builds; the build-time provider assertion lists `eodhd` and regi
 
 Run:
 ```bash
-docker run --rm --entrypoint python openbb-local:$(cd ~/Developer/openbb-docker/openbb-eodhd && grep -m1 '^version' pyproject.toml | cut -d'"' -f2) \
-  -c "from openbb_eodhd import eodhd_provider as p; print(sorted(k for k in p.fetcher_dict if k in {'InstitutionalOwnership','EquityOwnership','InsiderTrading','HistoricalEps','AnalystEstimates','ForwardEpsEstimates','PriceTargetConsensus'}))"
+docker run --rm --entrypoint python openbb-local:$(cd ~/Developer/openbb-docker/openbq-eodhd && grep -m1 '^version' pyproject.toml | cut -d'"' -f2) \
+  -c "from openbq_eodhd import eodhd_provider as p; print(sorted(k for k in p.fetcher_dict if k in {'InstitutionalOwnership','EquityOwnership','InsiderTrading','HistoricalEps','AnalystEstimates','ForwardEpsEstimates','PriceTargetConsensus'}))"
 ```
 Expected: all 7 keys printed.
 
@@ -1434,7 +1434,7 @@ Expected: each endpoint returns `200` with `rows>0`; `widgets.json` lists the ne
 
 ```bash
 cd ~/Developer/openbb-docker
-git add openbb-eodhd extension-constraints.txt
+git add openbq-eodhd extension-constraints.txt
 git commit -m "chore(eodhd): Phase-1 provider expansion (ownership/insider/estimates)"
 ```
 

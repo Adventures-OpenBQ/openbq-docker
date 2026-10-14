@@ -12,35 +12,35 @@ from unittest.mock import MagicMock, patch
 import pytest
 from openbb_core.provider.utils.errors import EmptyDataError
 
-from openbb_eodhd.models.currency import (
+from openbq_eodhd.models.currency import (
     EODHDCurrencyPairsFetcher, EODHDCurrencyPairsQueryParams,
     EODHDCurrencySnapshotsFetcher, EODHDCurrencySnapshotsQueryParams,
 )
-from openbb_eodhd.models.dividend_yield import (
+from openbq_eodhd.models.dividend_yield import (
     EODHDTrailingDivYieldFetcher, EODHDTrailingDivYieldQueryParams,
 )
-from openbb_eodhd.models.etf import (
+from openbq_eodhd.models.etf import (
     EODHDEtfCountriesFetcher, EODHDEtfCountriesQueryParams,
     EODHDEtfHoldingsFetcher, EODHDEtfHoldingsQueryParams,
     EODHDEtfInfoFetcher, EODHDEtfInfoQueryParams,
     EODHDEtfSectorsFetcher, EODHDEtfSectorsQueryParams,
 )
-from openbb_eodhd.models.government import (
+from openbq_eodhd.models.government import (
     EODHDGovernmentTradesFetcher, EODHDGovernmentTradesQueryParams,
 )
-from openbb_eodhd.models.index import (
+from openbq_eodhd.models.index import (
     EODHDAvailableIndicesFetcher, EODHDAvailableIndicesQueryParams,
     _qualify_index,
 )
-from openbb_eodhd.models.market_cap import (
+from openbq_eodhd.models.market_cap import (
     EODHDHistoricalMarketCapFetcher, EODHDHistoricalMarketCapQueryParams,
 )
-from openbb_eodhd.models.news import EODHDWorldNewsFetcher, EODHDWorldNewsQueryParams
-from openbb_eodhd.models.screener import (
+from openbq_eodhd.models.news import EODHDWorldNewsFetcher, EODHDWorldNewsQueryParams
+from openbq_eodhd.models.screener import (
     EODHDEquityScreenerFetcher, EODHDEquityScreenerQueryParams,
 )
-from openbb_eodhd.models.search import EODHDEquitySearchFetcher, EODHDEquitySearchQueryParams
-from openbb_eodhd.models.treasury import (
+from openbq_eodhd.models.search import EODHDEquitySearchFetcher, EODHDEquitySearchQueryParams
+from openbq_eodhd.models.treasury import (
     EODHDTreasuryRatesFetcher, EODHDTreasuryRatesQueryParams,
     EODHDYieldCurveFetcher, EODHDYieldCurveQueryParams,
 )

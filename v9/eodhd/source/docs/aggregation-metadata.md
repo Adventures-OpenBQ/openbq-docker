@@ -2,12 +2,12 @@
 
 Status: starter contract and opt-in library API. This change does not alter
 fetcher results, attach response metadata, execute a pivot, or change a frontend.
-EODHD-specific meanings and rules belong in **openbb-eodhd**, alongside its field
+EODHD-specific meanings and rules belong in **openbq-eodhd**, alongside its field
 mappings, not in BDOBB-V2 or a second dictionary in openbb-docker.
 
 ## Ownership and interface
 
-`openbb_eodhd/aggregation.py` owns the semantic allowlists and serializable
+`openbq_eodhd/aggregation.py` owns the semantic allowlists and serializable
 metadata contract. `models/fundamental.py` remains the source of truth for
 vendor-to-OpenBB field names; the dictionary resolves those names from the
 existing maps. `tests/test_aggregation.py` detects unreviewed additions or
@@ -15,7 +15,7 @@ removals in those maps and checks coverage of their normalized output fields.
 Passthrough fields not in these maps remain explicitly unknown.
 
 ```python
-from openbb_eodhd.aggregation import get_aggregation_metadata
+from openbq_eodhd.aggregation import get_aggregation_metadata
 
 metadata = get_aggregation_metadata(
     "CashFlowStatement",
@@ -166,7 +166,7 @@ feature. The division of responsibility is:
 
 | Component | Authority |
 | --- | --- |
-| openbb-eodhd | Vendor definitions, endpoint/field mappings, adjustment basis, reviewed suggestions and their evidence |
+| openbq-eodhd | Vendor definitions, endpoint/field mappings, adjustment basis, reviewed suggestions and their evidence |
 | V11 mastering service | Canonical measure identity, versioned bindings to provider rules, validated period basis, quality gates and reproducible transformations |
 | OpenBB/ODP distribution | Standard result rows plus resolved aggregation metadata and query receipt |
 | BDOBB-V2 pivot | Ordered grouping configuration, visible suggestions and explicit user overrides |
@@ -232,7 +232,7 @@ must produce a new result/receipt and disclose the changed interpretation.
 
 These are integration requirements, not claims that the mastering service,
 storage tables, transport or frontend implementation is included in this
-starter change. The current change is confined to openbb-eodhd; the v11 service
+starter change. The current change is confined to openbq-eodhd; the v11 service
 and release/v11 frontend should implement their own consumer work separately.
 
 ## Maintenance checklist

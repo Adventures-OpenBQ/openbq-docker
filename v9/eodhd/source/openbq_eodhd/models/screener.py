@@ -19,7 +19,7 @@ from openbb_core.provider.standard_models.equity_screener import (
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 from pydantic import Field
 
-from openbb_eodhd.models._client import sdk_call
+from openbq_eodhd.models._client import sdk_call
 
 
 class EODHDEquityScreenerQueryParams(EquityScreenerQueryParams):
