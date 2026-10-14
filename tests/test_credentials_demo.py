@@ -14,10 +14,10 @@ ROOT = Path(__file__).resolve().parent.parent
 DEMO = ROOT / "credentials.demo.env"
 # The only names and values the file may hold: each provider's own published demo key
 # (docs/credentials-demo-receipt.md). EODHD's "demo" joins on the line that ships openbq-eodhd (v9).
-ALLOWED = {
-    "EIA_API_KEY": "DEMO_KEY",
-    "CONGRESS_GOV_API_KEY": "DEMO_KEY",
-}
+ALLOWED = dict([
+    ("EIA_API_KEY", "DEMO_KEY"),
+    ("CONGRESS_GOV_API_KEY", "DEMO_KEY"),
+])
 
 
 def assignments(text):
@@ -57,6 +57,39 @@ class DemoFile(unittest.TestCase):
             self.assertIn(f"('{name}','{value}')", script)
         result = subprocess.run([sys.executable, "scripts/check-public.py"], cwd=ROOT, capture_output=True, text=True)
         self.assertNotIn("credentials.demo.env", result.stdout)
+
+
+def rendered_environment(credentials=None):
+    """openbq-api's environment as `docker compose config` renders it, in a scratch copy."""
+    import json
+    import shutil
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as d:
+        for name in ("docker-compose.yml", "credentials.demo.env"):
+            shutil.copy(ROOT / name, d)
+        shutil.copy(ROOT / "ts.env.example", Path(d) / "ts.env")
+        if credentials is not None:
+            Path(d, "credentials.env").write_text(credentials)
+        out = subprocess.run(["docker", "compose", "config", "--format", "json"], cwd=d,
+                             capture_output=True, text=True, check=True).stdout
+    return json.loads(out)["services"]["openbq-api"].get("environment") or {}
+
+
+@unittest.skipUnless(__import__("shutil").which("docker"), "docker compose required")
+class ComposeRendering(unittest.TestCase):
+    def test_without_credentials_env_the_demo_keys_are_set(self):
+        env = rendered_environment()
+        self.assertEqual({k: env.get(k) for k in ALLOWED}, ALLOWED)
+
+    def test_a_key_in_credentials_env_overrides_its_demo_value(self):
+        env = rendered_environment("EIA_API_KEY=" + "x" * 8 + "\n")
+        self.assertEqual(env["EIA_API_KEY"], "x" * 8)
+        self.assertEqual(env["CONGRESS_GOV_API_KEY"], "DEMO_KEY")
+
+    def test_the_example_copied_as_is_keeps_the_demo_keys(self):
+        env = rendered_environment((ROOT / "credentials.env.example").read_text())
+        self.assertEqual({k: env.get(k) for k in ALLOWED}, ALLOWED)
 
 
 class ComposeOrder(unittest.TestCase):
