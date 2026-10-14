@@ -52,4 +52,8 @@ Gated tree: `2a4d087`. This receipt commit changes only this file. `release/v8` 
 
 These are the CI workflow's steps plus the image-level gates. Gates 8 and 9 were run in `python:3.12` and `node:22` with the whole repo mounted: the tests call `git` and `openssl` and read `docker-compose.yml`.
 
-Not done for this tag: no GHCR `openbq-local:8.0.0` image was built, and nothing was deployed.
+## Image
+
+`ghcr.io/adventures-openbq/openbq-local:8.0.0` = `latest` = `sha256:5cb1bcc311cab236f719fdd7f5ccce56a63b2eb437cecb9c515d69f01047f4cc`. It is built for amd64 and arm64 from `Dockerfile.v3` at `d507ff5`. Later v8.0.0 commits change only docs, which the image does not copy. On the pulled image, in key mode: `verify-settings.py` 8 checks, `verify-dashboards.py` 21 checks, and `/apps.json` 200 after a no-Origin fetch, then `access-control-allow-origin: *` with 46 apps.
+
+Nothing was deployed.
