@@ -2,7 +2,7 @@
 
 # openbq-docker v8.0.0 release receipt (2026-10-14)
 
-Gated tree: `d1a7ff9`. This receipt commit adds only this file. `release/v8` contains `release/v7` (`4cad478`, v7.0.0).
+Gated tree: `d1a7ff9`. This receipt commit adds only this file. `release/v8` contains `release/v7` (`0147e7f`: v7.0.0 `4cad478` plus the 5-year TIPS maturity drop, carried from v2 on 2026-10-12).
 
 ## What v8.0.0 adds over v7.0.0
 
