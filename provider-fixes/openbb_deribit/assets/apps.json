@@ -1,7 +1,7 @@
 [
   {
     "name": "Deribit",
-    "img": "https://www.deribit.com//share-image.png",
+    "img": "https://www.deribit.com/share-image.png",
     "img_dark": "",
     "img_light": "",
     "description": "Order books, options chains, funding, and volatility indexes from Deribit's public market data API.",
