@@ -53,6 +53,16 @@ _CATALOGS = {"/widgets.json", "/apps.json"}
 # markdown), which openbb-api's /apps.json drops because no backend widget has
 # those ids, so they are appended to the built catalog as shipped.
 EXTRA_APPS = os.environ.get("OPENBQ_EXTRA_APPS", "/workspace/bdobb_apps.json")
+# Cards BDOBB draws itself (its src/lib/builtins.ts, v3 through v10): no
+# backend serves them, so they never appear in /widgets.json.
+BUILTIN_CARDS = frozenset({
+    "note", "markdown", "website", "clock", "rss", "news", "date_probe", "param_echo",
+    "period_echo", "local_table", "linked_table", "linked_chart",
+})
+# BDOBB's logo, the img of the served examples. Workspace fetches app images
+# without credentials, so this one path answers without Basic auth.
+LOGO_PATH = "/openbq/bdobb-logo.svg"
+LOGO_FILE = os.environ.get("OPENBQ_BDOBB_LOGO", "/workspace/bdobb-logo.svg")
 # The response's own framing; the API sets its own.
 _HOP = {b"content-length", b"transfer-encoding", b"connection", b"keep-alive"}
 # Per-caller CORS answers: never cached, _cors() recomputes them per request.
@@ -83,6 +93,67 @@ def _with_extra_apps(body: bytes) -> bytes:
     return json.dumps(apps + extra).encode()
 
 
+def _cards(app) -> set:
+    """The widget ids of an app's cards, over every tab."""
+    tabs = app.get("tabs") if isinstance(app, dict) else None
+    if not isinstance(tabs, dict):
+        return set()
+    return {card.get("i") for tab in tabs.values() if isinstance(tab, dict)
+            for card in tab.get("layout") or [] if isinstance(card, dict)}
+
+
+def _servable_apps(body: bytes, widget_ids) -> bytes:
+    """Drop every app with a card that is neither in /widgets.json nor a BDOBB built-in.
+
+    A provider that is not installed would otherwise ship its apps as blank
+    cards: openbb-api keeps an app when any one of its tabs resolves.
+    """
+    apps = json.loads(body)
+    kept = []
+    for app in apps:
+        missing = sorted(map(str, _cards(app) - BUILTIN_CARDS - widget_ids))
+        if missing:
+            log.warning("OpenBQ apps.json: dropped app %r: no widget in /widgets.json for %s",
+                        app.get("name"), ", ".join(missing))
+        else:
+            kept.append(app)
+    return body if len(kept) == len(apps) else json.dumps(kept).encode()
+
+
+async def _widget_ids(cache, request):
+    """The ids /widgets.json serves, from the catalog cache (built through the app if need be)."""
+    if "/widgets.json" not in cache:
+        transport = httpx.ASGITransport(app=request.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://openbq") as client:
+            await client.get("/widgets.json")  # through this hook, which caches it
+    if "/widgets.json" not in cache:
+        return None
+    try:
+        widgets = json.loads(cache["/widgets.json"][0])
+    except ValueError:
+        return None
+    return set(widgets) if isinstance(widgets, dict) else None
+
+
+def _logo(request):
+    """BDOBB's logo, without credentials (Workspace fetches app images without them)."""
+    try:
+        with open(LOGO_FILE, "rb") as f:
+            svg = f.read()
+    except OSError:
+        return _cors(request, JSONResponse({"detail": "Not Found"}, 404))
+    return _cors(request, Response(svg, 200, media_type="image/svg+xml",
+                                   headers={"Cache-Control": "public, max-age=86400"}))
+
+
+def _json_list(body: bytes):
+    try:
+        value = json.loads(body)
+    except ValueError:
+        return None
+    return value if isinstance(value, list) else None
+
+
 def _is_catalog(request) -> bool:
     return request.method == "GET" and request.url.path in _CATALOGS and not request.url.query
 
@@ -97,6 +168,13 @@ async def _catalog(cache, request, call_next):
         body = b"".join([chunk async for chunk in response.body_iterator])
         if path == "/apps.json":
             body = _with_extra_apps(body)
+            apps = _json_list(body)
+            if apps is not None and any(_cards(app) - BUILTIN_CARDS for app in apps):
+                widget_ids = await _widget_ids(cache, request)
+                if widget_ids is None:  # no widget catalog yet: serve as built, cache nothing
+                    log.warning("OpenBQ apps.json: /widgets.json unavailable, apps not checked")
+                    return _cors(request, Response(body, 200, media_type="application/json"))
+                body = _servable_apps(body, widget_ids)
         cache[path] = (body, [
             (k, v) for k, v in response.raw_headers
             if k.lower() not in _HOP | _PER_CALLER and not k.lower().startswith(b"access-control-")
@@ -348,6 +426,8 @@ if os.environ.get("OPENBQ_ROLE") != "worker" and _prefixes:
 
 async def middleware(request, call_next):
     """openbb.toml [middleware] hook."""
+    if request.url.path == LOGO_PATH and request.method in ("GET", "HEAD"):
+        return _logo(request)
     if LANE is not None:
         return await LANE.handle(request, call_next)
     if _is_catalog(request):  # with the lane off, the catalogs keep their cache and BDOBB examples

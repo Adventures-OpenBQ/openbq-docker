@@ -288,3 +288,161 @@ class ExtraAppsTest(unittest.TestCase):
             self.assertEqual(openbq_lanes._with_extra_apps(b"[]"), b"[]")
         finally:
             openbq_lanes.EXTRA_APPS = old
+
+
+REPO = Path(__file__).parents[2]
+LOGO = REPO / "examples" / "episode3" / "assets" / "bdobb-logo.svg"
+
+
+def _apps_with(*cards, name="Example"):
+    return {"name": name, "tabs": {"t": {"id": "t", "layout": [{"i": c, "x": 0, "y": 0, "w": 4, "h": 4} for c in cards]}}}
+
+
+class ServableAppsTest(unittest.IsolatedAsyncioTestCase):
+    """/apps.json drops every app with a card that /widgets.json does not serve (BDOBB built-ins excepted)."""
+
+    async def asyncSetUp(self):
+        self.addCleanup(setattr, openbq_lanes, "EXTRA_APPS", openbq_lanes.EXTRA_APPS)
+        openbq_lanes._CATALOG_CACHE.clear()
+        self.addCleanup(openbq_lanes._CATALOG_CACHE.clear)
+
+    async def serve(self, provider_apps, extra_apps, widgets=True):
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(extra_apps, f)
+        openbq_lanes.EXTRA_APPS = f.name
+        self.builds = {"widgets": 0, "apps": 0}
+        app = FastAPI()
+        if widgets:
+            @app.get("/widgets.json")
+            async def widgets_json():
+                self.builds["widgets"] += 1
+                return {"served_widget_obb": {"widgetId": "served_widget_obb"}, "other_obb": {}}
+
+        @app.get("/apps.json")
+        async def apps_json():
+            self.builds["apps"] += 1
+            return provider_apps
+
+        app.middleware("http")(openbq_lanes.middleware)
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://api") as client:
+            first = await client.get("/apps.json")
+            again = await client.get("/apps.json")
+            listed = await client.get("/widgets.json") if widgets else None
+        return first, again, listed
+
+    async def test_apps_with_an_unserved_card_are_dropped_and_logged(self):
+        provider = [_apps_with("served_widget_obb", name="Provider"),
+                    _apps_with("served_widget_obb", "gone_widget_obb", name="Half provider")]
+        extra = [_apps_with("note", "clock", "markdown", "param_echo", name="Built-ins"),
+                 _apps_with("served_widget_obb", "note", name="Served example"),
+                 _apps_with("videos_video_custom_obb", "note", name="Missing provider")]
+        with self.assertLogs("uvicorn.error", "WARNING") as logs:
+            first, again, listed = await self.serve(provider, extra)
+        names = [a["name"] for a in first.json()]
+        self.assertEqual(names, ["Provider", "Built-ins", "Served example"])
+        self.assertEqual(again.content, first.content)
+        self.assertEqual(int(first.headers["content-length"]), len(first.content))
+        self.assertEqual(self.builds, {"widgets": 1, "apps": 1})  # both built once, widgets reused from the cache
+        self.assertEqual(listed.json()["served_widget_obb"], {"widgetId": "served_widget_obb"})
+        text = "\n".join(logs.output)
+        self.assertIn("'Half provider'", text)
+        self.assertIn("gone_widget_obb", text)
+        self.assertIn("'Missing provider'", text)
+        self.assertIn("videos_video_custom_obb", text)
+        self.assertNotIn("Served example", text)
+
+    async def test_apps_of_built_ins_only_need_no_widget_catalog(self):
+        first, _, _ = await self.serve([], [_apps_with("note", "rss", "website")], widgets=False)
+        self.assertEqual([a["name"] for a in first.json()], ["Example"])
+        self.assertEqual(self.builds, {"widgets": 0, "apps": 1})
+
+    async def test_without_a_widget_catalog_apps_are_served_unchecked_and_not_cached(self):
+        with self.assertLogs("uvicorn.error", "WARNING") as logs:
+            first, again, _ = await self.serve([_apps_with("served_widget_obb")], [], widgets=False)
+        self.assertIn("/widgets.json unavailable", "\n".join(logs.output))
+        self.assertEqual([a["name"] for a in again.json()], ["Example"])
+        self.assertEqual(self.builds["apps"], 2)  # retried, not cached
+
+
+class LogoTest(unittest.IsolatedAsyncioTestCase):
+    """The BDOBB logo answers without Basic auth; every other path still asks for it."""
+
+    async def asyncSetUp(self):
+        self.addCleanup(setattr, openbq_lanes, "LOGO_FILE", openbq_lanes.LOGO_FILE)
+        openbq_lanes.LOGO_FILE = str(LOGO)
+        from fastapi import Depends
+        from fastapi.security import HTTPBasic
+
+        app = FastAPI()
+        basic = HTTPBasic()  # as openbb-api's data routes with OPENBB_API_AUTH=true
+
+        @app.api_route("/{path:path}", methods=["GET", "HEAD", "POST"])
+        async def protected(path: str, _=Depends(basic)):
+            return {"path": path}
+
+        app.add_middleware(CORSMiddleware, allow_origins=["*"])
+        app.middleware("http")(openbq_lanes.middleware)
+        self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api")
+
+    async def asyncTearDown(self):
+        await self.client.aclose()
+
+    async def test_logo_is_served_without_credentials_as_svg(self):
+        r = await self.client.get("/openbq/bdobb-logo.svg", headers={"origin": "http://localhost:4443"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers["content-type"], "image/svg+xml")
+        self.assertEqual(r.content, LOGO.read_bytes())
+        self.assertEqual(int(r.headers["content-length"]), len(LOGO.read_bytes()))
+        self.assertEqual(r.headers.get("access-control-allow-origin"), "*")
+        self.assertEqual((await self.client.head("/openbq/bdobb-logo.svg")).status_code, 200)
+
+    async def test_every_other_path_still_needs_credentials(self):
+        for path in ["/api/v1/cftc/cot", "/openbq/other.svg", "/openbq/bdobb-logo.svg/x",
+                     "/openbq/bdobb-logo.svgz", "/bdobb-logo.svg"]:
+            self.assertEqual((await self.client.get(path)).status_code, 401, path)
+        self.assertEqual((await self.client.post("/openbq/bdobb-logo.svg")).status_code, 401)
+        self.assertEqual((await self.client.get("/api/v1/x", auth=("u", "p"))).status_code, 200)
+
+    async def test_a_missing_logo_file_is_a_404(self):
+        openbq_lanes.LOGO_FILE = str(LOGO) + ".absent"
+        self.assertEqual((await self.client.get("/openbq/bdobb-logo.svg")).status_code, 404)
+
+    def test_the_logo_is_the_svg_bdobb_apps_sync_embeds_and_both_images_copy_it(self):
+        import hashlib
+
+        # BDOBB 93bf2633 src/assets/branding/bdobb-app-square.svg; apps-sync.mjs embeds
+        # examples/episode3/assets/bdobb-logo.svg as img_dark/img_light.
+        self.assertEqual(hashlib.sha256(LOGO.read_bytes()).hexdigest(),
+                         "3588fcde88197d2761bf489208a385d234440da9f59174a113bdae96070d3878")
+        for dockerfile in sorted(REPO.glob("Dockerfile*")):
+            text = dockerfile.read_text()
+            if "openbq_lanes.py" in text:
+                self.assertIn("COPY examples/episode3/assets/bdobb-logo.svg /workspace/bdobb-logo.svg", text, dockerfile)
+                self.assertIn("COPY examples/bdobb/apps.json /workspace/bdobb_apps.json", text, dockerfile)
+        self.assertEqual(openbq_lanes.LOGO_PATH, "/openbq/bdobb-logo.svg")
+
+
+class LaneLogoTest(unittest.IsolatedAsyncioTestCase):
+    make = LaneTest.make  # a real lane, without re-running LaneTest's own tests
+    asyncTearDown = LaneTest.asyncTearDown
+
+    async def test_with_the_lane_on_the_logo_is_open_and_the_lane_status_is_not(self):
+        self.addCleanup(setattr, openbq_lanes, "LOGO_FILE", openbq_lanes.LOGO_FILE)
+        openbq_lanes.LOGO_FILE = str(LOGO)
+        self.make()
+        self.addCleanup(setattr, openbq_lanes, "LANE", openbq_lanes.LANE)
+        openbq_lanes.LANE = self.lane  # the module hook, with this test's lane as its own
+        old = {k: os.environ.get(k) for k in ("OPENBB_API_AUTH", "OPENBB_API_USERNAME", "OPENBB_API_PASSWORD")}
+        os.environ.update(OPENBB_API_AUTH="true", OPENBB_API_USERNAME="u", OPENBB_API_PASSWORD="p")
+        try:
+            app = FastAPI()
+            app.middleware("http")(openbq_lanes.middleware)
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api") as client:
+                self.assertEqual((await client.get("/openbq/bdobb-logo.svg")).status_code, 200)
+                self.assertEqual((await client.get("/openbq/lanes")).status_code, 401)
+                self.assertEqual((await client.get("/openbq/lanes", auth=("u", "p"))).status_code, 200)
+        finally:
+            for k, v in old.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
