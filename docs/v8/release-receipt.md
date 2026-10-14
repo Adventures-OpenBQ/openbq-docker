@@ -2,7 +2,7 @@
 
 # openbq-docker v8.0.0 release receipt (2026-10-14)
 
-Gated tree: `d1a7ff9`. This receipt commit adds only this file. `release/v8` contains `release/v7` (`0147e7f`: v7.0.0 `4cad478` plus the 5-year TIPS maturity drop, carried from v2 on 2026-10-12).
+Gated tree: `2a4d087`. This receipt commit changes only this file. `release/v8` contains `release/v7` (`0147e7f`: v7.0.0 `4cad478` plus the 5-year TIPS maturity drop, carried from v2 on 2026-10-12).
 
 ## What v8.0.0 adds over v7.0.0
 
@@ -15,9 +15,18 @@ Gated tree: `d1a7ff9`. This receipt commit adds only this file. `release/v8` con
   - It changes no application code from 8.0.0.
   - It started healthy (`{"status":"ok","version":"8.0.1"}`) on `rss-ticker-config/config.yaml.example`.
   - The GHCR package is private, so pulling it needs a login with access to `artcashin/rss-feedhandler`.
-- **Serve/Funnel brought up to date with openbb-docker v10.1.8:**
-  - `ts-config/serve.json` publishes the same ports as `serve-funnel.json` except the gateway's `:8443`, so rss-ticker is on tailnet `:8088` in both. It carries no `AllowFunnel` at all.
-  - The Funnel swap is written to `serve.json.new`, checked with `jq empty` and moved over.
+- **Serve/Funnel: the door is on Funnel port 10000**, so the episode 3 reference keeps 8443 and both run on one node (user ruling, option B). Funnel offers only 443, 8443 and 10000, and 443 stays ODP's. One sidecar applies exactly one serve file; each tailnet file has a Funnel variant that adds only the door:
+
+  | Serve file | Applied by | 443 | 8443 | 8088 | 10000 |
+  |---|---|---|---|---|---|
+  | `serve.json` | default compose | ODP (tailnet) | — | rss-ticker (tailnet) | — |
+  | `serve-funnel.json` | copied over `serve.json` | ODP (tailnet) | — | rss-ticker (tailnet) | gateway (Funnel) |
+  | `serve-v3.json` | the v3 overlay (`docker-compose.v3.yml`) | ODP (tailnet) | reference (tailnet) | rss-ticker (tailnet) | — |
+  | `serve-v3-funnel.json` (new) | copied over `serve-v3.json` | ODP (tailnet) | reference (tailnet) | rss-ticker (tailnet) | gateway (Funnel) |
+
+  - To swap, run on the deployment host: `cp ts-config/serve-funnel.json ts-config/serve.json.new && jq empty ts-config/serve.json.new && mv ts-config/serve.json.new ts-config/serve.json`. With the v3 overlay, use `serve-v3-funnel.json` → `serve-v3.json` instead. The sidecar live-applies the file, and a malformed one would kill it.
+  - Tailnet-only files carry no `AllowFunnel` at all, as in openbb-docker v10.1.8.
+  - `funnel-gateway/config.mjs` accepts an origin on `:10000` and refuses `:8443`. `funnel-gateway/policy.mjs`, the route contract, is unchanged from `8ac084b`.
   - Tailscale Services (`svc:`) were not ported: their hostnames must be literal tailnet names and need admin-side setup.
   - The `YOUR-TAILNET` placeholders are kept, and no tailnet name or address is committed.
 
@@ -27,10 +36,10 @@ Gated tree: `d1a7ff9`. This receipt commit adds only this file. `release/v8` con
 |---|---|---|
 | 1 | `scripts/check-public.py --history HEAD` | PASS, including reachable history |
 | 2 | House copyright headers on repo-authored files | 0 missing |
-| 3–5 | `docker compose config`: default; `web` + `workspace` profiles; with `docker-compose.v3.yml` | valid |
+| 3–5b | `docker compose config`: default; `web` + `workspace` profiles; with `docker-compose.v3.yml`; v3 overlay + `web` | valid |
 | 6 | `workspace/tests` (unittest) | OK |
 | 7 | `v3/tests` (pytest; starlette 1.7.0, httpx 0.28.1, anyio 4.15.1) | 68 passed |
-| 8 | `tests` (pytest; web profile, compose and Serve configs) | 10 passed, 5 subtests |
+| 8 | `tests` (pytest; web profile, compose and all four Serve configs) | 11 passed, 5 subtests |
 | 9 | `funnel-gateway` `npm ci && npm test` (Node 22) | 47 pass, 0 fail |
 | 10 | `docker build -f Dockerfile.v3` | built |
 | 11 | `lanes/tests` in the built image | OK |
