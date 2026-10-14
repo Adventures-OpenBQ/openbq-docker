@@ -20,7 +20,7 @@ import { checkUpstreams } from "./check-upstreams.mjs";
 const TAILNET = ["example-tailnet", "ts", "net"].join(".");
 
 const TOKEN = "synthetic_test_credential_not_for_deployment";
-const ORIGIN = `https://openbq.${TAILNET}:8443`;
+const ORIGIN = `https://openbq.${TAILNET}:10000`;
 const RSS_ORIGIN = `https://openbq.${TAILNET}:8088`;
 const RSS_ADDRESS = [100, 64, 0, 3].join(".");
 const FEED = "https://feeds.example.com/news.xml";
@@ -74,8 +74,8 @@ test("configuration fails closed; secrets come from the environment", () => {
   }
   for (const change of [
     { origin: "http://example.com" }, { origin: "https://arbitrary.example.com" },
-    { origin: `https://openbq.${TAILNET}:10000` },
-    { origin: `https://openbq.${TAILNET}:8443/x` },
+    { origin: `https://openbq.${TAILNET}:8443` },   // the episode 3 reference's tailnet port, never the door
+    { origin: `https://openbq.${TAILNET}:10000/x` },
     { quoteDailyLimit: 0 }, { quoteDailyLimit: 10001 }, { quoteDailyLimit: 1.5 },
     { requestsPerMinute: 0 }, { requestsPerMinute: 601 }, { requestsPerMinute: "60" },
     { maxConcurrent: 0 }, { maxConcurrent: 33 }, { maxSockets: 0 }, { maxSockets: 33 },
@@ -90,7 +90,7 @@ test("configuration fails closed; secrets come from the environment", () => {
     { rssOrigin: RSS_ORIGIN, rssAddress: undefined },                        // no pinned address
     { rssOrigin: undefined, rssAddress: RSS_ADDRESS },                       // no origin
     { rssOrigin: "https://rss.example.com", rssAddress: RSS_ADDRESS },       // not a tailnet name
-    { rssOrigin: `https://openbq.${TAILNET}:8443`, rssAddress: RSS_ADDRESS }, // the door's own port
+    { rssOrigin: `https://openbq.${TAILNET}:10000`, rssAddress: RSS_ADDRESS }, // the door's own port
     { rssOrigin: RSS_ORIGIN, rssAddress: [10, 0, 0, 3].join(".") },                       // not a tailnet address
     { feeds: [] }, { feeds: 7 }, { feeds: null },
     { feeds: { "http://feeds.example.com/x.xml": 7 } },                      // not https
@@ -104,8 +104,8 @@ test("configuration fails closed; secrets come from the environment", () => {
     { ritaOrigin: `https://rita.${TAILNET}`, ritaAddress: [100, 64, 0, 2].join(".") },
     { socksProxy: "socks5h://openbq-ts:1055" },
   ]) assert.throws(() => validateConfig({ ...settings, ...change }, secrets), JSON.stringify(change));
-  // The node's own :443 is the API's, so the door is :8443 or nothing; a portless origin is the
-  // pre-8443 shape and stays valid for a reader who funnels a dedicated node.
+  // The node's own :443 is the API's and :8443 the episode 3 reference's, so the door is :10000 or
+  // nothing; a portless origin stays valid for a reader who funnels a dedicated node.
   assert.equal(validateConfig({ ...settings, origin: `https://openbq.${TAILNET}` }, secrets).origin,
     `https://openbq.${TAILNET}`);
   assert.equal(validateConfig({ ...settings, origin: `https://openbq.${TAILNET}:443` }, secrets).origin,

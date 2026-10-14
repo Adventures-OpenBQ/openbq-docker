@@ -90,7 +90,7 @@ Copyright 2026 SecretoftheUniverse.com LLC. Apache-2.0 for this backend companio
 
 ## BDOBB web preview door (v8, opt-in)
 
-`docker compose --profile web up -d` adds `funnel-gateway` and `rss-ticker` for BDOBB's browser preview: `/api` (the ODP catalogue, with the API's Basic pair injected), `/state` (per-user saved configuration) and `/news` (approved feeds only, including the `/news/ws/news` socket and its signed tickets). There is no `/ai`. Nothing is public until you also swap `ts-config/serve.json` for `ts-config/serve-funnel.json`, which funnels port 8443 alone; port 443 stays tailnet-only. Turn the API's lock on first (`OPENBB_API_AUTH=true`), and fill `gateway.env` and `gateway-config/settings.json` from their examples. See [funnel-gateway/README.md](funnel-gateway/README.md) and [docs/v8](docs/v8/news-relay-and-hidden-dashboards.md).
+`docker compose --profile web up -d` adds `funnel-gateway` and `rss-ticker` for BDOBB's browser preview: `/api` (the ODP catalogue, with the API's Basic pair injected), `/state` (per-user saved configuration) and `/news` (approved feeds only, including the `/news/ws/news` socket and its signed tickets). There is no `/ai`. Nothing is public until you also swap `ts-config/serve.json` for `ts-config/serve-funnel.json` (with the v3 overlay: `serve-v3.json` for `serve-v3-funnel.json`), which funnels port 10000 alone; 443 (ODP), 8443 (the episode 3 reference) and 8088 (rss-ticker) stay tailnet-only. The table in [funnel-gateway/README.md](funnel-gateway/README.md#ports-and-serve-files) lists every port and serve file. Turn the API's lock on first (`OPENBB_API_AUTH=true`), and fill `gateway.env` and `gateway-config/settings.json` from their examples. See [funnel-gateway/README.md](funnel-gateway/README.md) and [docs/v8](docs/v8/news-relay-and-hidden-dashboards.md).
 
 BDOBB's locked-widget bands sync as a hidden `docks` dashboard on `/pro/dash/sync/system/docks`. Key mode serves it here (`v3/openbq_settings.py`), and the Workspace companion serves it through `workspace/patches/004-system-dashboard.patch`.
 
@@ -117,7 +117,9 @@ The optional [v3 Compose overlay](docker-compose.v3.yml) builds two independent
 services: ODP with [our original yfinance extension](v3/yfinance/README.md), and
 the [OpenBQ reference backend](examples/episode3/README.md) with fictional pivot
 widgets. The shared private Tailscale sidecar serves ODP on 443 and the reference
-backend on 8443. No NAS host ports or public Funnel are enabled.
+backend on 8443, both tailnet-only. No NAS host ports or public Funnel are enabled
+(the v8 `web` profile's door, Funnel port 10000, runs beside it through
+`ts-config/serve-v3-funnel.json`).
 
 ```sh
 cp v3.env.example v3.env
