@@ -1,14 +1,14 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-from openbb_eodhd.models.estimates import EODHDAnalystEstimatesFetcher as AeFetcher
-from openbb_eodhd.models.estimates import EODHDAnalystEstimatesQueryParams as AeQP
-from openbb_eodhd.models.estimates import EODHDForwardEpsEstimatesFetcher as FeFetcher
-from openbb_eodhd.models.estimates import EODHDForwardEpsEstimatesQueryParams as FeQP
-from openbb_eodhd.models.estimates import EODHDHistoricalEpsFetcher as EpsFetcher
-from openbb_eodhd.models.estimates import EODHDHistoricalEpsQueryParams as EpsQP
-from openbb_eodhd.models.estimates import EODHDPriceTargetConsensusFetcher as PtcFetcher
-from openbb_eodhd.models.estimates import EODHDPriceTargetConsensusQueryParams as PtcQP
+from openbq_eodhd.models.estimates import EODHDAnalystEstimatesFetcher as AeFetcher
+from openbq_eodhd.models.estimates import EODHDAnalystEstimatesQueryParams as AeQP
+from openbq_eodhd.models.estimates import EODHDForwardEpsEstimatesFetcher as FeFetcher
+from openbq_eodhd.models.estimates import EODHDForwardEpsEstimatesQueryParams as FeQP
+from openbq_eodhd.models.estimates import EODHDHistoricalEpsFetcher as EpsFetcher
+from openbq_eodhd.models.estimates import EODHDHistoricalEpsQueryParams as EpsQP
+from openbq_eodhd.models.estimates import EODHDPriceTargetConsensusFetcher as PtcFetcher
+from openbq_eodhd.models.estimates import EODHDPriceTargetConsensusQueryParams as PtcQP
 
 BUNDLE = {"Earnings": {"History": {
     "0": {"reportDate": "2026-10-29", "date": "2026-09-30", "epsActual": None, "epsEstimate": 1.98},

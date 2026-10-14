@@ -1,8 +1,8 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-from openbb_eodhd.models.insider import EODHDInsiderTradingFetcher as Fetcher
-from openbb_eodhd.models.insider import EODHDInsiderTradingQueryParams as QP
+from openbq_eodhd.models.insider import EODHDInsiderTradingFetcher as Fetcher
+from openbq_eodhd.models.insider import EODHDInsiderTradingQueryParams as QP
 
 RAW = [
     {"date": "2026-08-01", "code": "AAPL", "ownerName": "COOK TIMOTHY D",

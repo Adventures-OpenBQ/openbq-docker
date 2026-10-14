@@ -58,8 +58,8 @@ examples/episode3 assembles it at build time; the upstream code is not stored in
 OpenBQ yfinance (v3/yfinance/source)
 Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v3/yfinance/source/NOTICE. It uses yfinance (Ran Aroussi and contributors, Apache-2.0) as a dependency.
 
-openbb-eodhd (v9/eodhd/source)
-Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v9/eodhd/source/LICENSE. Ported from bdobb-dev/openbb-docker (commits recorded in v9/eodhd/source.json and docs/v9/eodhd-port.md). It uses the official EODHD Python library (EOD Historical Data, MIT per its PyPI metadata), which Dockerfile.v3 builds from the pinned commit; it is not stored in this repository.
+openbq-eodhd (v9/eodhd/source)
+Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v9/eodhd/source/LICENSE and NOTICE. Vendored from Adventures-OpenBQ/openbq-eodhd v9.0.0, which is bdobb-dev/openbb-docker's openbb-eodhd renamed (commits recorded in v9/eodhd/source.json and docs/v9/eodhd-port.md). It uses the official EODHD Python library (EOD Historical Data, MIT per its PyPI metadata), which Dockerfile.v3 builds from the pinned commit; it is not stored in this repository.
 
 live-grid, kdb-store and kdb-ws (v10, the `live` compose profile)
 Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0. Ported from bdobb-dev/openbb-docker v10.1.7 (d606169); the donor commits are recorded in docs/v10/live-grid-kdb-port.md. Each file keeps its SPDX header. kdb-ws/startup.q inlines a minimal standalone take on Jonathon McMurray's ws.q `.wsu` namespace (https://github.com/jonathonmcmurray/ws.q, MIT), as its own header records.

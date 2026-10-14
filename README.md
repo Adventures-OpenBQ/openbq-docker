@@ -96,7 +96,7 @@ BDOBB's locked-widget bands sync as a hidden `docks` dashboard on `/pro/dash/syn
 
 ## EODHD provider (v9)
 
-`Dockerfile.v3` also installs the openbb-eodhd extension, ported from bdobb-dev/openbb-docker v9.6.3 (fixes through v9.6.6). It is served as `obb.eodhd.*` on `/api/v1/eodhd/` (52 commands; this build has no standard routers) and adds the `EODHD` app to `/apps.json`. Put your own token in `credentials.env` as `EODHD_API_KEY`. See [v9/eodhd/README.md](v9/eodhd/README.md) and [docs/v9/eodhd-port.md](docs/v9/eodhd-port.md).
+`Dockerfile.v3` also installs the openbq-eodhd extension 9.0.0 (Adventures-OpenBQ/openbq-eodhd, vendored in `v9/eodhd/source`): bdobb-dev/openbb-docker's openbb-eodhd v9.6.3 (fixes through v9.6.6), renamed. It is served as `obb.eodhd.*` on `/api/v1/eodhd/` (52 commands; this build has no standard routers) and adds the `EODHD` app to `/apps.json`. Put your own token in `credentials.env` as `EODHD_API_KEY`. See [v9/eodhd/README.md](v9/eodhd/README.md) and [docs/v9/eodhd-port.md](docs/v9/eodhd-port.md).
 
 ## Live grid and kdb+ (v10, opt-in)
 

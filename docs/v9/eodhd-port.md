@@ -120,3 +120,12 @@ No assertion was weakened, skipped or deleted. EODHD API calls used: 0 (`EODHD_A
 - The five `tests/test_client.py` SDK tests and `verify.py`'s SDK pin check need the pinned SDK, which this cloud session cannot fetch.
 - The live stack: `/apps.json` and `/widgets.json` over Tailscale, `scripts/verify-app-layouts.py` against the running API, and Workspace or BDOBB rendering the EODHD app.
 - Any live EODHD call (`scripts/smoke.py` and real-key queries): NOT_RUN, because no key is available.
+
+## Renamed openbq-eodhd (2026-10-14, user ruling)
+
+User ruling: "openbq-docker v9 should have openbq-eodhd" and "it should be Adventures-OpenBQ/openbq-eodhd". The extension now lives in its own repository, Adventures-OpenBQ/openbq-eodhd, and this stack vendors it, as it does openbq-yfinance (`v3/yfinance/`).
+- The repository's first commit (8da2435, tag `v9.0.0`) imports `v9/eodhd/source` as of e393e13 with the rename. `v9/eodhd/source` is now `git archive v9.0.0` of that repository, and `source.json` records the repository, tag, commit and version, plus the donor block that used to be the whole file.
+- Renamed: distribution `openbb-eodhd` → `openbq-eodhd`; module and directory `openbb_eodhd` → `openbq_eodhd` (imports, tests, `patch(...)` targets, package data, `verify.py`); the Dockerfile.v3 wheel `openbq_eodhd-9.0.0-py3-none-any.whl`; this repository's README, NOTICE, `v9/eodhd/README.md` and the synced BDOBB example description.
+- Not renamed, for the OpenBB contract: the provider name `eodhd` (the `openbb_provider_extension` entry point), the core extension `eodhd` (`openbb_core_extension`, so `obb.eodhd.*` and `/api/v1/eodhd`), and therefore every widget id `eodhd_*_eodhd_obb`; the SDK distribution `eodhd`; and the donor's name in this ledger's rows above, `source.json`'s donor block and NOTICE's provenance.
+- PROVISIONAL: the version is 9.0.0, matching the episode as openbq-yfinance 3.0.0 does, instead of the donor's 9.6.3.
+- Tests: the package's own suite gave 314 passed, 1 skipped, and the same 6 failures before and after the rename. Five are the SDK tests, because the SDK archive cannot be fetched here; the sixth is `test_no_extra_mirror_routes`, which fails identically on the unrenamed tree in this venv. `v9/eodhd/tests`: 9 passed with openbq-eodhd 9.0.0 installed in place of openbb-eodhd.

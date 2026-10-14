@@ -23,7 +23,7 @@ from openbb_core.provider.standard_models.government_trades import (
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 from pydantic import Field
 
-from openbb_eodhd.models._client import rest_json, sdk_call
+from openbq_eodhd.models._client import rest_json, sdk_call
 
 
 def _date(v):

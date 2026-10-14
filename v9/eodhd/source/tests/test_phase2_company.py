@@ -12,20 +12,20 @@ from unittest.mock import MagicMock, patch
 import pytest
 from openbb_core.provider.utils.errors import EmptyDataError
 
-from openbb_eodhd.models.esg import EODHDEsgScoreFetcher, EODHDEsgScoreQueryParams
-from openbb_eodhd.models.metrics import (
+from openbq_eodhd.models.esg import EODHDEsgScoreFetcher, EODHDEsgScoreQueryParams
+from openbq_eodhd.models.metrics import (
     EODHDFinancialRatiosFetcher, EODHDFinancialRatiosQueryParams,
     EODHDKeyMetricsFetcher, EODHDKeyMetricsQueryParams,
 )
-from openbb_eodhd.models.news import (
+from openbq_eodhd.models.news import (
     EODHDCompanyNewsFetcher, EODHDCompanyNewsQueryParams,
 )
-from openbb_eodhd.models.profile import (
+from openbq_eodhd.models.profile import (
     EODHDEquityInfoFetcher, EODHDEquityInfoQueryParams,
     EODHDKeyExecutivesFetcher, EODHDKeyExecutivesQueryParams,
     EODHDShareStatisticsFetcher, EODHDShareStatisticsQueryParams,
 )
-from openbb_eodhd.models.quote import (
+from openbq_eodhd.models.quote import (
     EODHDEquityQuoteFetcher, EODHDEquityQuoteQueryParams,
 )
 
@@ -186,7 +186,7 @@ class TestEquityQuote:
         client.__enter__ = MagicMock(return_value=client)
         client.__exit__ = MagicMock(return_value=False)
         client.get_live_stock_prices.return_value = QUOTE_ROWS
-        with patch("openbb_eodhd.models._client.get_client", return_value=client):
+        with patch("openbq_eodhd.models._client.get_client", return_value=client):
             run_async(EODHDEquityQuoteFetcher.aextract_data, q, CREDS)
         client.get_live_stock_prices.assert_called_once_with(
             ticker="AAPL.US", s="MSFT.US"

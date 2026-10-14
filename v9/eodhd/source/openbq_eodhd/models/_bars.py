@@ -16,7 +16,7 @@ from typing import Any
 from openbb_core.app.model.abstract.error import OpenBBError
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 
-from openbb_eodhd.models._client import get_client, raise_sdk_error
+from openbq_eodhd.models._client import get_client, raise_sdk_error
 
 # OpenBB interval -> EODHD. Intraday -> /api/intraday; daily+ -> /api/eod.
 INTRADAY_MAP = {"1m": "1m", "5m": "5m", "1h": "1h"}

@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from openbb_eodhd.aggregation import (
+from openbq_eodhd.aggregation import (
     BALANCE_STOCKS,
     BAR_OPERATORS,
     CASH_FLOWS,
@@ -12,7 +12,7 @@ from openbb_eodhd.aggregation import (
     INCOME_FLOWS,
     get_aggregation_metadata,
 )
-from openbb_eodhd.models.fundamental import BALANCE_MAP, CASHFLOW_MAP, INCOME_MAP
+from openbq_eodhd.models.fundamental import BALANCE_MAP, CASHFLOW_MAP, INCOME_MAP
 
 
 @pytest.mark.parametrize(

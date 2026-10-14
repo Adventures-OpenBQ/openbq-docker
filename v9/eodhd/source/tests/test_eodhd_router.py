@@ -9,8 +9,8 @@ a missing or mistyped MIRRORS row (a generator bug) fails here on every line."""
 import pytest
 from openbb_core.app.router import CommandMap
 
-from openbb_eodhd import eodhd_provider
-from openbb_eodhd.eodhd_router import router
+from openbq_eodhd import eodhd_provider
+from openbq_eodhd.eodhd_router import router
 
 # Routes on the eodhd router that are not standard-path mirrors.
 # /apps.json lands in Task 4; /ticks/fetch is the v12.4.13-only ticks alias.
@@ -92,7 +92,7 @@ def test_apps_json_widget_ids_exist():
     from openbb_core.api.rest_api import app
     from openbb_platform_api.utils.widgets import build_json
 
-    from openbb_eodhd import eodhd_router as er
+    from openbq_eodhd import eodhd_router as er
 
     apps = json.loads(Path(er.__file__).with_name("assets").joinpath("apps.json").read_text())
     ids = {w["i"] for a in apps for t in a.get("tabs", {}).values() for w in t.get("layout", [])}

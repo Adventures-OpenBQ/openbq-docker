@@ -22,7 +22,7 @@ from typing import Any
 from openbb_core.app.model.abstract.error import OpenBBError
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 
-from openbb_eodhd.models._client import get_client, raise_sdk_error
+from openbq_eodhd.models._client import get_client, raise_sdk_error
 
 _TTL_SECONDS = 120.0            # L1 in-process burst-coalescing TTL
 _L2_LIBRARY = "eodhd_fundamentals_cache"

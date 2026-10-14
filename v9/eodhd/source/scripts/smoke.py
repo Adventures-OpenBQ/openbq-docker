@@ -2,7 +2,7 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Smoke-test every openbb-eodhd command against EODHD's PUBLIC demo token.
+"""Smoke-test every openbq-eodhd command against EODHD's PUBLIC demo token.
 
 The `demo` token is public and serves — with NO limits, all data types — exactly
 these symbols: AAPL.US, TSLA.US, VTI.US, AMZN.US, BTC-USD.CC, EURUSD.FOREX. That

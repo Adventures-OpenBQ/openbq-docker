@@ -1,37 +1,46 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-"""EODHD Currency (Forex) Historical Price Model."""
+"""EODHD Crypto Historical Price Model."""
 
 from datetime import datetime
 from typing import Any, Literal
 
 from openbb_core.provider.abstract.fetcher import Fetcher
-from openbb_core.provider.standard_models.currency_historical import (
-    CurrencyHistoricalData,
-    CurrencyHistoricalQueryParams,
+from openbb_core.provider.standard_models.crypto_historical import (
+    CryptoHistoricalData,
+    CryptoHistoricalQueryParams,
 )
 from openbb_core.provider.utils.descriptions import QUERY_DESCRIPTIONS
 from pydantic import Field
 
-from openbb_eodhd.aggregation import attach_widget_hints
+from openbq_eodhd.aggregation import attach_widget_hints
 
-from openbb_eodhd.models._bars import INTERVAL_CHOICES, fetch_bars, rows_from_bars
+from openbq_eodhd.models._bars import INTERVAL_CHOICES, fetch_bars, rows_from_bars
 
 
-def _qualify_forex(symbol: str) -> list[str]:
-    """Normalize FX pairs to EODHD's `EURUSD.FOREX` form (EUR/USD, EURUSD)."""
+def _qualify_crypto(symbol: str) -> list[str]:
+    """Normalize crypto symbols to EODHD's `BASE-QUOTE.CC` form.
+
+    Accepts BTC-USD, BTC/USD, BTCUSD -> BTC-USD.CC (already-dotted pass through).
+    """
     out = []
     for s in symbol.split(","):
         s = s.strip().upper()
         if not s:
             continue
-        out.append(s if "." in s else f"{s.replace('/', '')}.FOREX")
+        if "." in s:
+            out.append(s)
+            continue
+        s = s.replace("/", "-")
+        if "-" not in s and s.endswith("USD") and len(s) > 3:
+            s = f"{s[:-3]}-USD"
+        out.append(f"{s}.CC")
     return out
 
 
-class EODHDCurrencyHistoricalQueryParams(CurrencyHistoricalQueryParams):
-    """EODHD Currency Historical Price Query."""
+class EODHDCryptoHistoricalQueryParams(CryptoHistoricalQueryParams):
+    """EODHD Crypto Historical Price Query."""
 
     # OpenBB core reads this dunder directly (registry_map / package_builder) for
     # multi-symbol + choices; pydantic's model_config json_schema_extra is a
@@ -46,8 +55,8 @@ class EODHDCurrencyHistoricalQueryParams(CurrencyHistoricalQueryParams):
     )
 
 
-class EODHDCurrencyHistoricalData(CurrencyHistoricalData):
-    """EODHD Currency Historical Price Data."""
+class EODHDCryptoHistoricalData(CryptoHistoricalData):
+    """EODHD Crypto Historical Price Data."""
 
     adjusted_close: float | None = Field(
         default=None, description="Adjusted closing price (EOD endpoint only)."
@@ -55,18 +64,18 @@ class EODHDCurrencyHistoricalData(CurrencyHistoricalData):
 
 
 # Every column carries its aggregation hint into widgets.json; see
-# openbb_eodhd.aggregation.attach_widget_hints. Stamped after the class so the
+# openbq_eodhd.aggregation.attach_widget_hints. Stamped after the class so the
 # class body stays the plain Data declaration it always was.
-attach_widget_hints(EODHDCurrencyHistoricalData, "CurrencyHistorical")
+attach_widget_hints(EODHDCryptoHistoricalData, "CryptoHistorical")
 
 
-class EODHDCurrencyHistoricalFetcher(
-    Fetcher[EODHDCurrencyHistoricalQueryParams, list[EODHDCurrencyHistoricalData]]
+class EODHDCryptoHistoricalFetcher(
+    Fetcher[EODHDCryptoHistoricalQueryParams, list[EODHDCryptoHistoricalData]]
 ):
-    """Extract and transform FX bars from EODHD (.FOREX symbols)."""
+    """Extract and transform crypto bars from EODHD (.CC symbols)."""
 
     @staticmethod
-    def transform_query(params: dict[str, Any]) -> EODHDCurrencyHistoricalQueryParams:  # pylint: disable=unused-argument
+    def transform_query(params: dict[str, Any]) -> EODHDCryptoHistoricalQueryParams:  # pylint: disable=unused-argument
         # pylint: disable=import-outside-toplevel
         from dateutil.relativedelta import relativedelta
 
@@ -76,16 +85,16 @@ class EODHDCurrencyHistoricalFetcher(
             transformed["start_date"] = now - relativedelta(years=1)
         if transformed.get("end_date") is None:
             transformed["end_date"] = now
-        return EODHDCurrencyHistoricalQueryParams(**transformed)
+        return EODHDCryptoHistoricalQueryParams(**transformed)
 
     @staticmethod
     async def aextract_data(query, credentials, **kwargs) -> list[dict]:  # pylint: disable=unused-argument
         return await fetch_bars(
-            query.interval, _qualify_forex(query.symbol),
+            query.interval, _qualify_crypto(query.symbol),
             query.start_date, query.end_date, credentials,
         )
 
     @staticmethod
-    def transform_data(query, data: list[dict], **kwargs) -> list[EODHDCurrencyHistoricalData]:  # pylint: disable=unused-argument
+    def transform_data(query, data: list[dict], **kwargs) -> list[EODHDCryptoHistoricalData]:  # pylint: disable=unused-argument
         rows = rows_from_bars(query.interval, "," in query.symbol, data)
-        return [EODHDCurrencyHistoricalData.model_validate(r) for r in rows]
+        return [EODHDCryptoHistoricalData.model_validate(r) for r in rows]

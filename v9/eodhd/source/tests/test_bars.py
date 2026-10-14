@@ -1,14 +1,14 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for openbb_eodhd.models._bars."""
+"""Tests for openbq_eodhd.models._bars."""
 
 from datetime import date, datetime, timezone
 from unittest.mock import patch
 
 import pytest
 
-from openbb_eodhd.models._bars import (
+from openbq_eodhd.models._bars import (
     INTRADAY_MAP,
     EOD_PERIOD_MAP,
     INTERVAL_CHOICES,
@@ -149,7 +149,7 @@ class TestRowsFromBars:
 # fetch_bars (async — mocked official-SDK client)
 # ============================================================
 
-PATCH_TARGET = "openbb_eodhd.models._bars.get_client"
+PATCH_TARGET = "openbq_eodhd.models._bars.get_client"
 
 
 class TestFetchBars:

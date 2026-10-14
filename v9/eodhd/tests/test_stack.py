@@ -1,9 +1,9 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
-"""openbb-eodhd on this line's ODP: the locked packages, the provider-fixes
+"""openbq-eodhd on this line's ODP: the locked packages, the provider-fixes
 overlay and no standard routers (openbb-equity and friends are not installed).
 
-Run where openbb-eodhd is installed on the locked recipe, with the overlay
+Run where openbq-eodhd is installed on the locked recipe, with the overlay
 applied and the static package rebuilt (the Dockerfile.v3 image does all three;
 v9/eodhd/verify.py runs this module at build time):
 
@@ -22,7 +22,7 @@ from pathlib import Path
 
 FIXTURES = Path(__file__).with_name("fixtures")
 
-# The EODHD app's cards, in openbb_eodhd/assets/apps.json order.
+# The EODHD app's cards, in openbq_eodhd/assets/apps.json order.
 EODHD_APP_WIDGETS = [
     "eodhd_equity_profile_eodhd_obb",
     "eodhd_equity_price_quote_eodhd_obb",
@@ -52,8 +52,8 @@ def _run(code: str, **env: str) -> dict:
 
 def _mirrors() -> dict[str, str]:
     """Mirror path -> model, for every MIRRORS row this extension has a fetcher for."""
-    from openbb_eodhd import eodhd_provider
-    from openbb_eodhd.eodhd_router import MIRRORS
+    from openbq_eodhd import eodhd_provider
+    from openbq_eodhd.eodhd_router import MIRRORS
 
     return {
         MIRRORS[k][0]: f"Eodhd{k}"
@@ -118,7 +118,7 @@ class StubbedQuery(unittest.TestCase):
             client = MagicMock()
             client.__enter__.return_value = client
             client.get_eod_historical_stock_market_data.return_value = bars
-            with patch("openbb_eodhd.models._bars.get_client", return_value=client):
+            with patch("openbq_eodhd.models._bars.get_client", return_value=client):
                 r = TestClient(app).get(
                     "/api/v1/eodhd/equity/price/historical",
                     params={{"symbol": "AAPL", "start_date": "2025-01-01", "end_date": "2025-01-07"}},

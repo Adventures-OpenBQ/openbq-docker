@@ -5,49 +5,49 @@
 
 from openbb_core.provider.abstract.provider import Provider
 
-from openbb_eodhd.models.calendar import (
+from openbq_eodhd.models.calendar import (
     EODHDCalendarEarningsFetcher,
     EODHDCalendarIpoFetcher,
     EODHDCalendarSplitsFetcher,
     EODHDEconomicCalendarFetcher,
 )
-from openbb_eodhd.models.corporate_actions import (
+from openbq_eodhd.models.corporate_actions import (
     EODHDHistoricalDividendsFetcher,
     EODHDHistoricalSplitsFetcher,
 )
-from openbb_eodhd.models.crypto_historical import EODHDCryptoHistoricalFetcher
-from openbb_eodhd.models.currency import (
+from openbq_eodhd.models.crypto_historical import EODHDCryptoHistoricalFetcher
+from openbq_eodhd.models.currency import (
     EODHDCurrencyPairsFetcher,
     EODHDCurrencySnapshotsFetcher,
 )
-from openbb_eodhd.models.currency_historical import EODHDCurrencyHistoricalFetcher
-from openbb_eodhd.models.dividend_yield import EODHDTrailingDivYieldFetcher
-from openbb_eodhd.models.equity_historical import EODHDEquityHistoricalFetcher
-from openbb_eodhd.models.esg import EODHDEsgScoreFetcher
-from openbb_eodhd.models.etf import (
+from openbq_eodhd.models.currency_historical import EODHDCurrencyHistoricalFetcher
+from openbq_eodhd.models.dividend_yield import EODHDTrailingDivYieldFetcher
+from openbq_eodhd.models.equity_historical import EODHDEquityHistoricalFetcher
+from openbq_eodhd.models.esg import EODHDEsgScoreFetcher
+from openbq_eodhd.models.etf import (
     EODHDEtfCountriesFetcher,
     EODHDEtfHoldingsFetcher,
     EODHDEtfInfoFetcher,
     EODHDEtfSectorsFetcher,
 )
-from openbb_eodhd.models.estimates import (
+from openbq_eodhd.models.estimates import (
     EODHDAnalystEstimatesFetcher,
     EODHDForwardEpsEstimatesFetcher,
     EODHDHistoricalEpsFetcher,
     EODHDPriceTargetConsensusFetcher,
 )
-from openbb_eodhd.models.fundamental import (
+from openbq_eodhd.models.fundamental import (
     EODHDBalanceSheetFetcher,
     EODHDCashFlowStatementFetcher,
     EODHDIncomeStatementFetcher,
 )
-from openbb_eodhd.models.government import EODHDGovernmentTradesFetcher
-from openbb_eodhd.models.index import (
+from openbq_eodhd.models.government import EODHDGovernmentTradesFetcher
+from openbq_eodhd.models.index import (
     EODHDAvailableIndicesFetcher,
     EODHDIndexHistoricalFetcher,
 )
-from openbb_eodhd.models.insider import EODHDInsiderTradingFetcher
-from openbb_eodhd.models.macro import (
+from openbq_eodhd.models.insider import EODHDInsiderTradingFetcher
+from openbq_eodhd.models.macro import (
     EODHDConsumerPriceIndexFetcher,
     EODHDCountryProfileFetcher,
     EODHDEconomicIndicatorsFetcher,
@@ -55,32 +55,32 @@ from openbb_eodhd.models.macro import (
     EODHDGdpRealFetcher,
     EODHDUnemploymentFetcher,
 )
-from openbb_eodhd.models.market_cap import EODHDHistoricalMarketCapFetcher
-from openbb_eodhd.models.metrics import (
+from openbq_eodhd.models.market_cap import EODHDHistoricalMarketCapFetcher
+from openbq_eodhd.models.metrics import (
     EODHDFinancialRatiosFetcher,
     EODHDKeyMetricsFetcher,
 )
-from openbb_eodhd.models.news import (
+from openbq_eodhd.models.news import (
     EODHDCompanyNewsFetcher,
     EODHDWorldNewsFetcher,
 )
-from openbb_eodhd.models.profile import (
+from openbq_eodhd.models.profile import (
     EODHDEquityInfoFetcher,
     EODHDKeyExecutivesFetcher,
     EODHDShareStatisticsFetcher,
 )
-from openbb_eodhd.models.quote import EODHDEquityQuoteFetcher
-from openbb_eodhd.models.ownership import (
+from openbq_eodhd.models.quote import EODHDEquityQuoteFetcher
+from openbq_eodhd.models.ownership import (
     EODHDEquityOwnershipFetcher,
     EODHDInstitutionalOwnershipFetcher,
 )
-from openbb_eodhd.models.screener import EODHDEquityScreenerFetcher
-from openbb_eodhd.models.search import (
+from openbq_eodhd.models.screener import EODHDEquityScreenerFetcher
+from openbq_eodhd.models.search import (
     EODHDCryptoSearchFetcher,
     EODHDEquitySearchFetcher,
     EODHDEtfSearchFetcher,
 )
-from openbb_eodhd.models.treasury import (
+from openbq_eodhd.models.treasury import (
     EODHDTreasuryRatesFetcher,
     EODHDYieldCurveFetcher,
 )

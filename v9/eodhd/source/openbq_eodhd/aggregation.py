@@ -78,7 +78,7 @@ def _statement(model: str) -> tuple[str, dict[str, str]]:
     call time, rather than at import time. Same maps, no cycle.
     """
     # pylint: disable=import-outside-toplevel
-    from openbb_eodhd.models.fundamental import BALANCE_MAP, CASHFLOW_MAP, INCOME_MAP
+    from openbq_eodhd.models.fundamental import BALANCE_MAP, CASHFLOW_MAP, INCOME_MAP
 
     return {
         "IncomeStatement": ("Income_Statement", INCOME_MAP),

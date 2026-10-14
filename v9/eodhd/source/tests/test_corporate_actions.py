@@ -1,12 +1,12 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for openbb_eodhd.models.corporate_actions."""
+"""Tests for openbq_eodhd.models.corporate_actions."""
 
 from datetime import date
 
 
-from openbb_eodhd.models.corporate_actions import (
+from openbq_eodhd.models.corporate_actions import (
     _qualify,
     EODHDHistoricalDividendsData,
     EODHDHistoricalDividendsFetcher,

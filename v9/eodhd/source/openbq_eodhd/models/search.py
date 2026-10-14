@@ -27,7 +27,7 @@ from openbb_core.provider.standard_models.etf_search import (
 from openbb_core.provider.utils.errors import EmptyDataError
 from pydantic import Field
 
-from openbb_eodhd.models._client import sdk_call
+from openbq_eodhd.models._client import sdk_call
 
 
 async def _search(query: str | None, type_: str, limit: int, credentials) -> list[dict]:

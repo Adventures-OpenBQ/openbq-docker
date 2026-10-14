@@ -14,9 +14,9 @@ from openbb_core.provider.standard_models.equity_historical import (
 from openbb_core.provider.utils.descriptions import QUERY_DESCRIPTIONS
 from pydantic import Field
 
-from openbb_eodhd.aggregation import attach_widget_hints
+from openbq_eodhd.aggregation import attach_widget_hints
 
-from openbb_eodhd.models._bars import INTERVAL_CHOICES, fetch_bars, rows_from_bars
+from openbq_eodhd.models._bars import INTERVAL_CHOICES, fetch_bars, rows_from_bars
 
 
 def _qualify_equity(symbol: str, exchange: str) -> list[str]:
@@ -63,7 +63,7 @@ class EODHDEquityHistoricalData(EquityHistoricalData):
 
 
 # Every column carries its aggregation hint into widgets.json; see
-# openbb_eodhd.aggregation.attach_widget_hints. Stamped after the class so the
+# openbq_eodhd.aggregation.attach_widget_hints. Stamped after the class so the
 # class body stays the plain Data declaration it always was.
 attach_widget_hints(EODHDEquityHistoricalData, "EquityHistorical")
 

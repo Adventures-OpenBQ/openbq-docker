@@ -41,8 +41,8 @@ from openbb_core.provider.standard_models.economic_calendar import (
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 from pydantic import Field
 
-from openbb_eodhd.economic_taxonomy import classify
-from openbb_eodhd.models._client import get_client, raise_sdk_error
+from openbq_eodhd.economic_taxonomy import classify
+from openbq_eodhd.models._client import get_client, raise_sdk_error
 
 
 def _date(v):
