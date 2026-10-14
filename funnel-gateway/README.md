@@ -3,8 +3,9 @@
 
 # funnel-gateway (openbq-docker v10.0.0, `web` profile)
 
-The door the sidecar publishes on Funnel port 8443 for BDOBB's browser (web) preview. Port 443
-stays `openbq-api` for your tailnet and is never funneled. Ported from bdobb-dev/openbb-docker
+The door the sidecar publishes on Funnel port 10000 for BDOBB's browser (web) preview. Port 443
+stays `openbq-api` for your tailnet and is never funneled; 8443 belongs to the episode 3 reference
+backend (tailnet-only), so both run on one node. Ported from bdobb-dev/openbb-docker
 **v8.0.3** (`775354f`, `funnel-gateway/`, Apache-2.0) with the `/ai` (Rita) family and its SOCKS5
 dialer removed; the route contract is otherwise unchanged, so BDOBB's vendored `web/policy.mjs`
 and this `policy.mjs` agree byte for byte on what is admitted.
@@ -22,8 +23,8 @@ Tailscale Serve. It runs `read_only`, as uid 1000, `cap_drop: [ALL]`, 256 MB, 64
 writable mount is the `gateway-state` volume behind `/state`.
 
 Nothing is public until two separate steps both happen: the profile is started, **and** the
-sidecar's Serve config is swapped to `ts-config/serve-funnel.json` (a deliberate copy over
-`ts-config/serve.json`, never automatic). Before the swap, run both preflights below. The API's
+sidecar's Serve config is swapped to its Funnel variant (a deliberate copy, never automatic; see
+the table below). Before the swap, run both preflights below. The API's
 own lock must be on first: `OPENBB_API_AUTH=true` with a Basic pair in `credentials.env`;
 `check-upstreams.mjs` refuses to pass an open API.
 
@@ -168,11 +169,28 @@ GitHub session) signs a ticket and the browser opens
   the web preview's `BACKEND_GATEWAY_TOKEN`), and `OPENBB_API_USERNAME`/`OPENBB_API_PASSWORD`,
   the same pair as in `credentials.env` (repeated so the gateway never loads provider keys).
 - `gateway-config/settings.json` (from `funnel-gateway/settings.example.json`, read-only bind):
-  `origin` (`https://openbq.<tailnet>.ts.net:8443`), `previewOrigin`, `stateDir`
+  `origin` (`https://openbq.<tailnet>.ts.net:10000`), `previewOrigin`, `stateDir`
   (`/var/lib/bdobb/state` to turn `/state` on), the budgets, and `rssOrigin`/`rssAddress`/`feeds`
   (both-or-neither; feeds need them), and `liveGrid` (`true` when the `live` profile runs). An unknown key, including Rita's `ritaOrigin`,
   `ritaAddress` and `socksProxy`, is refused at startup.
 - `rss-ticker-config/config.yaml` (from `config.yaml.example`).
+
+## Ports and serve files
+
+One Tailscale sidecar applies exactly one serve file: `ts-config/serve.json` normally, and
+`ts-config/serve-v3.json` when the v3 overlay (`docker-compose.v3.yml`) is in use. Each has a Funnel
+variant that adds only the door. Swap it in on the deployment host with `cp … .new && jq empty … && mv`;
+the sidecar live-applies the file, and a malformed one would kill it.
+
+| Serve file | Applied by | 443 | 8443 | 8088 | 10000 |
+|---|---|---|---|---|---|
+| `serve.json` | default compose | ODP (tailnet) | — | rss-ticker (tailnet) | — |
+| `serve-funnel.json` | copied over `serve.json` | ODP (tailnet) | — | rss-ticker (tailnet) | **gateway (Funnel)** |
+| `serve-v3.json` | the v3 overlay | ODP (tailnet) | reference (tailnet) | rss-ticker (tailnet) | — |
+| `serve-v3-funnel.json` | copied over `serve-v3.json` | ODP (tailnet) | reference (tailnet) | rss-ticker (tailnet) | **gateway (Funnel)** |
+
+Funnel offers only 443, 8443 and 10000; 10000 is the only port any file funnels
+(`tests/test_web_profile.py` checks every file). 8088 answers 502 until the `web` profile runs.
 
 ## Verification
 
@@ -180,8 +198,10 @@ GitHub session) signs a ticket and the browser opens
 docker compose --profile web up -d            # add --profile live (and "liveGrid": true) for /grid
 docker compose --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked, live-grid and wire answer if on
 docker compose --profile web exec funnel-gateway node verify.mjs           # the door's own lock, on the bridge
-cp ts-config/serve-funnel.json ts-config/serve.json && docker compose restart tailscale   # the door opens
-docker compose --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net:8443 funnel-gateway node verify.mjs
+cp ts-config/serve-funnel.json ts-config/serve.json.new && jq empty ts-config/serve.json.new && mv ts-config/serve.json.new ts-config/serve.json   # the door opens; the sidecar live-applies it, and a malformed file would kill it
+# with the v3 overlay running, swap its file instead:
+# cp ts-config/serve-v3-funnel.json ts-config/serve-v3.json.new && jq empty ts-config/serve-v3.json.new && mv ts-config/serve-v3.json.new ts-config/serve-v3.json
+docker compose --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net:10000 funnel-gateway node verify.mjs
 ```
 
 `git checkout ts-config/serve.json` and a sidecar restart close the door again. Then test from a

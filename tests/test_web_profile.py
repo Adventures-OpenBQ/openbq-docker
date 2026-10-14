@@ -28,18 +28,45 @@ def test_no_web_service_publishes_a_host_port_and_the_gateway_is_locked_down():
     assert 'credentials.env' not in json.dumps(gateway), 'the gateway must not load provider keys'
 
 
-def test_the_tailnet_only_serve_config_funnels_nothing():
-    serve = json.loads((ROOT / 'ts-config/serve.json').read_text())
-    assert not any(serve.get('AllowFunnel', {}).values())
+GATEWAY = '${TS_CERT_DOMAIN}:10000'
+PAIRS = [('serve.json', 'serve-funnel.json'), ('serve-v3.json', 'serve-v3-funnel.json')]
 
 
-def test_the_funnel_config_publishes_only_the_gateway_and_keeps_443_the_api():
-    serve = json.loads((ROOT / 'ts-config/serve-funnel.json').read_text())
-    web = serve['Web']
-    assert {k: v for k, v in serve['AllowFunnel'].items() if v} == {'${TS_CERT_DOMAIN}:8443': True}
-    assert web['${TS_CERT_DOMAIN}:8443']['Handlers']['/']['Proxy'] == 'http://funnel-gateway:8091'
-    assert web['${TS_CERT_DOMAIN}:443']['Handlers']['/']['Proxy'] == 'http://openbq-api:6900'
-    assert web['${TS_CERT_DOMAIN}:8088']['Handlers']['/']['Proxy'] == 'http://rss-ticker:8088'
+def _serve(name):
+    return json.loads((ROOT / 'ts-config' / name).read_text())
+
+
+def test_the_tailnet_only_serve_configs_carry_no_allow_funnel_at_all():
+    for tailnet, _ in PAIRS:
+        assert 'AllowFunnel' not in _serve(tailnet), tailnet
+
+
+def test_each_funnel_config_is_its_tailnet_config_plus_only_the_gateway():
+    for tailnet_name, funnel_name in PAIRS:
+        tailnet, funnel = _serve(tailnet_name), _serve(funnel_name)
+        assert tailnet['TCP'] == {k: v for k, v in funnel['TCP'].items() if k != '10000'}, funnel_name
+        assert tailnet['Web'] == {k: v for k, v in funnel['Web'].items() if k != GATEWAY}, funnel_name
+
+
+def test_the_funnel_configs_publish_only_the_gateway_on_10000_and_keep_443_the_api():
+    for _, name in PAIRS:
+        serve = _serve(name)
+        web = serve['Web']
+        assert serve['AllowFunnel'] == {GATEWAY: True}, name
+        assert web[GATEWAY]['Handlers']['/']['Proxy'] == 'http://funnel-gateway:8091', name
+        assert web['${TS_CERT_DOMAIN}:443']['Handlers']['/']['Proxy'] == 'http://openbq-api:6900', name
+        assert web['${TS_CERT_DOMAIN}:8088']['Handlers']['/']['Proxy'] == 'http://rss-ticker:8088', name
+
+
+def test_the_episode_3_configs_keep_the_reference_on_tailnet_8443():
+    for name in ('serve-v3.json', 'serve-v3-funnel.json'):
+        web = _serve(name)['Web']
+        assert web['${TS_CERT_DOMAIN}:8443']['Handlers']['/']['Proxy'] == 'http://openbq-reference:17783', name
+
+
+def test_the_feed_pool_is_rss_feedhandler_8_0_1_pinned_by_digest():
+    image = SERVICES['rss-ticker']['image']
+    assert image.startswith('ghcr.io/artcashin/rss-feedhandler:8.0.1@sha256:'), image
 
 
 def test_the_gateway_examples_hold_placeholders_only():

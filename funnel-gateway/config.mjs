@@ -5,11 +5,12 @@ import { readFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { isAbsolute, normalize } from "node:path";
 
-// The door is the stack node's Funnel port 8443: the node's :443 stays openbq-api for the
-// tailnet, and Funnel offers only 443, 8443 and 10000. A portless origin is still accepted
+// The door is the stack node's Funnel port 10000: the node's :443 stays openbq-api and :8443
+// the episode 3 reference, both for the tailnet, and Funnel offers only 443, 8443 and 10000.
+// A portless origin is still accepted
 // for a reader who publishes a dedicated node's :443 instead. `allowedPort` names the one
 // port an origin may carry (the wire's is 8088).
-function httpsOrigin(value, tailnet = false, allowedPort = "8443") {
+function httpsOrigin(value, tailnet = false, allowedPort = "10000") {
   const url = new URL(value);
   if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== allowedPort) ||
       url.pathname !== "/" || url.search || url.hash ||
