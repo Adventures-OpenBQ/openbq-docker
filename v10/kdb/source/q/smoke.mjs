@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Smoke test: KDB-X websocket pub/sub tick cache (startup.q).
-// Requires the kdb-ws-test container running (see run-test.sh).
+// Requires the openbq-kdb-test container running (see run-test.sh).
 import { execSync } from 'node:child_process';
 import assert from 'node:assert';
 
@@ -10,7 +10,7 @@ const WS_URL = process.env.WS_URL ?? 'ws://127.0.0.1:5998/';
 
 function injectQ(lines) {
   const input = ['h:hopen 5000', ...lines.map((l) => `h"${l.replaceAll('"', '\\"')}"`), 'exit 0', ''].join('\n');
-  execSync('docker exec -i kdb-ws-test q', { input, stdio: ['pipe', 'pipe', 'inherit'] });
+  execSync('docker exec -i openbq-kdb-test q', { input, stdio: ['pipe', 'pipe', 'inherit'] });
 }
 
 const messages = [];
@@ -64,7 +64,7 @@ assert.equal(guarded.data[0].price, 103.0);
 console.log('ok: store.py guarded expression routes through upd');
 
 // 6. Table still accumulates (cache role intact): 3+1+2+1 = 7 rows.
-const out = execSync('docker exec -i kdb-ws-test q', { input: 'h:hopen 5000\n-1 string h"count trades";\nexit 0\n', stdio: ['pipe', 'pipe', 'inherit'] }).toString();
+const out = execSync('docker exec -i openbq-kdb-test q', { input: 'h:hopen 5000\n-1 string h"count trades";\nexit 0\n', stdio: ['pipe', 'pipe', 'inherit'] }).toString();
 assert.ok(out.includes('7'), `expected 7 rows, got: ${out}`);
 console.log('ok: trades table holds all 7 rows');
 
@@ -113,7 +113,7 @@ assert.equal(asof.data[1].price, 103, 'as-of the future = the last trade');
 console.log('ok: as-of join', asof.data[1]);
 
 // 11. the g# attribute is applied and survives the inserts above.
-const attrOut = execSync('docker exec -i kdb-ws-test q', { input: 'h:hopen 5000\n-1 "attr=",string h"attr trades`sym";\nexit 0\n', stdio: ['pipe', 'pipe', 'inherit'] }).toString();
+const attrOut = execSync('docker exec -i openbq-kdb-test q', { input: 'h:hopen 5000\n-1 "attr=",string h"attr trades`sym";\nexit 0\n', stdio: ['pipe', 'pipe', 'inherit'] }).toString();
 assert.ok(attrOut.includes('attr=g'), `expected g attribute, got: ${attrOut}`);
 console.log('ok: g# attribute on sym');
 

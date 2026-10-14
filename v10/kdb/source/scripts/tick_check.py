@@ -8,10 +8,10 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from kdb_store.aggregate import aggregate_ticks
-from kdb_store.config import resolve_config
-from kdb_store.session import KdbSession
-from kdb_store.store import KdbStore
+from openbq_kdb.aggregate import aggregate_ticks
+from openbq_kdb.config import resolve_config
+from openbq_kdb.session import KdbSession
+from openbq_kdb.store import KdbStore
 
 failures = []
 

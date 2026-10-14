@@ -1073,3 +1073,32 @@ through the gateway, the option V10-P5 named. live-grid still has no host port (
 Receipts (cloud): funnel-gateway 88 passed (was 77; +11); live-grid 454 passed, 14 deselected
 (+1 for the handshake); `tests/` 35 passed (+1); `scripts/check-public.py` PASS. Not run: the
 desktop app framing the page (Mac).
+
+## Renamed openbq-kdb (2026-10-14, user ruling)
+
+User ruling: "openbq-docker v10 should have openbq-kdb" and "it should be Adventures-OpenBQ/openbq-kdb". The kdb tier now lives in its own repository, Adventures-OpenBQ/openbq-kdb, which this stack vendors under `v10/kdb/source`, as it vendors openbq-yfinance and openbq-eodhd.
+- The repository's first commit (9519bbc, tag `v10.0.0`) imports `kdb-store/` and `kdb-ws/` as of fc70ffc and renames them. `v10/kdb/source` is `git archive v10.0.0` of that repository, and `v10/kdb/source.json` records the repository, tag, commit and version, with the donor (bdobb-dev/openbb-docker v10.1.7 d606169) in a donor block.
+- Renamed:
+  - `kdb-store` → `openbq-kdb`, module `kdb_store` → `openbq_kdb` (live-grid's imports, `monkeypatch` targets and its `pyproject.toml` dependency), version 10.0.0;
+  - `kdb-ws/` → `q/` inside the package (`startup.q`, `persist.q`, `gen.q`, `live-chart.html`, the tick-plant model `q/tests/tickplant_sim.py`, whose path live-grid's tests now read from `v10/kdb/source/q/tests/`);
+  - the compose service `kdb` → `openbq-kdb` (`docker-compose.yml`, `compose.kdb-build.yml`, live-grid's `KDB_BIND_HOST` and eod-dump's `KDB_HOST`);
+  - the container paths `/opt/kdb-ws/*` → `/opt/openbq-kdb/*`;
+  - live-grid's Dockerfile `COPY` lines.
+- Not renamed:
+  - the `ghcr.io/artcashin/kdb-x:amd64` image and the `kdb-x/` recipe (a third-party runtime, per the ruling);
+  - the local build tag `openbq-kdb-x:local`.
+- PROVISIONAL:
+  - the named volume `kdb-data` keeps its name, so existing tick logs survive the rename;
+  - the `KDB_*` environment variables (`KDB_LICENSE_DIR`, `KDB_PORT`, `KDB_HOST`, `KDB_BIND_HOST`, `KDB_PERSIST_Q`) keep their names, so operators' `.env` files keep working;
+  - the version is 10.0.0, matching the episode, instead of the donor's 10.1.0.
+- REVIEW, assertions changed for the rename, none weakened. Each asserts the same fact under the new name or path:
+  - `tests/test_live_profile.py`: the `LIVE` tuple, the image and licence test, the crash-recovery test (mounts, command, `KDB_PERSIST_Q`, the startup.q path), the tick-log volume test, the restart test, live-grid's `KDB_BIND_HOST`, and the licence-mount users;
+  - `tests/test_kdb_build.py`: the override's service key, and the base service and its command;
+  - `tests/test_lake_profile.py`: eod-dump's `KDB_HOST`.
+- Operators: a running stack started before the rename has a container for the service `kdb`. After the update, `docker compose --profile live up -d --remove-orphans` starts `openbq-kdb` on the same `kdb-data` volume and replays the day's tick log.
+- Tests (cloud):
+  - `tests/` 38 passed (+5 subtests);
+  - live-grid 454 passed, 14 network tests deselected (openbq-kdb installed in place of kdb-store);
+  - `v10/kdb/source` 143, `q/tests` 9, openbb-deltalake 95, `scripts/tests` 13;
+  - v3 68, lanes 22, workspace 12, `v9/eodhd` 9, provider-fixes 42, funnel-gateway 88;
+  - check-public and verify-app-layouts pass.

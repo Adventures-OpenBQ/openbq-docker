@@ -11,8 +11,8 @@ injected clock, so no test sleeps.
 
 import pytest
 
-import kdb_store.session as session
-from kdb_store.session import KdbSession, KdbUnavailable, retry_delay
+import openbq_kdb.session as session
+from openbq_kdb.session import KdbSession, KdbUnavailable, retry_delay
 from tests.test_session import FakeConn, cfg
 
 

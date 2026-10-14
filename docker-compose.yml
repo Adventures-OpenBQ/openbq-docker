@@ -134,7 +134,7 @@ services:
   # plain `docker compose up -d` never does. Ported from bdobb-dev/openbb-docker v10.1.7
   # (d606169); see docs/v10/live-grid-kdb-port.md and live-grid/README.md.
   #
-  # kdb: the kdb+ tick cache live-grid records into and reads back (/ticks, the tick seam of
+  # openbq-kdb: the kdb+ tick cache live-grid records into and reads back (/ticks, the tick seam of
   # /series, /chart and /ta_chart). This repository ships NO KX software and NO licence:
   # the image is the operator's own KDB-X build, and kc.lic goes in ./kdb-license/ by default.
   # KDB_LICENSE_DIR (shell or .env) points kdb, live-grid and eod-dump at another directory
@@ -143,8 +143,8 @@ services:
   # (git-ignored, mounted read-only). Without a licence q exits and live-grid runs without
   # ticks.
   #
-  # Crash recovery is always on: q runs the repository's kdb-ws/startup.q, which loads
-  # kdb-ws/persist.q (both mounted read-only; no copying by hand). persist.q is the classic
+  # Crash recovery is always on: q runs the repository's v10/kdb/source/q/startup.q, which loads
+  # v10/kdb/source/q/persist.q (both mounted read-only; no copying by hand). persist.q is the classic
   # tickerplant log: every upd is appended to /data/logs/tlog_<UTC date> on the named volume
   # `kdb-data`, which survives `docker compose down`/`up` and container recreation; on boot,
   # with `trades` empty, the logs are replayed with -11!, so a restarted q comes back with the
@@ -152,25 +152,25 @@ services:
   # -v` deletes the volume and with it the logs.
   # q executes arbitrary q code and authenticates nothing: it is on the bridge only, with no
   # host port and no Serve or Funnel entry, and nothing but live-grid should ever reach it.
-  kdb:
+  openbq-kdb:
     profiles: [live]
     image: ghcr.io/artcashin/kdb-x:amd64
     restart: unless-stopped
     environment:
-      # No host part: q listens on this container's bridge interface (live-grid dials kdb:5000).
+      # No host part: q listens on this container's bridge interface (live-grid dials openbq-kdb:5000).
       KX_PORT: "5000"
       QLIC: /opt/kx-license
       # startup.q's last line loads this file (the donor's default is /data/persist.q).
-      KDB_PERSIST_Q: /opt/kdb-ws/persist.q
+      KDB_PERSIST_Q: /opt/openbq-kdb/persist.q
     volumes:
       # The tick logs (/data/logs) live here: a named volume, so recreating the container
       # keeps them.
       - kdb-data:/data
       - ${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro
-      - ./kdb-ws/startup.q:/opt/kdb-ws/startup.q:ro
-      - ./kdb-ws/persist.q:/opt/kdb-ws/persist.q:ro
+      - ./v10/kdb/source/q/startup.q:/opt/openbq-kdb/startup.q:ro
+      - ./v10/kdb/source/q/persist.q:/opt/openbq-kdb/persist.q:ro
     # The kdb-x entrypoint runs `q <args> -p $KX_PORT`.
-    command: ["/opt/kdb-ws/startup.q"]
+    command: ["/opt/openbq-kdb/startup.q"]
     # q closes the open log handle in .z.exit on SIGTERM; give it time before SIGKILL.
     stop_grace_period: 30s
     networks: [openbq-internal]
@@ -199,7 +199,7 @@ services:
       LIVE_TICK_WINDOW_SECONDS: "86400"
       # kdb is its own service; live-grid never spawns q (exactly one owner of :5000).
       KDB_EMBEDDED: "false"
-      KDB_BIND_HOST: kdb
+      KDB_BIND_HOST: openbq-kdb
       KDB_PORT: "5000"
       QLIC: /opt/kx-license
       # History comes from openbq-api's EODHD namespace (/api/v1/eodhd/...): this line has
@@ -350,7 +350,7 @@ services:
       - path: ./eod.env
         required: false
     environment:
-      KDB_HOST: kdb
+      KDB_HOST: openbq-kdb
       KDB_PORT: "5000"
       QLIC: /opt/kx-license
     volumes:
@@ -370,7 +370,7 @@ volumes:
   gateway-state:
   # The `live` profile's watchlist (live-grid).
   live-grid-data:
-  # The `live` profile's kdb tick logs (kdb-ws/persist.q writes /data/logs/tlog_<date>).
+  # The `live` profile's kdb tick logs (v10/kdb/source/q/persist.q writes /data/logs/tlog_<date>).
   kdb-data:
   # (The `live` profile's S3 store is a host directory, not a volume: see rustfs.)
   # Named as the former standalone project's volume so existing Workspace

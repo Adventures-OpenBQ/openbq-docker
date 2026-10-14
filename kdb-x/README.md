@@ -102,4 +102,4 @@ docker compose -f docker-compose.yml -f compose.kdb-build.yml --profile live up 
 Pin a KDB-X release with `KX_VERSION=<version>` in the shell; the default is
 KX's `~latest~`. The stack sets `KX_PORT=5000` (all interfaces of the kdb
 container, which sits on the internal bridge with no host port) and passes
-`kdb-ws/startup.q` as q's script, so crash recovery is on either way.
+`v10/kdb/source/q/startup.q` as q's script, so crash recovery is on either way.

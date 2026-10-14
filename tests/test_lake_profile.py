@@ -102,7 +102,8 @@ def test_the_bucket_is_made_over_the_s3_api_before_the_flush_starts():
         assert svc['image'] == 'openbq-lake:10.0.0'
         assert svc['build'] == {'context': '.', 'dockerfile': 'Dockerfile.lake'}
     assert eod['entrypoint'] == ['python', '/opt/eod_dump.py', '--loop']
-    assert eod['environment']['KDB_HOST'] == 'kdb' and eod['restart'] == 'unless-stopped'
+    # REVIEW (2026-10-14): the kdb service is openbq-kdb, so eod-dump dials that host.
+    assert eod['environment']['KDB_HOST'] == 'openbq-kdb' and eod['restart'] == 'unless-stopped'
     assert '${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro' in eod['volumes']
 
 

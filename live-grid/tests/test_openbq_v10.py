@@ -5,7 +5,7 @@
 
 1. History through openbq-api's EODHD namespace (OPENBB_HISTORY_NAMESPACE=eodhd), since
    openbq-api installs no standard routers and no openbb-kdb provider.
-2. live-grid without kdb: the REAL kdb_store session pointed at a port nothing listens on
+2. live-grid without kdb: the REAL openbq_kdb session pointed at a port nothing listens on
    (no monkeypatched store, no licence, no q), as the `live` profile runs when the kdb
    service is absent or has exited. Every surface must still answer.
 

@@ -33,7 +33,7 @@
 / significant digits -- enough to corrupt a vwap on the wire. Full doubles:
 system"P 17";
 
-/ schema matches kdb-store/_INIT_SCHEMA -- idempotent, same guard
+/ schema matches openbq-kdb/_INIT_SCHEMA -- idempotent, same guard
 if[not `trades in key `.; trades:([] time:`timestamp$(); sym:`symbol$(); price:`float$(); size:`float$())];
 
 / grouped attribute on sym: sym-filtered queries (subscription filter,
@@ -142,7 +142,7 @@ if[not `trades in key `.; trades:([] time:`timestamp$(); sym:`symbol$(); price:`
     .h.hn["404 Not Found";`txt;"not here"]]
  };
 
-/ kdb-store's write_ticks calls upd when it exists, plain insert otherwise
+/ openbq-kdb's write_ticks calls upd when it exists, plain insert otherwise
 upd:{[t;d]
   t insert d;
   if[`trades=t;
@@ -152,7 +152,7 @@ upd:{[t;d]
 
 / persistence (2026-09-01): tick log + -11! replay -- see persist.q
 / openbq-docker v10: KDB_PERSIST_Q names persist.q when the compose file mounts the
-/ repository copy read-only (/opt/kdb-ws/persist.q); unset, the donor's /data/persist.q.
+/ repository copy read-only (/opt/openbq-kdb/persist.q); unset, the donor's /data/persist.q.
 kdbPersistQ:$[count kdbPersistQ:getenv`KDB_PERSIST_Q; kdbPersistQ; "/data/persist.q"];
 -1 "loading ",kdbPersistQ;
 system"l ",kdbPersistQ;

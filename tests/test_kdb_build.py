@@ -28,17 +28,19 @@ def test_the_build_downloads_from_kx_and_deletes_any_licence_in_the_same_layer()
 
 
 def test_the_override_builds_kdb_locally_and_changes_nothing_else():
-    kdb = OVERRIDE['services']['kdb']
-    assert set(OVERRIDE['services']) == {'kdb'} and set(kdb) == {'build', 'image'}
+    # REVIEW (user ruling 2026-10-14: the kdb tier is openbq-kdb, vendored in v10/kdb/source): the service
+    # is renamed kdb -> openbq-kdb and kdb-ws/ is the vendored q/; the same facts are asserted.
+    kdb = OVERRIDE['services']['openbq-kdb']
+    assert set(OVERRIDE['services']) == {'openbq-kdb'} and set(kdb) == {'build', 'image'}
     assert kdb['build']['context'] == 'kdb-x' and kdb['image'] == 'openbq-kdb-x:local'
     assert kdb['build']['args'] == {'KX_VERSION': '${KX_VERSION:-~latest~}'}
     # Without the override, the stack still pulls the operator's published image.
-    assert BASE['services']['kdb']['image'] == 'ghcr.io/artcashin/kdb-x:amd64'
-    assert 'build' not in BASE['services']['kdb']
+    assert BASE['services']['openbq-kdb']['image'] == 'ghcr.io/artcashin/kdb-x:amd64'
+    assert 'build' not in BASE['services']['openbq-kdb']
 
 
 def test_the_entrypoint_runs_the_stacks_script_on_the_stacks_port():
     entry = (ROOT / 'kdb-x' / 'entrypoint.sh').read_text()
     assert 'exec "$QBIN" "$@" -p "$PORT"' in entry
-    kdb = BASE['services']['kdb']
-    assert kdb['command'] == ['/opt/kdb-ws/startup.q'] and kdb['environment']['KX_PORT'] == '5000'
+    kdb = BASE['services']['openbq-kdb']
+    assert kdb['command'] == ['/opt/openbq-kdb/startup.q']  # REVIEW (2026-10-14): /opt/kdb-ws renamed /opt/openbq-kdb and kdb['environment']['KX_PORT'] == '5000'

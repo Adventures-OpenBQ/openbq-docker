@@ -92,7 +92,7 @@ async def build_series(symbol, interval, start, end, recorder, window, provider=
         return history, meta
 
     try:
-        from kdb_store.aggregate import aggregate_ticks
+        from openbq_kdb.aggregate import aggregate_ticks
 
         # tick_span is a blocking IPC round-trip; off the loop like the
         # aggregation below it, or a chart request stalls the grid's
@@ -130,9 +130,9 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     recorder = None
     if os.getenv("LIVE_GRID_CHART", "true").strip().lower() in ("1", "true", "yes", "on"):
         try:
-            from kdb_store.config import resolve_config
-            from kdb_store.session import KdbSession
-            from kdb_store.store import KdbStore
+            from openbq_kdb.config import resolve_config
+            from openbq_kdb.session import KdbSession
+            from openbq_kdb.store import KdbStore
 
             from app.recorder import TickRecorder
 

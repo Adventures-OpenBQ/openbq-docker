@@ -50,7 +50,7 @@ import logging
 import re
 from datetime import datetime
 
-from kdb_store.ranges import Range
+from openbq_kdb.ranges import Range
 
 logger = logging.getLogger(__name__)
 
@@ -264,7 +264,7 @@ class KdbStore:
         def write(conn):
             prototype = conn("0#trades").pd()
             conn["incoming_ticks"] = _conform_dtypes(frame, prototype)
-            # A q loaded with kdb-ws/startup.q defines `upd`, which inserts AND
+            # A q loaded with q/startup.q defines `upd`, which inserts AND
             # publishes the batch to websocket subscribers; a plain q has no
             # upd, so fall back to the bare insert.
             conn("$[`upd in key `.; upd[`trades;incoming_ticks]; `trades insert incoming_ticks]")
@@ -448,7 +448,7 @@ class KdbStore:
         on an unsorted table silently produce the wrong open and close. The
         result comes back keyed, so `0!` it before .pd().
         """
-        from kdb_store.aggregate import bucket_ns
+        from openbq_kdb.aggregate import bucket_ns
 
         width = bucket_ns(interval)
 

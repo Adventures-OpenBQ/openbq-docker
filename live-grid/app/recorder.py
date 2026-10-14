@@ -39,8 +39,8 @@ COLUMNS = ["time", "sym", "price", "size"]
 
 def _unavailable_type():
     try:
-        from kdb_store.session import KdbUnavailable
-    except ImportError:  # pragma: no cover - kdb-store is a hard dependency in the image
+        from openbq_kdb.session import KdbUnavailable
+    except ImportError:  # pragma: no cover - openbq-kdb is a hard dependency in the image
         return ()
     return KdbUnavailable
 

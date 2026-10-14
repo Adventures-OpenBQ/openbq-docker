@@ -9,9 +9,9 @@ import time
 
 import pytest
 
-import kdb_store.session as session
-from kdb_store.config import KdbConfig
-from kdb_store.session import KdbSession, KdbUnavailable
+import openbq_kdb.session as session
+from openbq_kdb.config import KdbConfig
+from openbq_kdb.session import KdbSession, KdbUnavailable
 
 
 def cfg(**kw) -> KdbConfig:

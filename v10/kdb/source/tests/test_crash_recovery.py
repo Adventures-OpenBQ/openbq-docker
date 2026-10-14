@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """The real KdbSession and KdbStore across a kdb restart (openbq-docker v10).
 
-The q at the other end is kdb-ws/tests/tickplant_sim.py, a model of startup.q +
+The q at the other end is q/tests/tickplant_sim.py, a model of startup.q +
 persist.q (its tick log and -11! replay); there is no q binary in the cloud.
 Only `KdbSession._connect` is replaced -- it dials the simulated host instead
 of PyKX -- so the liveness check, the reconnect chain, the expiring retry latch
@@ -15,12 +15,12 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from kdb_store import session as session_mod
-from kdb_store.config import resolve_config
-from kdb_store.session import KdbSession, KdbUnavailable
-from kdb_store.store import KdbStore
+from openbq_kdb import session as session_mod
+from openbq_kdb.config import resolve_config
+from openbq_kdb.session import KdbSession, KdbUnavailable
+from openbq_kdb.store import KdbStore
 
-_SIM = Path(__file__).resolve().parents[2] / "kdb-ws" / "tests" / "tickplant_sim.py"
+_SIM = Path(__file__).resolve().parents[1] / "q" / "tests" / "tickplant_sim.py"
 _spec = importlib.util.spec_from_file_location("tickplant_sim", _SIM)
 sim = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(sim)
@@ -54,7 +54,7 @@ def _store():
     return KdbStore(KdbSession(cfg))
 
 
-def test_kdb_store_reconnects_to_a_restarted_q_and_reads_the_replayed_day(host):
+def test_openbq_kdb_reconnects_to_a_restarted_q_and_reads_the_replayed_day(host):
     host.start()
     store = _store()
     assert store.write_ticks(_ticks(120)) == 120

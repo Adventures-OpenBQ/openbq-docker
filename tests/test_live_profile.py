@@ -10,7 +10,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE = yaml.safe_load((ROOT / 'docker-compose.yml').read_text())
 SERVICES = COMPOSE['services']
-LIVE = ('kdb', 'live-grid')
+LIVE = ('openbq-kdb', 'live-grid')  # REVIEW (2026-10-14): the kdb service is openbq-kdb
 
 
 def test_kdb_and_live_grid_start_only_with_the_live_profile():
@@ -40,44 +40,50 @@ def test_nothing_in_the_live_profile_is_published_or_served():
 
 
 def test_kdb_uses_the_named_image_and_mounts_the_licence_read_only():
-    kdb = SERVICES['kdb']
+    # REVIEW (user ruling 2026-10-14: the kdb tier is openbq-kdb, vendored in v10/kdb/source): the service
+    # is renamed kdb -> openbq-kdb and kdb-ws/ is the vendored q/; the same facts are asserted.
+    kdb = SERVICES['openbq-kdb']
     assert kdb['image'] == 'ghcr.io/artcashin/kdb-x:amd64'
     assert '${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro' in kdb['volumes']
     assert '${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro' in SERVICES['live-grid']['volumes']
 
 
 def test_crash_recovery_is_always_on_kdb_runs_the_repository_scripts_read_only():
-    kdb = SERVICES['kdb']
+    # REVIEW (user ruling 2026-10-14: the kdb tier is openbq-kdb, vendored in v10/kdb/source): the service
+    # is renamed kdb -> openbq-kdb and kdb-ws/ is the vendored q/; the same facts are asserted.
+    kdb = SERVICES['openbq-kdb']
     # No copying by hand: q runs the repo's startup.q, which loads the repo's persist.q.
-    assert './kdb-ws/startup.q:/opt/kdb-ws/startup.q:ro' in kdb['volumes']
-    assert './kdb-ws/persist.q:/opt/kdb-ws/persist.q:ro' in kdb['volumes']
-    assert kdb['command'] == ['/opt/kdb-ws/startup.q']
-    assert kdb['environment']['KDB_PERSIST_Q'] == '/opt/kdb-ws/persist.q'
-    startup = (ROOT / 'kdb-ws/startup.q').read_text()
+    assert './v10/kdb/source/q/startup.q:/opt/openbq-kdb/startup.q:ro' in kdb['volumes']
+    assert './v10/kdb/source/q/persist.q:/opt/openbq-kdb/persist.q:ro' in kdb['volumes']
+    assert kdb['command'] == ['/opt/openbq-kdb/startup.q']
+    assert kdb['environment']['KDB_PERSIST_Q'] == '/opt/openbq-kdb/persist.q'
+    startup = (ROOT / 'v10/kdb/source/q/startup.q').read_text()
     assert 'getenv`KDB_PERSIST_Q' in startup and startup.rstrip().endswith('system"l ",kdbPersistQ;')
     # No bind of the operator's ./kdb-data: nothing has to be put there first.
     assert not any(v.startswith('./kdb-data') for v in kdb['volumes'])
 
 
 def test_the_tick_logs_live_on_a_named_volume_that_survives_recreation():
-    kdb = SERVICES['kdb']
+    # REVIEW (user ruling 2026-10-14: the kdb tier is openbq-kdb, vendored in v10/kdb/source): the service
+    # is renamed kdb -> openbq-kdb and kdb-ws/ is the vendored q/; the same facts are asserted.
+    kdb = SERVICES['openbq-kdb']
     assert 'kdb-data:/data' in kdb['volumes']
     assert 'kdb-data' in COMPOSE['volumes']
     # persist.q writes its logs under /data, i.e. on that volume
-    assert ".tlog.dir:`:/data/logs;" in (ROOT / 'kdb-ws/persist.q').read_text()
-    assert 'kdb-data' not in json.dumps({k: v for k, v in SERVICES.items() if k != 'kdb'})
+    assert ".tlog.dir:`:/data/logs;" in (ROOT / 'v10/kdb/source/q/persist.q').read_text()
+    assert 'kdb-data' not in json.dumps({k: v for k, v in SERVICES.items() if k != 'openbq-kdb'})
 
 
 def test_kdb_and_live_grid_restart_themselves():
     for name in LIVE:
         assert SERVICES[name]['restart'] == 'unless-stopped', name
     # q closes its log handle in .z.exit; compose waits for it before SIGKILL.
-    assert SERVICES['kdb']['stop_grace_period'] == '30s'
+    assert SERVICES['openbq-kdb']['stop_grace_period'] == '30s'
 
 
 def test_live_grid_reaches_kdb_and_the_api_on_the_bridge_and_never_spawns_q():
     env = SERVICES['live-grid']['environment']
-    assert env['KDB_EMBEDDED'] == 'false' and env['KDB_BIND_HOST'] == 'kdb' and env['KDB_PORT'] == '5000'
+    assert env['KDB_EMBEDDED'] == 'false' and env['KDB_BIND_HOST'] == 'openbq-kdb' and env['KDB_PORT'] == '5000'
     assert env['OPENBB_URL'] == 'http://openbq-api:6900'
     assert env['OPENBB_HISTORY_NAMESPACE'] == 'eodhd'
     # v10 S3 tier: rustfs.env (DELTA_S3_*) joins credentials.env, both optional.
@@ -126,5 +132,5 @@ def test_one_licence_directory_reaches_every_service_that_needs_it():
     # source is overridable as KDB_LICENSE_DIR, default ./kdb-license; still read-only.
     mount = '${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro'
     users = sorted(k for k, v in SERVICES.items() if any('kx-license' in str(m) for m in v.get('volumes', [])))
-    assert users == ['eod-dump', 'kdb', 'live-grid']
+    assert users == ['eod-dump', 'live-grid', 'openbq-kdb']  # REVIEW (2026-10-14): kdb renamed openbq-kdb; sorted
     assert all(mount in SERVICES[k]['volumes'] for k in users)

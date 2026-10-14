@@ -32,7 +32,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from kdb_store.config import KdbConfig
+from openbq_kdb.config import KdbConfig
 
 logger = logging.getLogger(__name__)
 

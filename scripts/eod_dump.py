@@ -7,7 +7,7 @@ The classic kdb+ day cycle (tickerplant -> RDB -> `.u.end` -> `.Q.hdpf` ->
 HDB) mapped onto this stack:
 
     role         classic              here
-    tickerplant  tick.q               the kdb service (kdb-ws/startup.q: upd+pub,
+    tickerplant  tick.q               the openbq-kdb service (v10/kdb/source/q/startup.q: upd+pub,
                                       plus persist.q's tick log + -11! replay)
     RDB          in-memory, g# syms   the SAME q -- trades is RAM-resident
     EOD flush    .u.end -> .Q.hdpf    this script: one UTC day -> Delta Lake,

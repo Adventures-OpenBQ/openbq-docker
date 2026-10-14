@@ -5,7 +5,7 @@
 The tables are written exactly as scripts/eod_dump.py writes them (one Delta
 table per (symbol, UTC day), `<library>/<SYM>_<YYYY_MM_DD>`, columns date,
 price, size), with synthetic ticks, to a local directory and to a moto S3
-server. kdb is the tick-plant simulation (kdb-ws/tests/tickplant_sim.py).
+server. kdb is the tick-plant simulation (v10/kdb/source/q/tests/tickplant_sim.py).
 No network beyond 127.0.0.1, no EODHD.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ from app import main as main_mod
 from app.lake import LakeTicks, bars, day_aligned, resolve, table_key
 from app.main import build_series
 
-_SIM = Path(__file__).resolve().parents[2] / "kdb-ws" / "tests" / "tickplant_sim.py"
+_SIM = Path(__file__).resolve().parents[2] / "v10" / "kdb" / "source" / "q" / "tests" / "tickplant_sim.py"
 _spec = importlib.util.spec_from_file_location("tickplant_sim", _SIM)
 sim = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(sim)
@@ -137,9 +137,9 @@ async def test_kdb_owns_only_what_follows_the_last_flushed_day(tmp_path, history
     frame = pd.concat([_ticks(D3, start_hm=(23, 58), minutes=2), _ticks(TODAY, start_hm=(14, 0))])
     plant.upd("trades", frame.rename(columns={"date": "time"}).assign(sym="AAPL")[["time", "sym", "price", "size"]])
 
-    from kdb_store import session as session_mod
-    from kdb_store.session import KdbSession
-    from kdb_store.store import KdbStore
+    from openbq_kdb import session as session_mod
+    from openbq_kdb.session import KdbSession
+    from openbq_kdb.store import KdbStore
 
     from app.recorder import TickRecorder
 
@@ -148,7 +148,7 @@ async def test_kdb_owns_only_what_follows_the_last_flushed_day(tmp_path, history
     for k, v in {"KDB_EMBEDDED": "false", "KDB_BIND_HOST": "kdb", "KDB_PORT": "5000"}.items():
         monkeypatch.setenv(k, v)
     monkeypatch.delenv("KDB_HOST", raising=False)
-    from kdb_store.config import resolve_config
+    from openbq_kdb.config import resolve_config
 
     recorder = TickRecorder(KdbStore(KdbSession(resolve_config())), window=timedelta(days=2))
     reader = LakeTicks(str(tmp_path), {}, max_days=10)

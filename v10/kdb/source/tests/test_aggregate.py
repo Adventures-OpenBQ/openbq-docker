@@ -8,7 +8,7 @@ from datetime import datetime
 import pandas as pd
 import pytest
 
-from kdb_store.aggregate import aggregate_ticks, bucket_ns
+from openbq_kdb.aggregate import aggregate_ticks, bucket_ns
 
 D = lambda s: datetime.fromisoformat(s)  # noqa: E731
 

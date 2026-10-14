@@ -8,7 +8,7 @@ put). The ticks are synthetic. kdb is never contacted: `read_day` is replaced
 by a frame, and `_stage_day` runs against a fake `pykx` module.
 
 Run in the lake environment (openbb-deltalake + deltalake + pyarrow + moto +
-kdb-store); see docs/v10/live-grid-kdb-port.md for the receipt.
+openbq-kdb); see docs/v10/live-grid-kdb-port.md for the receipt.
 """
 from __future__ import annotations
 

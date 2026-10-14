@@ -19,7 +19,7 @@
 >   standard routers and no openbb-kdb read-through provider. There is no kdb history cache:
 >   kdb holds the live ticks only. `provider=kdb` on `/series`, `/chart` and `/ta_chart` is
 >   accepted and served from EODHD; EODHD's history intervals are 1m, 5m, 1h and 1d.
-> - Tests: `pip install -e ../kdb-store` plus the dev extras, then `pytest` (no licence, no q,
+> - Tests: `pip install -e ../v10/kdb/source` plus the dev extras, then `pytest` (no licence, no q,
 >   no network; `-m network` holds the live EODHD parity checks, which skip without a key).
 
 OpenBB Workspace `live_grid` backend streaming real-time **EODHD** prices —
@@ -83,7 +83,7 @@ reports the current lease count.
 ## Tick recording and the chart (Ep. 10)
 
 Every trade this service already receives over the websocket is now also
-recorded into whichever q the same **`kdb-store`** resolution chain finds —
+recorded into whichever q the same **`openbq-kdb`** resolution chain finds —
 in the stock compose setup, the **same kdb+ instance `openbb-api` spawns**,
 reached at `127.0.0.1:5000` through the shared tailscale network namespace
 (no new port, and this container never spawns its own q; see
@@ -118,7 +118,7 @@ dropping ~100 s of crypto ticks while kdb was down, then waiting out a fixed
   stop spools the unflushed buffer.
 - **No duplicates.** A segment is staged on disk (`spool.state`) before it is
   sent. A segment that may already have reached kdb is in doubt: one staged
-  when live-grid died, or one whose write raised after sending. kdb-store's
+  when live-grid died, or one whose write raised after sending. openbq-kdb's
   `ticks_present` probes kdb for it, and it is skipped (`deduped`) when kdb
   already holds every row, for instance after persist.q replayed it at boot.
 - **Bounded.** `LIVE_GRID_SPOOL_MAX_MB` (default 256, about 44 h at 24 ticks/s).
@@ -133,7 +133,7 @@ dropping ~100 s of crypto ticks while kdb was down, then waiting out a fixed
   `replayed` and `deduped` count since start. `written` includes `replayed`.
   `dropped` counts only ticks truly lost: buffer overflow, the cap, or a
   spool I/O error.
-- **Reconnect backoff** (kdb-store `session.py`). After kdb stops answering,
+- **Reconnect backoff** (openbq-kdb `session.py`). After kdb stops answering,
   live-grid retries after 1 s, doubling each time, capped at 15 s
   (`KDB_RETRY_INITIAL_S`, `KDB_RETRY_MAX_S`). This replaces the fixed 60 s
   latch. Calls inside the window still fail fast without dialling.
@@ -215,8 +215,8 @@ this stack, that is the widget's default state, not an opt-in one.
 The aggregation query itself (`` `time xasc `` before bucketing — ticks
 arrive out of order and an unsorted trades table silently produces wrong
 candles) is verified against a **real** q by
-[`kdb-store/scripts/tick_check.py`](../kdb-store/scripts/tick_check.py), not
-by anything mocked here. See that script and `kdb-store/README.md`.
+[`v10/kdb/source/scripts/tick_check.py`](../v10/kdb/source/scripts/tick_check.py), not
+by anything mocked here. See that script and `v10/kdb/source/README.md`.
 
 ## Technical Chart (`ta_chart`)
 

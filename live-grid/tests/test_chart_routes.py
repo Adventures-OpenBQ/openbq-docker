@@ -44,9 +44,9 @@ def client(monkeypatch):
                  "gaps_fetched": 0, "upstream_ms": 0.0, "kdb_ms": 1.0})
 
     monkeypatch.setattr("app.main.fetch_series", fake_history)
-    monkeypatch.setattr("kdb_store.config.resolve_config", lambda: object())
-    monkeypatch.setattr("kdb_store.session.KdbSession", lambda config: object())
-    monkeypatch.setattr("kdb_store.store.KdbStore", lambda session: _NoSpanStore())
+    monkeypatch.setattr("openbq_kdb.config.resolve_config", lambda: object())
+    monkeypatch.setattr("openbq_kdb.session.KdbSession", lambda config: object())
+    monkeypatch.setattr("openbq_kdb.store.KdbStore", lambda session: _NoSpanStore())
     return TestClient(create_app(api_key="test-key"))
 
 
@@ -216,10 +216,10 @@ def tick_client(monkeypatch):
         return [b for b in TICK_BARS if start <= b["date"] <= end]
 
     monkeypatch.setattr("app.main.fetch_series", fake_history)
-    monkeypatch.setattr("kdb_store.aggregate.aggregate_ticks", fake_aggregate_ticks)
-    monkeypatch.setattr("kdb_store.config.resolve_config", lambda: object())
-    monkeypatch.setattr("kdb_store.session.KdbSession", lambda config: object())
-    monkeypatch.setattr("kdb_store.store.KdbStore", lambda session: store)
+    monkeypatch.setattr("openbq_kdb.aggregate.aggregate_ticks", fake_aggregate_ticks)
+    monkeypatch.setattr("openbq_kdb.config.resolve_config", lambda: object())
+    monkeypatch.setattr("openbq_kdb.session.KdbSession", lambda config: object())
+    monkeypatch.setattr("openbq_kdb.store.KdbStore", lambda session: store)
 
     client = TestClient(create_app(api_key="test-key"))
     client.store = store

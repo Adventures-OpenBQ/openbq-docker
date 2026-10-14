@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """openbq-docker v10: live-grid across a kdb restart, and a restarted live-grid.
 
-The kdb service is kdb-ws/tests/tickplant_sim.py, a model of startup.q +
+The kdb service is v10/kdb/source/q/tests/tickplant_sim.py, a model of startup.q +
 persist.q: its tick log on a /data directory that outlives the process, and the
 -11! replay on boot. live-grid's own code runs unmodified; only
 `KdbSession._connect` dials the simulated host instead of PyKX. A real q run of
@@ -19,14 +19,14 @@ from fastapi.testclient import TestClient
 
 from app.main import build_series, create_app
 from app.recorder import TickRecorder
-from kdb_store import session as session_mod
-from kdb_store.config import resolve_config
-from kdb_store.session import KdbSession
-from kdb_store.store import KdbStore
+from openbq_kdb import session as session_mod
+from openbq_kdb.config import resolve_config
+from openbq_kdb.session import KdbSession
+from openbq_kdb.store import KdbStore
 from tests.test_main import FakeRest, _NullWs
 from tests.test_openbq_v10 import api  # noqa: F401 - the recorded openbq-api fixture
 
-_SIM = Path(__file__).resolve().parents[2] / "kdb-ws" / "tests" / "tickplant_sim.py"
+_SIM = Path(__file__).resolve().parents[2] / "v10" / "kdb" / "source" / "q" / "tests" / "tickplant_sim.py"
 _spec = importlib.util.spec_from_file_location("tickplant_sim", _SIM)
 sim = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(sim)

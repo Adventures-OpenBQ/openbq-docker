@@ -1,10 +1,10 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
-"""A Python model of the kdb service: kdb-ws/startup.q plus kdb-ws/persist.q.
+"""A Python model of the kdb service: q/startup.q plus q/persist.q.
 
 There is no q binary in the cloud, so the crash-recovery tests drive this
 model instead. It reproduces what persist.q does, step for step, and answers
-the exact IPC statements kdb-store sends (the same strings, matched verbatim),
+the exact IPC statements openbq-kdb sends (the same strings, matched verbatim),
 so the real KdbSession, KdbStore and live-grid TickRecorder run unmodified
 against it:
 
@@ -20,7 +20,7 @@ against it:
   `upd` is logged and applied, then the process dies before it can reply --
   the in-doubt write whose ticks must not be replayed twice.
 
-`kdb-ws/tests/test_persist.py` pins this model to the q source, so a change to
+`q/tests/test_persist.py` pins this model to the q source, so a change to
 persist.q that the model does not follow fails there rather than passing here.
 A real q run of the same procedure is Mac-pending (docs/v10/live-grid-kdb-port.md).
 """
@@ -33,7 +33,7 @@ from pathlib import Path
 
 import pandas as pd
 
-# The statements kdb-store issues (kdb_store/store.py), matched verbatim.
+# The statements openbq-kdb issues (openbq_kdb/store.py), matched verbatim.
 _UPD = "$[`upd in key `.; upd[`trades;incoming_ticks]; `trades insert incoming_ticks]"
 _PRUNE = "{[qwcut] trades:: delete from trades where time < qwcut}"
 _SPAN_PREFIX = "{[qwsym] $[0 = count select from trades where sym = qwsym;"
@@ -155,7 +155,7 @@ class TickPlant:
 
 
 class SimConn:
-    """A PyKX SyncQConnection to a TickPlant, for the statements kdb-store sends."""
+    """A PyKX SyncQConnection to a TickPlant, for the statements openbq-kdb sends."""
 
     def __init__(self, plant: TickPlant):
         self.plant = plant
@@ -191,7 +191,7 @@ class SimConn:
         if query == "delete incoming_ticks from `.":
             self.globals.pop("incoming_ticks", None)
             return _K(None)
-        if query == _PROBE:  # kdb-store's ticks_present: rows of the probe found in trades
+        if query == _PROBE:  # openbq-kdb's ticks_present: rows of the probe found in trades
             probe = self.globals["probe_ticks"][["time", "sym", "price", "size"]].copy()
             probe["time"] = pd.to_datetime(probe["time"]).astype("datetime64[ns]")
             lo, hi = probe["time"].min(), probe["time"].max()
@@ -227,7 +227,7 @@ class SimConn:
 
 
 def aggregate(ticks: pd.DataFrame, width_ns: int) -> pd.DataFrame:
-    """startup.q/kdb-store's `xbar` OHLCV: time-sorted ticks, bucket = width xbar time."""
+    """startup.q/openbq-kdb's `xbar` OHLCV: time-sorted ticks, bucket = width xbar time."""
     if not len(ticks):
         return pd.DataFrame(columns=["t", "open", "high", "low", "close", "volume", "vwap"])
     ns = pd.to_datetime(ticks["time"]).astype("datetime64[ns]").astype("int64")

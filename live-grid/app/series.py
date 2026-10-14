@@ -39,7 +39,7 @@ def window_end(end: str) -> datetime:
 
 def seam_boundary(first_tick: datetime, interval: str) -> datetime:
     """The first bar boundary at or after `first_tick`."""
-    from kdb_store.aggregate import bucket_ns
+    from openbq_kdb.aggregate import bucket_ns
 
     width = timedelta(microseconds=bucket_ns(interval) / 1000)
     elapsed = first_tick - EPOCH
@@ -66,7 +66,7 @@ def tick_capable(interval: str, window: timedelta) -> bool:
     and HTTP 200. Widening `bucket_ns` (2026-09-25) is what fixed that; this
     handler was never the right place for it.
     """
-    from kdb_store.aggregate import bucket_ns
+    from openbq_kdb.aggregate import bucket_ns
 
     try:
         width = timedelta(microseconds=bucket_ns(interval) / 1000)

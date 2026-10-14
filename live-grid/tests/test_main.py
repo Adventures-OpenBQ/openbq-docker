@@ -46,9 +46,9 @@ def make_client(monkeypatch=None, **kw):
     deliberately keeps the real (never-connected) KdbSession to prove
     `.endpoint` reports None rather than raising."""
     if monkeypatch is not None:
-        monkeypatch.setattr("kdb_store.config.resolve_config", lambda: object())
-        monkeypatch.setattr("kdb_store.session.KdbSession", lambda config: object())
-        monkeypatch.setattr("kdb_store.store.KdbStore", lambda session: _FakeSnapshotStore())
+        monkeypatch.setattr("openbq_kdb.config.resolve_config", lambda: object())
+        monkeypatch.setattr("openbq_kdb.session.KdbSession", lambda config: object())
+        monkeypatch.setattr("openbq_kdb.store.KdbStore", lambda session: _FakeSnapshotStore())
     app = create_app(api_key=kw.pop("api_key", "test-key"),
                      seed_client=kw.pop("seed_client", FakeRest()),
                      client_factory=kw.pop("client_factory", lambda *a, **k: _NullWs()))

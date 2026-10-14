@@ -8,7 +8,7 @@ The Mac drill that prompted it: kdb SIGKILLed and restarted, live-grid's
 100 s of BTC-USD/ETH-USD ticks lost to a 60 s retry latch and a recorder that
 dropped every failed batch.
 
-The kdb service is kdb-ws/tests/tickplant_sim.py (startup.q + persist.q, its
+The kdb service is v10/kdb/source/q/tests/tickplant_sim.py (startup.q + persist.q, its
 tick log and boot replay), as in test_crash_recovery.py. The real KdbSession,
 KdbStore, TickRecorder and TickSpool run unmodified; only `KdbSession._connect`
 dials the simulated host, and the session's clock is injected so the backoff
@@ -31,13 +31,13 @@ from app import spool as spool_mod
 from app.main import create_app
 from app.recorder import TickRecorder
 from app.spool import TickSpool, decode, encode
-from kdb_store.config import resolve_config
-from kdb_store.session import KdbSession
-from kdb_store.store import KdbStore
+from openbq_kdb.config import resolve_config
+from openbq_kdb.session import KdbSession
+from openbq_kdb.store import KdbStore
 from tests.test_main import FakeRest, _NullWs
 from tests.test_openbq_v10 import api  # noqa: F401 - the recorded openbq-api fixture
 
-_SIM = Path(__file__).resolve().parents[2] / "kdb-ws" / "tests" / "tickplant_sim.py"
+_SIM = Path(__file__).resolve().parents[2] / "v10" / "kdb" / "source" / "q" / "tests" / "tickplant_sim.py"
 _spec = importlib.util.spec_from_file_location("tickplant_sim", _SIM)
 sim = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(sim)

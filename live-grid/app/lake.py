@@ -82,7 +82,7 @@ def day_aligned(interval: str) -> bool:
     `1d` and wider stay on provider history: a flushed day holds only what the
     recorder saw, so a daily bar built from it could silently be a partial day.
     """
-    from kdb_store.aggregate import bucket_ns
+    from openbq_kdb.aggregate import bucket_ns
 
     try:
         width = bucket_ns(interval)
@@ -98,7 +98,7 @@ def day_span(ticks, interval: str):
     holding the last tick. Recording that began mid-morning leaves the morning
     to history instead of dropping it."""
     import pandas as pd
-    from kdb_store.aggregate import bucket_ns
+    from openbq_kdb.aggregate import bucket_ns
 
     from app.series import seam_boundary
 
@@ -184,13 +184,13 @@ class LakeTicks:
 
 
 def bars(ticks, interval: str) -> list[dict]:
-    """OHLCV + trade-true vwap per bucket, as kdb-store's aggregate_ticks returns
+    """OHLCV + trade-true vwap per bucket, as openbq-kdb's aggregate_ticks returns
     them: `width xbar time` on time-sorted ticks; a bucket with no traded size has
     vwap None ("no trade data"), never a fabricated value."""
     import math
 
     import pandas as pd
-    from kdb_store.aggregate import bucket_ns
+    from openbq_kdb.aggregate import bucket_ns
 
     if ticks is None or not len(ticks):
         return []
@@ -276,7 +276,7 @@ async def series_with_lake(symbol, interval, start, end, recorder, window, histo
     boundary = None
     if recorder is not None and tick_capable(interval, window):
         try:
-            from kdb_store.aggregate import aggregate_ticks
+            from openbq_kdb.aggregate import aggregate_ticks
 
             span = await asyncio.to_thread(recorder.store.tick_span, symbol)
             if span is not None:

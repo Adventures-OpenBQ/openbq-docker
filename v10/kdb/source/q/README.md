@@ -1,7 +1,7 @@
 <!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# kdb-ws — the tick cache speaks websocket
+# openbq-kdb q — the tick cache speaks websocket
 
 `startup.q` turns the Ep. 10 kdb+ tick cache into a live publisher: any
 websocket + JSON client can subscribe to trades and pull OHLCV bars from the
@@ -82,23 +82,23 @@ client sends.
 ## How ticks get here
 
 live-grid's recorder flushes tick batches every ~250 ms through
-`kdb-store`'s `write_ticks`, which calls `upd` when the server defines it
+`openbq-kdb`'s `write_ticks`, which calls `upd` when the server defines it
 (this script does: insert + publish) and falls back to a bare insert on a
 plain q. Nothing else in the stack changes.
 
 ## Deploy
 
 > **openbq-docker v10:** nothing to copy. The `live` profile mounts this directory's
-> `startup.q` and `persist.q` read-only at `/opt/kdb-ws/` and runs
-> `q /opt/kdb-ws/startup.q`; `KDB_PERSIST_Q` points startup.q at persist.q, and the tick
+> `startup.q` and `persist.q` read-only at `/opt/openbq-kdb/` and runs
+> `q /opt/openbq-kdb/startup.q`; `KDB_PERSIST_Q` points startup.q at persist.q, and the tick
 > logs live on the named volume `kdb-data`. Start it with
 > `docker compose --profile live up -d kdb`. There is no host port on this line (the
 > donor text below describes the donor's `127.0.0.1:5999` publish).
 > `tests/test_persist.py` pins persist.q's behaviour and `tests/tickplant_sim.py`
-> models it for the crash-recovery tests in kdb-store and live-grid. The donor's
+> models it for the crash-recovery tests in openbq-kdb and live-grid. The donor's
 > instructions follow.
 
-    cp kdb-ws/startup.q kdb-data/startup.q
+    cp q/startup.q kdb-data/startup.q
     docker compose up -d kdb
 
 The compose file publishes the port at `127.0.0.1:5999` for bdobb-v2.
@@ -117,7 +117,7 @@ and the bars query. Needs docker, node ≥ 22, and a licence in ../kdb-license.
 ## Demo
 
     docker exec -d openbb-kdb bash -c 'q /data/gen.q < <(tail -f /dev/null)'  # synthetic ticks, or use the real feed
-    python3 -m http.server 8123 --bind 127.0.0.1 --directory kdb-ws
+    python3 -m http.server 8123 --bind 127.0.0.1 --directory q
     open http://127.0.0.1:8123/live-chart.html
 
 Candlesticks build live from the stream: `bars` request for history, `sub`

@@ -6,7 +6,7 @@
 import re
 from datetime import datetime, timedelta
 
-from kdb_store.store import _INIT_SCHEMA, _PARAM_PREFIX, KdbStore
+from openbq_kdb.store import _INIT_SCHEMA, _PARAM_PREFIX, KdbStore
 
 D = lambda s: datetime.fromisoformat(s)  # noqa: E731
 
@@ -370,7 +370,7 @@ def test_write_ticks_sends_one_batch_not_one_insert_per_row():
 
 
 def test_write_ticks_routes_through_upd_when_the_server_defines_it():
-    """kdb-ws/startup.q's upd inserts AND publishes to websocket subscribers;
+    """q/startup.q's upd inserts AND publishes to websocket subscribers;
     the write must stay a bare insert on a q with no upd defined."""
     s, conn = store_with()
     s.write_ticks(_ticks_frame())
@@ -406,7 +406,7 @@ def test_tick_span_query_guards_the_empty_case_in_q_not_python():
     lived in PyKX: `.pd()` reinterprets a q null timestamp's raw int64 as
     nanoseconds since the q epoch and returns a real-looking (wrong) Timestamp
     instead of NaT, so `pd.isna()` never fired. Only a real q process can show
-    that the guard actually suppresses that -- see kdb-store/scripts/tick_check.py.
+    that the guard actually suppresses that -- see openbq-kdb/scripts/tick_check.py.
     """
     s, conn = store_with()
     s.tick_span("AAPL")
