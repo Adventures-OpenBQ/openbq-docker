@@ -47,3 +47,7 @@ secrets/
 # Python demo runtime caches
 __pycache__/
 *.pyc
+
+# funnel-gateway (web profile) runtime configuration
+gateway-config/
+funnel-gateway/node_modules/
