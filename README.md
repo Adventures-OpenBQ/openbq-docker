@@ -72,6 +72,16 @@ docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:2.0.0 python -m unittest 
 
 ## Credentials and restart
 
+### Demo keys
+
+`credentials.demo.env` is committed and holds only public demo keys the providers publish
+(api.data.gov's `DEMO_KEY` for EIA and Congress.gov), so those cards answer before you have keys of
+your own. Compose loads it first and `credentials.env` second, so any key you set wins; keep a
+demo-covered line commented out in `credentials.env` (an empty `NAME=` would replace the demo key with
+nothing). Demo keys are rate-limited (30 requests an hour, 50 a day per IP). BLS, CFTC and EconDB need
+no key. The live check of each value is in [the receipt](docs/credentials-demo-receipt.md);
+`tests/test_credentials_demo.py` allows no other names or values in the file.
+
 Optional vendor keys go in `credentials.env`, ignored by Git and excluded from the image. Use official variable names; no inline comments after empty values. Recreate the API after editing an environment file. Its settings and OpenBBUserData persist in separate named volumes; Tailscale identity persists in `ts-state/`.
 
 ```sh
@@ -99,7 +109,7 @@ python3 scripts/check-public.py --history
 
 Commits scan tracked, staged and unignored files; pushes also scan the history reachable from the pushed refs; CI and a bare `--history` scan every branch and tag. Local deployment evidence and the machine-specific `scripts/scrub-private-patterns.txt` remain ignored. Reports use placeholder hostnames and addresses. The scanner reports filenames and finding categories, never matched values.
 
-Real `credentials.env` files may be used on the NAS, but stay out of Git and Docker build contexts. Demo/example credentials must contain empty values or obvious placeholders; an `.example` suffix does not make a real key safe to publish. Screenshots still need visual review before publication.
+Real `credentials.env` files may be used on the NAS, but stay out of Git and Docker build contexts. Example credentials must contain empty values or obvious placeholders; an `.example` suffix does not make a real key safe to publish. The one exception is `credentials.demo.env`, whose public demo values `scripts/check-public.py` allows by exact name and value. Screenshots still need visual review before publication.
 
 ## Episode 3 candidate: BDOBB and the reference backend
 
@@ -117,9 +127,9 @@ docker compose -f docker-compose.yml -f docker-compose.v3.yml build
 docker compose -f docker-compose.yml -f docker-compose.v3.yml up -d
 ```
 
-The reference `/apps.json` advertises 73 self-contained cards with zero missing
+The reference `/apps.json` advertises 74 self-contained cards with zero missing
 widget references. Its `/bundle.apps.json` download adds the keyless ODP market
-examples for a 79-card BDOBB file import. The two Episode 3 app entries carry
+examples for an 80-card BDOBB file import. The two Episode 3 app entries carry
 the BDOBB logo in standard image fields. Workspace is an optional Episode 2
 comparison, not a prerequisite for this setup.
 

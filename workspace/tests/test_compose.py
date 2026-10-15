@@ -11,6 +11,7 @@ def config(*profiles):
   shutil.copy(ROOT/'workspace/runtime.env.example',p/'workspace/runtime.env')
   shutil.copy(ROOT/'workspace/ts.env.example',p/'workspace/ts.env')
   shutil.copy(ROOT/'ts.env.example',p/'ts.env')
+  shutil.copy(ROOT/'credentials.demo.env',p)  # committed and required by openbq-api
   args=['docker','compose']+[a for pr in profiles for a in ('--profile',pr)]+['config','--format','json']
   r=subprocess.run(args,cwd=p,capture_output=True,text=True,check=True)
   return json.loads(r.stdout)
