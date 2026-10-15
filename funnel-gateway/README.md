@@ -36,6 +36,9 @@ Caller headers, cookies and credentials are never relayed.
 |---|---|---|
 | `/_gateway/health` | GET | `200 {"ok":true}` behind the lock |
 | `/api/widgets.json`, `/api/apps.json` | GET | openbq-api's root documents with the Basic pair injected; no query; not metered daily |
+| `/ref/widgets.json`, `/ref/apps.json` | GET | the reference backend's root documents, keyless (no credential is injected); no query |
+| `/ref/agents.json`, `/ref/bundle.apps.json`, `/ref/market-examples.apps.json`, `/ref/assets/bdobb-logo.svg` | GET | the four other exact documents the reference serves with a dot in the path; no query; nothing else dotted passes |
+| `GET /ref/<path>` | GET | the reference's other routes, keyless, under the same structural bounds as `/api/api/v1` (lowercase segments, no dot, no `%`, bounded query, re-serialised); any `omni*` segment at any depth is refused |
 | `/api/api/v1/**` | GET | under the shape bounds (lowercase route ≤ 200 chars, ≤ 40 query pairs, name grammar, ≤ 1024-char values, no control characters, ≤ 4096 chars leaving), query re-serialised; one unit of `quoteDailyLimit` |
 | `/api/api/v1/calendar/trading` | GET | only `exchange=<MIC>&year=1990..2040` |
 | `/state/<digits>` | GET | the user's saved files `{files: {name: text}}` |

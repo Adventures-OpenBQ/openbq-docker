@@ -780,10 +780,12 @@ test("a temp file a crash left behind is swept once it is stale, and never liste
 });
 
 // The stack builds the image compose names, so the package version, the lockfile and the
-// compose image tag (wired in a later task) must agree, or a deploy runs a gateway that predates its own documentation.
+// compose image tag must agree, or a deploy runs a gateway that predates its own documentation.
 test("the package version is this release", () => {
   const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
   const lock = JSON.parse(readFileSync(new URL("./package-lock.json", import.meta.url), "utf8"));
   assert.equal(lock.version, version);
+  const compose = readFileSync(new URL("../docker-compose.yml", import.meta.url), "utf8");
+  assert.match(compose, new RegExp(`image: openbq-funnel-gateway:${version.replaceAll(".", "\\.")}\\n`));
   assert.match(readFileSync(new URL("./README.md", import.meta.url), "utf8"), new RegExp(`v${version.replaceAll(".", "\\.")}`));
 });
