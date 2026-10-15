@@ -16,9 +16,10 @@ Gold replay is the saved view at its exact input snapshot, ordered by logical
 key; tick replay preserves the selected ordering and rejects legacy inclusion.
 Hash canonical JSON (`sort_keys=True`, compact separators, `default=str`) over
 the complete ordered result list. Retain each reference with
-`PinStore.hold(manifest, run_id, True)` before backup. Preserve its actual query,
-code/environment artifacts; Task 12 must bind this seam to execution receipts.
-No arbitrary SQL query executor or Q3 audit API is implied here.
+`PinStore.hold(manifest, run_id, True)` before backup. For application audits use `AuditService.recovery_run(scope, run_id)` to bind
+the actual protected execution, query revision, full dependency closure and
+retained runnable environment. Low-level `ProtectedRun` fixtures remain available
+for explicit Gold/tick checks; they are not substitutes for application audits.
 
 `BundleConfig` requires a new bundle path, an administrative `PostgresEndpoint`,
 a supplied S3 client, explicit dedicated bucket names/catalog specs, locked
@@ -110,13 +111,13 @@ schema migrations, a deletion of new captures or an automatic Docker traffic
 rollback. Keep this rehearsal distinct from Task 14's final live cutover gates
 listed in [MIGRATION.md](MIGRATION.md).
 
-## Standalone TemporalDB 0.2.0 integration (Task 14a)
+## Standalone TemporalDB 0.3.0 integration
 
 The current runtime pin is [temporaldb.lock.json](temporaldb.lock.json). It binds
 standalone source, version, Linux arm64 image configuration ID, exported Docker
 artifact SHA256 and reviewed provider heads. This is a **local loadable artifact**;
 no registry digest has been published or made pullable. Obtain the exact
-`temporaldb-0.2.0-linux-arm64.docker.tar` and its provenance from the standalone P
+`temporaldb-0.3.0-linux-arm64.docker.tar` and its provenance from the standalone P
 build output, verify the SHA256 in the lock, `docker load -i ARTIFACT`, then check
 `docker image inspect IMAGE_ID`. `pull_policy: never` deliberately fails when the
 verified local image has not been loaded. amd64 requires its own qualified build.
@@ -145,10 +146,10 @@ managed secrets with the stopped-writer backup procedure above. Replay verifies
 retained typed results; restoring a catalog alone is insufficient. No migration
 rollback, shared prune, provider acquisition or traffic cutover is performed.
 
-The reviewed 14b1 production worker now coordinates successful complete managed
-refreshes into receipt-gated Gold automatically. Final runtime image rebuilding,
-full linked UI/two-API/two-worker/restore acceptance, packaged native restart,
-actual NAS loads and cutover remain separate gates.
+The production worker coordinates accepted managed refreshes into receipt-gated
+Gold automatically. Recorded-fixture linked UI/two-API/two-worker/restore and
+Linux artifact qualification are recorded in the final release evidence. Packaged
+native restart, actual NAS loads and cutover remain separate gates.
 
 ## Opt-in v11 TemporalDB gateway
 
@@ -192,3 +193,64 @@ The P `tests/test_gateway_browser.py` opt-in harness exercises real Chromium,
 actual C discovery/client/platform fetch, C web relay, H gateway and P configured
 API/worker with disposable recorded fixtures. It is transport qualification,
 not full application UI, live provider, NAS, public Funnel or deployment proof.
+
+
+## Final acceptance and cutover gate
+
+Standalone runtime 0.3.0 contains managed daily/actions/fundamentals/FRED/tick
+Gold coordination. Apply immutable migrations through 014 before using it.
+The final immutable local image, exact source commit, Docker-save SHA256 and
+reviewed E/Y provider heads are in `temporaldb.lock.json`. Load and verify that
+artifact first; it is unpublished and `pull_policy: never` is intentional.
+The old 0.2.0 qualification remains historical, not proof of the final coordinator.
+
+Run P `scripts/accept_v11.py` with C/H checkout paths after building C's full
+browser bundle as documented in P/C release acceptance notes. This uses recorded
+captures, actual configured API/worker services and the real authenticated
+C→gateway→TemporalDB route. The optional `compose.acceptance.yaml` adds a second
+API and worker to a separately named fixture-only Compose project. It is not a
+request to start replicas against deployed stores. The harness itself manages
+bounded tmpfs PostgreSQL/S3 and an independent recovery target.
+
+The exact recovery set includes the full PostgreSQL custom dump (control authority,
+query revisions/executions, audits/replays, capture/outbox and normalization
+receipts, tick migration/range/reference receipts, publications/holds/retirement,
+`gold_refreshes`, `managed_gold_inputs`, and DuckLake metadata including inlined
+rows), every named S3 bucket object and hash, exact extension/lock artifacts,
+and the complete retained interpreter/application/native-dependency archive.
+Provision role memberships and credentials separately. Stop all writers and
+maintenance across both stores before taking the inventory; do not infer a
+cross-store atomic backup from a database snapshot alone.
+
+Before any later cutover, separately qualify live acquisition coverage, scoped
+credentials, actual NAS throughput/capacity and shared durability, public OAuth,
+and the packaged native lifecycle. Record calibration's acquired and missing
+coverage, request/byte/cost bounds and explicit unknowns. Gate traffic promotion
+on independent restore and whole-branch review, then maintain the prior image,
+source and recovery inventory for rollback. Rollback is administrative CAS on
+an exact retained publication plus its receipt, not an unchecked head rewrite.
+No deployment, cutover, registry publication or live/NAS load was performed here.
+
+## Recorded release receipts (2026-10-15)
+
+The final local 0.3.0 artifact is built from standalone P
+`7a238d843fc19885d41a590a7af2bf2e3e3a6a27`; its immutable image/configuration ID,
+Docker-save SHA256, lock hashes and reviewed provider commits are retained in
+`temporaldb.lock.json`. `temporaldb-qualification.json` records actual Linux arm64
+API/worker startup, migration014, three managed Gold refreshes (including ticks
+and FRED), a frozen FRED selection and archived replay. Retained native imports
+and `/proc/self/maps` libpython loading were also verified from the archive.
+
+Supported Linux Node22 gateway tests passed 91/91. H gateway implementation is
+still `8104edd50c57c602278baaf1b7189fa204d45074`, matching C's separate v11 vendoring
+receipt. Canonical v10 policy and its C receipt remain unchanged. The final
+profile-enabled fixture Compose configuration validates four API/worker service
+definitions against the new immutable image; this does not start a deployment.
+
+The actual full C app/gateway acceptance passed, with 28 requests handled by each
+API factory, two configured worker processes, linked chart/export provenance and
+independent recovery of both protected UI and tick executions. Recovery matched
+71 tables, 99 objects, 11 managed refresh rows and 2 frozen managed FRED inputs;
+administrative rollback was committed. The complete command/results/limitations
+summary and compact receipts are in P `docs/releases/v11/final-validation.md`.
+Do not infer live/NAS/public OAuth/packaged native qualification from these fixtures.
