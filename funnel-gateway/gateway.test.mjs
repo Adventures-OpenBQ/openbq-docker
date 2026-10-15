@@ -183,6 +183,21 @@ test("canonical Host/Origin, methods and exact path handling", async t => {
   }
 });
 
+// The packaged desktop app's webview origins (user ruling 2026-10-15: the HTTP half of V10-P1 moves
+// down with the gateway). Tauri's http plugin stamps one on every request. The socket ticket and
+// desktop socket upgrades stay at v10.
+const DESKTOP = ["tauri://localhost", "http://tauri.localhost"];
+test("the packaged desktop origins pass the Bearer lock on /api; nothing else new does", async t => {
+  const { port } = await fixture(t);
+  for (const origin of DESKTOP) {
+    assert.equal((await http(port, quote, { ...HEADERS, Origin: origin })).status, 200, origin);
+    // The Origin is never a credential: without the Bearer token it is what it always was.
+    assert.equal((await http(port, quote, { Host: HEADERS.Host, Origin: origin })).status, 401, origin);
+  }
+  // The dev server's origin is not a packaged app's, and is not admitted.
+  assert.equal((await http(port, quote, { ...HEADERS, Origin: "http://localhost:1420" })).status, 403);
+});
+
 test("only bounded OpenBB and approved News queries reach upstream; later families are refused", async t => {
   const { port, calls } = await fixture(t);
   for (const path of ["/", "/tick", "/keys", "/mcp", "/stores", "/live/widgets.json",
@@ -482,6 +497,8 @@ test("the WS gate wants the credential, the Origin, the exact path and a configu
   assert.equal((await wsConnect(port, { Host: HEADERS.Host, Origin: ORIGIN })).status, 401);
   assert.equal((await wsConnect(port, HEADERS)).status, 403);
   assert.equal((await wsConnect(port, { ...HEADERS, Origin: "https://untrusted.invalid" })).status, 403);
+  // The desktop Origins pass on HTTP only; their sockets wait for v10's ticket (V10-P1).
+  for (const origin of DESKTOP) assert.equal((await wsConnect(port, { ...HEADERS, Origin: origin })).status, 403, origin);
   // The socket takes no query and no subprotocol, and no other path is a socket at all.
   assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/news/ws/news?admin=1")).status, 404);
   assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/grid/live_grid_ws")).status, 404);
@@ -837,4 +854,14 @@ test("table batches fail atomically on truncation, oversize or deadline; standar
   assert.equal((await call("/table/sessions/../healthz").catch(error=>{throw new Error("traversal",{cause:error});})).status,421);
   assert.equal((await call("/table/sessions/%2e%2e/healthz").catch(error=>{throw new Error("encoded",{cause:error});})).status,421);
   const capped=await tableFixture(t,{quoteDailyLimit:1});assert.equal((await capped.call("/api/api/v1/test/rows","POST",'{}')).status,200);assert.equal((await capped.call("/api/api/v1/test/rows","POST",'{}')).status,429);
+});
+test("table routes admit the packaged desktop Origins behind the lock, and no other", async t => {
+  const {call,calls}=await tableFixture(t);
+  for (const origin of ["tauri://localhost","http://tauri.localhost"]) {
+    assert.equal((await call("/table/sessions","POST",'{}',{Origin:origin})).status,200);
+    assert.equal(calls.at(-1).headers["x-table-principal"],"desktop:owner");
+  }
+  for (const origin of ["http://localhost:1420","https://evil.example"]) assert.equal((await call("/table/sessions","POST",'{}',{Origin:origin})).status,403);
+  assert.equal((await call("/table/sessions","POST",'{}',{Origin:"tauri://localhost",Authorization:""})).status,401);
+  assert.equal(calls.length,2);
 });
