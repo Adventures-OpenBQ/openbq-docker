@@ -54,6 +54,11 @@ class ApiImages(unittest.TestCase):
                 self.assertIn("COPY examples/episode3/assets/bdobb-logo.svg /workspace/bdobb-logo.svg", text)
                 self.assertTrue(re.search(r"(?m)^WORKDIR /workspace$", text))
 
+    def test_fixture_widgets_are_copied_into_every_api_image(self):
+        for name in API_DOCKERFILES:
+            with self.subTest(name):
+                self.assertIn("COPY v5/fixtures /workspace/openbq-fixtures", dockerfile(name))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -63,6 +63,11 @@ BUILTIN_CARDS = frozenset({
 # without credentials, so this one path answers without Basic auth.
 LOGO_PATH = "/openbq/bdobb-logo.svg"
 LOGO_FILE = os.environ.get("OPENBQ_BDOBB_LOGO", "/workspace/bdobb-logo.svg")
+# Fixture widgets this backend serves itself (v5/fixtures): widgets.json joins
+# /widgets.json, and GET /api/v1/openbq/fixtures/<id> answers <id>.json as is
+# (under /api/v1/ so the v8 Funnel door's route rule admits it like any widget call).
+FIXTURES = os.environ.get("OPENBQ_FIXTURES", "/workspace/openbq-fixtures")
+FIXTURE_PREFIX = "/api/v1/openbq/fixtures/"
 # The response's own framing; the API sets its own.
 _HOP = {b"content-length", b"transfer-encoding", b"connection", b"keep-alive"}
 # Per-caller CORS answers: never cached, _cors() recomputes them per request.
@@ -135,6 +140,42 @@ async def _widget_ids(cache, request):
     return set(widgets) if isinstance(widgets, dict) else None
 
 
+def _fixture_widgets() -> dict:
+    try:
+        with open(os.path.join(FIXTURES, "widgets.json"), encoding="utf-8") as f:
+            widgets = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return widgets if isinstance(widgets, dict) else {}
+
+
+def _with_fixture_widgets(body: bytes) -> bytes:
+    """The built widgets.json plus the fixture widgets it does not already have."""
+    extra = _fixture_widgets()
+    try:
+        widgets = json.loads(body)
+    except ValueError:
+        return body
+    if not extra or not isinstance(widgets, dict):
+        return body
+    return json.dumps({**extra, **widgets}).encode()
+
+
+def _fixture(request):
+    """A fixture widget's data, behind the API's Basic auth like any data route."""
+    if not _authorized(request):
+        return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+    widget_id = request.url.path[len(FIXTURE_PREFIX):]
+    if widget_id not in _fixture_widgets():
+        return _cors(request, JSONResponse({"detail": "Not Found"}, 404))
+    try:
+        with open(os.path.join(FIXTURES, widget_id + ".json"), "rb") as f:
+            data = f.read()
+    except OSError:
+        return _cors(request, JSONResponse({"detail": "Not Found"}, 404))
+    return _cors(request, Response(data, 200, media_type="application/json"))
+
+
 def _logo(request):
     """BDOBB's logo, without credentials (Workspace fetches app images without them)."""
     try:
@@ -166,6 +207,8 @@ async def _catalog(cache, request, call_next):
         if response.status_code != 200:
             return response
         body = b"".join([chunk async for chunk in response.body_iterator])
+        if path == "/widgets.json":
+            body = _with_fixture_widgets(body)
         if path == "/apps.json":
             body = _with_extra_apps(body)
             apps = _json_list(body)
@@ -428,6 +471,8 @@ async def middleware(request, call_next):
     """openbb.toml [middleware] hook."""
     if request.url.path == LOGO_PATH and request.method in ("GET", "HEAD"):
         return _logo(request)
+    if request.url.path.startswith(FIXTURE_PREFIX) and request.method == "GET":
+        return _fixture(request)
     if LANE is not None:
         return await LANE.handle(request, call_next)
     if _is_catalog(request):  # with the lane off, the catalogs keep their cache and BDOBB examples

@@ -446,3 +446,82 @@ class LaneLogoTest(unittest.IsolatedAsyncioTestCase):
             for k, v in old.items():
                 os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
 
+
+
+FIXTURES = REPO / "v5" / "fixtures"
+# BDOBB docs/examples/v5-financial-demo/apps.json (release/v5): the V5 Statement Example's one card.
+V5_STATEMENT = {"name": "V5 Statement Example", "tabs": {"cash": {"id": "cash", "name": "Cash flow", "layout": [
+    {"i": "synthetic_cash_flow", "x": 0, "y": 0, "w": 40, "h": 22, "state": {"params": {}}}]}}}
+
+
+class FixtureTest(unittest.IsolatedAsyncioTestCase):
+    """v5: synthetic_cash_flow is listed in /widgets.json and answers BDOBB's fixture rows."""
+
+    async def asyncSetUp(self):
+        for name in ("FIXTURES", "EXTRA_APPS"):
+            self.addCleanup(setattr, openbq_lanes, name, getattr(openbq_lanes, name))
+        openbq_lanes.FIXTURES = str(FIXTURES)
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump([V5_STATEMENT], f)
+        openbq_lanes.EXTRA_APPS = f.name
+        openbq_lanes._CATALOG_CACHE.clear()
+        self.addCleanup(openbq_lanes._CATALOG_CACHE.clear)
+        app = FastAPI()
+
+        @app.get("/widgets.json")
+        async def widgets_json():
+            return {"provider_widget_obb": {"widgetId": "provider_widget_obb"}}
+
+        @app.get("/apps.json")
+        async def apps_json():
+            return []
+
+        app.middleware("http")(openbq_lanes.middleware)
+        self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api")
+
+    async def asyncTearDown(self):
+        await self.client.aclose()
+
+    async def test_the_widget_is_listed_next_to_the_built_ones(self):
+        widgets = (await self.client.get("/widgets.json")).json()
+        self.assertEqual(sorted(widgets), ["provider_widget_obb", "synthetic_cash_flow"])
+        w = widgets["synthetic_cash_flow"]
+        self.assertEqual((w["widgetId"], w["name"], w["type"], w["params"]),
+                         ("synthetic_cash_flow", "Synthetic Cash Flow", "table", []))
+        self.assertEqual(w["endpoint"], "/api/v1/openbq/fixtures/synthetic_cash_flow")
+
+    async def test_the_endpoint_returns_the_expected_rows(self):
+        r = await self.client.get("/api/v1/openbq/fixtures/synthetic_cash_flow")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers["content-type"], "application/json")
+        self.assertEqual(r.json(), [
+            {"fiscal_year": 2026, "fiscal_period": "Q3", "net_cash_from_operating_activities": 12,
+             "capital_expenditure": -5},
+            {"fiscal_year": 2026, "fiscal_period": "TTM", "net_cash_from_operating_activities": 33,
+             "capital_expenditure": -18},
+        ])
+
+    async def test_the_v5_statement_example_survives_the_safety_net(self):
+        apps = (await self.client.get("/apps.json")).json()
+        self.assertEqual([a["name"] for a in apps], ["V5 Statement Example"])
+
+    async def test_unknown_fixtures_are_404_and_auth_is_the_apis(self):
+        for path in ["/api/v1/openbq/fixtures/nope", "/api/v1/openbq/fixtures/../widgets", "/api/v1/openbq/fixtures/widgets"]:
+            self.assertEqual((await self.client.get(path)).status_code, 404, path)
+        old = {k: os.environ.get(k) for k in ("OPENBB_API_AUTH", "OPENBB_API_USERNAME", "OPENBB_API_PASSWORD")}
+        os.environ.update(OPENBB_API_AUTH="true", OPENBB_API_USERNAME="u", OPENBB_API_PASSWORD="p")
+        try:
+            path = "/api/v1/openbq/fixtures/synthetic_cash_flow"
+            self.assertEqual((await self.client.get(path)).status_code, 401)
+            self.assertEqual((await self.client.get(path, auth=("u", "p"))).status_code, 200)
+        finally:
+            for k, v in old.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+    def test_the_vendored_rows_are_bdobbs_cash_flow_json(self):
+        import hashlib
+
+        # git blob a2d6e419 of BDOBB docs/examples/v5-financial-demo/cash-flow.json
+        data = (FIXTURES / "synthetic_cash_flow.json").read_bytes()
+        self.assertEqual(hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest(),
+                         "a2d6e419eadb2bcc1fc12ea1d7e9c59c4842b780")

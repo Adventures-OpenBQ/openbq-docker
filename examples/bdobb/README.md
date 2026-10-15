@@ -27,3 +27,9 @@ embeds in `img_dark`/`img_light` (it reads this very file), and is byte-identica
 `3588fcde88197d2761bf489208a385d234440da9f59174a113bdae96070d3878`), Copyright 2026
 SecretoftheUniverse.com LLC, Apache-2.0. BDOBB later renamed its title from BDOBB2 to BDOBB (b6c0ce7d);
 the paths are unchanged.
+
+## Fixture widgets (v5 on)
+
+The V5 Statement Example's card, `synthetic_cash_flow`, is served by this backend from
+`v5/fixtures` (see its README): the lanes hook lists it in `/widgets.json` and answers
+`/api/v1/openbq/fixtures/synthetic_cash_flow` with BDOBB's fixture rows.
