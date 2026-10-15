@@ -1,7 +1,16 @@
 {
-  "managed_gold_refreshes": 3,
+  "tick_migration_authority": {
+    "prevalidation_head_preserved": true,
+    "pass_published": true,
+    "fail_head_preserved": true,
+    "ordinary_refresh_excludes_failed_migration": true,
+    "gold_tick_query_honors_authority": true,
+    "old_gold_unchanged": true
+  },
+  "managed_tick_selections": 3,
+  "managed_gold_refreshes": 5,
   "managed_fred_selections": 1,
-  "migration": 14,
+  "migration": 15,
   "status": "passed",
   "service": "TemporalDB",
   "platform": {
@@ -9,30 +18,31 @@
     "machine": "aarch64",
     "release": "7.0.14-linuxkit"
   },
-  "environment_digest": "1586bc7279a56868cda47a6da74c21d84bc6f97b449238c35e2d920bf3a54af7",
-  "original_execution": "a75d2486-7962-48fa-aa57-c51eee3a361c",
-  "replay_execution": "42563f92-87e5-4b80-b64d-38c5a4c2608b",
-  "audit_run": "037a05f2-1d5d-4e08-acdf-f270e523193b",
+  "environment_digest": "088a982689f253d1eb690422d37b0276d9cc07d8407149ce36b3c4052e9f51ae",
+  "original_execution": "e99518cb-bf7b-4eeb-a3e1-9978e2680555",
+  "replay_execution": "7af06c2b-5a97-4478-a078-849d775aaea2",
+  "audit_run": "0a7b3ffe-de65-4d21-a1ff-f4f7098f6280",
   "input_manifest": {
     "schema_version": 1,
-    "manifest_id": "fc43eae7-b547-4c17-ac65-37f76369c960",
+    "manifest_id": "b3710db2-6a86-46a1-8e6e-b8b8b6ffe255",
     "pins": [
       {
         "schema_version": 1,
         "catalog_id": "hot",
-        "snapshot_id": 5
+        "snapshot_id": 8
       }
     ],
     "projection_versions": {
       "eodhd.eod": "runtime-normalizers-1:2e6ea058f9dd2542d21e3360f85d764e95987110aa4a914bac756ed60c887b37"
     },
-    "publication_id": "64045e0e-806b-48ed-a3f0-da5d1925b902"
+    "publication_id": "ff85d197-190f-445c-9b25-3357ef27de4f"
   },
-  "result_hash": "582741649f9d4b7371cf2a601b9ae326a96708be4b53e66761d2d8acf4950bd4",
+  "result_hash": "cf939a37d5a1797c56bc351fcb72f3e0dbe184893a9253d68006066f461aa9f7",
   "distribution": "local image; not published",
   "proof": "actual API and worker module processes; archived original and replay",
-  "image_id": "sha256:9a5b618d02b67703c8568d1254504996a26d85339206ec64408d54d5f07f31cf",
-  "source_commit": "7a238d843fc19885d41a590a7af2bf2e3e3a6a27",
-  "artifact_sha256": "ca7f01041972f8102daf6bb22743c4dbe593830afd4ff29b65750d768719287f",
+  "image_id": "sha256:2e5c1db261105b7d5cb825151ee2c3106f2aed5f670c990c25f7f330a0e08930",
+  "source_commit": "b0484c562e7be747eec3614d2186d72cd83f9162",
+  "artifact_sha256": "30471547e33619fbcb6d40b3fb6c7bdf1c955254b2126f114e18b763865e4cfd",
+  "qualification_harness_commit": "b0484c562e7be747eec3614d2186d72cd83f9162",
   "retained_native_loader": "retained Python, imported native/application modules and /proc/self/maps libpython paths verified under materialized archive"
 }
