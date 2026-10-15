@@ -5,6 +5,8 @@
 // funnel-gateway/server.mjs with the /ai (Rita) family and its SOCKS5 dialer removed; the
 // /grid family (live-grid, the `live` profile) from v10.1.7 (d606169): e8c1239, 7212a1d,
 // b9545f5, d32966d, dc61be8, d7ec9d1 -- gated here by settings.json's "liveGrid".
+// The socket door also serves the reference's /ref/live_grid_ws, which came down to v3/v4
+// with the reference backend.
 
 import { createServer, request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
@@ -12,9 +14,13 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
-import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, TABLE_DEADLINE_MS, upstreamPath, newsSubscription, liveGridSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
+import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, TABLE_DEADLINE_MS, upstreamPath, newsSubscription, liveGridSubscription, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
+// The root manifests are static catalogue documents, not data: openbq-api's widgets.json is
+// 5.0 MB (998 widgets). They get their own cap; every other path keeps MAX_BODY.
+const MANIFESTS = new Set(["/api/widgets.json", "/api/apps.json", "/ref/widgets.json", "/ref/apps.json"]);
+const MANIFEST_MAX = 16 * 1024 * 1024; // ponytail: manifests are buffered and parsed (~6x their size at peak); 8 concurrent 16 MiB manifests could pass mem_limit 512m — stream them unparsed if that ever matters.
 const MAX_SOCKET = 65536;
 /**
  * The /grid routes that reach a PAID vendor, and are therefore metered against the very
@@ -108,13 +114,22 @@ function requestUrl(req, config) {
   const url = new URL(req.url, config.origin);
   return url.pathname === req.url.split("?")[0].replaceAll("^", "%5E") && url.origin === config.origin ? url : null;
 }
+const COMMON = {
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+  "X-Robots-Tag": "noindex, nofollow, noarchive",
+};
+const LOGO = "/ref/assets/bdobb-logo.svg", MAX_SVG = 262144;
+/** The reference logo's bytes: the one non-JSON body the door relays. */
+class SvgBody { constructor(text) { this.text = text; } }
 function reply(res, code, value = { error: "Request refused" }) {
-  res.writeHead(code, {
-    "Content-Type": "application/json",
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff",
-    "X-Robots-Tag": "noindex, nofollow, noarchive",
-  });
+  if (value instanceof SvgBody) {
+    // The logo: same common headers, its own type, and a sandbox CSP so a directly opened SVG runs nothing.
+    res.writeHead(code, { ...COMMON, "Content-Type": "image/svg+xml",
+      "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'" });
+    return res.end(value.text);
+  }
+  res.writeHead(code, { ...COMMON, "Content-Type": "application/json" });
   res.end(JSON.stringify(value));
 }
 function reject(socket, code) {
@@ -138,14 +153,17 @@ function pinned(origin, address) {
 // pool has none, and reachability is its whole access control (see docker-compose.yml), so
 // what protects it is that only this door can reach it and only the approved feeds get
 const rssOptions = config => pinned(config.rssOrigin, config.rssAddress);
-// Three upstreams at this tag (openbq-docker serves no /ai). /api/... -> openbq-api, plain HTTP
+// Four upstreams at this tag (openbq-docker serves no /ai). /api/... -> openbq-api, plain HTTP
 // on the bridge, behind the stack's Basic pair; the prefix is stripped ("/api/api/v1/x" ->
 // "/api/v1/x") and the credential injected. /grid/... -> live-grid (the opt-in `live`
 // profile), the same way and behind the SAME pair (below). /news/... -> rss-ticker, on the
-// tailnet, no credential (it has none). Nothing the caller sent goes with any of them.
+// tailnet, no credential (it has none). /ref/... -> the keyless reference fixture, "/ref"
+// stripped, NO Authorization header. Nothing the caller sent goes with any of them.
+// The upstream URL is built by concatenation, never by resolving the path against the origin,
+// so the host can only ever be the fixed origin (a "//host" path would otherwise replace it).
 function target(path, config) {
   if (path.startsWith("/api/")) {
-    return { url: new URL(path.slice(4), config.apiOrigin), options: {},
+    return { url: new URL(config.apiOrigin + path.slice(4)), options: {},
       headers: { Authorization: config.apiAuthorization, Accept: "application/json" } };
   }
   // live-grid (v10; ported from bdobb-dev/openbb-docker e8c1239/b9545f5): a sibling
@@ -156,11 +174,15 @@ function target(path, config) {
   // with the lock on a request without the credential is refused on EVERY route, its
   // manifest and its websocket handshake included.
   if (path.startsWith("/grid/")) {
-    return { url: new URL(path.slice(5), config.gridOrigin), options: {},
+    return { url: new URL(config.gridOrigin + path.slice(5)), options: {},
       headers: { Authorization: config.apiAuthorization, Accept: "application/json" } };
   }
-  return { url: new URL(path.slice(5), config.rssOrigin), options: rssOptions(config),
-    headers: { Accept: "application/json" } };
+  if (path.startsWith("/news/")) {
+    return { url: new URL(config.rssOrigin + path.slice(5)), options: rssOptions(config),
+      headers: { Accept: "application/json" } };
+  }
+  return { url: new URL(config.refOrigin + path.slice(4)), options: {},
+    headers: { Accept: path === LOGO ? "image/svg+xml" : "application/json" } };
 }
 
 /**
@@ -208,14 +230,28 @@ export function connectGrid(config, path = "/live_grid_ws") {
   });
 }
 
-/** Bounded JSON-only request; never relay cookies, errors, redirects or credentials. */
+/**
+ * The reference's socket, opened once a client's first params frame has passed
+ * refSubscription -- so a client that opens and says nothing, or says something invalid,
+ * never opens anything upstream. ws:// (the reference listens on the bridge, no TLS), no
+ * credential (it is keyless), no subprotocol. Built by concatenation on the fixed refOrigin,
+ * like target(). Same bounds as any relayed socket: MAX_SOCKET on the push, compression off,
+ * no redirect, a 10 s handshake deadline.
+ */
+export function connectRef(config) {
+  return new WebSocket("ws" + config.refOrigin.slice("http".length) + "/live_grid_ws", {
+    handshakeTimeout: 10000, followRedirects: false, maxPayload: MAX_SOCKET, perMessageDeflate: false });
+}
+
+/** Bounded JSON-only request (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
 export async function getJson(path, config, signal) {
   const { url, headers, options } = target(path, config);
   const send = url.protocol === "https:" ? httpsRequest : httpRequest;
+  const svg = path === LOGO, limit = svg ? MAX_SVG : MANIFESTS.has(path) ? MANIFEST_MAX : MAX_BODY;
   return new Promise((resolve, rejectPromise) => {
     const request = send(url, { ...options, method: "GET", headers, signal }, response => {
       if (response.statusCode !== 200 ||
-          !/^application\/json(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
+          !(svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(response.headers["content-type"] ?? "")) {
         response.destroy();
         // The STATUS travels on the error, never the body: the handler needs to tell a 404
         // from every other refusal for the optional documents (OPTIONAL_DOCS below), and
@@ -227,12 +263,14 @@ export async function getJson(path, config, signal) {
       let size = 0; const parts = [];
       response.on("data", chunk => {
         size += chunk.length;
-        if (size > MAX_BODY) { response.destroy(); rejectPromise(new Error("Body limit")); }
+        if (size > limit) { response.destroy(); rejectPromise(new Error("Body limit")); }
         else parts.push(chunk);
       });
       response.on("error", rejectPromise);
       response.on("end", () => {
-        try { resolve(JSON.parse(Buffer.concat(parts).toString("utf8"))); }
+        const text = Buffer.concat(parts).toString("utf8");
+        if (svg) return resolve(new SvgBody(text));
+        try { resolve(JSON.parse(text)); }
         catch { rejectPromise(new Error("Invalid JSON")); }
       });
     });
@@ -468,7 +506,7 @@ async function tableExchange(req, res, route, config) {
   try {
     const body=await tableBody(req,route,controller.signal);
     if(typeof body === "number"){if(body===413 || !req.complete)res.setHeader("Connection","close");return reply(res,body);}
-    const destination=route.managed ? {url:new URL(route.path.slice(6),config.tableOrigin),headers:{
+    const destination=route.managed ? {url:new URL(config.tableOrigin+route.path.slice(6)),headers:{
       "X-Table-Gateway-Token":config.tableGatewayToken,"X-Table-Principal":principal}} : target(route.path,config);
     const headers={...destination.headers,Accept:"application/json"};
     if(body!==undefined) headers["Content-Type"]=route.upload ? (req.headers["content-type"] ?? "application/octet-stream") : "application/json";
@@ -490,8 +528,8 @@ async function tableExchange(req, res, route, config) {
 
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openNews = connectNews,
-  openGrid = connectGrid, sendSubscription = sendGrid, fetchPage = getGridPage,
-  now = Date.now, socketMs = 240000, firstFrameMs = 10000 } = {}) {
+  openGrid = connectGrid, openRef = connectRef, sendSubscription = sendGrid, fetchPage = getGridPage,
+  now = Date.now, socketMs = 240000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
   const budgets = {
     ordinary: {left: config.requestsPerMinute, resetAt: now() + 60000},
     control: {left: config.requestsPerMinute, resetAt: now() + 60000},
@@ -622,7 +660,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (inflight >= config.maxConcurrent || (vendor && !quoteAllowed())) return reply(res, 429);
       inflight++;
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12000);
+      const timer = setTimeout(() => controller.abort(), requestMs);
       const disconnect = () => { if (!res.writableEnded) controller.abort(); };
       res.once("close", disconnect);
       try {
@@ -645,8 +683,9 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
   server.on("upgrade", (req, socket, head) => {
     socket.on("error", () => {});
     socket.setTimeout(10000, () => socket.destroy());
-    let url = requestUrl(req, config);
+    const url = requestUrl(req, config);
     const tickets = url?.searchParams.getAll("ticket") ?? [];
+    let want;
     if (tickets.length && !req.headers.authorization) {
       // The browser's own socket. Relaying it through a Vercel Function bills function time while it is open, and a browser
       // cannot carry the machine token, so the web layer -- which checked the GitHub
@@ -659,40 +698,44 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (!desktop && !config.previewOrigin) return reject(socket, 401);
       if (!desktop && req.headers.origin !== config.previewOrigin) return reject(socket, 403);
       const cut = req.url.search(/[?&]ticket=/);
-      const target = req.url.slice(0, cut);
+      want = req.url.slice(0, cut);
       // cut < 0: the parser found a ticket the wire does not spell literally (tick%65t=).
       // What was signed is the literal text, so that is refused here, not by luck below.
       const nonce = cut >= 0 && tickets.length === 1 && req.url.slice(cut + 8) === tickets[0]
-        ? socketTicketNonce(config.token, desktop ? req.headers.origin + target : target, tickets[0], now()) : null;
-      for (const [used, until] of admitted) if (until <= now()) admitted.delete(used);
+        ? socketTicketNonce(config.token, desktop ? req.headers.origin + want : want, tickets[0], now()) : null;
+      for (const [used, until] of admitted) if (until < now()) admitted.delete(used);
       if (!nonce || admitted.has(nonce)) return reject(socket, 401);
       admitted.set(nonce, Number(tickets[0].split(".")[0]));
-      // From here the route rules see the SIGNED target, not the wire URL with the ticket
-      // still on it -- otherwise every ticketed upgrade would fail the no-query rule below.
-      url = new URL(target, config.origin);
     } else {
+      // The machine path: the same lock as HTTP, then the gateway's own Origin only.
       if (!authorized(req, config)) return reject(socket, 401);
       if (!url || req.headers.origin !== config.origin) return reject(socket, 403);
+      want = req.url;
     }
-    // THREE socket routes at this tag: the wire (Ep. 8), the quote grid (Ep. 10) and this
-    // line's tick chart. policy.mjs' socketTarget holds the rule for all three -- the exact
-    // path and no query for the first two, whose subscription is a frame, and the path plus
-    // /grid/ta_chart's own validated query for the third, whose subscription IS the URL --
-    // and it is the SAME function the web layer's ticket signer consults, so the two layers
-    // can never drift about what may be opened. The target it returns is what gets dialled,
-    // so the query that leaves is the one it re-serialised, never the caller's raw string.
-    // A subprotocol is refused here: no upstream speaks one, and ws would otherwise have to
-    // negotiate it. Anything unmatched is 404, before any upstream is consulted.
-    const target = socketTarget(url.pathname + url.search, config.origin);
-    if (req.method !== "GET" || !target || req.headers["sec-websocket-protocol"]) return reject(socket, 404);
-    const ta = url.pathname === "/grid/ta_chart_ws";
-    const grid = ta || url.pathname === "/grid/live_grid_ws";
-    // Nothing to subscribe to: the operator has approved no feeds, so there is no socket to
-    // open. 503, not 404 -- the route exists, the upstream is simply not configured, which
+    // FOUR socket routes at this tag: the reference's live grid (v3), the wire (Ep. 8), the
+    // quote grid (Ep. 10) and this line's tick chart. policy.mjs' socketTarget holds the rule
+    // for all four -- the exact path and no query for the first three, whose subscription is
+    // a frame, and the path plus /grid/ta_chart's own validated query for the fourth, whose
+    // subscription IS the URL -- and it is the SAME function the web layer's ticket signer
+    // consults, so the two layers can never drift about what may be opened. It reads the raw
+    // request text (`want`, the ticket cut off), never a parsed and re-spelled URL. The target
+    // it returns is what gets dialled, so the query that leaves is the one it re-serialised,
+    // never the caller's raw string. A subprotocol is refused here: no upstream speaks one,
+    // and ws would otherwise have to negotiate it. Anything unmatched is 404, before any
+    // upstream is consulted.
+    const target = req.method === "GET" && req.headers["sec-websocket-protocol"] === undefined
+      ? socketTarget(want, config.origin) : null;
+    if (!target) return reject(socket, 404);
+    const route = target.split("?")[0];
+    const ta = route === "/grid/ta_chart_ws";
+    const grid = ta || route === "/grid/live_grid_ws";
+    const ref = route === "/ref/live_grid_ws";
+    // Nothing to subscribe to: the operator has approved no feeds, so there is no wire socket
+    // to open. 503, not 404 -- the route exists, the upstream is simply not configured, which
     // is what verify.mjs's own probe distinguishes. The grid has the same state here: on
     // openbq-docker live-grid is the opt-in `live` compose profile, so until settings.json
     // says it runs ("liveGrid": true, config.mjs) its sockets answer 503 as well.
-    if (!grid && !Object.keys(config.feeds).length) return reject(socket, 503);
+    if (route === "/news/ws/news" && !Object.keys(config.feeds).length) return reject(socket, 503);
     if (grid && !config.gridOrigin) return reject(socket, 503);
     // Both caps are charged BEFORE handleUpgrade: a refusal must cost the same whether the
     // handshake would have succeeded or not, and an upgrade that is going to be refused must
@@ -701,13 +744,12 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     if (sockets >= config.maxSockets || !spend(6)) return reject(socket, 429);
     wss.handleUpgrade(req, socket, head, client => {
       sockets++;
-      // The 10s handshake deadline set above must not go on applying to an open socket.
+      // The 10 s handshake deadline set above must not go on applying to an open socket.
       socket.setTimeout(0);
       let upstream, subscribed = false, pending = null, frames = 0, pushes = 0;
       const close = () => { client.terminate(); upstream?.terminate(); };
-      // Two deadlines: an absolute lifetime (a socket is not a lease on the door), and a
-      // shorter one for the first frame -- a client that opens and says nothing is holding
-      // a slot for free.
+      // An absolute lifetime (a socket is not a lease on the door), and a shorter deadline
+      // for the first frame -- a client that opens and says nothing holds a slot for free.
       const lifetime = setTimeout(close, socketMs);
       const initial = setTimeout(close, firstFrameMs);
       client.once("close", () => {
@@ -715,15 +757,15 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       });
       client.on("error", close);
       /**
-       * Wiring the upstream leg is identical for all three sockets -- the same size and
+       * Wiring the upstream leg is identical for all four sockets -- the same size and
        * back-pressure bounds on what it may push, the same teardown in both directions --
        * so it lives here once. Only WHEN it is opened differs: on the first validated
-       * frame for the wire and the quote grid, at upgrade for the tick chart, which has no
+       * frame for the wire, the reference and the quote grid, at upgrade for the tick chart, which has no
        * client frame to wait for.
        */
       const connect = () => {
         try {
-          upstream = grid ? openGrid(config, target.slice("/grid".length)) : openNews(config);
+          upstream = grid ? openGrid(config, target.slice("/grid".length)) : ref ? openRef(config) : openNews(config);
         } catch { close(); return false; }
         upstream.on("message", (message, isBinary) => {
           if (isBinary || message.length > MAX_SOCKET || client.readyState !== WebSocket.OPEN ||
@@ -765,9 +807,12 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         // socket, which is the protocol live-grid's own consumer loop implements, so a
         // repeat frame is expected here and is RE-VALIDATED rather than fatal. Either way
         // what goes upstream is the frame policy.mjs rebuilt, never the client's own bytes.
-        // The tick chart takes no frame at all (see above); the wire takes exactly one.
-        if (binary || ta || (!grid && subscribed)) return close();
-        const frame = grid ? liveGridSubscription(data) : newsSubscription(data, config);
+        // The tick chart takes no frame at all (see above); the wire takes exactly one. The
+        // reference's socket (v3) speaks the grid's protocol -- a params frame on open and on
+        // every symbol change, re-validated each time -- but it is a keyless local fixture, so
+        // no vendor meter applies: the upgrade's six units, FRAME_CAP and the lifetime bound it.
+        if (binary || ta || (!grid && !ref && subscribed)) return close();
+        const frame = grid ? liveGridSubscription(data) : ref ? refSubscription(data) : newsSubscription(data, config);
         if (!frame) return close();
         // NO grid frame is free, the first included (METERED_GRID above says why, and why the
         // REST cap is a half-measure without this). Every validated frame charges the daily

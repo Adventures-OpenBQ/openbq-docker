@@ -10,8 +10,10 @@ import { isAbsolute, normalize } from "node:path";
 // the episode 3 reference, both for the tailnet, and Funnel offers only 443, 8443 and 10000.
 // A portless origin is still accepted
 // for a reader who publishes a dedicated node's :443 instead. `allowedPort` names the one
-// port an origin may carry (the wire's is 8088).
-function httpsOrigin(value, tailnet = false, allowedPort = "10000") {
+// port an origin may carry (the wire's is 8088). `tailnet` is false only for previewOrigin,
+// the web preview's own (Vercel) origin, which is not on the tailnet and is portless
+// (allowedPort null: no port at all).
+function httpsOrigin(value, tailnet = true, allowedPort = "10000") {
   const url = new URL(value);
   if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== allowedPort) ||
       url.pathname !== "/" || url.search || url.hash ||
@@ -66,9 +68,9 @@ export function validateConfig(settings, secrets) {
   if (!Number.isInteger(maxSockets) || maxSockets < 1 || maxSockets > 32) {
     throw new Error("Max sockets must be between 1 and 32");
   }
-  // The web preview's own origin. Naming it turns on socket tickets (server.mjs): the
-  // one Origin, besides the gateway's own, a WebSocket may arrive from. Unset = off.
-  const previewOrigin = settings.previewOrigin === undefined ? null : httpsOrigin(settings.previewOrigin, false);
+  // The web preview's own origin. Naming it turns on socket tickets (server.mjs): the one
+  // Origin, besides the gateway's own, a WebSocket may arrive from. Unset = off.
+  const previewOrigin = settings.previewOrigin === undefined ? null : httpsOrigin(settings.previewOrigin, false, null);
   // Where the web preview's per-user configuration is kept (server.mjs /state). A
   // writable directory mounted into this otherwise read-only container. Unset = off.
   const stateDir = settings.stateDir === undefined ? null : settings.stateDir;
@@ -130,7 +132,7 @@ export function validateConfig(settings, secrets) {
     tableOrigin: tableService ? "http://table-service:8080" : null,
     tableGatewayToken: secrets.tableGatewayToken, tableRelayToken: secrets.tableRelayToken,
     tableDesktopPrincipal, ssrmRoutes, tableTimeoutMs,
-    origin, quoteDailyLimit, requestsPerMinute, maxConcurrent, maxSockets, previewOrigin, stateDir,
+    origin, previewOrigin, quoteDailyLimit, requestsPerMinute, maxConcurrent, maxSockets, stateDir,
     rssOrigin, rssAddress, feeds,
     token: secrets.token,
     apiAuthorization: "Basic " + Buffer.from(`${secrets.apiUsername}:${secrets.apiPassword}`).toString("base64"),
@@ -145,6 +147,10 @@ export function validateConfig(settings, secrets) {
     // (live-grid), since this compose file sets no container_name. null = the `live` profile
     // is not running ("liveGrid" unset or false): every /grid route and socket answers 503.
     gridOrigin: liveGrid ? "http://live-grid:6903" : null,
+    // The Episode 3 reference (the episode3-demo service, network alias openbq-reference):
+    // a keyless local fixture on the same bridge, so a fixed service name like apiOrigin,
+    // never a setting, and NO credential is presented on the bridge.
+    refOrigin: "http://openbq-reference:17783",
   };
 }
 

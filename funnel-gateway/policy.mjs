@@ -13,12 +13,16 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
  * admitted.
  *
  * Not a generic reverse proxy. If a path is not matched below, it is refused.
- * At this tag the stack serves three upstreams behind the door, plus /state:
- *   /api/...   -> openbq-api  (the whole ODP widget catalogue)
- *   /news/...  -> rss-ticker  (the wire: approved feeds only)
- *   /grid/...  -> live-grid   (the tape's own widget surface, its kdb tick reader
- *                              and its tick chart; v10, the opt-in `live` profile)
+ * At this tag the stack serves four upstreams behind the door, plus /state and,
+ * when the opt-in `table` profile runs, the managed table service:
+ *   /api/...   -> openbq-api    (the whole ODP widget catalogue)
+ *   /ref/...   -> openbq-reference (Episode 3's keyless reference backend; its one
+ *                 socket, /ref/live_grid_ws, through the ticketed socket door below)
+ *   /news/...  -> rss-ticker    (the wire: approved feeds only)
+ *   /grid/...  -> live-grid     (the tape's own widget surface, its kdb tick reader
+ *                                and its tick chart; v10, the opt-in `live` profile)
  *   /state/... -> the gateway's own per-user store (server.mjs, stateFile below)
+ *   /table/... -> table-service  (tableRoute below)
  * /grid was ported from bdobb-dev/openbb-docker v10.1.7 (d606169): e8c1239,
  * 7212a1d, b9545f5, d32966d, dc61be8, d7ec9d1 (v10.0.3/v10.1.4).
  * /ai (Rita) is not served by openbq-docker. MCP, provider-key paths, the kdb+
@@ -66,6 +70,13 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
  * routes the client fetches, so they are not routes this door forwards.
  */
 const OPENBB_ROUTE_RE = /^\/api\/api\/v1\/[a-z0-9_/-]{1,200}$/;
+// The reference backend's routes (Episode 3): same lowercase-segment class as /api/api/v1.
+// No empty segments, so "//" can never reach the upstream URL parser as a host.
+const REF_ROUTE_RE = /^\/ref\/[a-z0-9_-]{1,100}(?:\/[a-z0-9_-]{1,100})*$/;
+// Its root documents and logo, forwarded as exact paths with no query (dotted, so outside
+// REF_ROUTE_RE; the four extra ones ruled in 2026-10-15).
+const REF_DOCUMENTS = new Set(["/ref/widgets.json", "/ref/apps.json", "/ref/agents.json",
+  "/ref/bundle.apps.json", "/ref/market-examples.apps.json", "/ref/assets/bdobb-logo.svg"]);
 const PARAM_NAME_RE = /^[A-Za-z_][A-Za-z0-9_.[\]-]{0,63}$/;
 // Not a regex: a control-character class is exactly what eslint's
 // no-control-regex forbids, and a comparison says the same thing plainly.
@@ -130,7 +141,18 @@ function onlyKeys(params, allowed) {
   return ![...params.keys()].some(k => !allowed.includes(k));
 }
 
-/** The /api family takes bounds; /news and /grid take reviewed routes with their own tests. */
+/** The one bounded-query rule shared by /api/api/v1 and /ref: pairs, names, lengths, control chars, re-serialised. */
+function boundedForward(url) {
+  const pairs = [...url.searchParams];
+  if (pairs.length > MAX_QUERY_PAIRS) return null;
+  for (const [name, value] of pairs) {
+    if (!PARAM_NAME_RE.test(name) || value.length > MAX_VALUE_CHARS || hasControlChar(value)) return null;
+  }
+  const forwarded = url.pathname + (pairs.length ? "?" + url.searchParams.toString() : "");
+  return forwarded.length <= MAX_URL_CHARS ? forwarded : null;
+}
+
+/** The /api and /ref families take bounds; /news and /grid take reviewed routes with their own tests. */
 export function upstreamPath(url, config) {
   const params = url.searchParams;
   if (new Set(params.keys()).size !== [...params.keys()].length) return null;
@@ -167,14 +189,24 @@ export function upstreamPath(url, config) {
   // optionsEndpoint, under the bounds documented at the top of this file.
   if (url.pathname.startsWith("/api/api/v1/")) {
     if (!OPENBB_ROUTE_RE.test(url.pathname)) return null;
-    const pairs = [...params];
-    if (pairs.length > MAX_QUERY_PAIRS) return null;
-    for (const [name, value] of pairs) {
-      if (!PARAM_NAME_RE.test(name) || value.length > MAX_VALUE_CHARS ||
-          hasControlChar(value)) return null;
-    }
-    const forwarded = url.pathname + (pairs.length ? "?" + params.toString() : "");
-    return forwarded.length <= MAX_URL_CHARS ? forwarded : null;
+    return boundedForward(url);
+  }
+
+  // --- the reference backend (Episode 3), offered whole through /ref. The upstream is
+  // openbq-reference:17783, a keyless local fixture, so NO credential is injected
+  // (server.mjs target()). The root documents exactly, no query; every other GET
+  // under the SAME structural bounds as /api/api/v1 (lowercase segments, no dot, no %,
+  // bounded query, re-serialised). /ref/omni* is refused so no code-executing Omni route
+  // is ever forwarded. Dotted paths pass only as the exact REF_DOCUMENTS.
+  if (REF_DOCUMENTS.has(url.pathname)) {
+    if (url.search) return null;
+    return url.pathname;
+  }
+  if (url.pathname.startsWith("/ref/")) {
+    if (!REF_ROUTE_RE.test(url.pathname) || url.pathname.length > 200) return null;
+    // Any segment starting "omni", at any depth, is refused.
+    if (url.pathname.split("/").some(segment => segment.startsWith("omni"))) return null;
+    return boundedForward(url);
   }
 
   // The wire's history page: rss-ticker's own /api/news, and nothing else under
@@ -359,10 +391,14 @@ export function liveGridSubscription(data) {
  * a connect; the gateway also refuses a nonce it has already admitted.
  *
  * The verifier shipped at v2.1.0, before any socket route did, so that the contract
- * the web layer signs against was the stack's from the first tag that had a door. It
- * admits two routes at this tag: /news/ws/news (Ep. 8) and /grid/live_grid_ws (Ep. 10).
+ * the web layer signs against was the stack's from the first tag that had a door.
+ * The first socket route, /ref/live_grid_ws, arrived with the reference backend (v3);
+ * /news/ws/news joined it at Ep. 8 and /grid/live_grid_ws at Ep. 10.
  */
 const TICKET_MS = 30_000;
+// The signer (the web layer, on Vercel) and this verifier keep separate clocks; a signer a
+// few seconds ahead must not fail every ticket. Expiry itself stays exact.
+const TICKET_SKEW_MS = 5_000;
 const ticketKey = token => createHmac("sha256", token).update("bdobb socket ticket v1").digest();
 const ticketSignature = (token, expiry, nonce, target) =>
   createHmac("sha256", ticketKey(token)).update(`${expiry}.${nonce}.${target}`).digest();
@@ -377,7 +413,7 @@ export function socketTicketNonce(token, target, ticket, now = Date.now()) {
   const match = typeof ticket === "string" && /^(\d{13})\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$/.exec(ticket);
   if (!match || typeof token !== "string" || !token) return null;
   const expiry = Number(match[1]);
-  if (now > expiry || expiry - now > TICKET_MS) return null;
+  if (now > expiry || expiry - now > TICKET_MS + TICKET_SKEW_MS) return null;
   const given = Buffer.from(match[3], "base64url");
   const wanted = ticketSignature(token, expiry, match[2], target);
   return given.length === wanted.length && timingSafeEqual(given, wanted) ? match[2] : null;
@@ -386,15 +422,18 @@ export const socketTicketValid = (...args) => socketTicketNonce(...args) !== nul
 
 /**
  * The socket a ticket may name, under exactly the rules the upgrade handler applies
- * -- and the SAME function the handler calls, so the two can never drift about what
- * may be opened. Returns the canonical target, or null. Two routes at this tag, and
- * neither takes a query: the whole subscription is the first frame, so a ticket over
- * a query string is not a ticket over anything this gateway will open.
+ * -- and the SAME function the handler and the web layer's ticket signer call, so they
+ * can never drift about what may be opened. Returns the canonical target, or null. Three
+ * routes at this tag take no query -- /ref/live_grid_ws, /news/ws/news and
+ * /grid/live_grid_ws: the whole subscription is the first frame, so a ticket over a query
+ * string is not a ticket over anything this gateway will open.
  */
 export function socketTarget(raw, origin) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//")) return null;
   let url; try { url = new URL(raw, origin); } catch { return null; }
   if (url.origin !== origin || url.hash) return null;
+  // raw === pathname: no query (not even a bare "?"), and no "..", "%" or case folding.
+  if (url.pathname === "/ref/live_grid_ws" && raw === url.pathname) return url.pathname;
   if (url.pathname === "/news/ws/news" || url.pathname === "/grid/live_grid_ws") {
     return url.search ? null : url.pathname;
   }
@@ -410,6 +449,27 @@ export function socketTarget(raw, origin) {
     return rest ? url.pathname + rest.slice("/grid/ta_chart".length) : null;
   }
   return null;
+}
+
+// The reference live grid's symbol grammar is the quote grid's SYMBOL_LIST_RE (above): one
+// symbol, or a comma watchlist (user ruling 2026-10-15), `^` for an index, `.` for a suffix.
+
+/**
+ * A /ref/live_grid_ws frame: `{"params":{"symbol":"A,B"}}`, sent on open and again on
+ * every symbol change over the same open socket. Re-validated on every frame (not just the
+ * first). The frame that reaches the reference is rebuilt from the one value that passed,
+ * so no extra property, no second key and no display name of the caller's is ever forwarded.
+ * Returns the frame to forward, or null to close the socket.
+ */
+export function refSubscription(data) {
+  let frame;
+  try { frame = JSON.parse(data.toString()); } catch { return null; }
+  if (!frame || typeof frame !== "object" || Object.keys(frame).join() !== "params") return null;
+  const params = frame.params;
+  if (!params || typeof params !== "object" || Object.keys(params).join() !== "symbol") return null;
+  const raw = params.symbol;
+  if (typeof raw !== "string" || !SYMBOL_LIST_RE.test(raw)) return null;
+  return JSON.stringify({ params: { symbol: raw } });
 }
 
 /**

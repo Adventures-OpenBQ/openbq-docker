@@ -5,7 +5,7 @@ import { socketTicket, stateFile } from "./policy.mjs";
 import { chmod, mkdtemp, mkdir, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { once } from "node:events";
+import { EventEmitter, once } from "node:events";
 import { createServer, request } from "node:http";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -84,9 +84,14 @@ test("configuration fails closed; secrets come from the environment", () => {
     { origin: `https://openbq.${TAILNET}:10000/x` },
     { quoteDailyLimit: 0 }, { quoteDailyLimit: 10001 }, { quoteDailyLimit: 1.5 },
     { requestsPerMinute: 0 }, { requestsPerMinute: 601 }, { requestsPerMinute: "60" },
-    { maxConcurrent: 0 }, { maxConcurrent: 33 }, { maxSockets: 0 }, { maxSockets: 33 },
-    { previewOrigin: "http://preview.example.com" }, { previewOrigin: "https://preview.example.com/x" },
-    { previewOrigin: "https://user@preview.example.com" }, { previewOrigin: 7 },
+    { maxConcurrent: 0 }, { maxConcurrent: 33 },
+    { maxSockets: 0 }, { maxSockets: 33 }, { maxSockets: 1.5 }, { maxSockets: "4" },
+    // The preview origin is any HTTPS origin (a Vercel name is not on the tailnet), but only an origin.
+    { previewOrigin: "http://bdobb.example.vercel.app" }, { previewOrigin: "https://bdobb.example.vercel.app/x" },
+    { previewOrigin: "https://user@bdobb.example.vercel.app" }, { previewOrigin: "https://bdobb.example.vercel.app:8443" },
+    // A Vercel origin is portless: not even the door's own 10000 is accepted.
+    { previewOrigin: "https://bdobb.example.vercel.app:10000" },
+    { previewOrigin: null }, { previewOrigin: "" }, { previewOrigin: 7 },
     { stateDir: "relative/state" }, { stateDir: "/var/lib/../etc" }, { stateDir: 7 }, { stateDir: "" },
     // Not silently accepted: `tickUrl` is a later line's upstream, and `gridOrigin` is THIS
     // line's but is fixed in code rather than configured -- naming either in settings.json
@@ -123,6 +128,9 @@ test("configuration fails closed; secrets come from the environment", () => {
   const defaults = validateConfig(settings, secrets);
   assert.deepEqual([defaults.requestsPerMinute, defaults.maxConcurrent, defaults.maxSockets, defaults.previewOrigin, defaults.stateDir],
     [60, 8, 4, null, null]);
+  assert.equal(validateConfig({ ...settings, previewOrigin: "https://BDOBB.example.vercel.app" }, secrets).previewOrigin,
+    "https://bdobb.example.vercel.app");
+  assert.deepEqual([1, 32].map(maxSockets => validateConfig({ ...settings, maxSockets }, secrets).maxSockets), [1, 32]);
   for (const key of ["ritaOrigin", "ritaAddress", "socksProxy"]) assert.equal(key in defaults, false, key);
   assert.deepEqual([defaults.rssOrigin, defaults.rssAddress, defaults.feeds], [RSS_ORIGIN, RSS_ADDRESS, { [FEED]: 7 }]);
   // A malformed feed URL fails with the feed block's own message, not the platform's bare
@@ -352,6 +360,70 @@ test("upstream HTTP prefix stripping, Basic injection and no client credential f
   assert.ok(!response.text.includes(TOKEN));
 });
 
+test("a reference GET forwards with no credential; Omni and unlisted dotted paths 404; a down reference is 502", async t => {
+  const seen = [];
+  const upstream = createServer((req, res) => {
+    seen.push({ url: req.url, headers: req.headers });
+    if (req.url === "/assets/bdobb-logo.svg") {
+      res.writeHead(200, { "Content-Type": "image/svg+xml" }); return res.end("<svg/>");
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end('{"ok":true}');
+  });
+  upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
+  t.after(() => new Promise(resolve => upstream.close(resolve)));
+  const { port } = await fixture(t, { refOrigin: `http://127.0.0.1:${upstream.address().port}` }, { requestJson: getJson });
+  const ok = await http(port, "/ref/metric_widget?x=1", { ...HEADERS, Origin: ORIGIN, Cookie: "viewer=session" });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.text, '{"ok":true}');
+  assert.equal(seen[0].url, "/metric_widget?x=1");
+  assert.equal(seen[0].headers.authorization, undefined);
+  assert.equal(seen[0].headers.cookie, undefined);
+  for (const bad of ["/ref/omni-sql-widget", "/ref/assets/other.svg", "/ref/metric_widget.json", "/ref/data/"]) {
+    assert.equal((await http(port, bad)).status, 404, bad);
+  }
+  assert.equal((await http(port, "/ref/metric_widget", HEADERS, "POST")).status, 405);
+  const logo = await http(port, "/ref/assets/bdobb-logo.svg");
+  assert.equal(logo.status, 200);
+  assert.equal(logo.text, "<svg/>");
+  assert.equal(logo.headers["content-type"], "image/svg+xml");
+  assert.equal(logo.headers["x-content-type-options"], "nosniff");
+  assert.match(logo.headers["content-security-policy"], /sandbox/);
+  assert.equal(logo.headers["x-robots-tag"], "noindex, nofollow, noarchive");
+  assert.equal(logo.headers["cache-control"], "no-store");
+  // The logo takes the same Origin rule as JSON: a foreign Origin is 403.
+  assert.equal((await http(port, "/ref/assets/bdobb-logo.svg", { ...HEADERS, Origin: "https://evil.invalid" })).status, 403);
+  // Nothing reaches a host other than the fixture: "//host" paths are refused before any request,
+  // and the upstream URL is built by concatenation (a recording requestJson would see no call).
+  const before = seen.length;
+  for (const bad of ["/ref//omni-sql-widget", "/ref//openbq-api/api/v1/x", "/ref/data//x"]) {
+    assert.equal((await http(port, bad)).status, 404, bad);
+  }
+  assert.equal(seen.length, before);
+  assert.equal(seen.length, 2);
+  // Even if policy were bypassed, getJson resolves "//host" against the fixed origin by concatenation.
+  const direct = { refOrigin: `http://127.0.0.1:${upstream.address().port}` };
+  assert.deepEqual(await getJson("/ref//openbq-api/x", direct), { ok: true });
+  assert.equal(seen.at(-1).url, "//openbq-api/x");
+  assert.deepEqual(await getJson("/api//openbq-api/x", { apiOrigin: direct.refOrigin, apiAuthorization: "Basic x" }), { ok: true });
+  assert.equal(seen.at(-1).url, "//openbq-api/x");
+  // A down reference: the door's own refusal, never the upstream's.
+  const dead = createServer(); dead.listen(0, "127.0.0.1"); await once(dead, "listening");
+  const deadPort = dead.address().port; await new Promise(resolve => dead.close(resolve));
+  const down = await fixture(t, { refOrigin: `http://127.0.0.1:${deadPort}` }, { requestJson: getJson });
+  const gone = await http(down.port, "/ref/metric_widget");
+  assert.equal(gone.status, 502);
+  assert.equal(gone.text, '{"error":"Request refused"}');
+  // A reference that accepts and never answers: the request deadline aborts it, still a 502.
+  const hung = createServer(() => {}); hung.listen(0, "127.0.0.1"); await once(hung, "listening");
+  t.after(() => { hung.closeAllConnections(); return new Promise(resolve => hung.close(resolve)); });
+  const stuck = await fixture(t, { refOrigin: `http://127.0.0.1:${hung.address().port}` },
+    { requestJson: getJson, requestMs: 200 });
+  const timedOut = await http(stuck.port, "/ref/metric_widget");
+  assert.equal(timedOut.status, 502);
+  assert.equal(timedOut.text, '{"error":"Request refused"}');
+});
+
 test("upstream redirects, error text, invalid JSON and oversized responses never escape", async t => {
   let mode;
   const upstream = createServer((req, res) => {
@@ -372,13 +444,11 @@ test("upstream redirects, error text, invalid JSON and oversized responses never
   }
 });
 
-test("a full-catalogue widgets.json fits MAX_BODY; one past it is an honest 502", async t => {
-  // Measured against the live v12.4 openbb-api on 2026-09-20: 331 widgets,
-  // 1,678,152 bytes of compact JSON, about 20% inside the 2 MiB MAX_BODY this
-  // gateway already applied. What matters is the failure mode when a future
-  // catalogue outgrows it: getJson destroys the response and rejects, so the
-  // caller sees a 502 rather than a manifest silently cut in half.
-  let size = 1_700_000;
+test("root manifests get MANIFEST_MAX (16 MiB); every other path keeps 2 MiB", async t => {
+  // openbq-api's widgets.json measured 5.0 MB (998 widgets) on 2026-10-15, past the 2 MiB
+  // every other body is held to. Over either cap, getJson destroys the response and the
+  // caller sees an honest 502, never a document silently cut in half.
+  let size = 5_000_000;
   const upstream = createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(Object.fromEntries(
@@ -386,12 +456,18 @@ test("a full-catalogue widgets.json fits MAX_BODY; one past it is an honest 502"
   });
   upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
   t.after(() => new Promise(resolve => upstream.close(resolve)));
-  const { port } = await fixture(t, { apiOrigin: `http://127.0.0.1:${upstream.address().port}` },
-    { requestJson: getJson });
-  const ok = await http(port, "/api/widgets.json");
-  assert.equal(ok.status, 200);
-  assert.equal(Object.keys(JSON.parse(ok.text)).length, 400);
+  const origin = `http://127.0.0.1:${upstream.address().port}`;
+  const { port } = await fixture(t, { apiOrigin: origin, refOrigin: origin }, { requestJson: getJson });
+  for (const path of ["/api/widgets.json", "/api/apps.json", "/ref/widgets.json", "/ref/apps.json"]) {
+    const ok = await http(port, path);
+    assert.equal(ok.status, 200, path);
+    assert.equal(Object.keys(JSON.parse(ok.text)).length, 400);
+  }
+  // The same ~5 MB on a DATA route is still past MAX_BODY.
+  assert.equal((await http(port, quote)).status, 502);
   size = 2 * 1024 * 1024 + 1024;
+  assert.equal((await http(port, quote)).status, 502);
+  size = 16 * 1024 * 1024 + 1024;
   const over = await http(port, "/api/widgets.json");
   assert.equal(over.status, 502);
   assert.equal(over.text, '{"error":"Request refused"}');
@@ -1811,4 +1887,267 @@ test("table routes admit the packaged desktop Origins behind the lock, and no ot
   for (const origin of ["http://localhost:1420","https://evil.example"]) assert.equal((await call("/table/sessions","POST",'{}',{Origin:origin})).status,403);
   assert.equal((await call("/table/sessions","POST",'{}',{Origin:"tauri://localhost",Authorization:""})).status,401);
   assert.equal(calls.length,2);
+});
+
+// ---- The reference's socket (openbq-docker v3.0.0, here beside the wire): /ref/live_grid_ws, ref_relayed to the
+// keyless reference. The machine path (token + the gateway's own Origin) and the browser's
+// ticket path (previewOrigin + a single-use ticket over the exact target).
+const LIVE = "/ref/live_grid_ws";
+const refused = () => new WebSocket("ws://127.0.0.1:9"); // nothing listens: the connect fails
+function refConnect(port, headers = { ...HEADERS, Origin: ORIGIN }, path = LIVE) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`, { headers, handshakeTimeout: 1000 });
+    ws.on("error", () => {});
+    ws.once("open", () => resolve({ status: 101, ws }));
+    ws.once("unexpected-response", (_, res) => { res.resume(); resolve({ status: res.statusCode }); ws.terminate(); });
+    const timer = setTimeout(() => { ws.terminate(); reject(new Error("WS timeout")); }, 1500);
+    timer.unref(); ws.once("open", () => clearTimeout(timer));
+    ws.once("close", () => clearTimeout(timer));
+  });
+}
+const SUB = '{"params":{"symbol":"AAPL"}}';
+
+test("/ref/live_grid_ws: the upgrade gate wants the token, the gateway's Origin, the exact path and no subprotocol", async t => {
+  let opened = 0;
+  const { port, calls } = await fixture(t, {}, { openRef: () => { opened++; return refused(); } });
+  assert.equal((await refConnect(port, { Host: HEADERS.Host, Origin: ORIGIN })).status, 401);
+  assert.equal((await refConnect(port, { ...HEADERS, Authorization: "Bearer wrong", Origin: ORIGIN })).status, 401);
+  assert.equal((await refConnect(port, HEADERS)).status, 403);
+  assert.equal((await refConnect(port, { ...HEADERS, Origin: "https://untrusted.invalid" })).status, 403);
+  assert.equal((await refConnect(port, { ...HEADERS, Host: "wrong.invalid", Origin: ORIGIN })).status, 403);
+  // The desktop webview's own socket (its ticket, /grid/ws_ticket) arrives at v10.
+  for (const origin of DESKTOP) assert.equal((await refConnect(port, { ...HEADERS, Origin: origin })).status, 403, origin);
+  for (const path of [LIVE + "?symbol=AAPL", LIVE + "/", "/ref/widgets.json", "/ref/other_ws",
+    "/grid/ta_series_ws", "/state/42", "/table/healthz", "/nope"]) { // /news/ws/news is the wire's socket here
+    assert.equal((await refConnect(port, { ...HEADERS, Origin: ORIGIN }, path)).status, 404, path);
+  }
+  assert.equal((await refConnect(port, { ...HEADERS, Origin: ORIGIN, "Sec-WebSocket-Protocol": "chat" })).status, 404);
+  // A non-GET upgrade on the right path, with the token and Origin, is still 404.
+  const post = await new Promise((resolve, reject) => {
+    const req = request({ host: "127.0.0.1", port, path: LIVE, method: "POST", headers: { ...HEADERS, Origin: ORIGIN,
+      Connection: "Upgrade", Upgrade: "websocket", "Sec-WebSocket-Version": "13", "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==" } },
+      res => { res.resume(); resolve(res.statusCode); });
+    req.once("upgrade", () => reject(new Error("upgraded")));
+    req.once("error", reject); req.end();
+  });
+  assert.equal(post, 404);
+  assert.equal(opened, 0); assert.equal(calls.length, 0);
+});
+
+
+test("/ref/live_grid_ws: a browser socket is admitted on a ticket: right target, right Origin, once", async t => {
+  const { port } = await fixture(t, { previewOrigin: PREVIEW }, { openRef: refused });
+  const ticket = socketTicket(TOKEN, LIVE);
+  const admitted = await refConnect(port, browser, ticketed(LIVE, ticket));
+  assert.equal(admitted.status, 101); admitted.ws.terminate();
+  // Single use: the same ticket, replayed inside its thirty seconds, is refused.
+  assert.equal((await refConnect(port, browser, ticketed(LIVE, ticket))).status, 401);
+  // Wrong Origin (the gateway's own included), wrong key, wrong target, expired, junk, doubled.
+  assert.equal((await refConnect(port, { ...browser, Origin: "https://evil.example.com" }, ticketed(LIVE, socketTicket(TOKEN, LIVE)))).status, 403);
+  assert.equal((await refConnect(port, { ...browser, Origin: ORIGIN }, ticketed(LIVE, socketTicket(TOKEN, LIVE)))).status, 403);
+  assert.equal((await refConnect(port, { Origin: PREVIEW }, ticketed(LIVE, socketTicket(TOKEN, LIVE)))).status, 401); // Host
+  assert.equal((await refConnect(port, browser, ticketed(LIVE, socketTicket(TOKEN + "x", LIVE)))).status, 401);
+  // A ticket names its target: one signed for another path does not open this one ...
+  assert.equal((await refConnect(port, browser, ticketed(LIVE, socketTicket(TOKEN, "/grid/live_grid_ws")))).status, 401);
+  // ... and a valid ticket over a path that is not a socket route opens nothing.
+  assert.equal((await refConnect(port, browser, ticketed("/grid/ta_series_ws", socketTicket(TOKEN, "/grid/ta_series_ws")))).status, 404);
+  assert.equal((await refConnect(port, browser, ticketed(LIVE + "?x=1", socketTicket(TOKEN, LIVE + "?x=1")))).status, 404);
+  assert.equal((await refConnect(port, browser, ticketed(LIVE, socketTicket(TOKEN, LIVE, Date.now() - 31_000)))).status, 401);
+  assert.equal((await refConnect(port, browser, ticketed(LIVE, "junk"))).status, 401);
+  const two = socketTicket(TOKEN, LIVE);
+  assert.equal((await refConnect(port, browser, `${LIVE}?ticket=${two}&ticket=${two}`)).status, 401);
+  // A key the URL parser decodes to "ticket" but the wire never spells is not a ticket.
+  assert.equal((await refConnect(port, browser, `${LIVE}?tick%65t=${socketTicket(TOKEN, LIVE)}`)).status, 401);
+  assert.equal((await refConnect(port, { ...browser, "Sec-WebSocket-Protocol": "chat" }, ticketed(LIVE, socketTicket(TOKEN, LIVE)))).status, 404);
+  // No ticket and no bearer is what it always was; a ticket buys nothing on the REST side.
+  assert.equal((await refConnect(port, browser, LIVE)).status, 401);
+  assert.equal((await http(port, ticketed(quote, socketTicket(TOKEN, quote)), browser)).status, 401);
+});
+
+test("/ref/live_grid_ws: a ticket replayed at its exact expiry millisecond is still refused", async t => {
+  let clock = 1_700_000_000_000;
+  const { port } = await fixture(t, { previewOrigin: PREVIEW }, { openRef: refused, now: () => clock });
+  const ticket = socketTicket(TOKEN, LIVE, clock);
+  const admitted = await refConnect(port, browser, ticketed(LIVE, ticket));
+  assert.equal(admitted.status, 101); admitted.ws.terminate();
+  clock += 30_000; // now === expiry: the verifier still accepts it, so the nonce must still be held
+  assert.equal((await refConnect(port, browser, ticketed(LIVE, ticket))).status, 401);
+});
+
+test("/ref/live_grid_ws: tickets are off until the operator names the preview origin", async t => {
+  const { port } = await fixture(t, {}, { openRef: refused });
+  assert.equal((await refConnect(port, browser, ticketed(LIVE, socketTicket(TOKEN, LIVE)))).status, 401);
+  // ... and the machine path is untouched by any of this.
+  const machine = await refConnect(port); assert.equal(machine.status, 101); machine.ws.terminate();
+});
+
+// A loopback stand-in for the reference's socket: records each connection's request and frames.
+async function reference(t) {
+  const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+  await once(server, "listening");
+  t.after(() => new Promise(resolve => { for (const ws of server.clients) ws.terminate(); server.close(resolve); }));
+  const ready = [], waiting = [];
+  server.on("connection", (ws, req) => {
+    ws.frames = []; ws.request = req;
+    ws.on("message", data => ws.frames.push(data.toString()));
+    const next = waiting.shift(); next ? next(ws) : ready.push(ws);
+  });
+  const next = () => (ready.length ? Promise.resolve(ready.shift()) : new Promise(resolve => waiting.push(resolve)));
+  return { server, next, origin: `http://127.0.0.1:${server.address().port}` };
+}
+// The slot is back: with maxSockets at 1, a second socket only opens if the first was released.
+async function refSlotReleased(port) {
+  const again = await refConnect(port);
+  assert.equal(again.status, 101, "the socket slot was not released");
+  again.ws.terminate();
+}
+async function ref_relayed(t, overrides = {}, dependencies = {}) {
+  const ref = await reference(t);
+  // The real connectRef, pointed at the loopback stand-in: what is proved is its URL and headers.
+  const gw = await fixture(t, { maxSockets: 1, refOrigin: ref.origin, ...overrides }, dependencies);
+  const { ws } = await refConnect(gw.port);
+  ws.send(SUB);
+  const up = await ref.next();
+  while (!up.frames.length) await new Promise(resolve => setTimeout(resolve, 5));
+  return { ...gw, ref, ws, up };
+}
+
+test("/ref/live_grid_ws: the reference socket is keyless, relays the rebuilt frame, re-validates every frame", async t => {
+  const { ws, up, ref } = await ref_relayed(t);
+  // connectRef: the fixed path on the reference's origin, no credential, no subprotocol.
+  assert.equal(up.request.url, "/live_grid_ws");
+  assert.equal(up.request.headers.authorization, undefined);
+  assert.equal(up.request.headers.cookie, undefined);
+  assert.equal(up.request.headers["sec-websocket-protocol"], undefined);
+  assert.deepEqual(up.frames, [SUB]);
+  const pushed = once(ws, "message");
+  up.send('{"type":"tick","symbol":"AAPL"}');
+  assert.equal((await pushed)[0].toString(), '{"type":"tick","symbol":"AAPL"}');
+  // A symbol change over the same socket: re-validated, forwarded on the SAME upstream.
+  ws.send('{ "params": { "symbol": "AAPL,MSFT" } }');
+  while (up.frames.length < 2) await new Promise(resolve => setTimeout(resolve, 5));
+  assert.deepEqual(up.frames, [SUB, '{"params":{"symbol":"AAPL,MSFT"}}']);
+  assert.equal(ref.server.clients.size, 1);
+  // An invalid later frame closes both ends; nothing of it is forwarded.
+  const closed = within(ws, "close"), upClosed = within(up, "close");
+  ws.send('{"params":{"symbol":"AAPL"},"admin":1}');
+  await closed; await upClosed;
+  assert.equal(up.frames.length, 2);
+});
+
+test("/ref/live_grid_ws: bad, binary or oversized frames never open the reference socket", async t => {
+  let opened = 0;
+  const { port } = await fixture(t, {}, { openRef: () => { opened++; throw new Error("Must not connect"); } });
+  for (const frame of ["not-json", '{"subscribe":[]}', '{"params":{"symbol":"AAPL","x":1}}', '{"params":{"ticker":"AAPL"}}',
+    '{"params":{"symbol":"AAPL"},"admin":true}', '{"params":{"symbol":"A B"}}', Buffer.from(SUB), "x".repeat(65537)]) {
+    const { ws } = await refConnect(port); const closed = within(ws, "close");
+    ws.send(frame); await closed;
+  }
+  assert.equal(opened, 0);
+});
+
+test("/ref/live_grid_ws: an upstream that cannot be reached closes the client, and hands the slot back", async t => {
+  const { port } = await fixture(t, { maxSockets: 1 }, { openRef: refused });
+  const { ws } = await refConnect(port);
+  const closed = within(ws, "close");
+  ws.send(SUB);
+  await closed;
+  await refSlotReleased(port);
+  // openRef throwing (a bad URL, say) is the same: closed, slot back.
+  const thrown = await fixture(t, { maxSockets: 1 }, { openRef: () => { throw new Error("boom"); } });
+  const second = await refConnect(thrown.port); const shut = within(second.ws, "close");
+  second.ws.send(SUB); await shut;
+  await refSlotReleased(thrown.port);
+});
+
+test("/ref/live_grid_ws: a client outrunning the reference (upstream back-pressure) closes the relay", async t => {
+  // A stand-in upstream, already open, whose send buffer can be filled on demand.
+  const up = Object.assign(new EventEmitter(), { readyState: WebSocket.OPEN, bufferedAmount: 0, sent: [],
+    send(frame) { this.sent.push(frame); }, terminate() { this.terminated = true; } });
+  const { port } = await fixture(t, { maxSockets: 1 }, { openRef: () => up });
+  const { ws } = await refConnect(port);
+  ws.send(SUB);
+  while (!up.sent.length) await new Promise(resolve => setTimeout(resolve, 5));
+  up.bufferedAmount = 262145;
+  const closed = within(ws, "close");
+  ws.send(SUB);
+  await closed;
+  assert.equal(up.sent.length, 1); assert.equal(up.terminated, true);
+  await refSlotReleased(port);
+});
+
+test("/ref/live_grid_ws: the reference closing tears down the client, and hands the slot back", async t => {
+  const { ws, up, port } = await ref_relayed(t);
+  const closed = within(ws, "close");
+  up.close();
+  await closed;
+  await refSlotReleased(port);
+});
+
+test("/ref/live_grid_ws: the client going away terminates the upstream connection, and hands the slot back", async t => {
+  const { ws, up, port } = await ref_relayed(t);
+  const upClosed = within(up, "close");
+  ws.terminate();
+  await upClosed;
+  await refSlotReleased(port);
+});
+
+test("/ref/live_grid_ws: an oversized or binary frame from the reference closes the relay, and hands the slot back", async t => {
+  for (const [what, send] of [
+    ["oversized", up => up.send("x".repeat(65537))],
+    ["binary", up => up.send(Buffer.from("tick"), { binary: true })],
+  ]) {
+    const { ws, up, port } = await ref_relayed(t);
+    const closed = within(ws, "close");
+    send(up);
+    await closed.catch(error => { throw new Error(`${what}: ${error.message}`); });
+    await refSlotReleased(port);
+  }
+});
+
+test("/ref/live_grid_ws: a client too far behind is closed rather than queued behind, and hands the slot back", async t => {
+  const { ws, up, port } = await ref_relayed(t);
+  // The relay reads the server-side socket's bufferedAmount, which is deliberately not
+  // exposed: the getter is stubbed for this one push, and restored before the follow-up.
+  const real = Object.getOwnPropertyDescriptor(WebSocket.prototype, "bufferedAmount");
+  const restore = () => Object.defineProperty(WebSocket.prototype, "bufferedAmount", real);
+  t.after(restore);
+  Object.defineProperty(WebSocket.prototype, "bufferedAmount", { configurable: true, get: () => 262145 });
+  const closed = within(ws, "close");
+  up.send('{"type":"tick"}');
+  await closed;
+  restore();
+  await refSlotReleased(port);
+});
+
+test("/ref/live_grid_ws: a silent client is dropped at the first-frame deadline, and every socket at its lifetime", async t => {
+  const first = await fixture(t, { maxSockets: 1 }, { firstFrameMs: 30, openRef: refused });
+  const a = await refConnect(first.port); await within(a.ws, "close");
+  await refSlotReleased(first.port);
+  // The lifetime holds even for a socket that is subscribed and relaying.
+  const { ws, up, port } = await ref_relayed(t, {}, { firstFrameMs: 1000, socketMs: 150 });
+  const closed = within(ws, "close"), upClosed = within(up, "close");
+  await closed; await upClosed;
+  await refSlotReleased(port);
+});
+
+test("/ref/live_grid_ws: the socket cap and the six-unit socket price come from settings, charged before the upgrade", async t => {
+  const capped = await fixture(t, { maxSockets: 1 }, { openRef: refused });
+  const first = await refConnect(capped.port); assert.equal(first.status, 101);
+  assert.equal((await refConnect(capped.port)).status, 429);
+  first.ws.terminate();
+  // Six left: exactly one socket is admitted, and the REST side is out of budget too.
+  const metered = await fixture(t, { requestsPerMinute: 6 }, { openRef: refused });
+  const only = await refConnect(metered.port); assert.equal(only.status, 101);
+  assert.equal((await http(metered.port, "/_gateway/health")).status, 429);
+  assert.equal((await refConnect(metered.port)).status, 429);
+  only.ws.terminate();
+});
+
+test("/ref/live_grid_ws: a refused upgrade never allocates a socket slot, so the cap is not consumed by 404s", async t => {
+  const { port } = await fixture(t, { maxSockets: 1 }, { openRef: refused });
+  for (const path of [LIVE + "?x=1", "/grid/ta_series_ws", "/nope"]) {
+    assert.equal((await refConnect(port, { ...HEADERS, Origin: ORIGIN }, path)).status, 404, path);
+  }
+  const admitted = await refConnect(port); assert.equal(admitted.status, 101); admitted.ws.terminate();
 });
