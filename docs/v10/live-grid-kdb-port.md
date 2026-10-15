@@ -1131,4 +1131,6 @@ User ruling: alternative 1, packaged origins only. Not provisional.
   round trip bound to Origin, target and single use, the endpoint's refusals). Local run, node
   26.10.0: 90 of 91 pass; the failure, "DELETE takes one symbol in the path", fails identically
   (421) on the untouched base 72834aa.
+- **Client.** BDOBB `claude/v10-grid-socket-ticket` 1a310c6 fetches a ticket before every
+  connect when the backend's credential is a header; its OPEN-QUESTIONS records V10-P1 resolved.
 - **Not run.** The packaged app against a running gateway (Mac).
