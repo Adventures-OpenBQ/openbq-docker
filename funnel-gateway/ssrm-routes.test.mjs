@@ -27,7 +27,7 @@ test("every committed SSRM route admits a POST and an unlisted sibling does not"
   }
   // A listed route carrying a widget param in the query string is still admitted.
   assert.ok(tableRoute(new URL(doorPaths[0] + "?start_date=2026-01-01", "https://example.com"), "POST", config));
-  // An unlisted /ssrm POST, a GET on a listed route, and a traversal are all refused.
+  // An unlisted /ssrm POST and a GET on a listed route are both refused.
   assert.equal(tableRoute(new URL("/api/api/v1/not/listed/ssrm", "https://example.com"), "POST", config), null);
   assert.equal(tableRoute(new URL(doorPaths[0], "https://example.com"), "GET", config), null);
 });
