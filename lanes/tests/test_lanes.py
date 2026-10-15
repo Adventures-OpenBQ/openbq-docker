@@ -384,6 +384,55 @@ class ServableAppsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.builds["apps"], 2)  # retried, not cached
 
 
+class SsrmCatalogTest(unittest.IsolatedAsyncioTestCase):
+    """Listed widgets become ssrm_table pointing at <route>/ssrm; everything else is byte-identical."""
+
+    async def asyncSetUp(self):
+        openbq_lanes._CATALOG_CACHE.clear()
+        self.addCleanup(openbq_lanes._CATALOG_CACHE.clear)
+        self.addCleanup(setattr, openbq_lanes, "SSRM_ROUTES", openbq_lanes.SSRM_ROUTES)
+        openbq_lanes.SSRM_ROUTES = {
+            "/api/v1/cftc/swap_trades": "cftc_swap_trades_cftc_obb",
+            "/api/v1/absent/route": "absent_widget_obb",  # listed but not in widgets.json: skipped
+        }
+
+    async def serve(self):
+        app = FastAPI()
+
+        @app.get("/widgets.json")
+        async def widgets_json():
+            return {
+                "cftc_swap_trades_cftc_obb": {
+                    "name": "Swap trades", "type": "table",
+                    "endpoint": "/api/v1/cftc/swap_trades",
+                    "params": [{"paramName": "start_date"}], "category": "CFTC",
+                },
+                "other_obb": {"name": "Other", "type": "table", "endpoint": "/api/v1/other"},
+            }
+
+        app.middleware("http")(openbq_lanes.middleware)
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://api") as client:
+            return (await client.get("/widgets.json")).json()
+
+    async def test_listed_widget_is_rewritten_and_others_are_untouched(self):
+        body = await self.serve()
+        listed = body["cftc_swap_trades_cftc_obb"]
+        self.assertEqual(listed["type"], "ssrm_table")
+        self.assertEqual(listed["endpoint"], "/api/v1/cftc/swap_trades/ssrm")
+        self.assertEqual(listed["ssrm"], {"sorting": True, "filtering": ["text", "number"]})
+        self.assertEqual(listed["name"], "Swap trades")          # other fields kept
+        self.assertEqual(listed["params"], [{"paramName": "start_date"}])
+        self.assertEqual(listed["category"], "CFTC")
+        self.assertEqual(body["other_obb"], {"name": "Other", "type": "table", "endpoint": "/api/v1/other"})
+        self.assertNotIn("absent_widget_obb", body)              # listed-but-absent skipped, no error
+
+    def test_the_committed_list_has_23_widgets_with_ssrm_routes(self):
+        routes = openbq_lanes._load_ssrm_widgets(Path(__file__).parent.parent / "ssrm_widgets.json")
+        self.assertEqual(len(routes), 23)
+        self.assertTrue(all(r.startswith("/api/v1/") for r in routes))
+
+
 class LogoTest(unittest.IsolatedAsyncioTestCase):
     """The BDOBB logo answers without Basic auth; every other path still asks for it."""
 

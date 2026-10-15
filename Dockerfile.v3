@@ -43,6 +43,7 @@ COPY v4/routes/verify.py /tmp/verify-routes.py
 RUN python -m pip install --no-deps /tmp/openbq_routes-4.0.0-py3-none-any.whl && python -m pip check && openbb-build \
     && python /tmp/verify-routes.py && rm /tmp/verify-routes.py /tmp/openbq_routes-4.0.0-py3-none-any.whl
 COPY lanes/openbq_lanes.py /usr/local/lib/python3.12/site-packages/openbq_lanes.py
+COPY lanes/ssrm_widgets.json /workspace/ssrm_widgets.json
 WORKDIR /workspace
 # BDOBB example dashboards, appended to /apps.json by the lanes hook (examples/bdobb/README.md).
 COPY examples/bdobb/apps.json /workspace/bdobb_apps.json

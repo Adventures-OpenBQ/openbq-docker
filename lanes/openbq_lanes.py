@@ -63,6 +63,58 @@ BUILTIN_CARDS = frozenset({
 # without credentials, so this one path answers without Basic auth.
 LOGO_PATH = "/openbq/bdobb-logo.svg"
 LOGO_FILE = os.environ.get("OPENBQ_BDOBB_LOGO", "/workspace/bdobb-logo.svg")
+# The OpenBQ API's largest table widgets (default response > ~10 MB) served as
+# server-paged SSRM tables (approach B): the API itself answers the standard
+# OpenBB SSRM contract so BDOBB's "LIVE · paged" provider pages them, and the
+# full GET never crosses the caches, the door or the client. The id->route list
+# is committed data (lanes/ssrm_widgets.json); a listed id absent from
+# /widgets.json is skipped.
+SSRM_FILE = os.environ.get("OPENBQ_SSRM_WIDGETS", "/workspace/ssrm_widgets.json")
+SSRM_SUFFIX = "/ssrm"
+SSRM_CAPS = {"sorting": True, "filtering": ["text", "number"]}
+
+
+def _load_ssrm_widgets(path=SSRM_FILE) -> dict:
+    """{route: widget_id} from the committed list; {} if it is missing or malformed."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            entries = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    routes = {}
+    if isinstance(entries, list):
+        for e in entries:
+            if isinstance(e, dict) and isinstance(e.get("id"), str) and isinstance(e.get("route"), str):
+                routes[e["route"]] = e["id"]
+    return routes
+
+
+SSRM_ROUTES = _load_ssrm_widgets()
+
+
+def _rewrite_widgets(body: bytes) -> bytes:
+    """Point each listed widget at <route>/ssrm as an ssrm_table; keep every other field.
+
+    A listed id absent from the catalogue is skipped. Only the three SSRM fields
+    are touched, so params, columnsDefs, name and category resolve exactly as before.
+    """
+    try:
+        widgets = json.loads(body)
+    except ValueError:
+        return body
+    if not isinstance(widgets, dict):
+        return body
+    changed = False
+    for route, wid in SSRM_ROUTES.items():
+        entry = widgets.get(wid)
+        if isinstance(entry, dict):
+            entry["type"] = "ssrm_table"
+            entry["endpoint"] = route + SSRM_SUFFIX
+            entry["ssrm"] = dict(SSRM_CAPS)
+            changed = True
+    return json.dumps(widgets).encode() if changed else body
+
+
 # The response's own framing; the API sets its own.
 _HOP = {b"content-length", b"transfer-encoding", b"connection", b"keep-alive"}
 # Per-caller CORS answers: never cached, _cors() recomputes them per request.
@@ -166,7 +218,9 @@ async def _catalog(cache, request, call_next):
         if response.status_code != 200:
             return response
         body = b"".join([chunk async for chunk in response.body_iterator])
-        if path == "/apps.json":
+        if path == "/widgets.json":
+            body = _rewrite_widgets(body)
+        elif path == "/apps.json":
             body = _with_extra_apps(body)
             apps = _json_list(body)
             if apps is not None and any(_cards(app) - BUILTIN_CARDS for app in apps):
