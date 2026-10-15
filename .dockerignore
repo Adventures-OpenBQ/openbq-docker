@@ -33,3 +33,8 @@ certs
 secrets
 funnel-gateway/node_modules
 gateway-config
+
+# Private managed-service state and generated source export.
+table-config
+table-source
+table-build.env

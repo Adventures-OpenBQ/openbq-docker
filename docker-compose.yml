@@ -101,7 +101,7 @@ services:
     user: "${GATEWAY_UID:-1000}:${GATEWAY_GID:-1000}"
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    mem_limit: 256m
+    mem_limit: 512m
     cpus: 1
     pids_limit: 64
     volumes:
@@ -118,8 +118,44 @@ services:
     logging:
       driver: json-file
       options: {max-size: "5m", max-file: "2"}
-    networks: [openbq-internal]
+    networks: [openbq-internal, table-private]
+  # Local, exact-source build only; table-service/README.md documents preparation.
+  table-service:
+    profiles: [table]
+    build:
+      context: "${TABLE_SOURCE_CONTEXT:-./table-source}"
+      dockerfile: deploy/table-service/Dockerfile
+      args:
+        BDOBB_SOURCE_REVISION: "${TABLE_SOURCE_REVISION:-unset}"
+        BDOBB_SOURCE_TREE: "${TABLE_SOURCE_TREE:-unset}"
+    image: bdobb-table-service:local
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: "${TABLE_MEMORY_LIMIT:-8g}"
+    cpus: "${TABLE_CPUS:-2}"
+    pids_limit: 128
+    environment:
+      TABLE_SERVICE_CONFIG: /private/settings.json
+    volumes:
+      - type: bind
+        source: ./table-config
+        target: /private
+        read_only: true
+        bind: {create_host_path: false}
+      - table-sources:/var/lib/table-service
+    tmpfs: ["/tmp:size=64m,noexec,nosuid"]
+    networks: [table-private, table-egress]
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
 networks:
+  table-private:
+    internal: true
+  table-egress:
+    driver: bridge
   openbq-internal:
     driver: bridge
   workspace-internal:
@@ -127,6 +163,7 @@ networks:
     driver_opts:
       com.docker.network.driver.mtu: "1500"
 volumes:
+  table-sources:
   openbq-data:
   openbq-user-data:
   gateway-state:

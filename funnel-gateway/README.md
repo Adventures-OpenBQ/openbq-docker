@@ -16,8 +16,8 @@ byte on what is admitted. What was left at v8 and v10 is listed in
 
 `funnel-gateway` is a compose service under `profiles: [web]`: `docker compose up -d` never
 starts it; `docker compose --profile web up -d` does. The gateway joins the
-`openbq-internal` bridge, listens on `0.0.0.0:8091` with no host port, and is reached only through
-Tailscale Serve. It runs `read_only`, as uid 1000, `cap_drop: [ALL]`, 256 MB, 64 pids; its only
+`openbq-internal` bridge (and, for the managed tables, the internal `table-private` bridge), listens on `0.0.0.0:8091` with no host port, and is reached only through
+Tailscale Serve. It runs `read_only`, as uid 1000, `cap_drop: [ALL]`, 512 MB, 64 pids; its only
 writable mount is the `gateway-state` volume behind `/state`.
 
 Nothing is public until two separate steps both happen: the profile is started, **and** the

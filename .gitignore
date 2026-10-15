@@ -51,3 +51,8 @@ __pycache__/
 # funnel-gateway (web profile) runtime configuration
 gateway-config/
 funnel-gateway/node_modules/
+
+# Task-owned local native table build and private operator configuration.
+table-source/
+table-config/
+table-build.env
