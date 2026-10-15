@@ -1,7 +1,10 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-from app.main import build_servers
+import os
+import stat
+
+from app.main import build_servers, prepare_admin_dir
 
 
 class TestBuildServers:
@@ -50,3 +53,17 @@ class TestBuildServers:
         )
         assert admin.config.uds == str(tmp_path / "a.sock")
         assert admin.config.host in (None, "127.0.0.1")
+
+
+class TestAdminDir:
+    def test_an_existing_open_directory_is_closed_to_0700(self, tmp_path):
+        d = tmp_path / "admin"
+        d.mkdir(mode=0o755)
+        os.chmod(d, 0o755)
+        prepare_admin_dir(str(d / "key-maint-admin.sock"))
+        assert stat.S_IMODE(os.stat(d).st_mode) == 0o700
+
+    def test_a_missing_directory_is_created_0700(self, tmp_path):
+        d = tmp_path / "new" / "admin"
+        prepare_admin_dir(str(d / "key-maint-admin.sock"))
+        assert stat.S_IMODE(os.stat(d).st_mode) == 0o700

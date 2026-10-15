@@ -44,6 +44,17 @@ def build_servers(
     return [uvicorn.Server(admin_cfg), uvicorn.Server(network_cfg)]
 
 
+def prepare_admin_dir(admin_socket: str) -> None:
+    """The admin directory's 0700 is the whole tier-3 boundary (the socket
+    itself is 0666), so key-maint sets it rather than trusting the operator's
+    chmod: a directory Docker auto-created for the bind mount is 0755. Through
+    the bind mount this sets the host directory's mode too; its owner stays
+    whoever created it, so a root-created one fails closed for other users."""
+    d = os.path.dirname(admin_socket)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
+
+
 async def _chmod_admin_socket(path: str) -> None:
     """uvicorn creates the uds file during server startup, not before, so poll
     for it rather than chmod-ing a path that doesn't exist yet. Directory
@@ -63,7 +74,7 @@ async def _serve_all() -> None:
         "KEYMAINT_ADMIN_SOCKET", "/config/admin/key-maint-admin.sock"
     )
 
-    os.makedirs(os.path.dirname(admin_socket), exist_ok=True)
+    prepare_admin_dir(admin_socket)
     if os.path.exists(admin_socket):
         os.unlink(admin_socket)
 
