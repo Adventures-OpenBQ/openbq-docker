@@ -43,3 +43,12 @@ d1a7ff9 and 2a4d087) and what stayed up.
 | PR #10's `node:26.10.0-alpine` base image | not taken | The gateway tests pass on Node 22 (v8's `node:22-alpine`), so v4 keeps it. |
 
 The `docks` hidden dashboard paragraph in v8's README is a v8 feature and is not repeated here.
+
+## The web preview at v4
+
+User ruling, 2026-10-15: BDOBB's web preview is offered from v4, over HTTP. It needs nothing more
+from v8. `/api`, `/state` and `/table` above are its whole surface. `previewOrigin` and the socket
+door stay at v8, because they serve socket tickets only, and v4 has no socket route. A scratch run
+put BDOBB v4's `web/server.mjs` in front of this gateway's `createGateway` at edf7447: catalogue,
+data route and `/state` round trip passed, and `/api/docs` was refused. The policy did not change,
+so BDOBB's `openbqDocker` pin (edf7447) still holds.
