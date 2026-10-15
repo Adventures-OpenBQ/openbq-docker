@@ -97,7 +97,7 @@ function requestUrl(req, config) {
   if (req.headers.host !== new URL(config.origin).host || !req.url?.startsWith("/") ||
       req.url.startsWith("//") || /[%\\#]/.test(req.url.split("?")[0]) || req.url.includes("#")) return null;
   const url = new URL(req.url, config.origin);
-  return url.pathname === req.url.split("?")[0] && url.origin === config.origin ? url : null;
+  return url.pathname === req.url.split("?")[0].replaceAll("^", "%5E") && url.origin === config.origin ? url : null;
 }
 function reply(res, code, value = { error: "Request refused" }) {
   res.writeHead(code, {
@@ -263,8 +263,8 @@ export function subscriptionRoute(url, method) {
     return method === "GET" || method === "POST" ? { method, path: "/api/subscriptions" } : null;
   }
   const one = /^\/grid\/api\/subscriptions\/([^/]+)$/.exec(url.pathname);
-  if (one && method === "DELETE" && SUBSCRIPTION_SYMBOL_RE.test(one[1])) {
-    return { method, path: `/api/subscriptions/${one[1]}` };
+  if (one && method === "DELETE" && SUBSCRIPTION_SYMBOL_RE.test(one[1].replaceAll("%5E", "^"))) {
+    return { method, path: `/api/subscriptions/${one[1].replaceAll("%5E", "^")}` };
   }
   return null;
 }
