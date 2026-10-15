@@ -50,8 +50,9 @@ def main():
    if (match.group(1),value) in public_demo:continue
    if value and not value.startswith(('$','<')) and not re.fullmatch(r'(?:YOUR_[A-Z_]+|EXAMPLE_[A-Z_]+|PLACEHOLDER|CHANGE_ME|CHANGEME)',value):
     findings.append((label,'filled credential assignment'))
-  for match in re.finditer(r'(?i)"[a-z0-9_]*(?:api_key|token|password|secret|access_key_id)"[ \t\r\n]*:[ \t\r\n]*"([^"\n]*)"',text):
-   value=match.group(1).strip()
+  for match in re.finditer(r'(?i)"([a-z0-9_]*(?:api_key|token|password|secret|access_key_id))"[ \t\r\n]*:[ \t\r\n]*"([^"\n]*)"',text):
+   value=match.group(2).strip()
+   if (match.group(1).upper(),value) in public_demo:continue
    if value and not value.startswith(('$','<')) and not re.fullmatch(r'(?:YOUR_[A-Z_]+|EXAMPLE_[A-Z_]+|PLACEHOLDER|CHANGE_ME|CHANGEME)',value):
     findings.append((label,'filled JSON credential'))
  files=git('ls-files','--cached','--others','--exclude-standard','-z').decode().split('\0')
