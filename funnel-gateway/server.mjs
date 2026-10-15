@@ -242,7 +242,10 @@ async function tableExchange(req, res, route, config) {
       const status=[400,401,404,409,410,413,429,503].includes(response.status)?response.status:502;
       return reply(res,status,{error:{code:"upstream_refused",message:"Table request refused"}});
     }
-    return reply(res,response.status,json);
+    reply(res,response.status,json);
+    // od marks an SSRM page it served from its cache: no vendor call, so the caller refunds the quote.
+    // reply() writes its own headers, so the marker never reaches the client.
+    return !route.managed && response.headers.get("x-openbq-ssrm")==="hit";
   } finally {clearTimeout(timer);res.off("close",disconnect);}
 }
 
@@ -291,7 +294,7 @@ export function createGateway(config, { requestJson = getJson, openRef = connect
             (control ? controlInflight >= TABLE_CONTROL_CONCURRENCY : inflight >= config.maxConcurrent) ||
             (!table.managed && !quoteAllowed())) return reply(res,429);
         if (control) controlInflight++; else inflight++;
-        try { return await tableExchange(req,res,table,config); }
+        try { if ((await tableExchange(req,res,table,config)) === true) quoteCount = Math.max(0, quoteCount - 1); return; }
         finally { if (control) controlInflight--; else inflight--; }
       }
       if (req.method !== "GET" || req.headers["transfer-encoding"] ||

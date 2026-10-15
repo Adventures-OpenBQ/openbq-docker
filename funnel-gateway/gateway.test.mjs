@@ -853,7 +853,8 @@ async function tableFixture(t, patch = {}) {
     if(req.url === "/sessions/stalled/commands")return;
     if(req.url === "/sessions/truncated/commands"){res.writeHead(200,{"Content-Type":"application/json"});res.write('{"partial":');setImmediate(()=>res.destroy());return;}
     if(req.url === "/sessions/oversized/commands"){res.writeHead(200,{"Content-Type":"application/json"});res.end(JSON.stringify({text:"x".repeat(8388608)}));return;}
-    res.writeHead(req.url === "/sessions/missing/commands" ? 410 : 200, {"Content-Type":"application/json", "Set-Cookie":"secret=bad"});
+    const ssrm=req.url.startsWith("/api/v1/test/rows") ? {"x-openbq-ssrm":req.url.includes("cached=1") ? "hit" : "miss"} : {};
+    res.writeHead(req.url === "/sessions/missing/commands" ? 410 : 200, {"Content-Type":"application/json", "Set-Cookie":"secret=bad", ...ssrm});
     res.end(JSON.stringify({ok:true}));
   });
   upstream.listen(0,"127.0.0.1"); await once(upstream,"listening");
@@ -917,4 +918,16 @@ test("table routes admit the packaged desktop Origins behind the lock, and no ot
   for (const origin of ["http://localhost:1420","https://evil.example"]) assert.equal((await call("/table/sessions","POST",'{}',{Origin:origin})).status,403);
   assert.equal((await call("/table/sessions","POST",'{}',{Origin:"tauri://localhost",Authorization:""})).status,401);
   assert.equal(calls.length,2);
+});
+
+test("an SSRM page served from od's cache refunds the daily quote; a miss spends it; a client header cannot", async t => {
+  const {call,calls}=await tableFixture(t,{quoteDailyLimit:1});
+  for (let i=0;i<3;i++) {
+    const hit=await call("/api/api/v1/test/rows?cached=1","POST",'{}');
+    assert.equal(hit.status,200); assert.equal(hit.headers["x-openbq-ssrm"],undefined);
+  }
+  const spoof=await call("/api/api/v1/test/rows","POST",'{}',{"x-openbq-ssrm":"hit"});
+  assert.equal(spoof.status,200); assert.equal(calls.at(-1).headers["x-openbq-ssrm"],undefined);
+  assert.equal((await call("/api/api/v1/test/rows","POST",'{}')).status,429);  // the miss spent the one quote
+  assert.equal((await call("/api/api/v1/test/rows?cached=1","POST",'{}')).status,429);
 });

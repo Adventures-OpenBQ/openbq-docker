@@ -652,7 +652,7 @@ class SsrmRowsTest(unittest.IsolatedAsyncioTestCase):
             {"pivotCols": [{"id": "name", "field": "name"}]},
             {"pivotMode": True},
             {"filterModel": {"name": {"filterType": "set", "values": ["Alpha"]}}},
-            {"filterModel": {"value": {"filterType": "number", "type": "equals", "filter": 1}}},
+            {"filterModel": {"value": {"filterType": "number", "type": "notEqual", "filter": 1}}},
         ]:
             async with self.client(app) as c:
                 r = await c.post("/api/v1/listed/data/ssrm", json=self.req(**over))
@@ -1017,3 +1017,119 @@ class SsrmFixRound2Test(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(isinstance(e, openbq_lanes.SsrmUpstream) and e.status == 504 for e in results))
         self.assertEqual(started, ["a"])  # b never got the slot
         self.assertFalse(cache.slots.locked())  # and nothing holds it now
+
+
+class SsrmFinalFixTest(unittest.IsolatedAsyncioTestCase):
+    """Final-review fixes: sort cap, hit/miss header, catalogue auth, view cache, exact ints, byte-equal catalogue."""
+
+    req = SsrmRowsTest.req
+    client = SsrmRowsTest.client
+    asyncSetUp = SsrmFixRound1Test.asyncSetUp
+    app = SsrmFixRound1Test.app
+
+    async def post(self, app, path="/api/v1/listed/data/ssrm", **over):
+        async with self.client(app) as c:
+            return await c.post(path, json=self.req(**over))
+
+    # I-1 ----------------------------------------------------------------
+    async def test_a_repeated_or_over_long_sort_model_is_refused(self):
+        app = self.app([{f"c{i}": i for i in range(20)}])
+        dup = await self.post(app, sortModel=[{"colId": "c0", "sort": "asc"}, {"colId": "c0", "sort": "desc"}])
+        over = await self.post(app, sortModel=[{"colId": f"c{i}", "sort": "asc"} for i in range(17)])
+        ok = await self.post(app, sortModel=[{"colId": f"c{i}", "sort": "asc"} for i in range(16)])
+        self.assertEqual((dup.status_code, over.status_code, ok.status_code), (400, 400, 200))
+        self.assertEqual(dup.json(), {"detail": openbq_lanes._SSRM_REFUSED})
+
+    # I-3 ----------------------------------------------------------------
+    async def test_a_page_from_the_cache_says_hit_and_an_acquisition_says_miss(self):
+        app = self.app([{"v": 1}])
+        first = await self.post(app)
+        second = await self.post(app, startRow=1, endRow=2)
+        self.assertEqual(first.headers["x-openbq-ssrm"], "miss")
+        self.assertEqual(second.headers["x-openbq-ssrm"], "hit")
+
+    # M-1 ----------------------------------------------------------------
+    async def test_an_uncached_catalogue_is_built_with_the_callers_authorization(self):
+        app = FastAPI()
+        self.queries = []
+
+        @app.get("/widgets.json")
+        async def catalog(request: Request):
+            if not request.headers.get("authorization"):  # the API's Basic auth dependency
+                return JSONResponse({"detail": "Unauthorized"}, 401)
+            return {"listed_obb": {"params": [{"paramName": "a"}]}}
+
+        @app.get("/api/v1/listed/data")
+        async def data(request: Request):
+            self.queries.append(sorted(request.query_params.multi_items()))
+            return {"results": [{"v": 1}]}
+
+        app.middleware("http")(openbq_lanes.middleware)
+        with mock.patch.dict(os.environ, OPENBB_API_AUTH="true", OPENBB_API_USERNAME="u", OPENBB_API_PASSWORD="p"):
+            async with self.client(app) as c:
+                r = await c.post("/api/v1/listed/data/ssrm?a=1&junk=2", json=self.req(), auth=("u", "p"))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.queries, [[("a", "1")]])
+
+    # M-2 ----------------------------------------------------------------
+    async def test_a_second_page_of_the_same_view_does_not_refilter_or_resort(self):
+        app = self.app([{"v": i % 7, "s": f"x{i}"} for i in range(50)])
+        view = {"sortModel": [{"colId": "v", "sort": "desc"}],
+                "filterModel": {"s": {"filterType": "text", "type": "contains", "filter": "x"}}}
+        sort_values = pd.DataFrame.sort_values
+        with mock.patch.object(pd.DataFrame, "sort_values", autospec=True, side_effect=sort_values) as sorts:
+            a = await self.post(app, startRow=0, endRow=10, **view)
+            b = await self.post(app, startRow=10, endRow=20, **view)
+            self.assertEqual(sorts.call_count, 1)
+            await self.post(app, sortModel=[{"colId": "v", "sort": "asc"}])  # a new view sorts again
+            self.assertEqual(sorts.call_count, 2)
+        both = [row["v"] for row in a.json()["rowData"] + b.json()["rowData"]]
+        self.assertEqual(both, sorted(both, reverse=True))
+        self.assertEqual(b.json()["rowCount"], 50)
+
+    async def test_at_most_eight_views_are_kept_per_frame_and_go_with_it(self):
+        app = self.app([{"v": i} for i in range(20)])
+        for lo in range(10):
+            await self.post(app, filterModel={"v": {"filterType": "number", "type": "greaterThanOrEqual", "filter": lo}})
+        (key,) = openbq_lanes.SSRM_CACHE.entries
+        self.assertEqual(len(openbq_lanes.SSRM_CACHE.entries[key][3]), 8)
+        openbq_lanes.SSRM_CACHE.max_bytes = 0
+        await self.post(app, path="/api/v1/listed/data/ssrm?a=2")  # evicts the first frame
+        self.assertNotIn(key, openbq_lanes.SSRM_CACHE.entries)
+
+    # M-3 ----------------------------------------------------------------
+    async def test_integers_past_2_53_with_nulls_stay_exact(self):
+        app = self.app([{"id": 2**60 + 1}, {"id": None}, {"x": 1}])
+        r = await self.post(app)
+        self.assertIn(b'"id":1152921504606846977', r.content.replace(b" ", b""))
+        self.assertEqual([row["id"] for row in r.json()["rowData"]], [2**60 + 1, None, None])
+        f = await self.post(app, filterModel={"id": {"filterType": "number", "type": "greaterThanOrEqual", "filter": 1}})
+        self.assertEqual(f.json()["rowCount"], 1)
+
+    # M-5 ----------------------------------------------------------------
+    async def test_an_unlisted_widget_is_byte_identical_to_the_original(self):
+        other = {"name": "Ünïcode — “quotes”", "x": 0.1, "big": 1e300, "params": [{"paramName": "a"}]}
+        catalog = {"listed_obb": {"type": "table", "endpoint": "/api/v1/listed/data"}, "other_obb": other}
+        app = FastAPI()
+
+        @app.get("/widgets.json")
+        async def widgets_json():
+            return JSONResponse(catalog)
+
+        original = JSONResponse(catalog).body
+        app.middleware("http")(openbq_lanes.middleware)
+        async with self.client(app) as c:
+            served = (await c.get("/widgets.json")).content
+        piece = original[original.index(b'"other_obb"'):]
+        self.assertIn(piece, served)
+        self.assertEqual(json.loads(served)["listed_obb"]["type"], "ssrm_table")
+
+    # M-6 ----------------------------------------------------------------
+    async def test_number_equals_is_supported_and_combined_filters_stay_refused(self):
+        app = self.app([{"v": 1}, {"v": 2}, {"v": 2}])
+        eq = await self.post(app, filterModel={"v": {"filterType": "number", "type": "equals", "filter": 2}})
+        self.assertEqual((eq.status_code, eq.json()["rowCount"]), (200, 2))
+        combined = {"v": {"filterType": "number", "operator": "AND", "conditions": [
+            {"filterType": "number", "type": "equals", "filter": 2},
+            {"filterType": "number", "type": "equals", "filter": 1}]}}
+        self.assertEqual((await self.post(app, filterModel=combined)).status_code, 400)
