@@ -1604,5 +1604,106 @@
         ]
       }
     }
+  },
+  {
+    "name": "Example Dashboard - Version 10.0.0 - Live Grid",
+    "description": "Episode 10 brings the live grid. Live quotes is a table that streams: its snapshot arrives over HTTP, then each quote ticks in place over live-grid's websocket, with each symbol's logo and 52-week range from live-grid's symbol_meta. Beside it, the subscription list that feeds the stream, the kdb+ tick history behind one symbol, the Live Chart and the Cached Price Chart. Every card is served by the stack's live-grid backend (its opt-in live profile), so add that backend as a connection first; this version does not draw the Live Chart's live_chart type and shows its data as raw JSON. Made for, and opens in, BDOBB 10.0.0 or later.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "live": {
+        "id": "live",
+        "name": "Live",
+        "layout": [
+          {
+            "i": "live_grid",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL,MSFT,NVDA,TSLA,BTC-USD,ETH-USD,EURUSD"
+              },
+              "chartView": {
+                "enabled": false,
+                "chartType": "line"
+              }
+            }
+          },
+          {
+            "i": "subscriptions",
+            "x": 0,
+            "y": 12,
+            "w": 20,
+            "h": 14
+          },
+          {
+            "i": "kdb_ticks",
+            "x": 20,
+            "y": 12,
+            "w": 20,
+            "h": 14,
+            "state": {
+              "params": {
+                "symbol": "AAPL",
+                "limit": "200"
+              },
+              "chartView": {
+                "enabled": false,
+                "chartType": "line"
+              }
+            }
+          },
+          {
+            "i": "live_chart",
+            "x": 0,
+            "y": 26,
+            "w": 40,
+            "h": 16,
+            "state": {
+              "params": {
+                "symbol": "AAPL",
+                "interval": "1m"
+              },
+              "chartView": {
+                "enabled": false,
+                "chartType": "line"
+              }
+            }
+          },
+          {
+            "i": "kdb_cache_chart",
+            "x": 0,
+            "y": 42,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL",
+                "interval": "1d"
+              },
+              "chartView": {
+                "enabled": false,
+                "chartType": "line"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": [],
+    "extensions": {
+      "bdobb": {
+        "schemaVersion": 1,
+        "profile": "v3",
+        "tabOrder": [
+          "live"
+        ]
+      }
+    }
   }
 ]
