@@ -62,6 +62,16 @@ Budgets (settings): `requestsPerMinute` (default 60, ≤ 600), `maxConcurrent` (
 `maxSockets` (4, ≤ 32), `quoteDailyLimit` (100, ≤ 10000, UTC day). A socket costs six units,
 charged before the upgrade. Counters are in memory and reset on restart; keep one instance.
 
+Managed table cancellation and cleanup reserve **two concurrent requests** outside
+`maxConcurrent`. Only exact, query-free `POST /table/sessions/:id/cancel`,
+`DELETE /table/sessions/:id` and `DELETE /table/exports/:id` qualify, after route
+validation and bearer authentication. Their independent per-minute bucket uses
+`requestsPerMinute` too; ordinary requests cannot spend it. A full control lane or
+spent control bucket returns 429, with no borrowing from the ordinary lane.
+Body limits, identity assertions, deadlines and disconnect cleanup still apply.
+Source deletion, derive/commands/export creation and standard LIVE requests use
+the ordinary concurrency and rate budgets. See [managed tables](../table-service/README.md).
+
 ## The wire (`/news`)
 
 `feeds` in `settings.json` maps each **approved** feed URL to its rss-ticker id. It is the whole

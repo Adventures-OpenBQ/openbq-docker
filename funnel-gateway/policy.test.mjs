@@ -260,3 +260,13 @@ test("the wire's and the grid's two sockets are the targets a ticket may name at
   // A raw target is read against the ORIGIN the caller passes, and refused off it.
   assert.equal(socketTarget(ORIGIN + "/news/ws/news", "https://other.example.com"), null);
 });
+
+
+test("managed table routes and explicitly registered SSRM POSTs are method bounded", async () => {
+  const p = await import("./policy.mjs");
+  const route = (path, method = "GET") => p.tableRoute(new URL(path, "https://example.com"), method, { ssrmRoutes: ["/api/api/v1/test/rows"] });
+  for (const path of ["/table/healthz", "/table/capabilities", "/table/widgets.json", "/table/sources/backends", "/table/exports/export_1/batches?sequence=0"]) assert.ok(route(path));
+  for (const path of ["/table/sources/uploads", "/table/sources/backends", "/table/sessions", "/table/sessions/session_1/commands", "/table/sessions/session_1/derive", "/table/sessions/session_1/cancel", "/table/sessions/session_1/exports", "/api/api/v1/test/rows"]) assert.ok(route(path, "POST"));
+  for (const path of ["/table/sources/s_1", "/table/sessions/session_1", "/table/exports/export_1"]) assert.ok(route(path, "DELETE"));
+  for (const [path, method] of [["/table/sessions", "GET"], ["/table/healthz", "POST"], ["/table/sessions/x/commands?url=http://evil", "POST"], ["/table/exports/x/batches?sequence=-1", "GET"], ["/table/exports/x/batches?sequence=0&sequence=1", "GET"], ["/api/api/v1/test/other", "POST"], ["/table/sessions/x/anything", "POST"]]) assert.equal(route(path, method), null);
+});

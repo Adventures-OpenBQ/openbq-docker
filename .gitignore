@@ -69,3 +69,8 @@ rustfs-data/
 minio-data/
 rustfs.env
 eod.env
+
+# Task-owned local native table build and private operator configuration.
+table-source/
+table-config/
+table-build.env
