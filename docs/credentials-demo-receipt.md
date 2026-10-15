@@ -9,6 +9,11 @@ checked with one small live request; only the HTTP status and the date are recor
 |---|---|---|---|---|---|---|
 | EIA (API v2) | `EIA_API_KEY` | `DEMO_KEY` | api.data.gov developer manual (DEMO_KEY: 30 requests/hour, 50/day per IP). EIA's own pages name no demo key; api.eia.gov accepts api.data.gov's. | `GET api.eia.gov/v2/steo/` | 200 | 2026-10-14 |
 | Congress.gov | `CONGRESS_GOV_API_KEY` | `DEMO_KEY` | api.data.gov developer manual (same limits) | `GET api.congress.gov/v3/bill?limit=1` | 200 | 2026-10-14 |
+| EODHD (v9 on) | `EODHD_API_KEY` | `demo` | eodhd.com quick start: the `demo` token works for AAPL.US, TSLA.US, VTI.US, AMZN.US, MCD.US and BTC-USD.CC | `GET eodhd.com/api/eod/AAPL.US` (two days); also MCD.US | 200, 200 | 2026-10-14 |
+
+EODHD's `demo` token and the v9 Calendars example (2026-10-14): `eod/AAPL.US` 200 and
+`fundamentals/AAPL.US` 200, so the two price cards and the income card answer; `economic-events` 403
+and `calendar/earnings` 403, so those two cards need a real `EODHD_API_KEY`.
 
 Still keyless on 2026-10-14, so nothing for them goes in the file:
 

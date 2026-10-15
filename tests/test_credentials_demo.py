@@ -13,10 +13,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DEMO = ROOT / "credentials.demo.env"
 # The only names and values the file may hold: each provider's own published demo key
-# (docs/credentials-demo-receipt.md). EODHD's "demo" joins on the line that ships openbq-eodhd (v9).
+# (docs/credentials-demo-receipt.md). EODHD's "demo" joined on v9, the line that ships openbq-eodhd.
 ALLOWED = dict([
     ("EIA_API_KEY", "DEMO_KEY"),
     ("CONGRESS_GOV_API_KEY", "DEMO_KEY"),
+    ("EODHD_API_KEY", "demo"),
 ])
 
 

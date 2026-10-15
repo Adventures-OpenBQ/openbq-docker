@@ -25,9 +25,11 @@ does the other provider apps. It does not go in `examples/bdobb/apps.json`.
 
 ## Key
 
-`EODHD_API_KEY` in `credentials.env` (empty in `credentials.env.example`).
-Without it EODHD requests are refused with a client error; the rest of the API
-is unaffected. Data access depends on your EODHD plan.
+`EODHD_API_KEY` in `credentials.env` (commented out in `credentials.env.example`).
+Without it the committed `credentials.demo.env` supplies EODHD's public `demo` token, which answers
+only EODHD's demo symbols (AAPL.US, TSLA.US, VTI.US, AMZN.US, MCD.US, BTC-USD.CC); other symbols
+are refused with a client error, and the rest of the API is unaffected. Data access depends on your
+EODHD plan. Both API images (`Dockerfile` and `Dockerfile.v3`) install the extension.
 
 ## Tests
 

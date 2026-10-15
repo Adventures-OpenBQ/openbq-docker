@@ -75,7 +75,7 @@ docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:2.0.0 python -m unittest 
 ### Demo keys
 
 `credentials.demo.env` is committed and holds only public demo keys the providers publish
-(api.data.gov's `DEMO_KEY` for EIA and Congress.gov), so those cards answer before you have keys of
+(api.data.gov's `DEMO_KEY` for EIA and Congress.gov, and from v9 EODHD's `demo` token, which covers only EODHD's demo symbols such as AAPL.US), so those cards answer before you have keys of
 your own. Compose loads it first and `credentials.env` second, so any key you set wins; keep a
 demo-covered line commented out in `credentials.env` (an empty `NAME=` would replace the demo key with
 nothing). Demo keys are rate-limited (30 requests an hour, 50 a day per IP). BLS, CFTC and EconDB need
