@@ -2,9 +2,9 @@
   {
     "name": "Built-in widgets",
     "description": "Every built-in widget on its own tab, plus a Grouping tab showing two Parameter echo cards sharing a Ticker group. Nothing here needs a backend, a key or a sign-up -- it opens and works the moment you import it. Opens in BDOBB 3.0.0 or later.",
-    "img": "",
-    "img_dark": "",
-    "img_light": "",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "allowCustomization": true,
     "tabs": {
       "note": {
@@ -176,11 +176,141 @@
     "prompts": []
   },
   {
+    "name": "Demo providers",
+    "description": "One card per provider that answers on the openbq-docker v3 stack (Adventures-OpenBQ/openbq-docker v3.0.0) with no sign-up. Keyless: BLS, CFTC, EconDB, Nasdaq (historical EPS for IBM, in place of the Alpha Vantage card of earlier releases) and the Video Library. EIA and Congress.gov run on the public demo keys in openbq-docker's committed credentials.demo.env, which the stack uses when there is no credentials.env; your own keys in credentials.env take their place. Widget ids are openbq-docker's, checked 2026-10-14 against its /widgets.json as captured by BDOBB's v6 regression run; the EconDB and Video Library (openbb-videos) cards are the extensions openbq-docker v3 adds. EconDB answers under openbb-core 2's provider-prefixed id econdb_economy_indicators_econdb_obb (the ODP 4 id economy_indicators_econdb_obb came from a shared economy router openbq-docker does not install), and its Indicators route needs a country as well as a symbol: RGDP for US, since symbol=RGDP alone is a 422. The BLS card uses bls_search (category=cpi, query=CUUR0000SA0), not bls_series: BLS's own HTTP API needs no key for either fetcher, but openbb-bls's BlsSeriesFetcher never overrides the base Fetcher class's require_credentials=True the way BlsSearchFetcher does, so bls_series 400s on a blank BLS_API_KEY -- bls_search answers 200 with real data on first import, which is the point of this dashboard. Opens in BDOBB 3.0.0 or later.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "demo-providers": {
+        "id": "demo-providers",
+        "name": "Demo providers",
+        "layout": [
+          {
+            "i": "eia_short_term_energy_outlook_eia_obb",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "uscongress_bills_congress_gov_obb",
+            "x": 20,
+            "y": 0,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "congress": "119"
+              }
+            }
+          },
+          {
+            "i": "bls_search_bls_obb",
+            "x": 0,
+            "y": 12,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "category": "cpi",
+                "query": "CUUR0000SA0"
+              }
+            }
+          },
+          {
+            "i": "cftc_cot_cftc_obb",
+            "x": 20,
+            "y": 12,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "econdb_economy_indicators_econdb_obb",
+            "x": 0,
+            "y": 24,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "RGDP",
+                "country": "US"
+              }
+            }
+          },
+          {
+            "i": "nasdaq_equity_fundamental_historical_eps_nasdaq_obb",
+            "x": 20,
+            "y": 24,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "IBM"
+              }
+            }
+          },
+          {
+            "i": "videos_video_custom_obb",
+            "x": 0,
+            "y": 36,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "video_name": "OpenBB Workspace Demo"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  },
+  {
+    "name": "Video Library",
+    "description": "One card: the Video Library, a YouTube widget served by openbb-api itself, which openbq-docker serves from v3 on (the openbb-videos extension, first written in openbb-docker and adapted from OpenBB's reference backend; MIT, see openbb-docker's THIRD_PARTY_NOTICES.md). Pick one of two sample videos; the endpoint answers the bare watch URL as text/plain and the YouTube card frames it. Widget id confirmed against the extension's own widgets.json build on OpenBB 5.0.0. Opens in BDOBB 3.0.0 or later.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "video-library": {
+        "id": "video-library",
+        "name": "Video Library",
+        "layout": [
+          {
+            "i": "videos_video_custom_obb",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "video_name": "OpenBB Workspace Demo"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  },
+  {
     "name": "V4 core tools",
     "description": "Built-ins, grouping, date expressions and fiscal period controls. No credentials required. Opens in BDOBB 4.0.0 or later.",
-    "img": "",
-    "img_dark": "",
-    "img_light": "",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "allowCustomization": true,
     "tabs": {
       "note": {
@@ -345,14 +475,96 @@
         "name": "Date expression",
         "layout": [
           {
-            "i": "date_probe",
+            "i": "note",
             "x": 0,
             "y": 0,
-            "w": 28,
-            "h": 15,
+            "w": 40,
+            "h": 5,
+            "state": {
+              "params": {
+                "text": "Each card below resolves one date expression against today and the XNYS exchange calendar, so its dates move with the calendar. Top row: T (today), T-5bd (five business days back), T-1m (one calendar month back). Bottom row: M-1 (start of last month), FQ-4 (start of the fiscal quarter four back), Y-1 (start of last year)."
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 0,
+            "y": 5,
+            "w": 13,
+            "h": 10,
+            "state": {
+              "params": {
+                "expr": "T",
+                "as_of": "T",
+                "exchange": "XNYS"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 13,
+            "y": 5,
+            "w": 14,
+            "h": 10,
             "state": {
               "params": {
                 "expr": "T-5bd",
+                "as_of": "T",
+                "exchange": "XNYS"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 27,
+            "y": 5,
+            "w": 13,
+            "h": 10,
+            "state": {
+              "params": {
+                "expr": "T-1m",
+                "as_of": "T",
+                "exchange": "XNYS"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 0,
+            "y": 15,
+            "w": 13,
+            "h": 10,
+            "state": {
+              "params": {
+                "expr": "M-1",
+                "as_of": "T",
+                "exchange": "XNYS"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 13,
+            "y": 15,
+            "w": 14,
+            "h": 10,
+            "state": {
+              "params": {
+                "expr": "FQ-4",
+                "as_of": "T",
+                "exchange": "XNYS"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 27,
+            "y": 15,
+            "w": 13,
+            "h": 10,
+            "state": {
+              "params": {
+                "expr": "Y-1",
                 "as_of": "T",
                 "exchange": "XNYS"
               }
@@ -393,9 +605,9 @@
   {
     "name": "Parameters",
     "description": "The v4 parameter features on their own tabs -- groups that propagate one value to many cards, the period-aware pickers (day, week, month, quarter, fiscal year, date-time and time), and the relative-date expression grammar. Nothing here needs a backend, a key or a sign-up: every card is a built-in that echoes what it would send, so it opens and works the moment you import it. Opens in BDOBB 4.0.0 or later.",
-    "img": "",
-    "img_dark": "",
-    "img_light": "",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "allowCustomization": true,
     "tabs": {
       "groups": {
@@ -612,11 +824,60 @@
     "prompts": []
   },
   {
+    "name": "V5 Statement Example",
+    "description": "Synthetic Q3 and TTM cash flow; no provider key required. Opens in BDOBB 5.0.0 or later.",
+    "allowCustomization": true,
+    "tabs": {
+      "cash": {
+        "id": "cash",
+        "name": "Cash flow",
+        "layout": [
+          {
+            "i": "synthetic_cash_flow",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 22,
+            "state": {
+              "params": {}
+            }
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "bdobb": {
+        "schemaVersion": 1,
+        "profile": "v5",
+        "base": {
+          "schemaVersion": 1,
+          "profile": "v3",
+          "tabOrder": [
+            "cash"
+          ]
+        },
+        "cards": [
+          {
+            "tab": "cash",
+            "index": 0,
+            "view": "statement",
+            "statement": {
+              "collapsed": []
+            }
+          }
+        ]
+      }
+    },
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K"
+  },
+  {
     "name": "Example Dashboard - Version 5.0.0 - Treasury Auctions",
     "description": "Episode 5 introduces the Calendar view: U.S. Treasury auctions on a month grid, one event per auction, titled by term and coloured by security type (Bill, Note, Bond). Upcoming auctions on the left; on the right, results from six weeks ago to today, a relative start date that moves with every render. Both cards are openbb-api's own U.S. Treasury widgets and need no API key. Its Calendar views travel in BDOBB's v4 extension; made for, and opens in, BDOBB 5.0.0 or later.",
-    "img": "",
-    "img_dark": "",
-    "img_light": "",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "allowCustomization": true,
     "tabs": {
       "auctions": {
@@ -724,10 +985,10 @@
   },
   {
     "name": "Example Dashboard - Version 6.0.0",
-    "description": "The v6.0.0 Rita stage: a small board Rita can see and rearrange for you. Set the Rita URL and turn on Context sharing in AI Library ▸ Agents so Rita can see these cards, then ask it to work the board — \"add a note summarising the day\", \"rename this dashboard to Markets\", \"move the clock to the top\", \"add a markdown widget\". Every widget here is a BDOBB built-in, so nothing needs an OpenBB backend; the point is Rita authoring the dashboard, not the data. Rita arrived in 6.0.0, so this needs BDOBB 6.0.0 or later.",
-    "img": "",
-    "img_dark": "",
-    "img_light": "",
+    "description": "The v6.0.0 Rita stage: a small board Rita can see and rearrange for you. Set the Rita URL and turn on Context sharing in AI Library \u25b8 Agents so Rita can see these cards, then ask it to work the board \u2014 \"add a note summarising the day\", \"rename this dashboard to Markets\", \"move the clock to the top\", \"add a markdown widget\". Every widget here is a BDOBB built-in, so nothing needs an OpenBB backend; the point is Rita authoring the dashboard, not the data. Rita arrived in 6.0.0, so this needs BDOBB 6.0.0 or later.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "allowCustomization": true,
     "tabs": {
       "rita": {
@@ -742,7 +1003,7 @@
             "h": 10,
             "state": {
               "params": {
-                "text": "# Rita can work this board\n\nWith **Context Sharing** on (AI Library ▸ Agents), Rita sees every card here and can author the dashboard for you. Try asking it to:\n\n- **Add a note** — \"add a note summarising today's session\" (Rita writes a markdown card).\n- **Rename** — \"rename this dashboard to Markets\", or \"call the clock card World Clock\".\n- **Rearrange** — \"move the clock to the top\", \"make this note full width\".\n- **Add a tab** — \"add a Rates tab\".\n- **Add a widget** — \"add a clock\" (Rita finds it with search_widgets, then adds it).\n\nRita only sees the board while Context Sharing is on, and never sees a Keys widget. Everything it does is one **Undo** away."
+                "text": "# Rita can work this board\n\nWith **Context Sharing** on (AI Library \u25b8 Agents), Rita sees every card here and can author the dashboard for you. Try asking it to:\n\n- **Add a note** \u2014 \"add a note summarising today's session\" (Rita writes a markdown card).\n- **Rename** \u2014 \"rename this dashboard to Markets\", or \"call the clock card World Clock\".\n- **Rearrange** \u2014 \"move the clock to the top\", \"make this note full width\".\n- **Add a tab** \u2014 \"add a Rates tab\".\n- **Add a widget** \u2014 \"add a clock\" (Rita finds it with search_widgets, then adds it).\n\nRita only sees the board while Context Sharing is on, and never sees a Keys widget. Everything it does is one **Undo** away."
               }
             }
           },
@@ -781,10 +1042,10 @@
   },
   {
     "name": "Example Dashboard - Version 7.0.0",
-    "description": "The v7.0.0 iPad touch showcase: three built-in widgets chosen so each touch gesture has something to exercise it. The Note lists the gestures — including that with no mouse you tap the left rail to open it and tap outside to close it. The Clock (horizontal, four zones) reflows and takes a tap-to-open menu; the long Markdown card scrolls with a one-finger drag and zooms with a two-finger pinch. Every widget is a BDOBB built-in, so nothing here needs an OpenBB backend. The touch dialect arrived in 7.0.0, so this is made for BDOBB 7.0.0 or later.",
-    "img": "",
-    "img_dark": "",
-    "img_light": "",
+    "description": "The v7.0.0 iPad touch showcase: three built-in widgets chosen so each touch gesture has something to exercise it. The Note lists the gestures \u2014 including that with no mouse you tap the left rail to open it and tap outside to close it. The Clock (horizontal, four zones) reflows and takes a tap-to-open menu; the long Markdown card scrolls with a one-finger drag and zooms with a two-finger pinch. Every widget is a BDOBB built-in, so nothing here needs an OpenBB backend. The touch dialect arrived in 7.0.0, so this is made for BDOBB 7.0.0 or later.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "allowCustomization": true,
     "tabs": {
       "touch": {
@@ -799,7 +1060,7 @@
             "h": 9,
             "state": {
               "params": {
-                "text": "## Try these gestures\n- **No mouse?** Tap the left rail to open it, and tap anywhere outside it to close. With a trackpad or Magic Keyboard it opens on hover, like on desktop.\n- **Two-finger pinch** anywhere to zoom.\n- **Drag** inside the Markdown card to scroll it.\n- **Tap** a card's title, then the ⋯ menu.\n- **Double-tap** a card title to maximize, and again to restore.\n- Tap into this note and type — the pane must not collapse while focused."
+                "text": "## Try these gestures\n- **No mouse?** Tap the left rail to open it, and tap anywhere outside it to close. With a trackpad or Magic Keyboard it opens on hover, like on desktop.\n- **Two-finger pinch** anywhere to zoom.\n- **Drag** inside the Markdown card to scroll it.\n- **Tap** a card's title, then the \u22ef menu.\n- **Double-tap** a card title to maximize, and again to restore.\n- Tap into this note and type \u2014 the pane must not collapse while focused."
               }
             }
           },
@@ -838,10 +1099,10 @@
   },
   {
     "name": "Example Dashboard - Version 8.0.0",
-    "description": "The v8.0.0 News widget on its own: one full-size card in the vertical layout, subscribed through an rss-ticker server to fourteen feeds under Wires, Substack, Seeking Alpha and Satire tabs, with Fed headlines highlighted. The card opens asking for the server — enter your rss-ticker URL in Parameters and the feeds start; change them from the card menu's Configure feeds…. The feeds travel in BDOBB's v8 extension, so this file opens in BDOBB 8.0.0 or later. Needs a reachable rss-ticker server; nothing here is served by an OpenBB backend.",
-    "img": "",
-    "img_dark": "",
-    "img_light": "",
+    "description": "The v8.0.0 News widget on its own: one full-size card in the vertical layout, subscribed through an rss-ticker server to fourteen feeds under Wires, Substack, Seeking Alpha and Satire tabs, with Fed headlines highlighted. The card opens asking for the server \u2014 enter your rss-ticker URL in Parameters and the feeds start; change them from the card menu's Configure feeds\u2026. The feeds travel in BDOBB's v8 extension, so this file opens in BDOBB 8.0.0 or later. Needs a reachable rss-ticker server; nothing here is served by an OpenBB backend.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "allowCustomization": true,
     "tabs": {
       "news": {
@@ -975,10 +1236,10 @@
   },
   {
     "name": "Example Dashboard - Version 8.0.0 - Pinned Cards",
-    "description": "The v8.0.0 pinned cards: a Note pinned to the top of the tab and a Clock pinned to the bottom, with a long Markdown card in the grid between them to scroll while the bands stay put. The Markdown card walks through Pin widget ▸ (Pin to top, Pin to bottom, Unpin), the swap, Maximize and where a pin travels. The pins travel in BDOBB's v8 extension, so this file opens in BDOBB 8.0.0 or later. Every widget is a BDOBB built-in, so nothing here needs an OpenBB backend. It carries no locked widgets: importing those would replace your own.",
-    "img": "",
-    "img_dark": "",
-    "img_light": "",
+    "description": "The v8.0.0 pinned cards: a Note pinned to the top of the tab and a Clock pinned to the bottom, with a long Markdown card in the grid between them to scroll while the bands stay put. The Markdown card walks through Pin widget \u25b8 (Pin to top, Pin to bottom, Unpin), the swap, Maximize and where a pin travels. The pins travel in BDOBB's v8 extension, so this file opens in BDOBB 8.0.0 or later. Every widget is a BDOBB built-in, so nothing here needs an OpenBB backend. It carries no locked widgets: importing those would replace your own.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "allowCustomization": true,
     "tabs": {
       "pinned": {
@@ -993,7 +1254,7 @@
             "h": 7,
             "state": {
               "params": {
-                "text": "## Pinned cards\n\nThis Note is **pinned to the top** of the tab and the Clock to the **bottom**. Scroll the tab: the Markdown card between them moves, and the two bands stay put.\n\nOn any card, **⋯ ▸ Pin widget ▸** has **Pin to top**, **Pin to bottom** and **Unpin**. Drag a band's corner grips to make it taller or shorter. One card per edge per tab: pinning a second swaps the first back into the grid."
+                "text": "## Pinned cards\n\nThis Note is **pinned to the top** of the tab and the Clock to the **bottom**. Scroll the tab: the Markdown card between them moves, and the two bands stay put.\n\nOn any card, **\u22ef \u25b8 Pin widget \u25b8** has **Pin to top**, **Pin to bottom** and **Unpin**. Drag a band's corner grips to make it taller or shorter. One card per edge per tab: pinning a second swaps the first back into the grid."
               },
               "chartView": {
                 "enabled": false,
@@ -1009,7 +1270,7 @@
             "h": 40,
             "state": {
               "params": {
-                "text": "# Scroll me\n\nThis long card sits in the grid between the two pinned bands. Scroll the tab and it moves while the Note above and the Clock below stay in view.\n\n## Try\n\n1. Open this card's **⋯** menu and choose **Pin widget ▸ Pin to top**. It swaps places with the Note, which goes back into the grid.\n2. Choose **Unpin** on it to put it back where it was.\n3. **Maximize** a pinned card: it covers the bands, and **Escape** puts it back.\n\n## Where a pin travels\n\nA pin is saved with the dashboard and syncs with it. **Export BDOBB-compatible apps.json…** carries it in BDOBB's v8 extension, which is why this file needs BDOBB 8.0.0 or later. **Duplicate** and **Copy to** never copy a pin.\n\n## Locked widgets are different\n\nA widget along an edge of every dashboard is *locked*, not pinned, and is set up in **Settings ▸ Locked Widgets**. This example carries none: importing locked widgets replaces your own.\n\n---\n\nMore room to scroll.\n\n---\n\nAnd a little more."
+                "text": "# Scroll me\n\nThis long card sits in the grid between the two pinned bands. Scroll the tab and it moves while the Note above and the Clock below stay in view.\n\n## Try\n\n1. Open this card's **\u22ef** menu and choose **Pin widget \u25b8 Pin to top**. It swaps places with the Note, which goes back into the grid.\n2. Choose **Unpin** on it to put it back where it was.\n3. **Maximize** a pinned card: it covers the bands, and **Escape** puts it back.\n\n## Where a pin travels\n\nA pin is saved with the dashboard and syncs with it. **Export BDOBB-compatible apps.json\u2026** carries it in BDOBB's v8 extension, which is why this file needs BDOBB 8.0.0 or later. **Duplicate** and **Copy to** never copy a pin.\n\n## Locked widgets are different\n\nA widget along an edge of every dashboard is *locked*, not pinned, and is set up in **Settings \u25b8 Locked Widgets**. This example carries none: importing locked widgets replaces your own.\n\n---\n\nMore room to scroll.\n\n---\n\nAnd a little more."
               },
               "chartView": {
                 "enabled": false,
@@ -1070,9 +1331,9 @@
   {
     "name": "Example Dashboard - Version 9.0.0 - Calendars",
     "description": "Episode 9 brings EODHD to the stack. Markets: two EODHD price histories, a table and a chart, sharing one Symbol and one Interval group, and EODHD's quarterly income statement in the Statement view, twelve quarters. Calendars: the EODHD U.S. economic calendar as a paged month, U.S. Treasury auction results as an endless week grid, and the EODHD earnings calendar as a horizontal day ribbon filtered to seven names, each with its EODHD stock logo -- each a Calendar view over the table the backend already serves. The EODHD cards need an openbb-api with the openbq-eodhd extension and an EODHD_API_KEY; the Treasury card is openbb-api's own keyless widget. Its Calendar and Statement views travel in BDOBB's v5 extension; made for, and opens in, BDOBB 9.0.0 or later.",
-    "img": "",
-    "img_dark": "",
-    "img_light": "",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "allowCustomization": true,
     "tabs": {
       "markets": {
