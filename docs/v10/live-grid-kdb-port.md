@@ -103,7 +103,9 @@ the README), `socks.test.mjs` and every /ai and SOCKS5 piece (removed at v8).
 
 ## The /grid route list (for the BDOBB client)
 
-All behind `Authorization: Bearer <GATEWAY_TOKEN>`, `Host` = `origin`, `Origin` (if sent) = `origin`.
+All behind `Authorization: Bearer <GATEWAY_TOKEN>`, `Host` = `origin`, `Origin` (if sent) = `origin`
+or, since V10-P1 (2026-10-15), one of the packaged desktop origins `tauri://localhost` and
+`http://tauri.localhost`.
 
 | Route | Method | Parameters | Metered (daily `quoteDailyLimit`) |
 |---|---|---|---|
@@ -115,6 +117,7 @@ All behind `Authorization: Bearer <GATEWAY_TOKEN>`, `Host` = `origin`, `Origin` 
 | `/grid/chart` | GET | as `/grid/series`, plus `theme` (`light`/`dark`) | 1 |
 | `/grid/ticks` | GET | `symbol` (one), `limit` (1–1000) | no |
 | `/grid/ta_chart` | GET | `symbol`, `interval`, `source` (`local`/`eodhd`), `macro`, `indicators`, `anchor`, `start`, `end`, `theme`; no `provider` | 1 |
+| `/grid/ws_ticket` | GET | `target` (one `/grid` socket); desktop `Origin` only | no |
 | `/grid/live_grid_ws` | GET + Upgrade | no query; frames `{"params":{"symbol":"A,B"}}`, each re-validated | 1 per symbol per frame, the first included |
 | `/grid/ta_chart_ws` | GET + Upgrade | the `/grid/ta_chart` query is the subscription; no client frames | 1 per push, the first included |
 
@@ -1102,3 +1105,32 @@ User ruling: "openbq-docker v10 should have openbq-kdb" and "it should be Advent
   - `v10/kdb/source` 143, `q/tests` 9, openbb-deltalake 95, `scripts/tests` 13;
   - v3 68, lanes 22, workspace 12, `v9/eodhd` 9, provider-fixes 42, funnel-gateway 88;
   - check-public and verify-app-layouts pass.
+
+## Desktop socket tickets (V10-P1, user ruling 2026-10-15)
+
+User ruling: alternative 1, packaged origins only. Not provisional.
+
+- **What was wrong.** Tauri's http plugin (2.5.9, built without `unsafe-headers`) stamps the
+  webview's Origin on every request: `tauri://localhost` on macOS, iOS and Linux,
+  `http://tauri.localhost` on Windows. The gateway refused any Origin but its own with 403, Bearer
+  or not, so the desktop app reached no `/grid` route at all, the snapshot and the documents
+  included. The earlier note that `/grid` with a Bearer header served the desktop the snapshot
+  was wrong. A probe of the real `createGateway` showed 200 with no Origin and 403 with each
+  desktop origin.
+- **`server.mjs`.** `DESKTOP_ORIGINS` = exactly those two origins. They pass the HTTP Origin rule
+  behind the Bearer lock (no token is still 401; `http://localhost:1420` is still 403).
+  `GET /grid/ws_ticket?target=<socket>` (Bearer, desktop Origin only, one `/grid` socket per
+  `socketTarget()`) mints a thirty-second single-use ticket with `policy.mjs` `socketTicket`,
+  signed over `<Origin><target>`. The upgrade handler admits a ticket from a desktop Origin by
+  verifying over that same string, and needs no `previewOrigin`. Preview tickets verify as
+  before. The Bearer upgrade path is unchanged (its Origin must still be the gateway's own).
+  `policy.mjs` is untouched, so the web layer's vendored copy stays valid.
+- **live-grid upstream unchanged.** `connectGrid` presents the stack's Basic pair whichever way
+  the client was admitted; live-grid's `auth.py` is not involved.
+- **Tests.** `gateway.test.mjs`: three new tests (desktop origins on HTTP, the mint-and-open
+  round trip bound to Origin, target and single use, the endpoint's refusals). Local run, node
+  26.10.0: 90 of 91 pass; the failure, "DELETE takes one symbol in the path", fails identically
+  (421) on the untouched base 72834aa.
+- **Client.** BDOBB `claude/v10-grid-socket-ticket` 1a310c6 fetches a ticket before every
+  connect when the backend's credential is a header; its OPEN-QUESTIONS records V10-P1 resolved.
+- **Not run.** The packaged app against a running gateway (Mac).
