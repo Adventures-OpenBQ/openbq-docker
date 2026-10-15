@@ -41,6 +41,14 @@ function requestUrl(req, config) {
   const url = new URL(req.url, config.origin);
   return url.pathname === req.url.split("?")[0] && url.origin === config.origin ? url : null;
 }
+const COMMON = {
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+  "X-Robots-Tag": "noindex, nofollow, noarchive",
+};
+const LOGO = "/ref/assets/bdobb-logo.svg", MAX_SVG = 262144;
+/** The reference logo's bytes: the one non-JSON body the door relays. */
+class SvgBody { constructor(text) { this.text = text; } }
 function reply(res, code, value = { error: "Request refused" }) {
   if (value instanceof SvgBody) {
     // The logo: same common headers, its own type, and a sandbox CSP so a directly opened SVG runs nothing.
@@ -51,11 +59,6 @@ function reply(res, code, value = { error: "Request refused" }) {
   res.writeHead(code, { ...COMMON, "Content-Type": "application/json" });
   res.end(JSON.stringify(value));
 }
-const COMMON = {
-  "Cache-Control": "no-store",
-  "X-Content-Type-Options": "nosniff",
-  "X-Robots-Tag": "noindex, nofollow, noarchive",
-};
 function reject(socket, code) {
   socket.end(`HTTP/1.1 ${code} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
 }
@@ -63,7 +66,6 @@ function reject(socket, code) {
 // pair; the prefix is stripped ("/api/api/v1/x" -> "/api/v1/x") and the credential injected.
 // /ref/... -> the keyless reference fixture, "/ref" stripped, NO Authorization header.
 // Nothing the caller sent goes with either.
-const LOGO = "/ref/assets/bdobb-logo.svg", MAX_SVG = 262144;
 // The upstream URL is built by concatenation, never by resolving the path against the origin,
 // so the host can only ever be the fixed origin (a "//host" path would otherwise replace it).
 function target(path, config) {
@@ -74,8 +76,6 @@ function target(path, config) {
   return { url: new URL(config.refOrigin + path.slice(4)),
     headers: { Accept: path === LOGO ? "image/svg+xml" : "application/json" } };
 }
-/** The reference logo's bytes: the one non-JSON body the door relays. */
-class SvgBody { constructor(text) { this.text = text; } }
 
 /**
  * The reference's socket, opened once a client's first params frame has passed
@@ -187,7 +187,7 @@ async function handleState(req, res, url, config) {
 
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openRef = connectRef,
-  now = Date.now, socketMs = 240000, firstFrameMs = 10000 } = {}) {
+  now = Date.now, socketMs = 240000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
   let budget = config.requestsPerMinute, resetAt = now() + 60000, quoteCount = 0, day = Math.floor(now() / 86400000);
   let inflight = 0, sockets = 0;
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
@@ -228,7 +228,7 @@ export function createGateway(config, { requestJson = getJson, openRef = connect
       if (inflight >= config.maxConcurrent || (path.startsWith("/api/api/v1/") && !quoteAllowed())) return reply(res, 429);
       inflight++;
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12000);
+      const timer = setTimeout(() => controller.abort(), requestMs);
       const disconnect = () => { if (!res.writableEnded) controller.abort(); };
       res.once("close", disconnect);
       try { reply(res, 200, await requestJson(path, config, controller.signal)); }

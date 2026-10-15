@@ -5,7 +5,7 @@ import { socketTicket, stateFile } from "./policy.mjs";
 import { chmod, mkdtemp, mkdir, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { once } from "node:events";
+import { EventEmitter, once } from "node:events";
 import { createServer, request } from "node:http";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -66,6 +66,8 @@ test("configuration fails closed; secrets come from the environment", () => {
     // The preview origin is any HTTPS origin (a Vercel name is not on the tailnet), but only an origin.
     { previewOrigin: "http://bdobb.example.vercel.app" }, { previewOrigin: "https://bdobb.example.vercel.app/x" },
     { previewOrigin: "https://user@bdobb.example.vercel.app" }, { previewOrigin: "https://bdobb.example.vercel.app:8443" },
+    // A Vercel origin is portless: not even the door's own 10000 is accepted.
+    { previewOrigin: "https://bdobb.example.vercel.app:10000" },
     { previewOrigin: null }, { previewOrigin: "" },
     { stateDir: "relative/state" }, { stateDir: "/var/lib/../etc" }, { stateDir: 7 }, { stateDir: "" },
     // Settings of later lines are not silently accepted: a stack at this tag has no such upstream.
@@ -316,7 +318,7 @@ test("a reference GET forwards with no credential; Omni and unlisted dotted path
   assert.equal(seen[0].url, "/metric_widget?x=1");
   assert.equal(seen[0].headers.authorization, undefined);
   assert.equal(seen[0].headers.cookie, undefined);
-  for (const bad of ["/ref/omni-sql-widget", "/ref/assets/other.svg", "/ref/metric_widget.json"]) {
+  for (const bad of ["/ref/omni-sql-widget", "/ref/assets/other.svg", "/ref/metric_widget.json", "/ref/data/"]) {
     assert.equal((await http(port, bad)).status, 404, bad);
   }
   assert.equal((await http(port, "/ref/metric_widget", HEADERS, "POST")).status, 405);
@@ -351,6 +353,14 @@ test("a reference GET forwards with no credential; Omni and unlisted dotted path
   const gone = await http(down.port, "/ref/metric_widget");
   assert.equal(gone.status, 502);
   assert.equal(gone.text, '{"error":"Request refused"}');
+  // A reference that accepts and never answers: the request deadline aborts it, still a 502.
+  const hung = createServer(() => {}); hung.listen(0, "127.0.0.1"); await once(hung, "listening");
+  t.after(() => { hung.closeAllConnections(); return new Promise(resolve => hung.close(resolve)); });
+  const stuck = await fixture(t, { refOrigin: `http://127.0.0.1:${hung.address().port}` },
+    { requestJson: getJson, requestMs: 200 });
+  const timedOut = await http(stuck.port, "/ref/metric_widget");
+  assert.equal(timedOut.status, 502);
+  assert.equal(timedOut.text, '{"error":"Request refused"}');
 });
 
 test("upstream redirects, error text, invalid JSON and oversized responses never escape", async t => {
@@ -468,6 +478,15 @@ test("the upgrade gate wants the token, the gateway's Origin, the exact path and
     assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, path)).status, 404, path);
   }
   assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN, "Sec-WebSocket-Protocol": "chat" })).status, 404);
+  // A non-GET upgrade on the right path, with the token and Origin, is still 404.
+  const post = await new Promise((resolve, reject) => {
+    const req = request({ host: "127.0.0.1", port, path: LIVE, method: "POST", headers: { ...HEADERS, Origin: ORIGIN,
+      Connection: "Upgrade", Upgrade: "websocket", "Sec-WebSocket-Version": "13", "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==" } },
+      res => { res.resume(); resolve(res.statusCode); });
+    req.once("upgrade", () => reject(new Error("upgraded")));
+    req.once("error", reject); req.end();
+  });
+  assert.equal(post, 404);
   assert.equal(opened, 0); assert.equal(calls.length, 0);
 });
 
@@ -598,6 +617,22 @@ test("an upstream that cannot be reached closes the client, and hands the slot b
   const second = await wsConnect(thrown.port); const shut = within(second.ws, "close");
   second.ws.send(SUB); await shut;
   await slotReleased(thrown.port);
+});
+
+test("a client outrunning the reference (upstream back-pressure) closes the relay", async t => {
+  // A stand-in upstream, already open, whose send buffer can be filled on demand.
+  const up = Object.assign(new EventEmitter(), { readyState: WebSocket.OPEN, bufferedAmount: 0, sent: [],
+    send(frame) { this.sent.push(frame); }, terminate() { this.terminated = true; } });
+  const { port } = await fixture(t, { maxSockets: 1 }, { openRef: () => up });
+  const { ws } = await wsConnect(port);
+  ws.send(SUB);
+  while (!up.sent.length) await new Promise(resolve => setTimeout(resolve, 5));
+  up.bufferedAmount = 262145;
+  const closed = within(ws, "close");
+  ws.send(SUB);
+  await closed;
+  assert.equal(up.sent.length, 1); assert.equal(up.terminated, true);
+  await slotReleased(port);
 });
 
 test("the reference closing tears down the client, and hands the slot back", async t => {

@@ -8,8 +8,9 @@ import { isAbsolute, normalize } from "node:path";
 // the episode 3 reference, both for the tailnet, and Funnel offers only 443, 8443 and 10000.
 // A portless origin is still accepted
 // for a reader who publishes a dedicated node's :443 instead. `tailnet` is false only for
-// previewOrigin, the web preview's own (Vercel) origin, which is not on the tailnet.
-function httpsOrigin(value, tailnet = false, allowedPort = "10000") {
+// previewOrigin, the web preview's own (Vercel) origin, which is not on the tailnet and is
+// portless (allowedPort null: no port at all).
+function httpsOrigin(value, tailnet = true, allowedPort = "10000") {
   const url = new URL(value);
   if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== allowedPort) ||
       url.pathname !== "/" || url.search || url.hash ||
@@ -28,7 +29,7 @@ const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "quoteDail
 
 export function validateConfig(settings, secrets) {
   for (const key of Object.keys(settings)) if (!SETTINGS_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`);
-  const origin = httpsOrigin(settings.origin, true);
+  const origin = httpsOrigin(settings.origin);
   if (!/^[A-Za-z0-9_-]{32,256}$/.test(secrets.token ?? "") ||
       typeof secrets.apiUsername !== "string" || !/^[A-Za-z0-9_.@-]{1,128}$/.test(secrets.apiUsername) ||
       typeof secrets.apiPassword !== "string" || !secrets.apiPassword.length ||
@@ -55,7 +56,7 @@ export function validateConfig(settings, secrets) {
   }
   // The web preview's own origin. Naming it turns on socket tickets (server.mjs): the one
   // Origin, besides the gateway's own, a WebSocket may arrive from. Unset = off.
-  const previewOrigin = settings.previewOrigin === undefined ? null : httpsOrigin(settings.previewOrigin, false);
+  const previewOrigin = settings.previewOrigin === undefined ? null : httpsOrigin(settings.previewOrigin, false, null);
   // Where the web preview's per-user configuration is kept (server.mjs /state). A
   // writable directory mounted into this otherwise read-only container. Unset = off.
   const stateDir = settings.stateDir === undefined ? null : settings.stateDir;

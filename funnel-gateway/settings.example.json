@@ -1,6 +1,5 @@
 {
   "origin": "https://openbq.YOUR-TAILNET.ts.net:10000",
-  "previewOrigin": "https://bdobb.example.vercel.app",
   "stateDir": "/var/lib/bdobb/state",
   "quoteDailyLimit": 100,
   "requestsPerMinute": 60,
