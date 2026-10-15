@@ -28,6 +28,17 @@ d1a7ff9 and 2a4d087) and what stayed up.
   table settings and secrets in `config.mjs`; the table lines in `gateway.env.example`; its
   table tests and `control-admission.test.mjs`.
 
+## The desktop Origin rule (V10-P1's HTTP half)
+
+User ruling, 2026-10-15: the gateway accepts the packaged desktop app's webview origins,
+`tauri://localhost` and `http://tauri.localhost`, alongside its own origin, on Bearer-authenticated
+HTTP for every route, `/table` included. Tauri's http plugin stamps one of them on every request,
+so without the rule the packaged desktop and the v7 iPad got 403 on `/table`. The same origins
+without the Bearer token are still refused (401), and the dev server's `http://localhost:1420` never
+passes (403). The rule is v10's (`DESKTOP_ORIGINS` and the Origin check from 76fd6a3); `policy.mjs`
+does not change. The desktop socket ticket (`/grid/ws_ticket`) and desktop socket upgrades stay at
+v10: at v4 an upgrade from a desktop origin is refused like any other.
+
 ## Stayed up
 
 | Left out | Stays at | Why |
@@ -38,6 +49,7 @@ d1a7ff9 and 2a4d087) and what stayed up.
 | Settings `rssOrigin`, `rssAddress`, `feeds` | v8 | The wire's configuration; refused as unknown keys at v4. |
 | The socket door in `server.mjs` (ticketed browser upgrades, socket budget, lifetimes), settings `previewOrigin` and `maxSockets`, the `ws` dependency | v8 | Its only route is the wire's socket. At v4 every upgrade is refused (401 without the token, else 404). |
 | `/grid/**`, the `/grid` sockets and subscriptions, `liveGrid` | v10 | Live grid is a v10 feature. |
+| `/grid/ws_ticket` and desktop-Origin socket upgrades (V10-P1's socket half) | v10 | They serve the `/grid` sockets only. |
 | PR #10's `^` / `%5E` handling in `requestUrl` and `subscriptionRoute` | v10 | It serves `/grid` subscriptions. |
 | PR #10's `.env.example` `TABLE_*` lines | v10 | Per the walk map. |
 | PR #10's `node:26.10.0-alpine` base image | not taken | The gateway tests pass on Node 22 (v8's `node:22-alpine`), so v4 keeps it. |
@@ -51,4 +63,5 @@ from v8. `/api`, `/state` and `/table` above are its whole surface. `previewOrig
 door stay at v8, because they serve socket tickets only, and v4 has no socket route. A scratch run
 put BDOBB v4's `web/server.mjs` in front of this gateway's `createGateway` at edf7447: catalogue,
 data route and `/state` round trip passed, and `/api/docs` was refused. The policy did not change,
-so BDOBB's `openbqDocker` pin (edf7447) still holds.
+so the vendored policy bytes still held. (BDOBB's `openbqDocker` names the walk's latest paired
+commit; see BDOBB's `docs/releases/v4-ssrm-walk.md`.)
