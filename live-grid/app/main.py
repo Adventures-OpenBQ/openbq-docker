@@ -31,7 +31,13 @@ from app.figure import build_figure
 from app.leases import DEFAULT_TTL, MAX_LEASE_TTL_S, LeaseRegistry
 from app.openbb_client import fetch_series
 from app.quotes import QuoteTable
-from app.sector_map import SECTOR_ETFS, WeightsUnavailable, build_sector_figure, fetch_weights
+from app.sector_map import (
+    SECTOR_ETFS,
+    WeightsUnavailable,
+    build_sector_figure,
+    etfs_to_seed,
+    fetch_weights,
+)
 from app.symbol_meta import get_meta
 from app.ta.figure import delta as ta_delta
 from app.ta.macros import load_all as load_macros_all
@@ -510,9 +516,9 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             log.warning("sector map: %s", exc)
             return JSONResponse({"data": [], "layout": {"title": {"text": f"Sector map: {exc}"}}},
                                 status_code=502)
-        cold = [s for s in etfs if quotes.rows.get(s, {}).get("change_percent") is None]
-        if cold:
-            await asyncio.to_thread(quotes.seed, cold, client)
+        due = etfs_to_seed(quotes.rows, now=asyncio.get_running_loop().time())
+        if due:
+            await asyncio.to_thread(quotes.seed, due, client)
         changes = {s: quotes.rows.get(s, {}).get("change_percent") for s in etfs}
         return JSONResponse(build_sector_figure(weights, changes))
 

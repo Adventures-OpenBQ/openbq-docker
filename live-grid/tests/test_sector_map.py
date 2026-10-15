@@ -10,6 +10,7 @@ from app.sector_map import (
     SECTOR_ETFS,
     WeightsUnavailable,
     build_sector_figure,
+    etfs_to_seed,
     fetch_weights,
 )
 
@@ -144,6 +145,37 @@ def test_all_changes_missing_draws_grey():
     t = build_sector_figure(_weights(), {})["data"][0]
     assert t["marker"]["colors"] == [0] * 11
     assert (t["marker"]["cmin"], t["marker"]["cmax"]) == (-1.0, 1.0)
+
+
+# ---- re-seed policy -----------------------------------------------------
+# Only QuoteTable.seed sets an ETF's previous close, so a long-running process
+# must re-seed to roll the "day change" over, and a failed seed must not be
+# retried on every 15 s poll.
+
+
+def _rows(**changes):
+    return {etf: {"change_percent": changes.get(etf)} for etf in SECTOR_ETFS.values()}
+
+
+def test_first_poll_seeds_only_cold_etfs():
+    rows = _rows(XLK=0.01)
+    due = etfs_to_seed(rows, now=1000.0)
+    assert "XLK" not in due
+    assert len(due) == 10
+
+
+def test_a_failed_seed_is_not_retried_every_poll():
+    rows = _rows()
+    assert len(etfs_to_seed(rows, now=1000.0)) == 11
+    assert etfs_to_seed(rows, now=1015.0) == [], "a cold ETF waits out the backoff"
+    assert len(etfs_to_seed(rows, now=1300.0)) == 11
+
+
+def test_warm_etfs_are_reseeded_so_the_previous_close_rolls_over():
+    rows = _rows(**{etf: 0.01 for etf in SECTOR_ETFS.values()})
+    assert etfs_to_seed(rows, now=1000.0) == []
+    assert etfs_to_seed(rows, now=1299.0) == []
+    assert sorted(etfs_to_seed(rows, now=1300.0)) == sorted(SECTOR_ETFS.values())
 
 
 # ---- route ---------------------------------------------------------------

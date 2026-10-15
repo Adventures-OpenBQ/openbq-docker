@@ -37,8 +37,12 @@ _TTL = 24 * 3600.0
 _NEG_TTL = 300.0  # a failing vendor is retried every 5 min, not every 15 s poll
 _COLORSCALE = [[0.0, "#d32f2f"], [0.5, "#555555"], [1.0, "#2e7d32"]]
 
+_RESEED_S = 300.0
+
 # "weights" -> (dict | WeightsUnavailable, expiry on the monotonic clock)
 _cache: dict[str, tuple[Any, float]] = {}
+# ETF -> when this route last seeded it, or first saw it already warm
+_seeded_at: dict[str, float] = {}
 
 
 class WeightsUnavailable(Exception):
@@ -47,6 +51,28 @@ class WeightsUnavailable(Exception):
 
 def _reset_cache_for_tests() -> None:
     _cache.clear()
+    _seeded_at.clear()
+
+
+def etfs_to_seed(rows: dict[str, dict], now: float) -> list[str]:
+    """The ETFs this poll should REST-seed. Marks them as seeded at `now`.
+
+    Only QuoteTable.seed sets a previous close, so every ETF is re-seeded at
+    most every _RESEED_S: that rolls the "day change" over on a long-running
+    process, and backs off an ETF whose seed failed instead of retrying it on
+    every 15 s poll. An ETF first seen already warm (the grid seeded it) waits
+    one interval like any other.
+    """
+    due = []
+    for etf in SECTOR_ETFS.values():
+        last = _seeded_at.get(etf)
+        cold = rows.get(etf, {}).get("change_percent") is None
+        if last is None and not cold:
+            _seeded_at[etf] = now
+        elif last is None or now - last >= _RESEED_S:
+            _seeded_at[etf] = now
+            due.append(etf)
+    return due
 
 
 def _read(resp: Any) -> dict[str, float]:
