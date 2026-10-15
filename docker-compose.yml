@@ -73,7 +73,89 @@ services:
     devices: [/dev/net/tun:/dev/net/tun]
     cap_add: [NET_ADMIN, NET_RAW]
     networks: [workspace-internal]
+  # BDOBB's web preview door (v4, opt-in): `docker compose --profile web up -d` starts it;
+  # plain `docker compose up -d` never does. Brought down from openbq-docker v8.0.0 with /api
+  # and /state (the /news wire and rss-ticker stay at v8), plus the managed-table routes.
+  # See funnel-gateway/README.md and docs/v4/gateway-down.md.
+  #
+  # funnel-gateway: the only service Funnel may publish (port 10000, after the
+  # deliberate swap to ts-config/serve-funnel.json, or to serve-v3-funnel.json with
+  # the v3 overlay; see funnel-gateway/README.md). It admits nothing without
+  # GATEWAY_TOKEN, checks Host and Origin, meters every request, and forwards
+  # only funnel-gateway/policy.mjs's routes, injecting the API's Basic pair.
+  #   cp gateway.env.example gateway.env && chmod 600 gateway.env
+  #   mkdir -p gateway-config && cp funnel-gateway/settings.example.json gateway-config/settings.json
+  funnel-gateway:
+    profiles: [web]
+    build: ./funnel-gateway
+    image: openbq-funnel-gateway:4.0.0
+    restart: unless-stopped
+    expose: ["8091"]
+    depends_on: [openbq-api]
+    env_file:
+      # GATEWAY_TOKEN plus the API's Basic pair. Required: there is no
+      # configuration in which the door exists and the lock does not.
+      - path: ./gateway.env
+        required: true
+    read_only: true
+    user: "${GATEWAY_UID:-1000}:${GATEWAY_GID:-1000}"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 64
+    volumes:
+      - type: bind
+        source: ./gateway-config
+        target: /run/bdobb
+        read_only: true
+        bind: {create_host_path: false}
+      # The web preview's per-user configuration (/state); inert until
+      # settings.json names "stateDir": "/var/lib/bdobb/state".
+      - gateway-state:/var/lib/bdobb/state
+    tmpfs:
+      - "/tmp:size=16m,noexec,nosuid"
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+    networks: [openbq-internal, table-private]
+  # Local, exact-source build only; table-service/README.md documents preparation.
+  table-service:
+    profiles: [table]
+    build:
+      context: "${TABLE_SOURCE_CONTEXT:-./table-source}"
+      dockerfile: deploy/table-service/Dockerfile
+      args:
+        BDOBB_SOURCE_REVISION: "${TABLE_SOURCE_REVISION:-unset}"
+        BDOBB_SOURCE_TREE: "${TABLE_SOURCE_TREE:-unset}"
+    image: bdobb-table-service:local
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: "${TABLE_MEMORY_LIMIT:-8g}"
+    cpus: "${TABLE_CPUS:-2}"
+    pids_limit: 128
+    environment:
+      TABLE_SERVICE_CONFIG: /private/settings.json
+    volumes:
+      - type: bind
+        source: ./table-config
+        target: /private
+        read_only: true
+        bind: {create_host_path: false}
+      - table-sources:/var/lib/table-service
+    tmpfs: ["/tmp:size=64m,noexec,nosuid"]
+    networks: [table-private, table-egress]
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
 networks:
+  table-private:
+    internal: true
+  table-egress:
+    driver: bridge
   openbq-internal:
     driver: bridge
   workspace-internal:
@@ -81,8 +163,10 @@ networks:
     driver_opts:
       com.docker.network.driver.mtu: "1500"
 volumes:
+  table-sources:
   openbq-data:
   openbq-user-data:
+  gateway-state:
   # Named as the former standalone project's volume so existing Workspace
   # accounts and dashboards carry over.
   workspace-data:

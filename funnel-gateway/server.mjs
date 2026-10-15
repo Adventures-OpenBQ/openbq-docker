@@ -1,0 +1,274 @@
+// Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+// SPDX-License-Identifier: Apache-2.0
+
+// openbq-docker v4.0.0. Brought down from openbq-docker v8.0.0 (itself ported from
+// bdobb-dev/openbb-docker v8.0.3, 775354f, without /ai) minus the /news wire, which stays
+// at v8; plus the managed-table routes of openbq-docker PR #10 (41641c6).
+
+import { createServer, request as httpRequest } from "node:http";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, TABLE_DEADLINE_MS, upstreamPath, stateFile } from "./policy.mjs";
+
+const MAX_BODY = 2 * 1024 * 1024;
+const digest = value => createHash("sha256").update(value).digest();
+function authorized(req, config) {
+  const values = req.rawHeaders.filter((_, i) => i % 2 === 0 && req.rawHeaders[i].toLowerCase() === "authorization");
+  return values.length === 1 && typeof req.headers.authorization === "string" &&
+    timingSafeEqual(digest(req.headers.authorization), digest(`Bearer ${config.token}`));
+}
+function requestUrl(req, config) {
+  if (req.headers.host !== new URL(config.origin).host || !req.url?.startsWith("/") ||
+      req.url.startsWith("//") || /[%\\#]/.test(req.url.split("?")[0]) || req.url.includes("#")) return null;
+  const url = new URL(req.url, config.origin);
+  return url.pathname === req.url.split("?")[0] && url.origin === config.origin ? url : null;
+}
+function reply(res, code, value = { error: "Request refused" }) {
+  res.writeHead(code, {
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow, noarchive",
+  });
+  res.end(JSON.stringify(value));
+}
+function reject(socket, code) {
+  socket.end(`HTTP/1.1 ${code} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+}
+// One upstream at this tag: /api/... -> openbq-api, plain HTTP on the bridge, behind the
+// stack's Basic pair; the prefix is stripped ("/api/api/v1/x" -> "/api/v1/x") and the
+// credential injected. Nothing the caller sent goes with it.
+function target(path, config) {
+  return { url: new URL(path.slice(4), config.apiOrigin),
+    headers: { Authorization: config.apiAuthorization, Accept: "application/json" } };
+}
+
+/** Bounded JSON-only request; never relay cookies, errors, redirects or credentials. */
+export async function getJson(path, config, signal) {
+  const { url, headers } = target(path, config);
+  return new Promise((resolve, rejectPromise) => {
+    const request = httpRequest(url, { method: "GET", headers, signal }, response => {
+      if (response.statusCode !== 200 ||
+          !/^application\/json(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
+        response.destroy(); return rejectPromise(new Error("Invalid upstream response"));
+      }
+      let size = 0; const parts = [];
+      response.on("data", chunk => {
+        size += chunk.length;
+        if (size > MAX_BODY) { response.destroy(); rejectPromise(new Error("Body limit")); }
+        else parts.push(chunk);
+      });
+      response.on("error", rejectPromise);
+      response.on("end", () => {
+        try { resolve(JSON.parse(Buffer.concat(parts).toString("utf8"))); }
+        catch { rejectPromise(new Error("Invalid JSON")); }
+      });
+    });
+    request.once("error", rejectPromise);
+    request.end();
+  });
+}
+
+/**
+ * Per-user state: the web preview's saved configuration (user ruling 2026-09-20: on
+ * the NAS, behind this gateway). The one place a method other than GET is taken.
+ * The web layer supplies the id -- the GitHub
+ * numeric id its session verified -- under the same machine token as every other
+ * request; this side holds the shape:
+ * digits for the user, an allow-listed file name (policy.mjs stateFile), JSON only,
+ * 256 KiB a file, 2 MiB and 200 files a user. One flat directory per user; a name is
+ * stored percent-encoded, so no request can name a path.
+ */
+const STATE_FILE_MAX = 262144, STATE_USER_MAX = 2 * 1024 * 1024, STATE_USER_FILES = 200;
+async function stateFiles(dir) {
+  let names; try { names = await readdir(dir); } catch { return []; }
+  // A crash between the temp write and its rename leaves a .tmp- behind that no listing
+  // or quota counts. Swept once stale; a minute is far past any write still in flight.
+  for (const stored of names.filter(n => n.startsWith(".tmp-"))) {
+    const temp = join(dir, stored);
+    try { if (Date.now() - (await stat(temp)).mtimeMs > 60000) await rm(temp, { force: true }); } catch { /* raced a rename */ }
+  }
+  // A hand-copied file whose name is not valid percent-encoding must not take the whole
+  // user listing down with it: it is skipped, exactly like a name the allow-list refuses.
+  return names.map(stored => {
+    try { return { stored, name: decodeURIComponent(stored) }; } catch { return null; }
+  }).filter(f => f && stateFile(f.name));
+}
+/** A bounded JSON request body, or the status that refuses it. Parsed only to prove it parses. */
+async function jsonBody(req, max) {
+  if (!req.headers["content-type"]?.startsWith("application/json")) return 415;
+  const length = Number(req.headers["content-length"]);
+  if (req.headers["transfer-encoding"] || !Number.isInteger(length)) return 411;
+  // Refused on the declared size; the rest of the request is drained, not buffered.
+  if (length > max) { req.resume(); return 413; }
+  const parts = []; let size = 0;
+  for await (const part of req) { size += part.length; if (size > max) return 413; parts.push(part); }
+  const body = Buffer.concat(parts);
+  try { JSON.parse(body.toString("utf8")); } catch { return 400; }
+  return body;
+}
+async function handleState(req, res, url, config) {
+  const match = /^\/state\/(\d{1,20})(?:\/(.+))?$/.exec(url.pathname);
+  if (!config.stateDir || !match || url.search) return reply(res, 404);
+  const dir = join(config.stateDir, match[1]), name = match[2];
+  if (name === undefined) {
+    if (req.method !== "GET") return reply(res, 405);
+    const files = {};
+    for (const f of await stateFiles(dir)) files[f.name] = await readFile(join(dir, f.stored), "utf8");
+    return reply(res, 200, { files });
+  }
+  if (!stateFile(name)) return reply(res, 404);
+  const path = join(dir, encodeURIComponent(name));
+  if (req.method === "DELETE") { await rm(path, { force: true }); return reply(res, 204); }
+  if (req.method !== "PUT") return reply(res, 405);
+  const body = await jsonBody(req, STATE_FILE_MAX);
+  if (typeof body === "number") return reply(res, body);
+  const others = (await stateFiles(dir)).filter(f => f.name !== name);
+  let total = body.length;
+  for (const f of others) total += (await stat(join(dir, f.stored))).size;
+  if (total > STATE_USER_MAX || others.length >= STATE_USER_FILES) return reply(res, 413);
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  // Same directory, so the rename is atomic; the name can never pass stateFile.
+  const temp = join(dir, ".tmp-" + randomBytes(8).toString("hex"));
+  try { await writeFile(temp, body, { mode: 0o600 }); await rename(temp, path); }
+  catch (error) { await rm(temp, { force: true }); throw error; }
+  return reply(res, 204);
+}
+
+// Identity assertions use a separate server-only credential. Possession of the shared
+// desktop bearer can never choose a web principal. Duplicate/malformed assertions refuse.
+function tablePrincipal(req, config) {
+  const count = name => req.rawHeaders.filter((v,i) => i % 2 === 0 && v.toLowerCase() === name).length;
+  const relay = req.headers["x-table-relay-token"];
+  if (relay !== undefined) {
+    if (count("x-table-relay-token") !== 1 || count("x-table-principal") !== 1 ||
+        !config.tableRelayToken || !timingSafeEqual(digest(relay), digest(config.tableRelayToken)) ||
+        !/^github:[1-9][0-9]{0,19}$/.test(req.headers["x-table-principal"] ?? "")) return null;
+    return req.headers["x-table-principal"];
+  }
+  return config.tableDesktopPrincipal ?? null;
+}
+async function tableBody(req, route, signal) {
+  if (!route.maxBody) {
+    if (req.headers["transfer-encoding"] || Number(req.headers["content-length"] ?? 0) !== 0) return 405;
+    return undefined;
+  }
+  if (!route.upload && !/^application\/json(?:;|$)/i.test(req.headers["content-type"] ?? "")) return 415;
+  if (Number(req.headers["content-length"]) > route.maxBody) { req.resume(); return 413; }
+  const abort = () => req.destroy(); signal.addEventListener("abort", abort, {once:true});
+  try {
+    const chunks=[]; let size=0;
+    for await (const chunk of req.iterator({destroyOnReturn:false})) { size+=chunk.length; if(size>route.maxBody) {req.resume();return 413;} chunks.push(chunk); }
+    const body=Buffer.concat(chunks);
+    if (!route.upload) { try { JSON.parse(body.toString("utf8")); } catch { return 400; } }
+    return body;
+  } finally { signal.removeEventListener("abort",abort); }
+}
+// Buffer each finite export batch before publishing headers: truncated, oversized or
+// failed streams cannot masquerade as a successful partial result. No retry on mutation.
+async function tableExchange(req, res, route, config) {
+  if (route.managed && !config.tableOrigin) return reply(res,503);
+  const principal = route.managed ? tablePrincipal(req, config) : null;
+  if (route.managed && !principal) return reply(res,401);
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),config.tableTimeoutMs ?? TABLE_DEADLINE_MS);
+  const disconnect=()=>{if(!res.writableEnded)controller.abort();}; res.once("close",disconnect);
+  try {
+    const body=await tableBody(req,route,controller.signal);
+    if(typeof body === "number"){if(body===413 || !req.complete)res.setHeader("Connection","close");return reply(res,body);}
+    const destination=route.managed ? {url:new URL(route.path.slice(6),config.tableOrigin),headers:{
+      "X-Table-Gateway-Token":config.tableGatewayToken,"X-Table-Principal":principal}} : target(route.path,config);
+    const headers={...destination.headers,Accept:"application/json"};
+    if(body!==undefined) headers["Content-Type"]=route.upload ? (req.headers["content-type"] ?? "application/octet-stream") : "application/json";
+    if(route.upload) for(const name of ["idempotency-key","x-upload-filename"]) {
+      if(typeof req.headers[name] === "string" && req.headers[name].length<=512) headers[name]=req.headers[name];
+    }
+    const response=await fetch(destination.url,{method:req.method,headers,body,redirect:"error",signal:controller.signal});
+    if(!/^application\/json(?:;|$)/i.test(response.headers.get("content-type")??"")) {await response.body?.cancel();return reply(res,502);}
+    const chunks=[]; let size=0;
+    for await(const chunk of response.body??[]) {size+=chunk.length;if(size>TABLE_RESPONSE_BYTES){controller.abort();throw new Error("Table response limit");}chunks.push(Buffer.from(chunk));}
+    let json;try{json=JSON.parse(Buffer.concat(chunks).toString("utf8"));}catch{return reply(res,502);}
+    if(!response.ok) {
+      const status=[400,401,404,409,410,413,429,503].includes(response.status)?response.status:502;
+      return reply(res,status,{error:{code:"upstream_refused",message:"Table request refused"}});
+    }
+    return reply(res,response.status,json);
+  } finally {clearTimeout(timer);res.off("close",disconnect);}
+}
+
+/** Test dependency injection is not exposed through environment variables. */
+export function createGateway(config, { requestJson = getJson, now = Date.now } = {}) {
+  const budgets = {
+    ordinary: {left: config.requestsPerMinute, resetAt: now() + 60000},
+    control: {left: config.requestsPerMinute, resetAt: now() + 60000},
+  };
+  let quoteCount = 0, day = Math.floor(now() / 86400000);
+  let inflight = 0, controlInflight = 0;
+  function spend(cost, lane = "ordinary") {
+    const budget = budgets[lane];
+    if (now() >= budget.resetAt) { budget.left = config.requestsPerMinute; budget.resetAt = now() + 60000; }
+    if (budget.left < cost) return false;
+    budget.left -= cost; return true;
+  }
+  function quoteAllowed() {
+    const currentDay = Math.floor(now() / 86400000);
+    if (day !== currentDay) { day = currentDay; quoteCount = 0; }
+    if (quoteCount >= config.quoteDailyLimit) return false;
+    quoteCount++; return true;
+  }
+  const server = createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000,
+    keepAliveTimeout: 5000 }, async (req, res) => {
+    try {
+      // The lock precedes route discovery, health, Host and Origin validation.
+      if (!authorized(req, config)) return reply(res, 401);
+      const url = requestUrl(req, config);
+      if (!url) return reply(res, 421);
+      if (req.headers.origin && req.headers.origin !== config.origin) return reply(res, 403);
+      if (url.pathname.startsWith("/state/")) {
+        if (!spend(1)) return reply(res, 429);
+        return await handleState(req, res, url, config);
+      }
+      const table = tableRoute(url, req.method, config);
+      if (table || url.pathname.startsWith("/table/")) {
+        if (!table) return reply(res,404);
+        const control = tableControlRoute(table, req.method);
+        if (!spend(1, control ? "control" : "ordinary") ||
+            (control ? controlInflight >= TABLE_CONTROL_CONCURRENCY : inflight >= config.maxConcurrent) ||
+            (!table.managed && !quoteAllowed())) return reply(res,429);
+        if (control) controlInflight++; else inflight++;
+        try { return await tableExchange(req,res,table,config); }
+        finally { if (control) controlInflight--; else inflight--; }
+      }
+      if (req.method !== "GET" || req.headers["transfer-encoding"] ||
+          (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
+      if (!spend(1)) return reply(res, 429);
+      if (url.pathname === "/_gateway/health" && !url.search) return reply(res, 200, { ok: true });
+      const path = upstreamPath(url, config);
+      if (!path) return reply(res, 404);
+      // The daily budget is a cap on VENDOR calls. The two manifests under /api/ are
+      // openbq-api's own static documents -- no provider is called -- so they are not metered.
+      if (inflight >= config.maxConcurrent || (path.startsWith("/api/api/v1/") && !quoteAllowed())) return reply(res, 429);
+      inflight++;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      const disconnect = () => { if (!res.writableEnded) controller.abort(); };
+      res.once("close", disconnect);
+      try { reply(res, 200, await requestJson(path, config, controller.signal)); }
+      finally { clearTimeout(timer); res.off("close", disconnect); inflight--; }
+    } catch { if (!res.headersSent) reply(res, 502); else res.destroy(); }
+  });
+  server.maxConnections = 64;
+  server.on("clientError", (_, socket) => socket.destroy());
+  // No socket route at this tag: the first (/news/ws/news) arrives with the wire at v8.
+  // An upgrade is refused after the same lock, so it never tells a caller more than HTTP does.
+  server.on("upgrade", (req, socket) => {
+    socket.on("error", () => {});
+    reject(socket, authorized(req, config) ? 404 : 401);
+  });
+  server.closeGateway = () => {
+    server.closeAllConnections();
+    return new Promise(resolve => server.close(resolve));
+  };
+  return server;
+}
