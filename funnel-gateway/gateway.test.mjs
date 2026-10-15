@@ -316,7 +316,24 @@ test("a reference GET forwards with no credential; Omni and unlisted dotted path
   assert.equal(logo.headers["content-type"], "image/svg+xml");
   assert.equal(logo.headers["x-content-type-options"], "nosniff");
   assert.match(logo.headers["content-security-policy"], /sandbox/);
+  assert.equal(logo.headers["x-robots-tag"], "noindex, nofollow, noarchive");
+  assert.equal(logo.headers["cache-control"], "no-store");
+  // The logo takes the same Origin rule as JSON: a foreign Origin is 403.
+  assert.equal((await http(port, "/ref/assets/bdobb-logo.svg", { ...HEADERS, Origin: "https://evil.invalid" })).status, 403);
+  // Nothing reaches a host other than the fixture: "//host" paths are refused before any request,
+  // and the upstream URL is built by concatenation (a recording requestJson would see no call).
+  const before = seen.length;
+  for (const bad of ["/ref//omni-sql-widget", "/ref//openbq-api/api/v1/x", "/ref/data//x"]) {
+    assert.equal((await http(port, bad)).status, 404, bad);
+  }
+  assert.equal(seen.length, before);
   assert.equal(seen.length, 2);
+  // Even if policy were bypassed, getJson resolves "//host" against the fixed origin by concatenation.
+  const direct = { refOrigin: `http://127.0.0.1:${upstream.address().port}` };
+  assert.deepEqual(await getJson("/ref//openbq-api/x", direct), { ok: true });
+  assert.equal(seen.at(-1).url, "//openbq-api/x");
+  assert.deepEqual(await getJson("/api//openbq-api/x", { apiOrigin: direct.refOrigin, apiAuthorization: "Basic x" }), { ok: true });
+  assert.equal(seen.at(-1).url, "//openbq-api/x");
   // A down reference: the door's own refusal, never the upstream's.
   const dead = createServer(); dead.listen(0, "127.0.0.1"); await once(dead, "listening");
   const deadPort = dead.address().port; await new Promise(resolve => dead.close(resolve));

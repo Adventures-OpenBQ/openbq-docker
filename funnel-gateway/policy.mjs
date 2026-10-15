@@ -55,7 +55,8 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
  */
 const OPENBB_ROUTE_RE = /^\/api\/api\/v1\/[a-z0-9_/-]{1,200}$/;
 // The reference backend's routes (Episode 3): same lowercase-segment class as /api/api/v1.
-const REF_ROUTE_RE = /^\/ref\/[a-z0-9_/-]{1,200}$/;
+// No empty segments, so "//" can never reach the upstream URL parser as a host.
+const REF_ROUTE_RE = /^\/ref\/[a-z0-9_-]{1,100}(?:\/[a-z0-9_-]{1,100})*$/;
 // Its root documents and logo, forwarded as exact paths with no query (dotted, so outside
 // REF_ROUTE_RE; the four extra ones ruled in 2026-10-15).
 const REF_DOCUMENTS = new Set(["/ref/widgets.json", "/ref/apps.json", "/ref/agents.json",
@@ -79,6 +80,17 @@ const YEAR_RE = /^(?:199\d|20[0-3]\d|2040)$/;
 
 function onlyKeys(params, allowed) {
   return ![...params.keys()].some(k => !allowed.includes(k));
+}
+
+/** The one bounded-query rule shared by /api/api/v1 and /ref: pairs, names, lengths, control chars, re-serialised. */
+function boundedForward(url) {
+  const pairs = [...url.searchParams];
+  if (pairs.length > MAX_QUERY_PAIRS) return null;
+  for (const [name, value] of pairs) {
+    if (!PARAM_NAME_RE.test(name) || value.length > MAX_VALUE_CHARS || hasControlChar(value)) return null;
+  }
+  const forwarded = url.pathname + (pairs.length ? "?" + url.searchParams.toString() : "");
+  return forwarded.length <= MAX_URL_CHARS ? forwarded : null;
 }
 
 /** The /api family takes bounds; a later family takes a reviewed route with its own tests. */
@@ -118,14 +130,7 @@ export function upstreamPath(url) {
   // optionsEndpoint, under the bounds documented at the top of this file.
   if (url.pathname.startsWith("/api/api/v1/")) {
     if (!OPENBB_ROUTE_RE.test(url.pathname)) return null;
-    const pairs = [...params];
-    if (pairs.length > MAX_QUERY_PAIRS) return null;
-    for (const [name, value] of pairs) {
-      if (!PARAM_NAME_RE.test(name) || value.length > MAX_VALUE_CHARS ||
-          hasControlChar(value)) return null;
-    }
-    const forwarded = url.pathname + (pairs.length ? "?" + params.toString() : "");
-    return forwarded.length <= MAX_URL_CHARS ? forwarded : null;
+    return boundedForward(url);
   }
 
   // --- the reference backend (Episode 3), offered whole through /ref. The upstream is
@@ -139,15 +144,10 @@ export function upstreamPath(url) {
     return url.pathname;
   }
   if (url.pathname.startsWith("/ref/")) {
-    if (url.pathname.startsWith("/ref/omni")) return null;
-    if (!REF_ROUTE_RE.test(url.pathname)) return null;
-    const pairs = [...params];
-    if (pairs.length > MAX_QUERY_PAIRS) return null;
-    for (const [name, value] of pairs) {
-      if (!PARAM_NAME_RE.test(name) || value.length > MAX_VALUE_CHARS || hasControlChar(value)) return null;
-    }
-    const forwarded = url.pathname + (pairs.length ? "?" + params.toString() : "");
-    return forwarded.length <= MAX_URL_CHARS ? forwarded : null;
+    if (!REF_ROUTE_RE.test(url.pathname) || url.pathname.length > 200) return null;
+    // Any segment starting "omni", at any depth, is refused.
+    if (url.pathname.split("/").some(segment => segment.startsWith("omni"))) return null;
+    return boundedForward(url);
   }
 
   return null;

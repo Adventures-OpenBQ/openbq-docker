@@ -35,14 +35,20 @@ function requestUrl(req, config) {
   return url.pathname === req.url.split("?")[0] && url.origin === config.origin ? url : null;
 }
 function reply(res, code, value = { error: "Request refused" }) {
-  res.writeHead(code, {
-    "Content-Type": "application/json",
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff",
-    "X-Robots-Tag": "noindex, nofollow, noarchive",
-  });
+  if (value instanceof SvgBody) {
+    // The logo: same common headers, its own type, and a sandbox CSP so a directly opened SVG runs nothing.
+    res.writeHead(code, { ...COMMON, "Content-Type": "image/svg+xml",
+      "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'" });
+    return res.end(value.text);
+  }
+  res.writeHead(code, { ...COMMON, "Content-Type": "application/json" });
   res.end(JSON.stringify(value));
 }
+const COMMON = {
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+  "X-Robots-Tag": "noindex, nofollow, noarchive",
+};
 function reject(socket, code) {
   socket.end(`HTTP/1.1 ${code} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
 }
@@ -51,12 +57,14 @@ function reject(socket, code) {
 // /ref/... -> the keyless reference fixture, "/ref" stripped, NO Authorization header.
 // Nothing the caller sent goes with either.
 const LOGO = "/ref/assets/bdobb-logo.svg", MAX_SVG = 262144;
+// The upstream URL is built by concatenation, never by resolving the path against the origin,
+// so the host can only ever be the fixed origin (a "//host" path would otherwise replace it).
 function target(path, config) {
   if (path.startsWith("/api/")) {
-    return { url: new URL(path.slice(4), config.apiOrigin),
+    return { url: new URL(config.apiOrigin + path.slice(4)),
       headers: { Authorization: config.apiAuthorization, Accept: "application/json" } };
   }
-  return { url: new URL(path.slice(4), config.refOrigin),
+  return { url: new URL(config.refOrigin + path.slice(4)),
     headers: { Accept: path === LOGO ? "image/svg+xml" : "application/json" } };
 }
 /** The reference logo's bytes: the one non-JSON body the door relays. */
@@ -199,15 +207,7 @@ export function createGateway(config, { requestJson = getJson, now = Date.now } 
       const timer = setTimeout(() => controller.abort(), 12000);
       const disconnect = () => { if (!res.writableEnded) controller.abort(); };
       res.once("close", disconnect);
-      try {
-        const body = await requestJson(path, config, controller.signal);
-        if (body instanceof SvgBody) {
-          // sandbox: an SVG opened directly runs no script and loads nothing.
-          res.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": "no-store",
-            "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'" });
-          res.end(body.text);
-        } else reply(res, 200, body);
-      }
+      try { reply(res, 200, await requestJson(path, config, controller.signal)); }
       finally { clearTimeout(timer); res.off("close", disconnect); inflight--; }
     } catch { if (!res.headersSent) reply(res, 502); else res.destroy(); }
   });

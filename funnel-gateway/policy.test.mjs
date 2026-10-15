@@ -43,6 +43,12 @@ test("every reference GET forwards under the shape bounds, re-serialised; Omni r
   for (const bad of ["/ref/agents.json?x=1", "/ref/assets/other.svg", "/ref/assets/bdobb-logo.svg/x"]) {
     assert.equal(route(bad), null, bad);
   }
+  // Empty segments would let "//host" pick the upstream; omni is refused at any depth.
+  for (const bad of ["/ref//omni-sql-widget", "/ref//openbq-api/api/v1/x", "/ref/data//x", "/ref//",
+    "/ref/data/omni-widget", "/ref/omnibus", "/ref/data/omni"]) {
+    assert.equal(route(bad), null, bad);
+  }
+  assert.equal(route("/ref/data/omelette"), "/ref/data/omelette");
   // Same structural refusals as /api: uppercase, dot, control char, duplicate key, 41 pairs.
   for (const bad of [
     "/ref/Metric_Widget", "/ref/metric_widget.json",
