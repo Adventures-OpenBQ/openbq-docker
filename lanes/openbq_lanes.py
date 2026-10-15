@@ -128,6 +128,9 @@ SSRM_PAGE_MAX = 1000
 SSRM_BODY_MAX = 64 << 10  # an SSRM request is a few hundred bytes
 SSRM_CACHE_BYTES = int(os.environ.get("OPENBQ_SSRM_CACHE_BYTES", 3 << 30))  # 3 GiB
 SSRM_TTL = float(os.environ.get("OPENBQ_SSRM_TTL", 900))                     # 15 minutes
+SSRM_DEADLINE = float(os.environ.get("OPENBQ_SSRM_DEADLINE", 300))           # per cold acquisition
+SSRM_SLOTS = 2  # cold acquisitions at once: each holds a full result (~1-2 GB for 150 MB of JSON)
+_SSRM_TIMEOUT = json.dumps({"detail": "The widget's result did not arrive in time."}).encode()
 _SSRM_KEYS = frozenset({"startRow", "endRow", "sortModel", "filterModel", "rowGroupCols",
                         "groupKeys", "valueCols", "pivotCols", "pivotMode"})
 _SSRM_GROUP_KEYS = ("rowGroupCols", "groupKeys", "valueCols", "pivotCols")
@@ -157,10 +160,16 @@ class SsrmCache:
     caller that gives up never cancels it for the others sharing it. The newest
     frame is always kept, so the total can pass max_bytes by at most that one
     frame (dropping it would re-run the full GET for every page).
+
+    At most `slots` acquisitions run at once (waiters sharing one take none),
+    each within `deadline` seconds; past it every waiter gets the same 504,
+    nothing is cached and the slot is freed.
     """
 
-    def __init__(self, max_bytes=SSRM_CACHE_BYTES, ttl=SSRM_TTL, clock=time.monotonic):
-        self.max_bytes, self.ttl, self.clock = max_bytes, ttl, clock
+    def __init__(self, max_bytes=SSRM_CACHE_BYTES, ttl=SSRM_TTL, clock=time.monotonic,
+                 slots=SSRM_SLOTS, deadline=SSRM_DEADLINE):
+        self.max_bytes, self.ttl, self.clock, self.deadline = max_bytes, ttl, clock, deadline
+        self.slots = asyncio.Semaphore(slots)
         self.entries = OrderedDict()  # key -> (df, nbytes, expiry)
         self.inflight = {}            # key -> asyncio.Task
         self.total = 0
@@ -178,8 +187,12 @@ class SsrmCache:
 
     async def _fill(self, key, acquire):
         try:
-            df = await acquire()
-            nbytes = await asyncio.to_thread(lambda: int(df.memory_usage(deep=True).sum()))
+            async with self.slots:
+                try:
+                    df = await asyncio.wait_for(acquire(), self.deadline)
+                except TimeoutError:
+                    raise SsrmUpstream(504, _SSRM_TIMEOUT, "application/json") from None
+                nbytes = await asyncio.to_thread(lambda: int(df.memory_usage(deep=True).sum()))
             old = self.entries.pop(key, None)
             if old is not None:
                 self.total -= old[1]
@@ -211,8 +224,9 @@ async def _acquire(app, route, params, authorization):
     headers = {"accept-encoding": "identity"}
     if authorization:
         headers["authorization"] = authorization
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://openbq",
-                                 timeout=None) as client:
+    # raise_app_exceptions=False: an inner route's crash arrives as its ordinary 500
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://openbq", timeout=None) as client:
         response = await client.get(route, params=params, headers=headers)
     if not response.is_success:
         raise SsrmUpstream(response.status_code, response.content,
@@ -306,22 +320,52 @@ def _apply_query(df, body):
             out = out[series <= lo]
         else:
             out = out[(series >= lo) & (series <= _number(spec["filterTo"]))]
-    cols = [item["colId"] for item in body["sortModel"]]
-    if any(col not in out.columns for col in cols):
+    if any(item["colId"] not in out.columns for item in body["sortModel"]):
         raise SsrmBadRequest()
-    if cols:
-        ascending = [item["sort"] == "asc" for item in body["sortModel"]]
+    # One stable pass per column, the last key first, so each column gets its
+    # own null placement (AG Grid's: first ascending, last descending) and only
+    # a mixed-type column (numbers and "n/a") falls back to text order.
+    # ponytail: every page re-filters and re-sorts the whole frame (seconds of
+    # GIL-bound CPU on FINRA/FFIEC sizes); cache the last (filter, sort) order
+    # per key if scrolling a big frame proves slow.
+    for item in reversed(body["sortModel"]):
+        col, asc = item["colId"], item["sort"] == "asc"
+        how = {"ascending": asc, "kind": "mergesort", "na_position": "first" if asc else "last"}
         try:
-            out = out.sort_values(by=cols, ascending=ascending, kind="mergesort")  # stable
-        except TypeError:  # a mixed-type column (numbers and "n/a"): order it as text
-            out = out.sort_values(by=cols, ascending=ascending, kind="mergesort",
-                                  key=lambda s: s.astype("string"))
+            out = out.sort_values(col, **how)
+        except TypeError:
+            out = out.sort_values(col, key=lambda s: s.astype("string"), **how)
     return out.iloc[body["startRow"]:body["endRow"]], len(out)
 
 
 def _ssrm_json_safe(page) -> list:
-    """Records with NaN/NaT -> null and timestamps -> ISO, via pandas' own JSON writer."""
-    return json.loads(page.to_json(orient="records", date_format="iso"))
+    """Records of Python values (floats exact, NaN -> None), unlike to_json's 10-digit default."""
+    return page.astype(object).where(page.notna(), None).to_dict("records")
+
+
+def _json_default(value):
+    """A value json cannot write natively (a timestamp, should one appear): its ISO text."""
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
+_SSRM_DECLARED = {}  # widget id -> its declared param names, from the fixed /widgets.json
+
+
+async def _declared_params(request, wid):
+    """The widget's declared param names, or None when the catalogue does not say."""
+    if wid not in _SSRM_DECLARED:
+        cache = LANE.catalogs if LANE is not None else _CATALOG_CACHE
+        if await _widget_ids(cache, request) is None:
+            return None
+        entry = json.loads(cache["/widgets.json"][0]).get(wid)
+        params = entry.get("params") if isinstance(entry, dict) else None
+        if not isinstance(params, list):  # kept as None: the catalogue is fixed, so never re-parse it
+            _SSRM_DECLARED[wid] = None
+            return None
+        rows = [p for row in params for p in (row if isinstance(row, list) else [row])]  # grouped rows too
+        _SSRM_DECLARED[wid] = frozenset(
+            p["paramName"] for p in rows if isinstance(p, dict) and isinstance(p.get("paramName"), str))
+    return _SSRM_DECLARED[wid]
 
 
 def _page(df, body):
@@ -349,6 +393,11 @@ async def _ssrm(request):
     except SsrmBadRequest:
         return refused
     params = request.query_params.multi_items()
+    # Only the widget's own params reach the GET and the key: junk params would
+    # otherwise each force a fresh full GET of the same data.
+    declared = await _declared_params(request, SSRM_ROUTES[route])
+    if declared is not None:
+        params = [(k, v) for k, v in params if k in declared]
     key = (route, tuple(sorted(params)))
     authorization = request.headers.get("authorization")
     try:
@@ -358,7 +407,8 @@ async def _ssrm(request):
         return refused
     except SsrmUpstream as exc:
         return _cors(request, Response(exc.body, exc.status, media_type=exc.media_type))
-    return _cors(request, JSONResponse({"rowData": rows, "rowCount": total}))
+    reply = json.dumps({"rowData": rows, "rowCount": total}, allow_nan=False, default=_json_default)
+    return _cors(request, Response(reply, 200, media_type="application/json"))
 
 
 # The response's own framing; the API sets its own.

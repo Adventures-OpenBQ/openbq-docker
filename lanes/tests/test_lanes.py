@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import unittest
+from collections import OrderedDict
 from pathlib import Path
 from unittest import mock
 
@@ -815,3 +816,171 @@ class SsrmRowsTest(unittest.IsolatedAsyncioTestCase):
         gate.set()
         self.assertEqual(len(await second), 1)
         self.assertEqual(len(cache.entries), 1)
+
+
+class SsrmFixRound1Test(unittest.IsolatedAsyncioTestCase):
+    """Review fixes: acquisition cap and deadline, lossless floats, declared params, sort order."""
+
+    req = SsrmRowsTest.req
+    client = SsrmRowsTest.client
+
+    async def asyncSetUp(self):
+        for name in ("SSRM_ROUTES", "SSRM_CACHE", "_SSRM_DECLARED", "_CATALOG_CACHE"):
+            self.addCleanup(setattr, openbq_lanes, name, getattr(openbq_lanes, name))
+        openbq_lanes.SSRM_ROUTES = {"/api/v1/listed/data": "listed_obb"}
+        openbq_lanes.SSRM_CACHE = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900)
+        openbq_lanes._SSRM_DECLARED = {}
+        openbq_lanes._CATALOG_CACHE = {}
+
+    def app(self, rows, widgets=None, raises=False):
+        self.queries = []
+        app = FastAPI()
+
+        @app.get("/api/v1/listed/data")
+        async def data(request: Request):
+            self.queries.append(sorted(request.query_params.multi_items()))
+            if raises:
+                raise RuntimeError("provider secret token=abc")
+            return Response(json.dumps({"results": rows}), media_type="application/json")
+
+        if widgets is not None:
+            @app.get("/widgets.json")
+            async def catalog():
+                return widgets
+
+        app.middleware("http")(openbq_lanes.middleware)
+        return app
+
+    # I1 -----------------------------------------------------------------
+    async def test_at_most_two_cold_acquisitions_run_at_once(self):
+        cache = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900)
+        inside, peak = [0], [0]
+
+        async def acquire():
+            inside[0] += 1
+            peak[0] = max(peak[0], inside[0])
+            await asyncio.sleep(0.05)
+            inside[0] -= 1
+            return pd.DataFrame([{"a": 1}])
+
+        await asyncio.gather(*(cache.get((f"k{i}", ()), acquire) for i in range(3)),
+                             *(cache.get(("k0", ()), acquire) for _ in range(3)))  # waiters take no slot
+        self.assertEqual(peak[0], 2)
+        self.assertEqual(len(cache.entries), 3)
+
+    # I2 -----------------------------------------------------------------
+    async def test_reply_values_round_trip_exactly(self):
+        rows = [{"x": 1e-12, "i": 2 ** 60, "n": {"k": [1, 2]}}, {"x": 0.123456789012345, "i": 3, "n": None}]
+        app = self.app(rows)
+        async with self.client(app) as c:
+            full = await c.get("/api/v1/listed/data")
+            r = await c.post("/api/v1/listed/data/ssrm", json=self.req())
+        self.assertEqual(r.json()["rowData"], full.json()["results"])
+
+    # I3 -----------------------------------------------------------------
+    async def test_a_hung_acquisition_times_out_for_every_waiter_and_frees_its_slot(self):
+        cache = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900, deadline=0.1)
+
+        async def hang():
+            await asyncio.Event().wait()
+
+        results = await asyncio.gather(*(cache.get(("k", ()), hang) for _ in range(3)), return_exceptions=True)
+        self.assertTrue(all(isinstance(e, openbq_lanes.SsrmUpstream) and e.status == 504 for e in results))
+        self.assertEqual((cache.entries, cache.inflight), (OrderedDict(), {}))
+
+        async def ok():
+            return pd.DataFrame([{"a": 1}])
+        a, b = await asyncio.wait_for(asyncio.gather(cache.get(("x", ()), ok), cache.get(("y", ()), ok)), 2)
+        self.assertEqual((len(a), len(b)), (1, 1))  # both slots came back
+
+    async def test_the_endpoint_answers_a_fixed_504_past_the_deadline(self):
+        app = FastAPI()
+
+        @app.get("/api/v1/listed/data")
+        async def data():
+            await asyncio.sleep(5)
+
+        app.middleware("http")(openbq_lanes.middleware)
+        openbq_lanes.SSRM_CACHE = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900, deadline=0.1)
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm", json=self.req())
+        self.assertEqual(r.status_code, 504)
+        self.assertEqual(set(r.json()), {"detail"})
+
+    # M1 -----------------------------------------------------------------
+    async def test_undeclared_params_are_dropped_before_the_get_and_the_key(self):
+        widgets = {"listed_obb": {"params": [{"paramName": "a"}, [{"paramName": "b"}]]}}
+        app = self.app([{"v": 1}], widgets)
+        async with self.client(app) as c:
+            for junk in ("1", "2", "3"):
+                r = await c.post(f"/api/v1/listed/data/ssrm?a=1&b=2&junk={junk}", json=self.req())
+                self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.queries, [[("a", "1"), ("b", "2")]])  # one GET, junk never sent
+
+    async def test_a_widget_without_declared_params_keeps_its_params_and_is_looked_up_once(self):
+        app = self.app([{"v": 1}], {"listed_obb": {"name": "no params"}})
+        async with self.client(app) as c:
+            await c.post("/api/v1/listed/data/ssrm?a=1", json=self.req())
+        self.assertEqual(self.queries, [[("a", "1")]])
+        self.assertIsNone(openbq_lanes._SSRM_DECLARED["listed_obb"])
+
+    # M2 -----------------------------------------------------------------
+    async def test_an_inner_exception_is_an_ordinary_500_without_its_text(self):
+        app = self.app([], raises=True)
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm", json=self.req())
+        self.assertEqual(r.status_code, 500)
+        self.assertNotIn("secret", r.text)
+
+    # M4 + M5 + M6 -------------------------------------------------------
+    async def test_multi_column_sort_desc_stable_nulls_and_mixed_columns(self):
+        rows = [
+            {"id": 1, "g": "b", "n": 9, "m": 1},
+            {"id": 2, "g": "a", "n": 10, "m": "n/a"},
+            {"id": 3, "g": "b", "n": None, "m": 2},
+            {"id": 4, "g": "a", "n": 10, "m": 3},
+            {"id": 5, "g": None, "n": 1, "m": 4},
+        ]
+        app = self.app(rows)
+
+        async def order(*sorts):
+            async with self.client(app) as c:
+                r = await c.post("/api/v1/listed/data/ssrm", json=self.req(
+                    sortModel=[{"colId": col, "sort": d} for col, d in sorts]))
+            self.assertEqual(r.status_code, 200)
+            return [row["id"] for row in r.json()["rowData"]]
+
+        # g asc (nulls first, as AG Grid), then n desc (nulls last); ties keep input order
+        self.assertEqual(await order(("g", "asc"), ("n", "desc")), [5, 2, 4, 1, 3])
+        # a mixed column sorts as text, but a numeric column beside it stays numeric (9 before 10)
+        self.assertEqual(await order(("n", "asc"), ("m", "asc")), [3, 5, 1, 4, 2])
+
+    async def test_a_failed_first_acquisition_reaches_every_waiter_then_retries(self):
+        cache = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900)
+        calls = []
+
+        async def boom():
+            calls.append(1)
+            await asyncio.sleep(0.01)
+            raise openbq_lanes.SsrmUpstream(503, b"{}", "application/json")
+
+        results = await asyncio.gather(cache.get(("k", ()), boom), cache.get(("k", ()), boom),
+                                       return_exceptions=True)
+        self.assertTrue(all(isinstance(e, openbq_lanes.SsrmUpstream) for e in results))
+        self.assertEqual(len(calls), 1)
+
+        async def ok():
+            return pd.DataFrame([{"a": 1}])
+        self.assertEqual(len(await cache.get(("k", ()), ok)), 1)
+
+    async def test_lru_keeps_the_most_recently_used_and_counts_bytes(self):
+        frame = pd.DataFrame([{"a": i} for i in range(10)])
+        size = int(frame.memory_usage(deep=True).sum())
+        cache = openbq_lanes.SsrmCache(max_bytes=2 * size, ttl=900)
+
+        async def acquire():
+            return frame.copy()
+        for key in ("k1", "k2", "k1", "k3"):
+            await cache.get((key, ()), acquire)
+        self.assertEqual(list(cache.entries), [("k1", ()), ("k3", ())])
+        self.assertEqual(cache.total, 2 * size)
