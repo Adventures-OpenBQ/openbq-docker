@@ -147,7 +147,14 @@ contains only its own least-privilege control DSN. Follow P `docs/runtime.md` to
 provision the shared archive and schemas before starting replicas. Provision
 first-time catalog tables once with `python -m temporaldb.provision catalogs`.
 
-The shared archive is required, content-addressed and read-only at runtime.
+The retained runtime archive is required, content-addressed and mounted read-only.
+Provision a separate durable evidence directory with `blobs/` owned by UID/GID
+65532:65532 and mode 0750, and set `TEMPORALDB_EVIDENCE_HOST` to its host path.
+The API mounts evidence read-write for audit protection; replay workers mount it
+read-only. Preserve both namespaces in backups. New blobs are fsynced and
+atomically published without overwriting existing digest names. After stopping all
+evidence writers, abandoned `.pending-*` files may be removed; corrupt existing
+digest files must be investigated and restored from verified backup, never silently replaced.
 Retained Python and native dependencies execute in bounded dedicated
 `/run/temporaldb/runtime` tmpfs (`exec,nosuid,nodev`, 2 GiB); `/tmp` stays noexec
 (64 MiB). The archive binds Linux OS, architecture and kernel release. Preserve
@@ -258,7 +265,7 @@ No deployment, cutover, registry publication or live/NAS load was performed here
 
 ## Recorded release receipts (2026-10-15)
 
-The final local 0.3.1 artifact is built from standalone P
+The historical local 0.3.1 artifact is built from standalone P
 `b0484c562e7be747eec3614d2186d72cd83f9162`; its immutable image/configuration ID,
 Docker-save SHA256, lock hashes and reviewed provider commits are retained in
 `temporaldb.lock.json`. `temporaldb-qualification.json` records actual Linux arm64
@@ -285,3 +292,57 @@ restore paths with populated authority/selection records at explicit 1GiB/512
 fixture capacity. The earlier full P capacity failures remain documented; no
 third full P run or repeated full C gate is claimed. Do not infer live/NAS/public
 OAuth/packaged native qualification from these fixtures.
+
+The v11 provider host is a separate `openbq-v11` service. `Dockerfile` remains the
+legacy recipe. `v11/Dockerfile.providers` replaces both provider distributions
+with the reviewed commits in `temporaldb.lock.json`. Prepare clean clones at those
+commits, then run:
+
+```sh
+python3 v11/prepare-provider-build.py --eodhd ../openbq-eodhd-v11 --yfinance ../openbq-yfinance-v11 --build
+```
+
+The script refuses dirty or mismatched checkouts, archives the exact Git commits,
+and passes their SHA256 values to the build, which verifies each archive before
+installation. `v11/build-inputs/sources.json` records the actual inputs. Local
+archives do not assert that unpublished commits can be fetched remotely; after
+publication operators may fetch those exact commits into clean clones and run the
+same command. Use the resulting immutable image ID as `OPENBQ_V11_IMAGE`.
+`OPENBQ_V11_ENV_FILE` must provide each provider's `*_CAPTURE_TOKEN`,
+`*_CAPTURE_WORKSPACE_ID`, `*_CAPTURE_ENTITLEMENT`, `*_CAPTURE_PRINCIPAL`, and `*_CAPTURE_ACCOUNT`, matching
+P's server-side token policy and its `provider_accounts` mapping. EODHD uses the
+host's configured `EODHD_API_KEY`; foreign per-call keys are rejected. Yahoo uses
+an explicit public-account identifier. Provider keys stay in the private host environment.
+The overlay mandates capture and uses the private compose API service; missing
+coordination or durable acknowledgement prevents fresh provider data from returning.
+
+## Current candidate qualification
+
+The pinned TemporalDB 0.3.2 runtime was built from clean P source
+`d66e6b965558c5fa0b1718c5a801a1fb536254c8`, exported, hash/layer checked and loaded
+locally. Its exact image, artifact SHA256 and provenance are in `temporaldb.lock.json`.
+The final provider host uses the exact clean E/Y commits and verified source archives
+in that lock. Two installed host processes passed the recorded EODHD/Yahoo route:
+one concurrent fetch per provider, a later new retrieval, and rejection of mismatched
+accounts/foreign credentials before upstream work. The configured capture URLs are
+origins; each bridge appends its capture route exactly once.
+
+Both actual P and H compose service mount policies passed with the installed image
+as uid 65532: API writers published concurrent complete evidence and recovered after
+a writer SIGKILL before atomic publication; runtime archives stayed read-only, and
+workers read both namespaces while evidence writes were rejected. Disposable host
+filesystem checks do not establish NAS or power-loss durability.
+
+The final installed wheel also passed 15 focused typed-consumer, two-Worker-instance
+recorded acquisition/reference, account, heartbeat/fencing and deadline checks.
+Historical 0.3.1 qualification above does not qualify changed source. Current installed
+API/worker process and archived replay results are recorded separately in
+`temporaldb-final-fix-qualification.json` and P's
+`docs/releases/v11/final-fix-validation.md`.
+
+**This candidate is not ready for cutover.** Split-session tick migration with a
+daily reference remains a required missing workflow. Partial sessions stop before
+acquisition/PASS; whole-session all-chunk acceptance and replay closure are not
+implemented. See the current P evidence report for exact qualification failures and
+limits. Registry publication, live providers, public networking and deployment are
+not established by these local checks.

@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# Appended to the unchanged legacy recipe by prepare-provider-build.py.
+FROM legacy AS v11
+ARG EODHD_COMMIT
+ARG YFINANCE_COMMIT
+ARG EODHD_ARCHIVE_SHA256
+ARG YFINANCE_ARCHIVE_SHA256
+COPY v11/build-inputs/eodhd.tar v11/build-inputs/yfinance.tar /tmp/v11/
+RUN echo "$EODHD_ARCHIVE_SHA256  /tmp/v11/eodhd.tar" | sha256sum -c - \
+ && echo "$YFINANCE_ARCHIVE_SHA256  /tmp/v11/yfinance.tar" | sha256sum -c - \
+ && mkdir /tmp/v11/eodhd /tmp/v11/yfinance \
+ && tar -xf /tmp/v11/eodhd.tar -C /tmp/v11/eodhd \
+ && tar -xf /tmp/v11/yfinance.tar -C /tmp/v11/yfinance \
+ && python -m pip install hatchling==1.32.4 setuptools==84.0.0 \
+ && python -m pip install --no-build-isolation --no-deps --force-reinstall /tmp/v11/eodhd /tmp/v11/yfinance \
+ && python -m pip install 'yfinance==1.7.0' \
+ && python -m pip check && openbb-build \
+ && python -c "import openbq_eodhd.capture,openbq_yfinance.capture; assert hasattr(openbq_eodhd.capture.HttpCaptureBridge,'acquire'); assert hasattr(openbq_yfinance.capture.HttpCaptureBridge,'acquire')" \
+ && rm -rf /tmp/v11
+LABEL org.opencontainers.image.version="11.0.0" \
+      com.openbq.eodhd.commit=$EODHD_COMMIT \
+      com.openbq.yfinance.commit=$YFINANCE_COMMIT

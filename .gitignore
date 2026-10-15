@@ -69,3 +69,6 @@ rustfs-data/
 minio-data/
 rustfs.env
 eod.env
+
+# Generated immutable v11 provider archives and assembled build recipe.
+v11/build-inputs/

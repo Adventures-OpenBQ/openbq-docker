@@ -48,7 +48,7 @@ Copy without refetch, after verifying an explicit legacy inventory:
 - Every object in each explicitly named dedicated bucket, with its original
   bucket/key and content hash; preserve retained physical versions referenced by
   the catalogs, including old files that current queries no longer select.
-- Runnable source, nine migration resources, dependency lock, exact extension
+- Runnable source, all migration resources belonging to the pinned source commit, dependency lock, exact extension
   binaries and platform/package fingerprints; include reviewed deployment/image
   artifacts explicitly. Archive them independently of mutable image tags.
 - Legacy Delta/file rows and external namespace mappings, only if an inventory
