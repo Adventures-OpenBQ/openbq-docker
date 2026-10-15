@@ -214,9 +214,49 @@ Canonical `funnel-gateway/policy.mjs` stays byte-for-byte v10. The separate
 C vendors its bytes under a separate source-commit/hash receipt. To configure
 this path, combine `docker-compose.yml`, `v11/compose.temporaldb.yaml` and
 `v11/compose.gateway.yaml`, with profiles `web` and `temporaldb-v11`. The last
-overlay places `temporaldb-api` on the gateway's `openbq-internal` network and
-builds a separately named gateway image. No traffic is enabled by the network
-alone: settings.json must explicitly contain `"temporalDB": true`.
+overlay places both `temporaldb-api` and `openbq-v11` on the gateway's
+`openbq-internal` network and builds a separately named gateway image.
+For `/api` provider requests, set `"apiUpstream": "v11"` in settings.json.
+Only `"v10"` (the default, `http://openbq-api:6900`) and `"v11"`
+(`http://openbq-v11:6900`) are accepted. The gateway never retries a failed v11
+request against v10. Arbitrary URLs and per-request upstream selection are refused.
+The gateway's OPENBB_API_USERNAME/OPENBB_API_PASSWORD must match the Basic pair
+in the private v11 provider environment.
+The exact GET `/api/widgets.json` response has an 8 MiB limit when v11 is
+selected, accommodating the installed provider catalogue. V10 and every other
+response retain the 2 MiB limit. Declared and streamed bytes are bounded;
+compressed responses are refused. Request, time and concurrency limits remain
+unchanged.
+
+`"temporalDB": true` independently enables the `/temporal` query routes below.
+It does not select the provider host for `/api`. Selecting `apiUpstream:v11`
+does not require enabling `/temporal`. Standalone base + temporaldb overlay
+keeps provider/capture on the default network; the three-file combination joins
+both to the gateway network. Existing v10 defaults and policy remain unchanged.
+
+After loading the pinned images and provisioning the durable stores/archive,
+export the absolute private `TEMPORALDB_API_ENV_FILE`,
+`TEMPORALDB_WORKER_ENV_FILE`, `OPENBQ_V11_ENV_FILE`, `TEMPORALDB_ARCHIVE_HOST`,
+`TEMPORALDB_EVIDENCE_HOST` and immutable `OPENBQ_V11_IMAGE` values described above.
+From the repository root, render and start the explicit provider path:
+
+```sh
+docker compose -f docker-compose.yml -f v11/compose.temporaldb.yaml \
+  -f v11/compose.gateway.yaml --profile web --profile temporaldb-v11 \
+  config --no-env-resolution
+docker compose -f docker-compose.yml -f v11/compose.temporaldb.yaml \
+  -f v11/compose.gateway.yaml --profile web --profile temporaldb-v11 \
+  build funnel-gateway
+docker compose -f docker-compose.yml -f v11/compose.temporaldb.yaml \
+  -f v11/compose.gateway.yaml --profile web --profile temporaldb-v11 \
+  up -d --no-deps temporaldb-api temporaldb-worker openbq-v11 funnel-gateway
+```
+
+The explicit service list and `--no-deps` avoid starting the legacy API solely
+because the base gateway declares it as a dependency. Set settings and private
+gateway.env before startup; this command assumes the deployment's existing
+network ingress is already configured. Review rendered configuration locally;
+it can include private environment values.
 
 Add `TEMPORALDB_GATEWAY_TOKEN` to private `gateway.env` (32–256 base64url
 characters, distinct from GATEWAY_TOKEN). That token must map to the intended

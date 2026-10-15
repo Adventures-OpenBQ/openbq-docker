@@ -33,6 +33,33 @@ const settings = { origin: ORIGIN, quoteDailyLimit: 100,
 const secrets = { token: TOKEN, apiUsername: "testuser", apiPassword: "synthetic-password" };
 const config = () => validateConfig(settings, secrets);
 const HEADERS = { Host: new URL(ORIGIN).host, Authorization: `Bearer ${TOKEN}` };
+test("API upstream selection is explicit, fixed and independent of TemporalDB query routes", () => {
+  for (const [change, want] of [[{}, "http://openbq-api:6900"],
+    [{ apiUpstream: "v10" }, "http://openbq-api:6900"],
+    [{ apiUpstream: "v11" }, "http://openbq-v11:6900"],
+    [{ temporalDB: true }, "http://openbq-api:6900"],
+    [{ temporalDB: true, apiUpstream: "v11" }, "http://openbq-v11:6900"]]) {
+    const cfg = validateConfig({ ...settings, ...change }, { ...secrets, temporalToken: "separate_temporal_fixture_token_123456" });
+    assert.equal(cfg.apiOrigin, want);
+    assert.equal(cfg.temporalDB, change.temporalDB ?? false);
+  }
+  for (const apiUpstream of [null, true, 11, "", "v12", "http://arbitrary:6900"]) {
+    assert.throws(() => validateConfig({ ...settings, apiUpstream }, secrets));
+  }
+  assert.throws(() => validateConfig({ ...settings, apiOrigin: "http://openbq-v11:6900" }, secrets));
+});
+
+test("gateway uses the selected provider origin and never retries a failed v11 request", async t => {
+  const selected = validateConfig({ ...settings, apiUpstream: "v11" }, secrets);
+  const calls = [];
+  const { port } = await fixture(t, selected, { requestJson: async (path, cfg) => {
+    calls.push([path, cfg.apiOrigin, cfg.apiAuthorization]);
+    throw new Error("selected upstream unavailable");
+  } });
+  const path = "/api/api/v1/eodhd/equity/price/historical?symbol=TEST&start_date=2021-11-05&end_date=2021-11-06&provider=eodhd";
+  assert.equal((await http(port, path)).status, 502);
+  assert.deepEqual(calls, [[path, "http://openbq-v11:6900", "Basic " + Buffer.from("testuser:synthetic-password").toString("base64")]]);
+});
 const quote = "/api/api/v1/equity/price/quote?symbol=AAPL&provider=eodhd";
 const news = "/news/api/news?feed_id=7&limit=1";
 async function fixture(t, overrides = {}, dependencies = {}) {
@@ -380,6 +407,47 @@ test("a full-catalogue widgets.json fits MAX_BODY; one past it is an honest 502"
   const over = await http(port, "/api/widgets.json");
   assert.equal(over.status, 502);
   assert.equal(over.text, '{"error":"Request refused"}');
+});
+
+test("only v11's exact widgets discovery admits the installed catalogue within 8 MiB", async t => {
+  let mode = "catalogue";
+  const paths = [];
+  const upstream = createServer((req, res) => {
+    paths.push(req.url);
+    const headers = { "Content-Type": "application/json" };
+    if (mode === "declared-over") {
+      res.writeHead(200, { ...headers, "Content-Length": 8 * 1024 * 1024 + 1 });
+      res.flushHeaders(); // Never send a body: declared oversize must reject immediately.
+      return;
+    }
+    if (mode === "encoded") headers["Content-Encoding"] = "gzip";
+    res.writeHead(200, headers);
+    // write + end guarantees chunked transport: actual bytes must enforce the limit too.
+    res.write('{"catalogue":"');
+    res.end("x".repeat(mode === "chunked-over" ? 8 * 1024 * 1024 : 5_551_214) + '"}');
+  });
+  upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
+  t.after(() => new Promise(resolve => upstream.close(resolve)));
+  const upstreamOrigin = `http://127.0.0.1:${upstream.address().port}`;
+  const selected = validateConfig({ ...settings, apiUpstream: "v11" }, secrets);
+  const v11 = await fixture(t, { ...selected, apiOrigin: upstreamOrigin }, { requestJson: getJson });
+  const v10 = await fixture(t, { apiOrigin: upstreamOrigin }, { requestJson: getJson });
+  const response = await http(v11.port, "/api/widgets.json");
+  assert.equal(response.status, 200);
+  assert.equal(JSON.parse(response.text).catalogue.length, 5_551_214);
+  assert.equal((await http(v10.port, "/api/widgets.json")).status, 502);
+  assert.equal((await http(v11.port, quote)).status, 502);
+  const beforeInvalidPaths = paths.length;
+  for (const path of ["/api/widgets.json?apiUpstream=v11", "/api/widgets.json/", "/api/%77idgets.json"]) {
+    assert.ok([404, 421].includes((await http(v11.port, path)).status));
+  }
+  assert.equal(paths.length, beforeInvalidPaths);
+  for (mode of ["chunked-over", "encoded", "declared-over"]) {
+    const response = await Promise.race([http(v11.port, "/api/widgets.json"),
+      new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error("body limit did not reject promptly")), 2000); timer.unref(); })]);
+    assert.equal(response.status, 502, mode);
+    assert.equal(response.text, '{"error":"Request refused"}');
+  }
 });
 
 test("operator verifier makes no upstream or provider calls, wire on or off", async t => {

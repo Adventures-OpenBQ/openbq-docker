@@ -204,10 +204,15 @@ export function connectGrid(config, path = "/live_grid_ws") {
 /** Bounded JSON-only request; never relay cookies, errors, redirects or credentials. */
 export async function getJson(path, config, signal) {
   const { url, headers, options } = target(path, config);
+  // The installed v11 catalogue is larger than v10's. Only this exact admitted
+  // discovery path gets the larger finite response budget; callers cannot set it.
+  const maxBody = config.apiUpstream === "v11" && path === "/api/widgets.json" ? 8 * 1024 * 1024 : MAX_BODY;
   const send = url.protocol === "https:" ? httpsRequest : httpRequest;
   return new Promise((resolve, rejectPromise) => {
     const request = send(url, { ...options, method: "GET", headers, signal }, response => {
       if (response.statusCode !== 200 ||
+          (response.headers["content-encoding"] && response.headers["content-encoding"] !== "identity") ||
+          Number(response.headers["content-length"] ?? 0) > maxBody ||
           !/^application\/json(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
         response.destroy();
         // The STATUS travels on the error, never the body: the handler needs to tell a 404
@@ -220,7 +225,7 @@ export async function getJson(path, config, signal) {
       let size = 0; const parts = [];
       response.on("data", chunk => {
         size += chunk.length;
-        if (size > MAX_BODY) { response.destroy(); rejectPromise(new Error("Body limit")); }
+        if (size > maxBody) { response.destroy(); rejectPromise(new Error("Body limit")); }
         else parts.push(chunk);
       });
       response.on("error", rejectPromise);

@@ -36,7 +36,7 @@ function tailnetAddress(value) {
 // one switch: live-grid is the opt-in `live` compose profile here, so the door must be told
 // it runs, and /grid answers 503 until it is.
 const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "quoteDailyLimit",
-  "requestsPerMinute", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "temporalDB"]);
+  "requestsPerMinute", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "temporalDB", "apiUpstream"]);
 
 export function validateConfig(settings, secrets) {
   for (const key of Object.keys(settings)) if (!SETTINGS_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`);
@@ -115,18 +115,20 @@ export function validateConfig(settings, secrets) {
   if (typeof liveGrid !== "boolean") throw new Error("liveGrid must be true or false");
   const temporalDB = settings.temporalDB === undefined ? false : settings.temporalDB;
   if (typeof temporalDB !== "boolean") throw new Error("temporalDB must be true or false");
+  const apiUpstream = settings.apiUpstream === undefined ? "v10" : settings.apiUpstream;
+  if (apiUpstream !== "v10" && apiUpstream !== "v11") throw new Error("apiUpstream must be v10 or v11");
   if (temporalDB && (!/^[A-Za-z0-9_-]{32,256}$/.test(secrets.temporalToken ?? "") || secrets.temporalToken === secrets.token)) {
     throw new Error("TemporalDB requires a separate server-only token");
   }
   return {
-    temporalDB, temporalOrigin: temporalDB ? "http://temporaldb-api:8080" : null,
+    apiUpstream, temporalDB, temporalOrigin: temporalDB ? "http://temporaldb-api:8080" : null,
     temporalAuthorization: temporalDB ? "Bearer " + secrets.temporalToken : null,
     origin, quoteDailyLimit, requestsPerMinute, maxConcurrent, maxSockets, previewOrigin, stateDir,
     rssOrigin, rssAddress, feeds,
     token: secrets.token,
     apiAuthorization: "Basic " + Buffer.from(`${secrets.apiUsername}:${secrets.apiPassword}`).toString("base64"),
     // Never accept a caller-supplied upstream or a configurable generic proxy.
-    apiOrigin: "http://openbq-api:6900",
+    apiOrigin: apiUpstream === "v11" ? "http://openbq-v11:6900" : "http://openbq-api:6900",
     // live-grid (v10; ported from bdobb-dev/openbb-docker e8c1239): a sibling on the same
     // openbq-internal bridge, so a fixed service name for the same reason apiOrigin is --
     // not something a setting or a caller can point elsewhere. It sits behind the same Basic
