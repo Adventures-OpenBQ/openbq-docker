@@ -34,3 +34,8 @@ secrets
 funnel-gateway/node_modules
 gateway-config
 rss-ticker-config
+
+# Private managed-service state and generated source export.
+table-config
+table-source
+table-build.env

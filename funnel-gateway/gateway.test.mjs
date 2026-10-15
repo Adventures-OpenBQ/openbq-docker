@@ -159,6 +159,8 @@ test("the shipped settings.example.json validates as-is, with the wire off", () 
   // ships exactly what this cut deploys: no upstream an operator has not named themselves.
   assert.deepEqual([cfg.rssOrigin, cfg.rssAddress, cfg.feeds], [null, null, {}]);
   for (const key of ["rssOrigin", "rssAddress", "feeds"]) assert.equal(key in example, false, key);
+  // The table keys are documented in the README and omitted here too.
+  assert.equal(cfg.tableOrigin, null);
 });
 
 test("every route is locked before Host, Origin, method or route discovery", async t => {
@@ -769,4 +771,70 @@ test("the package version is this release", () => {
   const compose = readFileSync(new URL("../docker-compose.yml", import.meta.url), "utf8");
   assert.match(compose, new RegExp(`image: openbq-funnel-gateway:${version.replaceAll(".", "\\.")}\\n`));
   assert.match(readFileSync(new URL("./README.md", import.meta.url), "utf8"), new RegExp(`v${version.replaceAll(".", "\\.")}`));
+});
+
+const TABLE_RELAY = "private_web_relay_credential_distinct_123456";
+const TABLE_PRIVATE = "private_service_credential_distinct_1234567";
+async function tableFixture(t, patch = {}) {
+  const calls = [];
+  const upstream = createServer(async (req, res) => {
+    const chunks=[]; for await (const chunk of req) chunks.push(chunk);
+    calls.push({path:req.url, headers:req.headers, method:req.method, body:Buffer.concat(chunks).toString()});
+    if(req.url === "/sessions/stalled/commands")return;
+    if(req.url === "/sessions/truncated/commands"){res.writeHead(200,{"Content-Type":"application/json"});res.write('{"partial":');setImmediate(()=>res.destroy());return;}
+    if(req.url === "/sessions/oversized/commands"){res.writeHead(200,{"Content-Type":"application/json"});res.end(JSON.stringify({text:"x".repeat(8388608)}));return;}
+    res.writeHead(req.url === "/sessions/missing/commands" ? 410 : 200, {"Content-Type":"application/json", "Set-Cookie":"secret=bad"});
+    res.end(JSON.stringify({ok:true}));
+  });
+  upstream.listen(0,"127.0.0.1"); await once(upstream,"listening");
+  t.after(() => {upstream.closeAllConnections(); upstream.close();});
+  const cfg={...config(), apiOrigin:`http://127.0.0.1:${upstream.address().port}`, tableOrigin:`http://127.0.0.1:${upstream.address().port}`, tableGatewayToken:TABLE_PRIVATE, tableRelayToken:TABLE_RELAY, tableDesktopPrincipal:"desktop:owner", ssrmRoutes:["/api/api/v1/test/rows"], ...patch};
+  const server=createGateway(cfg); server.listen(0,"127.0.0.1"); await once(server,"listening"); t.after(()=>server.closeGateway());
+  const call=(path,method="GET",body,headers={})=>new Promise((resolve,reject)=>{
+    const req=request({host:"127.0.0.1",port:server.address().port,path,method,headers:{...HEADERS,...(body!==undefined?{"Content-Type":"application/json","Content-Length":Buffer.byteLength(body)}:{}),...headers}},res=>{
+      const chunks=[];res.on("data",c=>chunks.push(c));res.on("end",()=>resolve({status:res.statusCode,headers:res.headers,body:Buffer.concat(chunks).toString()}));
+    });req.on("error",reject);req.end(body);
+  }); return {call,calls,cfg};
+}
+test("table ownership requires independent relay credential; desktop spoofing cannot select owner", async t=>{
+  const {call,calls}=await tableFixture(t);
+  assert.equal((await call("/table/healthz","GET",undefined,{"X-Table-Principal":"github:99","X-Table-Gateway-Token":"spoof"})).status,200);
+  assert.equal(calls[0].headers["x-table-principal"],"desktop:owner");
+  assert.equal(calls[0].headers["x-table-gateway-token"],TABLE_PRIVATE);
+  assert.equal(calls[0].headers.authorization,undefined);
+  const relay={"X-Table-Relay-Token":TABLE_RELAY,"X-Table-Principal":"github:42"};
+  assert.equal((await call("/table/sessions","POST",'{}',relay)).status,200);
+  assert.equal(calls[1].headers["x-table-principal"],"github:42");
+  for (const headers of [{...relay,"X-Table-Relay-Token":"bad"},{...relay,"X-Table-Principal":"desktop:owner"},{"X-Table-Relay-Token":TABLE_RELAY},{...relay,"X-Table-Relay-Token":[TABLE_RELAY,TABLE_RELAY]},{...relay,"X-Table-Principal":["github:42","github:99"]}]) assert.equal((await call("/table/healthz","GET",undefined,headers)).status,401);
+  assert.equal(calls.length,2);
+});
+test("table gateway absence, bounded bodies, registered methods and sanitized errors",async t=>{
+  const {call,calls}=await tableFixture(t);
+  assert.equal((await call("/table/sessions","GET")).status,404);
+  assert.equal((await call("/table/sessions","POST",'x')).status,400);
+  assert.equal((await call("/table/sessions","POST",'{}',{"Content-Length":2097153})).status,413);
+  assert.equal((await call("/table/sessions/missing/commands","POST",'{}')).status,410);
+  assert.equal((await call("/table/sessions/x/derive","POST",'{}')).status,200);
+  assert.equal(calls.length,2);
+  const absent=await tableFixture(t,{tableOrigin:null}); assert.equal((await absent.call("/table/healthz")).status,503);
+  const unowned=await tableFixture(t,{tableDesktopPrincipal:null}); assert.equal((await unowned.call("/table/healthz")).status,401);
+});
+
+test("table credential configuration fails closed and service origins are fixed",()=>{
+  const enabled={...settings,tableService:true,tableDesktopPrincipal:"desktop:owner",ssrmRoutes:["/api/api/v1/test/rows"]};
+  const privateSecrets={...secrets,tableGatewayToken:TABLE_PRIVATE,tableRelayToken:TABLE_RELAY};
+  const cfg=validateConfig(enabled,privateSecrets);assert.equal(cfg.tableOrigin,"http://table-service:8080");
+  for(const patch of [{tableGatewayToken:TOKEN},{tableRelayToken:TOKEN},{tableRelayToken:TABLE_PRIVATE},{tableGatewayToken:""},{tableRelayToken:"short"}])assert.throws(()=>validateConfig(enabled,{...privateSecrets,...patch}));
+  for(const patch of [{tableDesktopPrincipal:"github:42"},{tableService:"true"},{ssrmRoutes:["https://evil.example.com"]},{ssrmRoutes:["/api/api/v1/a/../b"]},{tableOrigin:"http://evil.example.com"},{tableTimeoutMs:0}])assert.throws(()=>validateConfig({...enabled,...patch},privateSecrets));
+});
+test("table batches fail atomically on truncation, oversize or deadline; standard POST is exact and metered",async t=>{
+  const {call,calls,cfg}=await tableFixture(t,{tableTimeoutMs:40});
+  for(const name of ["stalled","truncated","oversized"]){const result=await call(`/table/sessions/${name}/commands`,"POST",'{}').catch(error=>{throw new Error(name,{cause:error});});assert.equal(result.status,502);assert.doesNotMatch(result.body,/partial|xxxxxxxx/);}
+  cfg.tableTimeoutMs=65000;
+  const result=await call("/api/api/v1/test/rows?symbol=AAPL","POST",'{"startRow":0,"endRow":10}').catch(error=>{throw new Error("standard",{cause:error});});assert.equal(result.status,200);
+  assert.equal(calls.at(-1).path,"/api/v1/test/rows?symbol=AAPL");assert.equal(calls.at(-1).body,'{"startRow":0,"endRow":10}');
+  assert.equal(calls.at(-1).headers.authorization,config().apiAuthorization);assert.equal(calls.at(-1).headers["x-table-principal"],undefined);
+  assert.equal((await call("/table/sessions/../healthz").catch(error=>{throw new Error("traversal",{cause:error});})).status,421);
+  assert.equal((await call("/table/sessions/%2e%2e/healthz").catch(error=>{throw new Error("encoded",{cause:error});})).status,421);
+  const capped=await tableFixture(t,{quoteDailyLimit:1});assert.equal((await capped.call("/api/api/v1/test/rows","POST",'{}')).status,200);assert.equal((await capped.call("/api/api/v1/test/rows","POST",'{}')).status,429);
 });

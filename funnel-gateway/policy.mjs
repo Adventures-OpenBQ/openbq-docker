@@ -231,3 +231,45 @@ export function socketTarget(raw, origin) {
  */
 const STATE_FILE_RE = /^(?:(?:settings|backends|folders|chat|chart-presets)\.json|dashboards\/[A-Za-z0-9_-]{1,80}\.json)$/;
 export const stateFile = name => typeof name === "string" && STATE_FILE_RE.test(name);
+
+
+// Managed HTTP routes are deliberately independent of the broad read-only API rule.
+export const TABLE_RESPONSE_BYTES = 8 * 1024 * 1024;
+export const TABLE_DEADLINE_MS = 65000;
+export function validSsrmRoutes(routes) {
+  return Array.isArray(routes) && routes.length <= 100 && new Set(routes).size === routes.length &&
+    routes.every(path => typeof path === "string" && OPENBB_ROUTE_RE.test(path) &&
+      !path.includes("//") && !path.endsWith("/"));
+}
+export function tableRoute(url, method, config = {}) {
+  const path = url.pathname;
+  if (method === "POST" && config.ssrmRoutes?.includes(path)) {
+    const admitted = upstreamPath(url, config);
+    return admitted ? {path: admitted, managed: false, maxBody: 2097152, upload: false} : null;
+  }
+  if (!path.startsWith("/table/")) return null;
+  let admitted = false;
+  if (method === "GET") {
+    admitted = /^\/table\/(?:healthz|capabilities|widgets\.json|sources\/backends)$/.test(path) && !url.search;
+    if (/^\/table\/exports\/[A-Za-z0-9_-]{1,128}\/batches$/.test(path)) {
+      const pairs = [...url.searchParams];
+      admitted = pairs.length === 1 && pairs[0][0] === "sequence" && /^(?:0|[1-9][0-9]{0,14})$/.test(pairs[0][1]);
+    }
+  } else if (method === "POST" && !url.search) {
+    admitted = /^\/table\/(?:sources\/(?:uploads|backends)|sessions(?:\/[A-Za-z0-9_-]{1,128}\/(?:commands|derive|cancel|exports))?)$/.test(path);
+  } else if (method === "DELETE" && !url.search) {
+    admitted = /^\/table\/(?:sources|sessions|exports)\/[A-Za-z0-9_-]{1,128}$/.test(path);
+  }
+  const upload = path === "/table/sources/uploads";
+  return admitted ? {path: path + url.search, managed: true, upload,
+    maxBody: method === "POST" ? (upload ? 16777216 : 2097152) : 0} : null;
+}
+
+// Only validated managed cancellation and cleanup may use reserved admission.
+// Matching the complete canonical path also excludes queries and trailing slashes.
+export const TABLE_CONTROL_CONCURRENCY = 2;
+export function tableControlRoute(route, method) {
+  if (!route?.managed) return false;
+  return (method === "POST" && /^\/table\/sessions\/[A-Za-z0-9_-]{1,128}\/cancel$/.test(route.path)) ||
+    (method === "DELETE" && /^\/table\/(?:sessions|exports)\/[A-Za-z0-9_-]{1,128}$/.test(route.path));
+}

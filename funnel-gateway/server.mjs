@@ -10,7 +10,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
-import { upstreamPath, newsSubscription, socketTarget, socketTicketNonce, stateFile } from "./policy.mjs";
+import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, TABLE_DEADLINE_MS, upstreamPath, newsSubscription, socketTarget, socketTicketNonce, stateFile } from "./policy.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
 const MAX_SOCKET = 65536;
@@ -178,17 +178,83 @@ async function handleState(req, res, url, config) {
   return reply(res, 204);
 }
 
+// Identity assertions use a separate server-only credential. Possession of the shared
+// desktop bearer can never choose a web principal. Duplicate/malformed assertions refuse.
+function tablePrincipal(req, config) {
+  const count = name => req.rawHeaders.filter((v,i) => i % 2 === 0 && v.toLowerCase() === name).length;
+  const relay = req.headers["x-table-relay-token"];
+  if (relay !== undefined) {
+    if (count("x-table-relay-token") !== 1 || count("x-table-principal") !== 1 ||
+        !config.tableRelayToken || !timingSafeEqual(digest(relay), digest(config.tableRelayToken)) ||
+        !/^github:[1-9][0-9]{0,19}$/.test(req.headers["x-table-principal"] ?? "")) return null;
+    return req.headers["x-table-principal"];
+  }
+  return config.tableDesktopPrincipal ?? null;
+}
+async function tableBody(req, route, signal) {
+  if (!route.maxBody) {
+    if (req.headers["transfer-encoding"] || Number(req.headers["content-length"] ?? 0) !== 0) return 405;
+    return undefined;
+  }
+  if (!route.upload && !/^application\/json(?:;|$)/i.test(req.headers["content-type"] ?? "")) return 415;
+  if (Number(req.headers["content-length"]) > route.maxBody) { req.resume(); return 413; }
+  const abort = () => req.destroy(); signal.addEventListener("abort", abort, {once:true});
+  try {
+    const chunks=[]; let size=0;
+    for await (const chunk of req.iterator({destroyOnReturn:false})) { size+=chunk.length; if(size>route.maxBody) {req.resume();return 413;} chunks.push(chunk); }
+    const body=Buffer.concat(chunks);
+    if (!route.upload) { try { JSON.parse(body.toString("utf8")); } catch { return 400; } }
+    return body;
+  } finally { signal.removeEventListener("abort",abort); }
+}
+// Buffer each finite export batch before publishing headers: truncated, oversized or
+// failed streams cannot masquerade as a successful partial result. No retry on mutation.
+async function tableExchange(req, res, route, config) {
+  if (route.managed && !config.tableOrigin) return reply(res,503);
+  const principal = route.managed ? tablePrincipal(req, config) : null;
+  if (route.managed && !principal) return reply(res,401);
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),config.tableTimeoutMs ?? TABLE_DEADLINE_MS);
+  const disconnect=()=>{if(!res.writableEnded)controller.abort();}; res.once("close",disconnect);
+  try {
+    const body=await tableBody(req,route,controller.signal);
+    if(typeof body === "number"){if(body===413 || !req.complete)res.setHeader("Connection","close");return reply(res,body);}
+    const destination=route.managed ? {url:new URL(route.path.slice(6),config.tableOrigin),headers:{
+      "X-Table-Gateway-Token":config.tableGatewayToken,"X-Table-Principal":principal}} : target(route.path,config);
+    const headers={...destination.headers,Accept:"application/json"};
+    if(body!==undefined) headers["Content-Type"]=route.upload ? (req.headers["content-type"] ?? "application/octet-stream") : "application/json";
+    if(route.upload) for(const name of ["idempotency-key","x-upload-filename"]) {
+      if(typeof req.headers[name] === "string" && req.headers[name].length<=512) headers[name]=req.headers[name];
+    }
+    const response=await fetch(destination.url,{method:req.method,headers,body,redirect:"error",signal:controller.signal});
+    if(!/^application\/json(?:;|$)/i.test(response.headers.get("content-type")??"")) {await response.body?.cancel();return reply(res,502);}
+    const chunks=[]; let size=0;
+    for await(const chunk of response.body??[]) {size+=chunk.length;if(size>TABLE_RESPONSE_BYTES){controller.abort();throw new Error("Table response limit");}chunks.push(Buffer.from(chunk));}
+    let json;try{json=JSON.parse(Buffer.concat(chunks).toString("utf8"));}catch{return reply(res,502);}
+    if(!response.ok) {
+      const status=[400,401,404,409,410,413,429,503].includes(response.status)?response.status:502;
+      return reply(res,status,{error:{code:"upstream_refused",message:"Table request refused"}});
+    }
+    return reply(res,response.status,json);
+  } finally {clearTimeout(timer);res.off("close",disconnect);}
+}
+
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openNews = connectNews,
   now = Date.now, socketMs = 240000, firstFrameMs = 10000 } = {}) {
-  let budget = config.requestsPerMinute, resetAt = now() + 60000, quoteCount = 0, day = Math.floor(now() / 86400000);
-  let inflight = 0, sockets = 0;
+  const budgets = {
+    ordinary: {left: config.requestsPerMinute, resetAt: now() + 60000},
+    control: {left: config.requestsPerMinute, resetAt: now() + 60000},
+  };
+  let quoteCount = 0, day = Math.floor(now() / 86400000);
+  let inflight = 0, controlInflight = 0, sockets = 0;
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
   const admitted = new Map();
-  function spend(cost) {
-    if (now() >= resetAt) { budget = config.requestsPerMinute; resetAt = now() + 60000; }
-    if (budget < cost) return false;
-    budget -= cost; return true;
+  function spend(cost, lane = "ordinary") {
+    const budget = budgets[lane];
+    if (now() >= budget.resetAt) { budget.left = config.requestsPerMinute; budget.resetAt = now() + 60000; }
+    if (budget.left < cost) return false;
+    budget.left -= cost; return true;
   }
   function quoteAllowed() {
     const currentDay = Math.floor(now() / 86400000);
@@ -208,6 +274,17 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (url.pathname.startsWith("/state/")) {
         if (!spend(1)) return reply(res, 429);
         return await handleState(req, res, url, config);
+      }
+      const table = tableRoute(url, req.method, config);
+      if (table || url.pathname.startsWith("/table/")) {
+        if (!table) return reply(res,404);
+        const control = tableControlRoute(table, req.method);
+        if (!spend(1, control ? "control" : "ordinary") ||
+            (control ? controlInflight >= TABLE_CONTROL_CONCURRENCY : inflight >= config.maxConcurrent) ||
+            (!table.managed && !quoteAllowed())) return reply(res,429);
+        if (control) controlInflight++; else inflight++;
+        try { return await tableExchange(req,res,table,config); }
+        finally { if (control) controlInflight--; else inflight--; }
       }
       if (req.method !== "GET" || req.headers["transfer-encoding"] ||
           (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
