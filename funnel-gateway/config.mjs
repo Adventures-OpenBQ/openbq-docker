@@ -1,6 +1,7 @@
 // Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 // SPDX-License-Identifier: Apache-2.0
 
+import { validSsrmRoutes } from "./policy.mjs";
 import { readFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { isAbsolute, normalize } from "node:path";
@@ -32,7 +33,7 @@ function tailnetAddress(value) {
 // a silently ignored setting is how an operator believes a door is configured when it is not.
 // openbq-docker serves no /ai (Rita), so ritaOrigin, ritaAddress and socksProxy are refused too.
 const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "quoteDailyLimit",
-  "requestsPerMinute", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds"]);
+  "requestsPerMinute", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs"]);
 
 export function validateConfig(settings, secrets) {
   for (const key of Object.keys(settings)) if (!SETTINGS_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`);
@@ -105,7 +106,22 @@ export function validateConfig(settings, secrets) {
   // Approved feeds with nowhere to send them is a misconfiguration, not a degraded mode:
   // refuse at startup rather than 404/502 per request once the door is already open.
   if (Object.keys(feeds).length && !rssOrigin) throw new Error("Approved feeds need an RSS origin and address");
+  const tableTimeoutMs = settings.tableTimeoutMs ?? 65000;
+  if (!Number.isInteger(tableTimeoutMs) || tableTimeoutMs < 1000 || tableTimeoutMs > 65000) throw new Error("Invalid table timeout");
+  const tableService = settings.tableService ?? false;
+  const tableDesktopPrincipal = settings.tableDesktopPrincipal ?? null;
+  const ssrmRoutes = settings.ssrmRoutes ?? [];
+  if (typeof tableService !== "boolean" || !validSsrmRoutes(ssrmRoutes)) throw new Error("Invalid table settings");
+  if (tableDesktopPrincipal !== null && !/^desktop:[A-Za-z0-9_-]{1,100}$/.test(tableDesktopPrincipal)) throw new Error("Invalid desktop table principal");
+  const credential = value => typeof value === "string" && /^[A-Za-z0-9_-]{32,256}$/.test(value);
+  if (tableService && !credential(secrets.tableGatewayToken)) throw new Error("Table gateway credential required");
+  if (secrets.tableRelayToken !== undefined && !credential(secrets.tableRelayToken)) throw new Error("Invalid table relay credential");
+  const privateTokens = [secrets.token, secrets.tableGatewayToken, secrets.tableRelayToken].filter(Boolean);
+  if (new Set(privateTokens).size !== privateTokens.length) throw new Error("Table credentials must be distinct");
   return {
+    tableOrigin: tableService ? "http://table-service:8080" : null,
+    tableGatewayToken: secrets.tableGatewayToken, tableRelayToken: secrets.tableRelayToken,
+    tableDesktopPrincipal, ssrmRoutes, tableTimeoutMs,
     origin, quoteDailyLimit, requestsPerMinute, maxConcurrent, maxSockets, previewOrigin, stateDir,
     rssOrigin, rssAddress, feeds,
     token: secrets.token,
@@ -124,6 +140,7 @@ export function validateConfig(settings, secrets) {
 export function readConfig(directory = "/run/bdobb", env = process.env) {
   return validateConfig(
     JSON.parse(readFileSync(`${directory}/settings.json`, "utf8")),
-    { token: env.GATEWAY_TOKEN, apiUsername: env.OPENBB_API_USERNAME, apiPassword: env.OPENBB_API_PASSWORD },
+    { token: env.GATEWAY_TOKEN, apiUsername: env.OPENBB_API_USERNAME, apiPassword: env.OPENBB_API_PASSWORD,
+      tableGatewayToken: env.TABLE_GATEWAY_TOKEN, tableRelayToken: env.TABLE_RELAY_TOKEN },
   );
 }

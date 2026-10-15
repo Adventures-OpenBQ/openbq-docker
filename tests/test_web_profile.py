@@ -21,7 +21,9 @@ def test_the_gateway_and_the_pool_start_only_with_the_web_profile():
 def test_no_web_service_publishes_a_host_port_and_the_gateway_is_locked_down():
     for name in ('funnel-gateway', 'rss-ticker'):
         assert 'ports' not in SERVICES[name], name
-        assert SERVICES[name]['networks'] == ['openbq-internal'], name
+    assert SERVICES['rss-ticker']['networks'] == ['openbq-internal']
+    # The gateway also reaches the managed table service (v4) on its internal bridge.
+    assert SERVICES['funnel-gateway']['networks'] == ['openbq-internal', 'table-private']
     gateway = SERVICES['funnel-gateway']
     assert gateway['read_only'] is True and gateway['cap_drop'] == ['ALL']
     assert gateway['env_file'] == [{'path': './gateway.env', 'required': True}]
