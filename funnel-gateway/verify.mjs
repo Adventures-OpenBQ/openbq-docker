@@ -11,9 +11,10 @@ import { readConfig } from "./config.mjs";
  * gateway's own health document. `base` is where the gateway is reached -- the container's
  * own loopback by default, or the public door (GATEWAY_URL=https://openbq.<tailnet>.ts.net:10000)
  * once Serve publishes it. The Host header is always the configured origin's, so a probe
- * through the door proves Serve preserved it. The last two probes are WebSocket upgrade
- * requests: this tag has no socket route (the first arrives with the wire at v8), so an
- * upgrade is 401 without the token and 404 with it.
+ * through the door proves Serve preserved it. The last three probes are WebSocket upgrade
+ * requests to this tag's one socket route, /ref/live_grid_ws, each refused before the
+ * handshake: 401 without the token, 403 from a foreign Origin, 404 with a query. A socket
+ * that actually opens (101) is proved in gateway.test.mjs, not here: this probe opens nothing.
  */
 export async function verify(config, base = "http://127.0.0.1:8091") {
   const host = new URL(config.origin).host;
@@ -58,8 +59,11 @@ export async function verify(config, base = "http://127.0.0.1:8091") {
     "/api/api/v1/calendar/trading?exchange=XNYS"]) {         // missing year fails closed
     expect(await status(path, good), 404, `${path} with the token`);
   }
-  expect(await status("/news/ws/news", { ...upgrade, Origin: config.origin }), 401, "an upgrade without a token");
-  expect(await status("/news/ws/news", { ...good, ...upgrade, Origin: config.origin }), 404, "an upgrade at a tag with no socket route");
+  expect(await status("/ref/live_grid_ws", { ...upgrade, Origin: config.origin }), 401, "an upgrade without a token");
+  expect(await status("/ref/live_grid_ws", { ...good, ...upgrade, Origin: "https://untrusted.invalid" }), 403,
+    "an upgrade from a foreign Origin");
+  expect(await status("/ref/live_grid_ws?symbol=AAPL", { ...good, ...upgrade, Origin: config.origin }), 404,
+    "an upgrade with a query");
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -37,7 +37,10 @@ Caller headers, cookies and credentials are never relayed.
 | Route | Method | What happens |
 |---|---|---|
 | `/_gateway/health` | GET | `200 {"ok":true}` behind the lock |
-| `/api/widgets.json`, `/api/apps.json` | GET | openbq-api's root documents with the Basic pair injected; no query; not metered daily |
+| `/api/widgets.json`, `/api/apps.json` | GET | openbq-api's root documents with the Basic pair injected; no query; not metered daily; bodies up to 16 MiB (every other route: 2 MiB) |
+| `/ref/widgets.json`, `/ref/apps.json` | GET | the reference backend's root documents, keyless (no credential is injected); no query; bodies up to 16 MiB |
+| `/ref/agents.json`, `/ref/bundle.apps.json`, `/ref/market-examples.apps.json`, `/ref/assets/bdobb-logo.svg` | GET | the four other exact documents the reference serves with a dot in the path; no query; nothing else dotted passes |
+| `GET /ref/<path>` | GET | the reference's other routes, keyless, under the same structural bounds as `/api/api/v1` (lowercase segments, no dot, no `%`, bounded query, re-serialised); any `omni*` segment at any depth is refused |
 | `/api/api/v1/**` | GET | under the shape bounds (lowercase route ≤ 200 chars, ≤ 40 query pairs, name grammar, ≤ 1024-char values, no control characters, ≤ 4096 chars leaving), query re-serialised; one unit of `quoteDailyLimit` |
 | `/api/api/v1/calendar/trading` | GET | only `exchange=<MIC>&year=1990..2040` |
 | `/table/**`, `ssrmRoutes` POSTs | see below | the managed table service and registered OpenBB SSRM endpoints |
@@ -45,10 +48,11 @@ Caller headers, cookies and credentials are never relayed.
 | `/state/<digits>/<file>` | PUT, DELETE | one of the app's JSON stores (`policy.mjs` `stateFile`); 256 KiB a file, 2 MiB and 200 files a user; `application/json` only |
 | `/ai/**` | — | not served by openbq-docker: 404 (POST 405) |
 | `/news/**` | — | the wire arrives at v8: 404 |
-| any WebSocket upgrade | — | no socket route at this tag: 401 without the token, else 404 |
+| `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, six budget units, 240 s lifetime, 10 s to the first frame |
+| any other WebSocket upgrade | — | 401 without the token, else 403 (foreign Origin) or 404 |
 | everything else | — | 404 |
 
-Budgets (settings): `requestsPerMinute` (default 60, ≤ 600), `maxConcurrent` (8, ≤ 32),
+Budgets (settings): `requestsPerMinute` (default 60, ≤ 600), `maxConcurrent` (8, ≤ 32), `maxSockets` (4, ≤ 32),
 `quoteDailyLimit` (100, ≤ 10000, UTC day). Counters are in memory and reset on restart; keep one
 instance.
 
@@ -69,11 +73,10 @@ the ordinary concurrency and rate budgets. See [managed tables](../table-service
   the same pair as in `credentials.env` (repeated so the gateway never loads provider keys).
 - `gateway-config/settings.json` (from `funnel-gateway/settings.example.json`, read-only bind):
   `origin` (`https://openbq.<tailnet>.ts.net:10000`), `stateDir` (`/var/lib/bdobb/state` to turn
-  `/state` on), the budgets, and the table keys (`tableService`, `tableDesktopPrincipal`,
+  `/state` on), `previewOrigin` (the web preview's portless HTTPS origin, to turn socket tickets on; the example leaves it unset, so tickets stay off until a Vercel origin exists), the budgets, and the table keys (`tableService`, `tableDesktopPrincipal`,
   `ssrmRoutes`, `tableTimeoutMs`; see [managed tables](../table-service/README.md)). An unknown
   key is refused at startup, including Rita's `ritaOrigin`, `ritaAddress` and `socksProxy` and
-  the keys of later lines (`rssOrigin`, `rssAddress`, `feeds`, `previewOrigin` and `maxSockets`
-  at v8; `liveGrid` at v10).
+  the keys of later lines (`rssOrigin`, `rssAddress` and `feeds` at v8; `liveGrid` at v10).
 
 ## Ports and serve files
 
@@ -106,4 +109,4 @@ docker compose --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net
 
 `git checkout ts-config/serve.json` and a sidecar restart close the door again. Then test from a
 device off the tailnet. Neither preflight queries a quote or prints a credential. Tests: `cd
-funnel-gateway && npm ci --ignore-scripts && npm test`.
+funnel-gateway && npm ci --ignore-scripts && npm test`. In Docker, mount the repo root (`-v "$PWD:/r" -w /r/funnel-gateway`), because the version test reads `../docker-compose.yml`.

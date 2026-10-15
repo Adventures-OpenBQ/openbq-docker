@@ -36,5 +36,13 @@ class Addresses(unittest.TestCase):
         self.assertEqual(scan("fd7a:115c:a1e0::/48"), 0)
 
 
+class DemoKeys(unittest.TestCase):
+    def test_a_public_demo_key_in_json_form_is_allowed(self):
+        self.assertEqual(scan('{"EIA_API_' 'KEY": "DEMO_KEY"}'), 0)
+
+    def test_any_other_filled_json_key_is_flagged(self):
+        self.assertEqual(scan('{"EIA_API_' 'KEY": "abcdef123"}'), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

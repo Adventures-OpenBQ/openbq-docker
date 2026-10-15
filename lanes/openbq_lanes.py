@@ -467,12 +467,48 @@ if os.environ.get("OPENBQ_ROLE") != "worker" and _prefixes:
     atexit.register(LANE.stop)
 
 
+PROVIDERS_PATH = "/providers.json"
+_OPTIONAL = frozenset({"cftc", "econdb"})  # bls is key-required
+_LOCAL = frozenset({"deltalake", "kdb"})
+_NAMES = {
+    "yfinance": "Yahoo Finance", "sec": "SEC", "federal_reserve": "Federal Reserve",
+    "imf": "IMF", "oecd": "OECD", "government_us": "US Government", "fmp": "FMP",
+    "fred": "FRED", "tiingo": "Tiingo", "eia": "EIA", "bls": "BLS", "cftc": "CFTC",
+    "congress_gov": "Congress.gov", "econdb": "EconDB", "intrinio": "Intrinio",
+    "benzinga": "Benzinga", "tradingeconomics": "TradingEconomics", "eodhd": "EODHD",
+    "deltalake": "Delta Lake", "kdb": "kdb+",
+}
+
+
+def provider_descriptor(credentials: dict) -> list:
+    """key-maint's provider inventory (Episode 3): which providers this API has
+    and which credential names each takes. Names only; no value is read. A copy
+    of key-maint/app/providers_route.build_provider_descriptor; keep them in sync."""
+    out = []
+    for pid in sorted(credentials):
+        names = list(credentials[pid])
+        auth = ("optional" if pid in _OPTIONAL else "required") if names else "not_required"
+        out.append({"id": pid, "name": _NAMES.get(pid, pid.replace("_", " ").title()),
+                    "credentials": names, "env_vars": [c.upper() for c in names],
+                    "auth": auth, "local": pid in _LOCAL})
+    return out
+
+
+def _provider_credentials() -> dict:
+    from openbb_core.app.provider_interface import ProviderInterface  # the API process only
+    return ProviderInterface().credentials
+
+
 async def middleware(request, call_next):
     """openbb.toml [middleware] hook."""
     if request.url.path == LOGO_PATH and request.method in ("GET", "HEAD"):
         return _logo(request)
     if request.url.path.startswith(FIXTURE_PREFIX) and request.method == "GET":
         return _fixture(request)
+    if request.method == "GET" and request.url.path == PROVIDERS_PATH:
+        if not _authorized(request):
+            return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+        return _cors(request, JSONResponse(provider_descriptor(_provider_credentials())))
     if LANE is not None:
         return await LANE.handle(request, call_next)
     if _is_catalog(request):  # with the lane off, the catalogs keep their cache and BDOBB examples
