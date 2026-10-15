@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # The stack's public door (openbq-docker v8.0.0, `web` profile; ported from openbb-docker
-# v8.0.3): node:22-alpine plus a pure-JS npm ci.
+# v8.0.3): node:22-alpine plus a pure-JS npm ci (ws, for the ticketed socket door: the wire
+# and the /ref/live_grid_ws relay).
 # Built from ./funnel-gateway alone -- the policy lives beside the server now,
 # so nothing is copied from outside this directory.
 FROM node:22-alpine

@@ -84,6 +84,30 @@ class DallasSheetTest(unittest.TestCase):
         self.assertAlmostEqual(rows[0].value, -12.055511)
 
 
+    def test_an_unknown_sheet_in_a_several_sheet_workbook_is_a_clear_error(self):
+        from pandas import DataFrame, ExcelWriter
+
+        from openbb_core.app.model.abstract.error import OpenBBError
+        from openbb_federal_reserve.models.regional.dallas_bcs import (
+            FederalReserveDallasBankingFetcher,
+            FederalReserveDallasBankingQueryParams,
+        )
+        from openbb_federal_reserve.models.regional.dallas_igrea import (
+            FederalReserveDallasIgreaFetcher,
+            FederalReserveDallasIgreaQueryParams,
+        )
+
+        buffer = io.BytesIO()
+        with ExcelWriter(buffer) as writer:
+            DataFrame({"a": [1]}).to_excel(writer, sheet_name="Notes")
+            DataFrame({"a": [1]}).to_excel(writer, sheet_name="Index 2027")
+        raw = buffer.getvalue()
+        for fetcher, params in ((FederalReserveDallasBankingFetcher, FederalReserveDallasBankingQueryParams),
+                                (FederalReserveDallasIgreaFetcher, FederalReserveDallasIgreaQueryParams)):
+            with self.subTest(fetcher.__name__), self.assertRaisesRegex(OpenBBError, "it has Notes, Index 2027"):
+                fetcher.transform_data(params(), [{"_raw": raw}])
+
+
 class UsdaArchiveMemberTest(unittest.TestCase):
     def test_vegetables_and_pulses_reads_renamed_member(self):
         from openbb_government_us.usda.utils import ers_vegetables_and_pulses as ers
