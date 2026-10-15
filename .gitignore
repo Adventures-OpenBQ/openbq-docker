@@ -50,3 +50,6 @@ __pycache__/
 
 # key-maint admin socket directory (host-only, 0700)
 key-maint-admin/
+
+# Gateway dependencies (installed by npm ci; never committed)
+funnel-gateway/node_modules/

@@ -1,0 +1,95 @@
+<!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+# funnel-gateway (openbq-docker v3.0.0, `web` profile)
+
+The door the sidecar publishes on Funnel port 10000 for BDOBB's browser (web) preview. Port 443
+stays `openbq-api` for your tailnet and is never funneled; 8443 belongs to the episode 3 reference
+backend (tailnet-only), so both run on one node. Brought down from openbq-docker **v8.0.0**
+(itself ported from bdobb-dev/openbb-docker v8.0.3, `775354f`, Apache-2.0, without the `/ai`
+family) without the `/news` wire, which arrives at v8. BDOBB's vendored `web/policy.mjs` and this `policy.mjs` agree byte for
+byte on what is admitted.
+
+## Isolation and lock-first
+
+`funnel-gateway` is a compose service under `profiles: [web]`: `docker compose up -d` never
+starts it; `docker compose --profile web up -d` does. The gateway joins the
+`openbq-internal` bridge listens on `0.0.0.0:8091` with no host port, and is reached only through
+Tailscale Serve. It runs `read_only`, as uid 1000, `cap_drop: [ALL]`, 512 MB, 64 pids; its only
+writable mount is the `gateway-state` volume behind `/state`.
+
+Nothing is public until two separate steps both happen: the profile is started, **and** the
+sidecar's Serve config is swapped to its Funnel variant (a deliberate copy, never automatic; see
+the table below). Before the swap, run both preflights below. The API's
+own lock must be on first: `OPENBB_API_AUTH=true` with a Basic pair in `credentials.env`;
+`check-upstreams.mjs` refuses to pass an open API.
+
+## Routes
+
+Every request, including health, needs exactly one `Authorization: Bearer <GATEWAY_TOKEN>`
+(timing-safe). `Host` must be the configured `origin`; an `Origin`, if present, must equal it or be
+one of the packaged desktop app's two webview origins, `tauri://localhost` and `http://tauri.localhost`
+(V10-P1; the Bearer token is still required, and the dev server's `http://localhost:1420` is refused).
+Caller headers, cookies and credentials are never relayed.
+
+| Route | Method | What happens |
+|---|---|---|
+| `/_gateway/health` | GET | `200 {"ok":true}` behind the lock |
+| `/api/widgets.json`, `/api/apps.json` | GET | openbq-api's root documents with the Basic pair injected; no query; not metered daily |
+| `/api/api/v1/**` | GET | under the shape bounds (lowercase route ≤ 200 chars, ≤ 40 query pairs, name grammar, ≤ 1024-char values, no control characters, ≤ 4096 chars leaving), query re-serialised; one unit of `quoteDailyLimit` |
+| `/api/api/v1/calendar/trading` | GET | only `exchange=<MIC>&year=1990..2040` |
+| `/state/<digits>` | GET | the user's saved files `{files: {name: text}}` |
+| `/state/<digits>/<file>` | PUT, DELETE | one of the app's JSON stores (`policy.mjs` `stateFile`); 256 KiB a file, 2 MiB and 200 files a user; `application/json` only |
+| `/ai/**` | — | not served by openbq-docker: 404 (POST 405) |
+| `/news/**` | — | the wire arrives at v8: 404 |
+| any WebSocket upgrade | — | no socket route at this tag: 401 without the token, else 404 |
+| everything else | — | 404 |
+
+Budgets (settings): `requestsPerMinute` (default 60, ≤ 600), `maxConcurrent` (8, ≤ 32),
+`quoteDailyLimit` (100, ≤ 10000, UTC day). Counters are in memory and reset on restart; keep one
+instance.
+
+## Configuration
+
+- `gateway.env` (from `gateway.env.example`, `chmod 600`): `GATEWAY_TOKEN` (32–256 base64url;
+  the web preview's `BACKEND_GATEWAY_TOKEN`), and `OPENBB_API_USERNAME`/`OPENBB_API_PASSWORD`,
+  the same pair as in `credentials.env` (repeated so the gateway never loads provider keys).
+- `gateway-config/settings.json` (from `funnel-gateway/settings.example.json`, read-only bind):
+  `origin` (`https://openbq.<tailnet>.ts.net:10000`), `stateDir` (`/var/lib/bdobb/state` to turn
+  `/state` on), and the budgets. An unknown
+  key is refused at startup, including Rita's `ritaOrigin`, `ritaAddress` and `socksProxy` and
+  the keys of later lines (`rssOrigin`, `rssAddress`, `feeds`, `previewOrigin` and `maxSockets`
+  at v8; `liveGrid` at v10).
+
+## Ports and serve files
+
+One Tailscale sidecar applies exactly one serve file: `ts-config/serve.json` normally, and
+`ts-config/serve-v3.json` when the v3 overlay (`docker-compose.v3.yml`) is in use. Each has a Funnel
+variant that adds only the door. Swap it in on the deployment host with `cp … .new && jq empty … && mv`;
+the sidecar live-applies the file, and a malformed one would kill it.
+
+| Serve file | Applied by | 443 | 8443 | 10000 |
+|---|---|---|---|---|
+| `serve.json` | default compose | ODP (tailnet) | — | — |
+| `serve-funnel.json` | copied over `serve.json` | ODP (tailnet) | — | **gateway (Funnel)** |
+| `serve-v3.json` | the v3 overlay | ODP (tailnet) | reference (tailnet) | — |
+| `serve-v3-funnel.json` | copied over `serve-v3.json` | ODP (tailnet) | reference (tailnet) | **gateway (Funnel)** |
+
+Funnel offers only 443, 8443 and 10000; 10000 is the only port any file funnels
+(`tests/test_web_profile.py` checks every file).
+
+## Verification
+
+```sh
+docker compose --profile web up -d
+docker compose --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked
+docker compose --profile web exec funnel-gateway node verify.mjs           # the door's own lock, on the bridge
+cp ts-config/serve-funnel.json ts-config/serve.json.new && jq empty ts-config/serve.json.new && mv ts-config/serve.json.new ts-config/serve.json   # the door opens; the sidecar live-applies it, and a malformed file would kill it
+# with the v3 overlay running, swap its file instead:
+# cp ts-config/serve-v3-funnel.json ts-config/serve-v3.json.new && jq empty ts-config/serve-v3.json.new && mv ts-config/serve-v3.json.new ts-config/serve-v3.json
+docker compose --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net:10000 funnel-gateway node verify.mjs
+```
+
+`git checkout ts-config/serve.json` and a sidecar restart close the door again. Then test from a
+device off the tailnet. Neither preflight queries a quote or prints a credential. Tests: `cd
+funnel-gateway && npm ci --ignore-scripts && npm test`.
