@@ -25,7 +25,10 @@ services:
     restart: unless-stopped
     # Hard cap: if the API outgrows it, the kernel kills the API, not the host's other services.
     mem_limit: 16g
+    # Public demo keys first, then your own: a key in credentials.env overrides its demo value.
     env_file:
+      - path: ./credentials.demo.env
+        required: true
       - path: ./credentials.env
         required: false
     volumes:
@@ -189,6 +192,9 @@ services:
     restart: unless-stopped
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "6903"]
     env_file:
+      # Public demo keys first (EODHD's "demo" covers only its demo symbols), then your own.
+      - path: ./credentials.demo.env
+        required: true
       - path: ./credentials.env
         required: false
       # DELTA_S3_* for the chart seam's read-back of flushed days (below).

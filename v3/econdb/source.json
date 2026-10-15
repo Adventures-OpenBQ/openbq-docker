@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/OpenBB-finance/OpenBB.git",
+  "commit": "174d7e69d3ee2d1b46078386c9b57b13f40c5110",
+  "directory": "openbb_platform/providers/econdb",
+  "upstream_version": "1.0.0",
+  "version": "1.0.0+openbq.1",
+  "license": "MIT (Copyright (c) 2021-2023 OpenBB Inc.); modifications Apache-2.0",
+  "why_this_commit": "the last commit before OpenBB relicensed to AGPL-3.0 (c61d10d6, 2024-05-14); PyPI openbb-econdb 1.1.0-1.5.1 is AGPL-3.0-only and requires openbb-core<2",
+  "dropped": "tests/ (VCR cassettes for pytest-recorder), poetry.lock, the nest_asyncio dependency",
+  "changes": [
+    "openbb_econdb/econdb_router.py (new): /api/v1/econdb/economy/{indicators,available_indicators,country_profile}",
+    "openbb_econdb/__init__.py: each fetcher also under an econdb-only model key EconDb<Std>, which the routes use",
+    "pyproject.toml (new, hatchling): provider and core-extension entry points, openbb-core>=2.0.1",
+    "utils/helpers.py: no nest_asyncio (update_json_files uses asyncio.run); main_tickers.csv over https; missing values as None under pandas 3",
+    "models/economic_indicators.py: frequency None (openbb-core 2's standard parameter) means the default",
+    "utils/main_indicators.py: name the pivoted index (pandas 3 drops it)"
+  ]
+}

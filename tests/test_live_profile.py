@@ -86,8 +86,10 @@ def test_live_grid_reaches_kdb_and_the_api_on_the_bridge_and_never_spawns_q():
     assert env['KDB_EMBEDDED'] == 'false' and env['KDB_BIND_HOST'] == 'openbq-kdb' and env['KDB_PORT'] == '5000'
     assert env['OPENBB_URL'] == 'http://openbq-api:6900'
     assert env['OPENBB_HISTORY_NAMESPACE'] == 'eodhd'
-    # v10 S3 tier: rustfs.env (DELTA_S3_*) joins credentials.env, both optional.
-    assert SERVICES['live-grid']['env_file'] == [{'path': './credentials.env', 'required': False},
+    # v10 S3 tier: rustfs.env (DELTA_S3_*) joins credentials.env, both optional; the committed
+    # public demo keys (credentials.demo.env) load first, so credentials.env overrides them.
+    assert SERVICES['live-grid']['env_file'] == [{'path': './credentials.demo.env', 'required': True},
+                                                 {'path': './credentials.env', 'required': False},
                                                  {'path': './rustfs.env', 'required': False}]
     assert SERVICES['live-grid']['build'] == {'context': '.', 'dockerfile': 'live-grid/Dockerfile'}
 
@@ -122,7 +124,9 @@ def test_no_licence_or_key_is_tracked_and_the_examples_are_empty():
     assert ignored.stdout.split() == ['kdb-license/kc.lic', 'kdb-data/startup.q', 'live-grid-data/watchlist.json']
     env = dict(line.split('=', 1) for line in (ROOT / 'credentials.env.example').read_text().splitlines()
                if line and not line.startswith('#'))
-    assert env['EODHD_API_KEY'] == '' and env['LIVE_GRID_PUBLIC_URL'] == ''
+    # EODHD_API_KEY is commented out so credentials.demo.env's public "demo" token applies.
+    assert 'EODHD_API_KEY' not in env and '# EODHD_API_KEY=' in (ROOT / 'credentials.env.example').read_text()
+    assert env['LIVE_GRID_PUBLIC_URL'] == ''
     smoke = (ROOT / 'live-grid/scripts/smoke.py').read_text()
     assert 'os.environ.get("EODHD_DEMO_WS_KEY", "")' in smoke
 
