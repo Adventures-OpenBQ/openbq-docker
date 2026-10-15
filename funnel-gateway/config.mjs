@@ -36,7 +36,7 @@ function tailnetAddress(value) {
 // one switch: live-grid is the opt-in `live` compose profile here, so the door must be told
 // it runs, and /grid answers 503 until it is.
 const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "quoteDailyLimit",
-  "requestsPerMinute", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid"]);
+  "requestsPerMinute", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "temporalDB"]);
 
 export function validateConfig(settings, secrets) {
   for (const key of Object.keys(settings)) if (!SETTINGS_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`);
@@ -113,7 +113,14 @@ export function validateConfig(settings, secrets) {
   // nothing else: its origin is never a setting (gridOrigin below).
   const liveGrid = settings.liveGrid === undefined ? false : settings.liveGrid;
   if (typeof liveGrid !== "boolean") throw new Error("liveGrid must be true or false");
+  const temporalDB = settings.temporalDB === undefined ? false : settings.temporalDB;
+  if (typeof temporalDB !== "boolean") throw new Error("temporalDB must be true or false");
+  if (temporalDB && (!/^[A-Za-z0-9_-]{32,256}$/.test(secrets.temporalToken ?? "") || secrets.temporalToken === secrets.token)) {
+    throw new Error("TemporalDB requires a separate server-only token");
+  }
   return {
+    temporalDB, temporalOrigin: temporalDB ? "http://temporaldb-api:8080" : null,
+    temporalAuthorization: temporalDB ? "Bearer " + secrets.temporalToken : null,
     origin, quoteDailyLimit, requestsPerMinute, maxConcurrent, maxSockets, previewOrigin, stateDir,
     rssOrigin, rssAddress, feeds,
     token: secrets.token,
@@ -141,6 +148,6 @@ export function validateConfig(settings, secrets) {
 export function readConfig(directory = "/run/bdobb", env = process.env) {
   return validateConfig(
     JSON.parse(readFileSync(`${directory}/settings.json`, "utf8")),
-    { token: env.GATEWAY_TOKEN, apiUsername: env.OPENBB_API_USERNAME, apiPassword: env.OPENBB_API_PASSWORD },
+    { token: env.GATEWAY_TOKEN, apiUsername: env.OPENBB_API_USERNAME, apiPassword: env.OPENBB_API_PASSWORD, temporalToken: env.TEMPORALDB_GATEWAY_TOKEN },
   );
 }

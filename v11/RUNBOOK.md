@@ -145,11 +145,50 @@ managed secrets with the stopped-writer backup procedure above. Replay verifies
 retained typed results; restoring a catalog alone is insufficient. No migration
 rollback, shared prune, provider acquisition or traffic cutover is performed.
 
-Task 14b still owns automatic accepted-Silver-to-Gold job coordination, full
-linked-browser/two-API/two-worker/restore acceptance, native packaged restart,
-actual NAS loads and final cutover gates. This runtime dispatches the existing
-receipt-gated `job_type=build_gold` contract but does not schedule it automatically.
-Current canonical `funnel-gateway/policy.mjs` and C's vendored v10 policy admit
-`/api`, `/news`, `/grid`, `/state`, not TemporalDB; coordinated narrow v11 gateway
-admission and client vendoring belong to 14b. Direct authenticated discovery and
-CORS do not prove that public gateway path.
+The reviewed 14b1 production worker now coordinates successful complete managed
+refreshes into receipt-gated Gold automatically. Final runtime image rebuilding,
+full linked UI/two-API/two-worker/restore acceptance, packaged native restart,
+actual NAS loads and cutover remain separate gates.
+
+## Opt-in v11 TemporalDB gateway
+
+Canonical `funnel-gateway/policy.mjs` stays byte-for-byte v10. The separate
+`funnel-gateway/temporal-policy.mjs` is the exact v11 route/method contract;
+C vendors its bytes under a separate source-commit/hash receipt. To configure
+this path, combine `docker-compose.yml`, `v11/compose.temporaldb.yaml` and
+`v11/compose.gateway.yaml`, with profiles `web` and `temporaldb-v11`. The last
+overlay places `temporaldb-api` on the gateway's `openbq-internal` network and
+builds a separately named gateway image. No traffic is enabled by the network
+alone: settings.json must explicitly contain `"temporalDB": true`.
+
+Add `TEMPORALDB_GATEWAY_TOKEN` to private `gateway.env` (32–256 base64url
+characters, distinct from GATEWAY_TOKEN). That token must map to the intended
+shared workspace/entitlement/principal in P's `TEMPORALDB_SCOPE_POLICY`. The
+fixed upstream is `http://temporaldb-api:8080`; settings and requests cannot
+supply another upstream URL. This deployment intentionally grants authorized
+preview users the same configured TemporalDB service scope, not separate
+per-GitHub-user TemporalDB principals. Use a dedicated deployment for each
+scope. Keep API/worker DSNs and all credentials server-side.
+
+C must separately set `TEMPORALDB_V11=true` alongside its existing authenticated
+BACKEND_GATEWAY_ORIGIN/TOKEN. Its bootstrap offers backend base URL
+`https://PREVIEW/temporal`. For that base, discovery is `/temporal/`,
+`/temporal/widgets.json`, `/temporal/apps.json`; API calls are
+`/temporal/temporal/v1/...`. The gateway strips exactly the first `/temporal`.
+The repeated segment is the existing backend-prefix convention, not an alias.
+
+The overlay admits capabilities and reviewed query library, execution/page/cancel
+and protected audit/replay routes only, with exact methods/UUIDs/query bounds.
+No captures, health/admin, arbitrary targets, wildcard paths or sockets are
+added. Both proxies authenticate before route disclosure; web writes also need
+same-origin CSRF checks. Bodies are JSON up to 1 MiB; responses up to 2 MiB;
+upstream timeout 12 seconds; existing request/concurrency limits apply. Browser
+credentials are discarded; C injects the gateway token, H injects only the
+separate TemporalDB token. Redirects, cookies, auth challenges and error bodies
+are never forwarded. Known semantic status codes survive; upstream 401 becomes
+502 so it cannot masquerade as a lapsed browser session.
+
+The P `tests/test_gateway_browser.py` opt-in harness exercises real Chromium,
+actual C discovery/client/platform fetch, C web relay, H gateway and P configured
+API/worker with disposable recorded fixtures. It is transport qualification,
+not full application UI, live provider, NAS, public Funnel or deployment proof.

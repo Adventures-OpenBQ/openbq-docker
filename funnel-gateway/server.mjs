@@ -14,6 +14,8 @@ import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
 import { upstreamPath, newsSubscription, liveGridSubscription, socketTarget, socketTicketNonce, stateFile } from "./policy.mjs";
 
+import { temporalRoute, temporalStatus } from "./temporal-policy.mjs";
+
 const MAX_BODY = 2 * 1024 * 1024;
 const MAX_SOCKET = 65536;
 /**
@@ -299,6 +301,37 @@ export async function sendGrid(method, path, body, config, signal) {
     request.end(body);
   });
 }
+
+async function sendTemporal(method, path, body, config, signal) {
+  const url = new URL(path.slice("/temporal".length), config.temporalOrigin);
+  const headers = { Authorization: config.temporalAuthorization, Accept: "application/json" };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    headers["Content-Length"] = String(Buffer.byteLength(body));
+  }
+  return new Promise((resolve, rejectPromise) => {
+    const request = httpRequest(url, { method, headers, signal }, response => {
+      const ok = [200, 201, 202].includes(response.statusCode);
+      if (!ok || !/^application\/json(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
+        response.destroy();
+        return resolve({ status: ok ? 502 : response.statusCode });
+      }
+      let size = 0; const parts = [];
+      response.on("data", chunk => {
+        size += chunk.length;
+        if (size > MAX_BODY) { response.destroy(); rejectPromise(new Error("Body limit")); }
+        else parts.push(chunk);
+      });
+      response.on("error", rejectPromise);
+      response.on("end", () => {
+        try { resolve({ status: response.statusCode, json: JSON.parse(Buffer.concat(parts).toString("utf8")) }); }
+        catch { rejectPromise(new Error("Invalid JSON")); }
+      });
+    });
+    request.once("error", rejectPromise);
+    request.end(body);
+  });
+}
 /** The page itself, as text: live-grid's /subscriptions, HTML only, at most 64 KiB. */
 export async function getGridPage(config, signal) {
   const url = new URL("/subscriptions", config.gridOrigin);
@@ -504,6 +537,29 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         if (!route) return reply(res, 404);
         if (!spend(1)) return reply(res, 429);
         return await handleSubscriptions(req, res, route);
+      }
+      if (url.pathname.startsWith("/temporal/")) {
+        const route = temporalRoute(url, req.method, config);
+        if (!route) return reply(res, 404);
+        if (!config.temporalOrigin || !config.temporalAuthorization) return reply(res, 503);
+        if (!spend(1) || inflight >= config.maxConcurrent) return reply(res, 429);
+        let body;
+        if (req.method === "POST" || req.method === "PUT") {
+          if (!/^application\/json(?:\s*;|$)/i.test(req.headers["content-type"] ?? "")) return reply(res, 415);
+          body = await jsonBody(req, 1048576);
+          if (typeof body === "number") return reply(res, body);
+        } else if (req.headers["transfer-encoding"] || (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
+        // Reading the body yields; another request may have taken the slot.
+        if (inflight >= config.maxConcurrent) return reply(res, 429);
+        inflight++;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 12000);
+        const disconnect = () => { if (!res.writableEnded) controller.abort(); };
+        res.once("close", disconnect);
+        try {
+          const answer = await sendTemporal(req.method, route.path, body, config, controller.signal);
+          return reply(res, temporalStatus(answer.status), answer.json);
+        } finally { clearTimeout(timer); res.off("close", disconnect); inflight--; }
       }
       if (req.method !== "GET" || req.headers["transfer-encoding"] ||
           (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
