@@ -14,6 +14,16 @@ import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONS
 
 const MAX_BODY = 2 * 1024 * 1024;
 const MAX_SOCKET = 65536;
+/**
+ * The packaged desktop app's webview origins (V10-P1, user ruling 2026-10-15). Tauri's http
+ * plugin stamps one of these on every request it makes (tauri://localhost on macOS, iOS and
+ * Linux; http://tauri.localhost on Windows and Android), and the webview's own WebSocket
+ * carries the same one. An Origin is never a credential: these pass the Origin rule only
+ * behind the Bearer lock, on HTTP. (Its HTTP half moved down with the gateway; the socket
+ * ticket for the webview's own socket, /grid/ws_ticket, arrives at v10.)
+ * The dev server's http://localhost:1420 is deliberately not one of them.
+ */
+export const DESKTOP_ORIGINS = new Set(["tauri://localhost", "http://tauri.localhost"]);
 const digest = value => createHash("sha256").update(value).digest();
 function authorized(req, config) {
   const values = req.rawHeaders.filter((_, i) => i % 2 === 0 && req.rawHeaders[i].toLowerCase() === "authorization");
@@ -270,7 +280,8 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (!authorized(req, config)) return reply(res, 401);
       const url = requestUrl(req, config);
       if (!url) return reply(res, 421);
-      if (req.headers.origin && req.headers.origin !== config.origin) return reply(res, 403);
+      const origin = req.headers.origin;
+      if (origin && origin !== config.origin && !DESKTOP_ORIGINS.has(origin)) return reply(res, 403);
       if (url.pathname.startsWith("/state/")) {
         if (!spend(1)) return reply(res, 429);
         return await handleState(req, res, url, config);
