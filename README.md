@@ -98,6 +98,10 @@ Full reader instructions and troubleshooting: [Episode 1](https://github.com/art
 
 Copyright 2026 SecretoftheUniverse.com LLC. Apache-2.0 for this backend companion; upstream components retain their own licences.
 
+## BDOBB web preview door (v4, opt-in)
+
+`docker compose --profile web up -d` adds `funnel-gateway` for BDOBB's browser preview: `/api` (the ODP catalogue, with the API's Basic pair injected), `/state` (per-user saved configuration) and, with the `table` profile, `/table` (managed server-side tables). There is no `/ai`, and the `/news` wire arrives at v8. Nothing is public until you also swap `ts-config/serve.json` for `ts-config/serve-funnel.json` (with the v3 overlay: `serve-v3.json` for `serve-v3-funnel.json`), which funnels port 10000 alone; 443 (ODP) and 8443 (the episode 3 reference) stay tailnet-only. Turn the API's lock on first (`OPENBB_API_AUTH=true`), and fill `gateway.env` and `gateway-config/settings.json` from their examples. See [funnel-gateway/README.md](funnel-gateway/README.md) and [docs/v4/gateway-down.md](docs/v4/gateway-down.md).
+
 ## Public repository checks
 
 Enable the local gates after cloning:
