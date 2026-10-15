@@ -78,7 +78,7 @@ function onlyKeys(params, allowed) {
 }
 
 /** The /api family takes bounds; a later family takes a reviewed route with its own tests. */
-export function upstreamPath(url, config) {
+export function upstreamPath(url) {
   const params = url.searchParams;
   if (new Set(params.keys()).size !== [...params.keys()].length) return null;
 
