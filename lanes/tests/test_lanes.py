@@ -9,10 +9,13 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import httpx
-from fastapi import FastAPI
+import pandas as pd
+from fastapi import FastAPI, Request
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse, Response
 
 os.environ["OPENBQ_ROLE"] = "worker"  # importing the module must not spawn the production lane
 os.environ["OPENBQ_EXTRA_APPS"] = "/nonexistent/bdobb_apps.json"  # tests set their own extras
@@ -514,3 +517,301 @@ class LaneLogoTest(unittest.IsolatedAsyncioTestCase):
             for k, v in old.items():
                 os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
 
+
+
+
+class SsrmLaneTest(unittest.IsolatedAsyncioTestCase):
+    make = LaneTest.make  # a real lane, without re-running LaneTest's own tests
+    asyncTearDown = LaneTest.asyncTearDown
+
+    async def test_a_lane_route_is_acquired_through_its_lane(self):
+        self.make()
+        for name in ("LANE", "SSRM_ROUTES", "SSRM_CACHE"):
+            self.addCleanup(setattr, openbq_lanes, name, getattr(openbq_lanes, name))
+        openbq_lanes.LANE = self.lane
+        openbq_lanes.SSRM_ROUTES = {"/api/v1/cftc/rows": "rows_obb"}
+        openbq_lanes.SSRM_CACHE = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900)
+        app = FastAPI()
+        app.middleware("http")(openbq_lanes.middleware)
+        body = {"startRow": 0, "endRow": 10, "sortModel": [], "filterModel": {}, "rowGroupCols": [],
+                "groupKeys": [], "valueCols": [], "pivotCols": [], "pivotMode": False}
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api", timeout=60) as c:
+            r = await c.post("/api/v1/cftc/rows/ssrm", json=body)
+        self.assertEqual(r.status_code, 200)
+        self.assertNotEqual(r.json()["rowData"][0]["pid"], os.getpid())  # the worker answered the GET
+
+class SsrmRowsTest(unittest.IsolatedAsyncioTestCase):
+    """POST <route>/ssrm pages, filters and sorts the cached result; refuses the rest."""
+
+    def app(self):
+        self.gets = 0
+        self.seen_auth = []
+        self.rows = [
+            {"name": "Alpha", "value": 3, "when": "2026-01-03"},
+            {"name": "beta", "value": 1, "when": "2026-01-01"},
+            {"name": "Gamma", "value": 2, "when": "2026-01-02"},
+        ]
+        app = FastAPI()
+
+        @app.get("/api/v1/listed/data")
+        async def data(request: Request):
+            self.gets += 1
+            self.seen_auth.append(request.headers.get("authorization"))
+            if request.query_params.get("boom") == "1":
+                return JSONResponse({"detail": "sanitised upstream error"}, 503)
+            if request.query_params.get("text") == "1":
+                return Response("not json", 200, media_type="text/plain")
+            if request.query_params.get("empty") == "1":
+                return {"results": []}
+            # json.dumps writes NaN as the bare token, as a NaN-carrying upstream would
+            return Response(json.dumps({"results": self.rows}), media_type="application/json")
+
+        app.middleware("http")(openbq_lanes.middleware)
+        return app
+
+    async def asyncSetUp(self):
+        self.addCleanup(setattr, openbq_lanes, "SSRM_ROUTES", openbq_lanes.SSRM_ROUTES)
+        self.addCleanup(setattr, openbq_lanes, "SSRM_CACHE", openbq_lanes.SSRM_CACHE)
+        openbq_lanes.SSRM_ROUTES = {"/api/v1/listed/data": "listed_obb"}
+        openbq_lanes.SSRM_CACHE = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900)
+
+    def client(self, app):
+        return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api")
+
+    def req(self, **over):
+        body = {"startRow": 0, "endRow": 100, "sortModel": [], "filterModel": {},
+                "rowGroupCols": [], "groupKeys": [], "valueCols": [], "pivotCols": [], "pivotMode": False}
+        body.update(over)
+        return body
+
+    async def test_first_page_sorted_and_counted(self):
+        app = self.app()
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm", json=self.req(sortModel=[{"colId": "value", "sort": "asc"}]))
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertEqual([row["value"] for row in body["rowData"]], [1, 2, 3])
+        self.assertEqual(body["rowCount"], 3)
+
+    async def test_text_contains_is_case_insensitive(self):
+        app = self.app()
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm", json=self.req(
+                filterModel={"name": {"filterType": "text", "type": "contains", "filter": "a"}}))
+        self.assertEqual({row["name"] for row in r.json()["rowData"]}, {"Alpha", "beta", "Gamma"})
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm", json=self.req(
+                filterModel={"name": {"filterType": "text", "type": "contains", "filter": "GAMM"}}))
+        self.assertEqual([row["name"] for row in r.json()["rowData"]], ["Gamma"])
+
+    async def test_number_filters(self):
+        app = self.app()
+        for model, expected in [
+            ({"value": {"filterType": "number", "type": "inRange", "filter": 2, "filterTo": 3}}, {2, 3}),
+            ({"value": {"filterType": "number", "type": "greaterThanOrEqual", "filter": 2}}, {2, 3}),
+            ({"value": {"filterType": "number", "type": "lessThanOrEqual", "filter": 2}}, {1, 2}),
+        ]:
+            async with self.client(app) as c:
+                r = await c.post("/api/v1/listed/data/ssrm", json=self.req(filterModel=model))
+            self.assertEqual({row["value"] for row in r.json()["rowData"]}, expected)
+
+    async def test_slice_and_cap(self):
+        app = self.app()
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm",
+                             json=self.req(startRow=1, endRow=2, sortModel=[{"colId": "value", "sort": "asc"}]))
+        self.assertEqual([row["value"] for row in r.json()["rowData"]], [2])
+        self.assertEqual(r.json()["rowCount"], 3)
+        async with self.client(app) as c:
+            over = await c.post("/api/v1/listed/data/ssrm", json=self.req(endRow=1001))
+            neg = await c.post("/api/v1/listed/data/ssrm", json=self.req(startRow=5, endRow=2))
+        self.assertEqual((over.status_code, neg.status_code), (400, 400))
+
+    async def test_page_past_the_end_is_empty_with_the_true_count(self):
+        app = self.app()
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm", json=self.req(startRow=100, endRow=200))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual((r.json()["rowData"], r.json()["rowCount"]), ([], 3))
+
+    async def test_unknown_column_is_rejected(self):
+        app = self.app()
+        async with self.client(app) as c:
+            s = await c.post("/api/v1/listed/data/ssrm", json=self.req(sortModel=[{"colId": "nope", "sort": "asc"}]))
+            f = await c.post("/api/v1/listed/data/ssrm", json=self.req(
+                filterModel={"nope": {"filterType": "text", "type": "contains", "filter": "x"}}))
+        self.assertEqual((s.status_code, f.status_code), (400, 400))
+
+    async def test_grouping_values_pivot_and_bad_filters_are_refused(self):
+        app = self.app()
+        for over in [
+            {"rowGroupCols": [{"id": "name", "field": "name"}]},
+            {"groupKeys": ["Alpha"]},
+            {"valueCols": [{"id": "value", "field": "value"}]},
+            {"pivotCols": [{"id": "name", "field": "name"}]},
+            {"pivotMode": True},
+            {"filterModel": {"name": {"filterType": "set", "values": ["Alpha"]}}},
+            {"filterModel": {"value": {"filterType": "number", "type": "equals", "filter": 1}}},
+        ]:
+            async with self.client(app) as c:
+                r = await c.post("/api/v1/listed/data/ssrm", json=self.req(**over))
+            self.assertEqual(r.status_code, 400, over)
+
+    async def test_unlisted_route_is_404(self):
+        app = self.app()
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/other/data/ssrm", json=self.req())
+        self.assertEqual(r.status_code, 404)
+
+    async def test_results_shapes_all_become_row_lists(self):
+        openbq_lanes.SSRM_CACHE = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900)
+        self.assertEqual(openbq_lanes._rows_from({"results": [{"a": 1}]}), [{"a": 1}])
+        self.assertEqual(openbq_lanes._rows_from([{"a": 1}]), [{"a": 1}])
+        self.assertEqual(openbq_lanes._rows_from({"results": {"x": {"a": 1}}}), [{"a": 1}])
+        self.assertEqual(openbq_lanes._rows_from({"results": None}), [])
+        self.assertEqual(openbq_lanes._rows_from({"results": [1, "x"]}), [])
+
+    async def test_reply_is_json_safe(self):
+        app = self.app()
+        self.rows = [{"name": "A", "value": float("nan"), "when": "2026-01-01"},
+                     {"name": "B", "value": 2, "when": "2026-01-02"}]
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm", json=self.req())
+        self.assertIsNone(r.json()["rowData"][0]["value"])  # NaN -> null, parseable JSON
+
+    async def test_acquired_once_then_served_from_cache(self):
+        app = self.app()
+        async with self.client(app) as c:
+            await c.post("/api/v1/listed/data/ssrm", json=self.req())
+            await c.post("/api/v1/listed/data/ssrm", json=self.req(startRow=1, endRow=2))
+        self.assertEqual(self.gets, 1)  # second page reuses the cached frame
+
+    async def test_concurrent_first_requests_acquire_once(self):
+        app = self.app()
+
+        @app.get("/api/v1/listed/slow")
+        async def slow():
+            self.gets += 1
+            await asyncio.sleep(0.3)
+            return {"results": list(self.rows)}
+
+        openbq_lanes.SSRM_ROUTES = {"/api/v1/listed/slow": "slow_obb"}
+        openbq_lanes.SSRM_CACHE = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900)
+        async with self.client(app) as c:
+            a, b = await asyncio.gather(
+                c.post("/api/v1/listed/slow/ssrm", json=self.req()),
+                c.post("/api/v1/listed/slow/ssrm", json=self.req(startRow=1, endRow=2)),
+            )
+        self.assertEqual((a.status_code, b.status_code), (200, 200))
+        self.assertEqual(self.gets, 1)
+
+    async def test_upstream_error_is_kept(self):
+        app = self.app()
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm?boom=1", json=self.req())
+        self.assertEqual(r.status_code, 503)
+        self.assertEqual(r.json(), {"detail": "sanitised upstream error"})
+
+    async def test_lru_evicts_at_the_byte_bound(self):
+        cache = openbq_lanes.SsrmCache(max_bytes=1, ttl=900)
+        async def df(n):
+            return pd.DataFrame([{"a": i} for i in range(n)])
+        await cache.get(("r", (("p", "1"),)), lambda: df(10))
+        await cache.get(("r", (("p", "2"),)), lambda: df(10))
+        self.assertEqual(len(cache.entries), 1)  # only the newest survives a 1-byte cap
+
+    async def test_ttl_expiry_reacquires(self):
+        clock = [0.0]
+        cache = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=10, clock=lambda: clock[0])
+        calls = []
+        async def acquire():
+            calls.append(1)
+            return pd.DataFrame([{"a": 1}])
+        await cache.get(("r", ()), acquire)
+        clock[0] = 11.0
+        await cache.get(("r", ()), acquire)
+        self.assertEqual(len(calls), 2)  # expired entry reacquired
+
+    # -- strictness: this endpoint sits behind the public door ------------------
+
+    async def test_malformed_bodies_are_refused(self):
+        app = self.app()
+        bad = [
+            self.req(extra=1),                                   # unknown top-level key
+            self.req(startRow=True),                             # bool is not a row index
+            self.req(startRow=0.5),
+            {"startRow": 0},                                     # missing keys
+            self.req(sortModel=[{"colId": "value", "sort": "asc", "x": 1}]),
+            self.req(sortModel={"colId": "value"}),
+            self.req(filterModel=[]),
+            self.req(filterModel={"value": {"filterType": "number", "type": "greaterThanOrEqual", "filter": True}}),
+            self.req(filterModel={"value": {"filterType": "number", "type": "inRange", "filter": 1}}),
+            self.req(filterModel={"name": {"filterType": "text", "type": "contains", "filter": "a", "extra": 1}}),
+            self.req(filterModel={"name": {"filterType": "text", "operator": "AND", "conditions": []}}),
+        ]
+        async with self.client(app) as c:
+            for body in bad:
+                r = await c.post("/api/v1/listed/data/ssrm", json=body)
+                self.assertEqual(r.status_code, 400, body)
+            for raw in (b"not json", b'{"startRow": NaN}', b"[]", b"{" + b" " * (70 << 10) + b"}"):
+                r = await c.post("/api/v1/listed/data/ssrm", content=raw)
+                self.assertEqual(r.status_code, 400, raw[:20])
+                self.assertNotIn("Expecting", r.text)            # no parser text reflected
+
+    async def test_non_json_upstream_is_a_fixed_502(self):
+        app = self.app()
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm?text=1", json=self.req())
+        self.assertEqual(r.status_code, 502)
+        self.assertNotIn("not json", r.text)
+
+    async def test_an_empty_result_answers_empty_whatever_the_columns(self):
+        app = self.app()
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm?empty=1", json=self.req(
+                sortModel=[{"colId": "value", "sort": "asc"}],
+                filterModel={"name": {"filterType": "text", "type": "contains", "filter": "x"}}))
+        self.assertEqual((r.status_code, r.json()), (200, {"rowData": [], "rowCount": 0}))
+
+    async def test_mixed_type_column_sorts_without_failing(self):
+        app = self.app()
+        self.rows = [{"name": "A", "value": 2}, {"name": "B", "value": "n/a"}, {"name": "C", "value": 1}]
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm", json=self.req(sortModel=[{"colId": "value", "sort": "asc"}]))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["rowCount"], 3)
+
+    async def test_params_key_the_cache_and_reach_the_get(self):
+        app = self.app()
+        async with self.client(app) as c:
+            await c.post("/api/v1/listed/data/ssrm?a=1", json=self.req())
+            await c.post("/api/v1/listed/data/ssrm?a=2", json=self.req())
+            await c.post("/api/v1/listed/data/ssrm?a=1", json=self.req())
+        self.assertEqual(self.gets, 2)
+
+    async def test_basic_auth_applies_before_the_cache_and_is_forwarded(self):
+        app = self.app()
+        with mock.patch.dict(os.environ, OPENBB_API_AUTH="true", OPENBB_API_USERNAME="u", OPENBB_API_PASSWORD="p"):
+            async with self.client(app) as c:
+                ok = await c.post("/api/v1/listed/data/ssrm", json=self.req(), auth=("u", "p"))
+                anon = await c.post("/api/v1/listed/data/ssrm", json=self.req())
+                wrong = await c.post("/api/v1/listed/data/ssrm", json=self.req(), auth=("u", "x"))
+        self.assertEqual((ok.status_code, anon.status_code, wrong.status_code), (200, 401, 401))
+        self.assertEqual(self.gets, 1)
+        self.assertTrue(self.seen_auth[0].startswith("Basic "))  # the internal GET carried the caller's pair
+
+    async def test_a_cancelled_first_caller_does_not_fail_the_one_sharing_it(self):
+        gate = asyncio.Event()
+
+        async def acquire():
+            await gate.wait()
+            return pd.DataFrame([{"a": 1}])
+
+        cache = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900)
+        first = asyncio.ensure_future(cache.get(("r", ()), acquire))
+        second = asyncio.ensure_future(cache.get(("r", ()), acquire))
+        await asyncio.sleep(0)
+        first.cancel()
+        gate.set()
+        self.assertEqual(len(await second), 1)
+        self.assertEqual(len(cache.entries), 1)
