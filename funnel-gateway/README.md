@@ -29,7 +29,9 @@ own lock must be on first: `OPENBB_API_AUTH=true` with a Basic pair in `credenti
 ## Routes
 
 Every request, including health, needs exactly one `Authorization: Bearer <GATEWAY_TOKEN>`
-(timing-safe). `Host` must be the configured `origin`; an `Origin`, if present, must equal it.
+(timing-safe). `Host` must be the configured `origin`; an `Origin`, if present, must equal it or be
+one of the packaged desktop app's two webview origins, `tauri://localhost` and `http://tauri.localhost`
+(V10-P1; the Bearer token is still required, and the dev server's `http://localhost:1420` is refused).
 Caller headers, cookies and credentials are never relayed.
 
 | Route | Method | What happens |
