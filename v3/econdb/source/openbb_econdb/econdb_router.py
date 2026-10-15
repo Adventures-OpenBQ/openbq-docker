@@ -6,8 +6,9 @@ openbb-core 2 mounts each provider's commands under its own namespace (as
 openbb_nasdaq does for /nasdaq/economy/calendar); the shared ODP 4 economy
 router that once served EconDB is not installed. The widget ids follow:
 econdb_economy_indicators_econdb_obb, econdb_economy_available_indicators_econdb_obb
-and econdb_economy_country_profile_econdb_obb. No key: the provider asks
-EconDB for a temporary token when none is set.
+and econdb_economy_country_profile_econdb_obb. Each route's model is the
+econdb-only EconDb<Std> key (openbb_econdb/__init__.py), so econdb is its only
+provider. No key: the provider asks EconDB for a temporary token when none is set.
 """
 from openbb_core.app.model.command_context import CommandContext
 from openbb_core.app.model.example import APIEx
@@ -21,7 +22,7 @@ economy = Router(prefix="/economy", description="EconDB economic data.")
 
 
 @economy.command(
-    model="EconomicIndicators",
+    model="EconDbEconomicIndicators",
     examples=[APIEx(parameters={"provider": "econdb", "symbol": "RGDP", "country": "US"})],
 )
 async def indicators(
@@ -34,7 +35,7 @@ async def indicators(
     return await OBBject.from_query(Query(**locals()))
 
 
-@economy.command(model="AvailableIndicators", examples=[APIEx(parameters={"provider": "econdb"})])
+@economy.command(model="EconDbAvailableIndicators", examples=[APIEx(parameters={"provider": "econdb"})])
 async def available_indicators(
     cc: CommandContext,
     provider_choices: ProviderChoices,
@@ -46,7 +47,7 @@ async def available_indicators(
 
 
 @economy.command(
-    model="CountryProfile",
+    model="EconDbCountryProfile",
     examples=[APIEx(parameters={"provider": "econdb", "country": "united_states"})],
 )
 async def country_profile(
