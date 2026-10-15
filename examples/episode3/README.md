@@ -15,9 +15,13 @@ Two widgets supply deterministic fictional prices and null-handling rows.
 
 The keyless market dashboard is a separate download at `/market-examples.apps.json`.
 It uses the original OpenBQ yfinance V5 extension and the current SEC widget ID
-from the ODP backend. `/bundle.apps.json` combines all three dashboards and **79
-cards** for BDOBB's multi-backend file import. The reference catalog does not
+from the ODP backend. `/bundle.apps.json` combines all three dashboards and **80
+cards** (70 + 4 + 6) for BDOBB's multi-backend file import. The reference catalog does not
 advertise unresolved ODP widgets as its own.
+
+The "Onboarding App for Devs" entry in this directory's `apps.json` is upstream data and is never
+served: `assemble.py` keeps only the apps named "Episode 3*" from that file, and the reference app comes
+from the pinned upstream source (70 cards there; the copy here has 69).
 
 ## Build and run
 
