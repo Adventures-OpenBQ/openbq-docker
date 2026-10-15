@@ -31,7 +31,9 @@ own lock must be on first: `OPENBB_API_AUTH=true` with a Basic pair in `credenti
 ## Routes
 
 Every request, including health, needs exactly one `Authorization: Bearer <GATEWAY_TOKEN>`
-(timing-safe). `Host` must be the configured `origin`; an `Origin`, if present, must equal it.
+(timing-safe). `Host` must be the configured `origin`; an `Origin`, if present, must equal it or be
+one of the packaged desktop app's two webview origins, `tauri://localhost` and `http://tauri.localhost`
+(V10-P1; the Bearer token is still required, and the dev server's `http://localhost:1420` is refused).
 Caller headers, cookies and credentials are never relayed.
 
 | Route | Method | What happens |
@@ -49,6 +51,7 @@ Caller headers, cookies and credentials are never relayed.
 | `/grid/series`, `/grid/chart` | GET | the bars, raw and as a figure; `symbol` (one), `interval`, `start`, `end`, `provider` (`kdb`/`eodhd`), plus `theme` (`light`/`dark`) on `chart` alone; one unit of `quoteDailyLimit` |
 | `/grid/ticks` | GET | the kdb tick cache's newest ticks for one symbol; `symbol` (one), `limit` (1–1000); not metered (no vendor) |
 | `/grid/ta_chart` | GET | the tick chart; `symbol` (one), `interval`, `source` (`local`/`eodhd`), `macro`, `indicators`, `anchor`, `start`, `end`, `theme`; `provider` is **not** mapped; one unit of `quoteDailyLimit` |
+| `/grid/ws_ticket?target=<socket>` | GET | the desktop app's socket ticket (below): `Origin` must be a desktop origin (else `403`), `target` one `/grid` socket `socketTarget()` accepts (else `404`); answers `{"ticket": …}`, `no-store` |
 | `/grid/live_grid_ws` | GET + Upgrade | the quote grid's socket, no query; every params frame re-validated and metered per symbol (below) |
 | `/grid/ta_chart_ws` | GET + Upgrade | the tick chart's push-only socket; its **query is its subscription** (the `/grid/ta_chart` grammar); every push metered, the first included |
 | `/grid/subscriptions` | GET | live-grid's Subscriptions page, **the one route served without the token** (a frame cannot send one): exact path, no query, no body, this Host; HTML from memory after one fetch, with its own CSP. The page then asks BDOBB for the credential (`openbb-connect` → `openbb-auth`) |
@@ -162,6 +165,13 @@ GitHub session) signs a ticket and the browser opens
 - The ticket is the last parameter, spelled literally, once; the request carries no
   `Authorization` and `Origin: <previewOrigin>`. Each nonce is admitted once. Tickets are off
   until `previewOrigin` is set.
+- **The desktop app** (V10-P1, user ruling 2026-10-15). Its webview socket cannot carry the
+  Bearer header either, so before every connect it asks `GET /grid/ws_ticket?target=<target>`
+  with the Bearer header and its webview `Origin`. The gateway mints the same ticket shape,
+  signed over `"<expiry>.<nonce>.<Origin><target>"`, and admits the socket with that same
+  `Origin` and no `Authorization`. A preview ticket (signed over `<target>`, which begins with
+  `/`) never verifies as a desktop ticket, nor the reverse. Desktop tickets need no
+  `previewOrigin`. The gateway logs neither the ticket nor the token.
 
 ## Configuration
 

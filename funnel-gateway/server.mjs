@@ -12,7 +12,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
-import { upstreamPath, newsSubscription, liveGridSubscription, socketTarget, socketTicketNonce, stateFile } from "./policy.mjs";
+import { upstreamPath, newsSubscription, liveGridSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
 const MAX_SOCKET = 65536;
@@ -86,6 +86,15 @@ const FRAME_CAP = 60;
  * door's OWN body, never the upstream's, and every other non-200 -- a 404 on any other route
  * included -- stays a 502.
  */
+/**
+ * The packaged desktop app's webview origins (V10-P1, user ruling 2026-10-15). Tauri's http
+ * plugin stamps one of these on every request it makes (tauri://localhost on macOS, iOS and
+ * Linux; http://tauri.localhost on Windows and Android), and the webview's own WebSocket
+ * carries the same one. An Origin is never a credential: these pass the Origin rule only
+ * behind the Bearer lock, or on a ticket minted for that same origin (/grid/ws_ticket).
+ * The dev server's http://localhost:1420 is deliberately not one of them.
+ */
+export const DESKTOP_ORIGINS = new Set(["tauri://localhost", "http://tauri.localhost"]);
 const OPTIONAL_DOCS = new Set(["/grid/apps.json", "/grid/symbol_meta"]);
 const digest = value => createHash("sha256").update(value).digest();
 function authorized(req, config) {
@@ -494,7 +503,8 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (!authorized(req, config)) return reply(res, 401);
       const url = requestUrl(req, config);
       if (!url) return reply(res, 421);
-      if (req.headers.origin && req.headers.origin !== config.origin) return reply(res, 403);
+      const origin = req.headers.origin;
+      if (origin && origin !== config.origin && !DESKTOP_ORIGINS.has(origin)) return reply(res, 403);
       if (url.pathname.startsWith("/state/")) {
         if (!spend(1)) return reply(res, 429);
         return await handleState(req, res, url, config);
@@ -509,6 +519,19 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
           (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
       if (!spend(1)) return reply(res, 429);
       if (url.pathname === "/_gateway/health" && !url.search) return reply(res, 200, { ok: true });
+      // The desktop's socket ticket (V10-P1). Its webview socket cannot carry the Bearer
+      // header, so the app asks here, behind the lock, for a thirty-second single-use ticket
+      // over its own Origin plus the one /grid socket it will open -- the same signer as the
+      // preview's, over a string no preview ticket is signed over (those begin with "/").
+      // The ticket is in the body only; this door logs no request.
+      if (url.pathname === "/grid/ws_ticket") {
+        if (!DESKTOP_ORIGINS.has(origin)) return reply(res, 403);
+        const keys = [...url.searchParams.keys()];
+        const target = keys.length === 1 && keys[0] === "target"
+          ? socketTarget(url.searchParams.get("target"), config.origin) : null;
+        if (!target?.startsWith("/grid/")) return reply(res, 404);
+        return reply(res, 200, { ticket: socketTicket(config.token, origin + target, now()) });
+      }
       const path = upstreamPath(url, config);
       if (!path) return reply(res, 404);
       // live-grid is the opt-in `live` profile: until settings.json says it runs
@@ -553,14 +576,17 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       // session -- signs a thirty-second ticket over the exact target and appends it
       // LAST (policy.mjs socketTicket). What precedes it is what was signed, and
       // is all the route checks below ever see. Off until previewOrigin is set.
-      if (!config.previewOrigin) return reject(socket, 401);
-      if (req.headers.origin !== config.previewOrigin) return reject(socket, 403);
+      // Or the desktop app's webview socket, on a ticket /grid/ws_ticket minted for this
+      // same Origin: signed over the Origin plus the target, so it is spendable from no other.
+      const desktop = DESKTOP_ORIGINS.has(req.headers.origin);
+      if (!desktop && !config.previewOrigin) return reject(socket, 401);
+      if (!desktop && req.headers.origin !== config.previewOrigin) return reject(socket, 403);
       const cut = req.url.search(/[?&]ticket=/);
       const target = req.url.slice(0, cut);
       // cut < 0: the parser found a ticket the wire does not spell literally (tick%65t=).
       // What was signed is the literal text, so that is refused here, not by luck below.
       const nonce = cut >= 0 && tickets.length === 1 && req.url.slice(cut + 8) === tickets[0]
-        ? socketTicketNonce(config.token, target, tickets[0], now()) : null;
+        ? socketTicketNonce(config.token, desktop ? req.headers.origin + target : target, tickets[0], now()) : null;
       for (const [used, until] of admitted) if (until <= now()) admitted.delete(used);
       if (!nonce || admitted.has(nonce)) return reject(socket, 401);
       admitted.set(nonce, Number(tickets[0].split(".")[0]));

@@ -564,6 +564,62 @@ test("tickets are off until the operator names the preview origin", async t => {
   const machine = await wsConnect(port); assert.equal(machine.status, 101); machine.ws.terminate();
 });
 
+// ---- The desktop app (V10-P1, user ruling 2026-10-15). Its HTTP goes through Tauri's http
+// plugin, which stamps the webview's Origin on every request; its socket is the webview's own.
+const DESKTOP = ["tauri://localhost", "http://tauri.localhost"];
+const mint = (port, target, origin) =>
+  http(port, "/grid/ws_ticket?target=" + encodeURIComponent(target), { ...HEADERS, Origin: origin });
+
+test("the packaged desktop origins pass the Bearer lock on HTTP; nothing else new does", async t => {
+  const { port } = await fixture(t);
+  for (const origin of DESKTOP) {
+    assert.equal((await http(port, "/grid/widgets.json", { ...HEADERS, Origin: origin })).status, 200, origin);
+    // The Origin is never a credential: without the Bearer token it is what it always was.
+    assert.equal((await http(port, "/grid/widgets.json", { Host: HEADERS.Host, Origin: origin })).status, 401, origin);
+  }
+  // The dev server's origin is not a packaged app's, and is not admitted.
+  assert.equal((await http(port, "/grid/widgets.json", { ...HEADERS, Origin: "http://localhost:1420" })).status, 403);
+});
+
+test("the desktop mints a ticket bound to its Origin and the socket, and opens the socket on it once", async t => {
+  const { port } = await fixture(t);
+  const path = "/grid/live_grid_ws";
+  const answer = await mint(port, path, DESKTOP[0]);
+  assert.equal(answer.status, 200);
+  assert.equal(answer.headers["cache-control"], "no-store");
+  const { ticket } = JSON.parse(answer.text);
+  // Bound to the Origin that asked: the other packaged origin cannot spend it.
+  assert.equal((await wsConnect(port, { Host: HEADERS.Host, Origin: DESKTOP[1] }, ticketed(path, ticket))).status, 401);
+  const opened = await wsConnect(port, { Host: HEADERS.Host, Origin: DESKTOP[0] }, ticketed(path, ticket));
+  assert.equal(opened.status, 101); opened.ws.terminate();
+  // Single use, like the preview's.
+  assert.equal((await wsConnect(port, { Host: HEADERS.Host, Origin: DESKTOP[0] }, ticketed(path, ticket))).status, 401);
+  // Bound to the target: a grid ticket opens nothing else.
+  const other = JSON.parse((await mint(port, path, DESKTOP[1])).text).ticket;
+  assert.equal((await wsConnect(port, { Host: HEADERS.Host, Origin: DESKTOP[1] }, ticketed("/news/ws/news", other))).status, 401);
+  // A preview-shaped ticket (signed over the target alone) is not a desktop ticket, and a
+  // desktop ticket is not a preview ticket.
+  assert.equal((await wsConnect(port, { Host: HEADERS.Host, Origin: DESKTOP[0] },
+    ticketed(path, socketTicket(TOKEN, path)))).status, 401);
+  const preview = await fixture(t, { previewOrigin: PREVIEW });
+  const desktopTicket = JSON.parse((await mint(preview.port, path, DESKTOP[0])).text).ticket;
+  assert.equal((await wsConnect(preview.port, browser, ticketed(path, desktopTicket))).status, 401);
+});
+
+test("the mint endpoint is locked, desktop-only, and signs only a /grid socket", async t => {
+  const { port } = await fixture(t);
+  assert.equal((await http(port, "/grid/ws_ticket?target=%2Fgrid%2Flive_grid_ws",
+    { Host: HEADERS.Host, Origin: DESKTOP[0] })).status, 401);
+  // A caller with no desktop Origin holds the Bearer token and opens the socket with it.
+  assert.equal((await http(port, "/grid/ws_ticket?target=%2Fgrid%2Flive_grid_ws")).status, 403);
+  assert.equal((await mint(port, "/grid/live_grid_ws", ORIGIN)).status, 403);
+  for (const target of ["/news/ws/news", "/grid/live_grid_ws?x=1", "/grid/live_grid", "/nope", "//evil/grid/live_grid_ws"]) {
+    assert.equal((await mint(port, target, DESKTOP[0])).status, 404, target);
+  }
+  assert.equal((await http(port, "/grid/ws_ticket?target=%2Fgrid%2Flive_grid_ws&target=x",
+    { ...HEADERS, Origin: DESKTOP[0] })).status, 404);
+});
+
 // ---- The wire's socket: the first route this door serves over a socket (Ep. 8).
 
 test("the WS gate wants the credential, the Origin, the exact path and a configured wire", async t => {
