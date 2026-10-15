@@ -35,6 +35,8 @@ def main():
  if private.exists():
   for line in private.read_text().splitlines():
    if line.strip() and not line.startswith('#'):patterns.append(('local private pattern',line))
+ # Public demo keys the providers publish (credentials.demo.env, docs/credentials-demo-receipt.md): allowed by exact name and value.
+ public_demo={('EIA_API_KEY','DEMO_KEY'),('CONGRESS_GOV_API_KEY','DEMO_KEY'),('EODHD_API_KEY','demo')}
  compiled=[(name,re.compile(pattern)) for name,pattern in patterns]
  findings=[]
  def scan(label,data):
@@ -44,6 +46,7 @@ def main():
    if pattern.search(text):findings.append((label,name))
   for match in re.finditer(r'(?m)^[ \t]*([A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|PASSWORD|SECRET|ACCESS_KEY_ID))[ \t]*=[ \t]*(.*)$',text):
    value=match.group(2).strip().strip('"').strip("'")
+   if (match.group(1),value) in public_demo:continue
    if value and not value.startswith(('$','<')) and not re.fullmatch(r'(?:YOUR_[A-Z_]+|EXAMPLE_[A-Z_]+|PLACEHOLDER|CHANGE_ME|CHANGEME)',value):
     findings.append((label,'filled credential assignment'))
   for match in re.finditer(r'(?i)"[a-z0-9_]*(?:api_key|token|password|secret|access_key_id)"[ \t\r\n]*:[ \t\r\n]*"([^"\n]*)"',text):
@@ -55,7 +58,7 @@ def main():
   p=Path(name)
   if p.is_symlink():raise RuntimeError('Refusing symlink: '+name)
   if p.is_file():scan(name,p.read_bytes())
-  if '.env' in p.name and not p.name.endswith('.env.example'):findings.append((name,'runtime env file'))
+  if '.env' in p.name and not p.name.endswith('.env.example') and name!='credentials.demo.env':findings.append((name,'runtime env file'))
  # The hook must scan staged blobs as well as working files.
  for item in git('ls-files','--stage','-z').decode().split('\0'):
   if not item:continue
