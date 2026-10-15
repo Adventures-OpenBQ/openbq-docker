@@ -70,6 +70,22 @@ No user tables or objects may exist at the target; restoration never cleans or
 overwrites an existing store. The same bucket names/keys are restored at the new
 endpoint. Do not point restored lake readers at source S3 credentials/endpoints.
 
+Before restore, include PostgreSQL lock-table capacity in the acquisition/recovery
+forecast alongside data, indexes, WAL, temporary files and memory. The final
+accumulated fixture dump had **4,955 tables**: atomic `pg_restore` failed at the
+default `max_locks_per_transaction=64` with `out of shared memory`, while the exact
+dump succeeded with 512 and a 1 GiB data fixture. This does not establish512 as a
+universal setting; size for the real table/index inventory, concurrency,
+`max_connections` and `max_prepared_transactions`, then rehearse it. The separate
+256MiB fixture ENOSPC failure concerned data/temp-file capacity, not this lock limit.
+
+A database operator must configure sufficient `max_locks_per_transaction`, restart
+PostgreSQL for that setting to take effect, and verify
+`SHOW max_locks_per_transaction` plus no pending restart before using an empty
+isolated recovery target. The recovery command does not reconfigure a user's DB
+or weaken its single-transaction restore. Record the effective configuration and
+measured resource use with the recovery forecast and readiness evidence.
+
 For target config, retain bundle/extension fields, set new `label`, external DSN
 and S3 environment variable names, and set `destination_artifacts` to a new path.
 Run `... restore_check.py restore --config TARGET.json --run-id UUID`.
