@@ -292,6 +292,19 @@
    }
   ]
  },
+ "sector_map": {
+  "name": "S&P 500 Sector Map",
+  "description": "S&P 500 sectors sized by their weight in SPY (EODHD, Morningstar sectors) and coloured by the day change of each sector's SPDR ETF (XLK, XLF, ...), live from the grid's feed. Sector buckets follow Morningstar, the ETFs follow GICS, so a few companies sit in different buckets.",
+  "category": "Equity",
+  "type": "chart",
+  "endpoint": "sector_map",
+  "refetchInterval": 15000,
+  "gridData": {
+   "w": 20,
+   "h": 14
+  },
+  "params": []
+ },
  "live_chart": {
   "name": "Live Chart",
   "description": "Live price chart seeded from the kdb+ cache, extended tick by tick over the live quote stream.",

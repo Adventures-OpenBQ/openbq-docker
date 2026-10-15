@@ -144,3 +144,59 @@ def test_all_changes_missing_draws_grey():
     t = build_sector_figure(_weights(), {})["data"][0]
     assert t["marker"]["colors"] == [0] * 11
     assert (t["marker"]["cmin"], t["marker"]["cmax"]) == (-1.0, 1.0)
+
+
+# ---- route ---------------------------------------------------------------
+
+from tests.test_main import FakeRest, make_client  # noqa: E402
+
+
+class FakeRestWithWeights(FakeRest):
+    def __init__(self, exc=None):
+        super().__init__()
+        self.exc = exc
+
+    def get_fundamentals_data(self, ticker, filter):
+        if self.exc:
+            raise self.exc
+        return SPY_WEIGHTS
+
+
+def test_widget_is_a_polling_chart(monkeypatch):
+    w = make_client(monkeypatch).get("/widgets.json").json()["sector_map"]
+    assert w["type"] == "chart"
+    assert w["endpoint"] == "sector_map"
+    assert w["refetchInterval"] == 15000
+
+
+def test_route_returns_the_treemap_and_leases_all_eleven(monkeypatch):
+    client = make_client(monkeypatch, seed_client=FakeRestWithWeights())
+    r = client.get("/sector_map")
+    assert r.status_code == 200
+    t = r.json()["data"][0]
+    assert t["type"] == "treemap"
+    i = t["labels"].index("Technology")
+    # FakeRest's default snapshot: close 100, previousClose 90 -> +11.11%
+    assert t["text"][i] == "XLK<br>41.2% · +11.11%"
+    # app.state, not /health: /health reads recorder.store.session, which the
+    # monkeypatched snapshot store make_client() installs does not have.
+    assert client.app.state.leases.symbols() == sorted(SECTOR_ETFS.values())
+
+
+def test_route_seeds_only_cold_etfs(monkeypatch):
+    rest = FakeRestWithWeights()
+    client = make_client(monkeypatch, seed_client=rest)
+    row = client.app.state.quotes.rows.setdefault("XLK", {"symbol": "XLK"})
+    row["change_percent"] = 0.005
+    t = client.get("/sector_map").json()["data"][0]
+    assert "XLK.US" not in rest.calls, "a warm quote must not cost a REST call"
+    assert len(rest.calls) == 10
+    assert t["text"][t["labels"].index("Technology")] == "XLK<br>41.2% · +0.50%"
+
+
+def test_route_502_when_weights_fail(monkeypatch):
+    client = make_client(monkeypatch, seed_client=FakeRestWithWeights(exc=RuntimeError("402")))
+    r = client.get("/sector_map")
+    assert r.status_code == 502
+    assert r.json()["data"] == []
+    assert "Sector map:" in r.json()["layout"]["title"]["text"]

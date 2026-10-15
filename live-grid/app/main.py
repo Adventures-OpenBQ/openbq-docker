@@ -31,6 +31,7 @@ from app.figure import build_figure
 from app.leases import DEFAULT_TTL, MAX_LEASE_TTL_S, LeaseRegistry
 from app.openbb_client import fetch_series
 from app.quotes import QuoteTable
+from app.sector_map import SECTOR_ETFS, WeightsUnavailable, build_sector_figure, fetch_weights
 from app.symbol_meta import get_meta
 from app.ta.figure import delta as ta_delta
 from app.ta.macros import load_all as load_macros_all
@@ -491,6 +492,29 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             return JSONResponse({"data": [], "layout": {"title": {"text": f"{symbol}: {exc}"}}},
                                 status_code=502)
         return JSONResponse(build_figure(symbol, bars))
+
+    @app.get("/sector_map")
+    async def sector_map():
+        """S&P 500 sector treemap: SPY weights x sector-ETF day change.
+
+        The ETFs reach the feed through leases, so this card never opens a
+        second EODHD socket; a 15 s poll keeps renewing them, and the sweeper
+        drops them once nobody asks.
+        """
+        etfs = list(SECTOR_ETFS.values())
+        leases.renew(etfs, now=asyncio.get_running_loop().time())
+        client = _seed_client()
+        try:
+            weights = await asyncio.to_thread(fetch_weights, client)
+        except WeightsUnavailable as exc:
+            log.warning("sector map: %s", exc)
+            return JSONResponse({"data": [], "layout": {"title": {"text": f"Sector map: {exc}"}}},
+                                status_code=502)
+        cold = [s for s in etfs if quotes.rows.get(s, {}).get("change_percent") is None]
+        if cold:
+            await asyncio.to_thread(quotes.seed, cold, client)
+        changes = {s: quotes.rows.get(s, {}).get("change_percent") for s in etfs}
+        return JSONResponse(build_sector_figure(weights, changes))
 
     _eodhd = EodhdSource(
         key or "",
