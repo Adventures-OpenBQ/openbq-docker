@@ -95,4 +95,4 @@ docker compose --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net
 
 `git checkout ts-config/serve.json` and a sidecar restart close the door again. Then test from a
 device off the tailnet. Neither preflight queries a quote or prints a credential. Tests: `cd
-funnel-gateway && npm ci --ignore-scripts && npm test`.
+funnel-gateway && npm ci --ignore-scripts && npm test`. In Docker, mount the repo root (`-v "$PWD:/r" -w /r/funnel-gateway`), because the version test reads `../docker-compose.yml`.
