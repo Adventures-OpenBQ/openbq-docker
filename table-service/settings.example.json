@@ -1,0 +1,51 @@
+{
+  "listen": "0.0.0.0:8080",
+  "catalog_path": "/var/lib/table-service/sources",
+  "catalog": {
+    "limits": {
+      "max_upload_bytes": 2097152,
+      "max_parse_bytes": 8388608,
+      "max_cache_bytes": 67108864,
+      "max_input_rows": 20000,
+      "max_output_columns": 256,
+      "max_row_block_rows": 100,
+      "max_export_batch_bytes": 1048576,
+      "max_sessions_per_principal": 6,
+      "max_concurrent_jobs_per_principal": 4,
+      "max_session_seconds": 1800,
+      "max_job_seconds": 60,
+      "max_input_columns": 64
+    },
+    "backend_widgets": {}
+  },
+  "auth": {
+    "desktop_tokens": {},
+    "gateway_token": "<distinct random base64url token, at least 32 bytes>"
+  },
+  "ingestion": {
+    "node": "/opt/node/bin/node",
+    "entry": "/app/server/table-ingest/dist/child.mjs",
+    "backend_config": null,
+    "max_concurrent_children": 1,
+    "max_child_heap_mb": 128
+  },
+  "worker": {
+    "executable": "/app/bin/pivot-native-worker",
+    "memory_budget_bytes": 536870912,
+    "max_frame_bytes": 8392704,
+    "max_starting_workers": 2
+  },
+  "runtime": {
+    "compute_workers": 2,
+    "max_admitted_jobs": 4,
+    "max_sessions": 8,
+    "max_retained_slots": 18,
+    "max_retained_slots_per_principal": 16,
+    "max_exports_per_principal": 3,
+    "max_http_requests": 4,
+    "max_command_bytes": 2097152,
+    "body_seconds": 30,
+    "total_memory_budget_bytes": 7516192768,
+    "principal_memory_budget_bytes": 6442450944
+  }
+}
