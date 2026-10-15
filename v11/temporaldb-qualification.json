@@ -1,0 +1,34 @@
+{
+  "status": "passed",
+  "service": "TemporalDB",
+  "platform": {
+    "system": "Linux",
+    "machine": "aarch64",
+    "release": "7.0.14-linuxkit"
+  },
+  "environment_digest": "ea9f452802d6b71f05e96cfa3c6f952147142b1e4a5c33bdecd4760a2be31673",
+  "original_execution": "9c4788bd-d02c-4fe8-beea-99c56acd661f",
+  "replay_execution": "d38f2cfe-0e6a-493a-a0bb-cc2afd9e4a67",
+  "audit_run": "0d282a0c-3f8d-455d-b04f-0de4fbcaff43",
+  "input_manifest": {
+    "schema_version": 1,
+    "manifest_id": "3b63272e-f282-47a0-b9fe-e3853dc233f5",
+    "pins": [
+      {
+        "schema_version": 1,
+        "catalog_id": "hot",
+        "snapshot_id": 5
+      }
+    ],
+    "projection_versions": {
+      "eodhd.eod": "runtime-normalizers-1:2e6ea058f9dd2542d21e3360f85d764e95987110aa4a914bac756ed60c887b37"
+    },
+    "publication_id": "e61f0f54-7b5b-4a1c-a7de-fb47fe8c5bdc"
+  },
+  "result_hash": "e0925d2c34a43741178d788ea2478fa3b4910f0005f073da779f9bcf92c5e7fb",
+  "distribution": "local image; not published",
+  "proof": "actual API and worker module processes; archived original and replay",
+  "image_id": "sha256:3b4cd98f1286b2973840bae1a82d35b9de41b8783a6085d1b00e4f3aac68b2db",
+  "source_commit": "f5da4d95c6809472d35b333aa2c02d77552a4739",
+  "artifact_sha256": "cddc1629d0ac90df163a4422c20cf6563dbc2d9ba903f47e7424b1d63ecf26b1"
+}

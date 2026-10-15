@@ -109,3 +109,47 @@ The exact head rollback is a service pointer operation; it is not a downgrade of
 schema migrations, a deletion of new captures or an automatic Docker traffic
 rollback. Keep this rehearsal distinct from Task 14's final live cutover gates
 listed in [MIGRATION.md](MIGRATION.md).
+
+## Standalone TemporalDB 0.2.0 integration (Task 14a)
+
+The current runtime pin is [temporaldb.lock.json](temporaldb.lock.json). It binds
+standalone source, version, Linux arm64 image configuration ID, exported Docker
+artifact SHA256 and reviewed provider heads. This is a **local loadable artifact**;
+no registry digest has been published or made pullable. Obtain the exact
+`temporaldb-0.2.0-linux-arm64.docker.tar` and its provenance from the standalone P
+build output, verify the SHA256 in the lock, `docker load -i ARTIFACT`, then check
+`docker image inspect IMAGE_ID`. `pull_policy: never` deliberately fails when the
+verified local image has not been loaded. amd64 requires its own qualified build.
+
+Use [compose.temporaldb.yaml](compose.temporaldb.yaml) as an explicit additive v11
+profile; the existing v10 stack and gateway policy are unchanged. P owns all
+Python/runtime code, build and schema migrations. H contains only integration
+configuration and this independent pin. Set separate `TEMPORALDB_API_ENV_FILE`
+and `TEMPORALDB_WORKER_ENV_FILE` and `TEMPORALDB_ARCHIVE_HOST`; each service file
+contains only its own least-privilege control DSN. Follow P `docs/runtime.md` to
+provision the shared archive and schemas before starting replicas. Provision
+first-time catalog tables once with `python -m temporaldb.provision catalogs`.
+
+The shared archive is required, content-addressed and read-only at runtime.
+Retained Python and native dependencies execute in bounded dedicated
+`/run/temporaldb/runtime` tmpfs (`exec,nosuid,nodev`, 2 GiB); `/tmp` stays noexec
+(64 MiB). The archive binds Linux OS, architecture and kernel release. Preserve
+the exact image and matching platform for recovery; native macOS evidence is a
+separate boundary. This local fixture qualification is not NAS/deployment health.
+
+Recovery inventory additionally includes Q3 audit rows, original execution
+receipts and Arrow result objects, their full accepted normalization/Gold/tick
+input closure, every protected hold, and **all referenced native archive blobs**.
+Include original/replay environment digest, lock/provenance and independently
+managed secrets with the stopped-writer backup procedure above. Replay verifies
+retained typed results; restoring a catalog alone is insufficient. No migration
+rollback, shared prune, provider acquisition or traffic cutover is performed.
+
+Task 14b still owns automatic accepted-Silver-to-Gold job coordination, full
+linked-browser/two-API/two-worker/restore acceptance, native packaged restart,
+actual NAS loads and final cutover gates. This runtime dispatches the existing
+receipt-gated `job_type=build_gold` contract but does not schedule it automatically.
+Current canonical `funnel-gateway/policy.mjs` and C's vendored v10 policy admit
+`/api`, `/news`, `/grid`, `/state`, not TemporalDB; coordinated narrow v11 gateway
+admission and client vendoring belong to 14b. Direct authenticated discovery and
+CORS do not prove that public gateway path.

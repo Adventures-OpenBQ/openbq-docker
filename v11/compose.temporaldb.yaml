@@ -1,0 +1,24 @@
+# Additive v11 integration only. Requires separately provisioned durable stores.
+# Local immutable ID from the verified Docker-save artifact; no registry pull claim.
+x-temporaldb: &temporaldb
+  image: sha256:3b4cd98f1286b2973840bae1a82d35b9de41b8783a6085d1b00e4f3aac68b2db
+  platform: linux/arm64
+  profiles: [temporaldb-v11]
+  pull_policy: never
+  read_only: true
+  tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=67108864,mode=1777", "/run/temporaldb/runtime:rw,exec,nosuid,nodev,size=2147483648,mode=1777"]
+  volumes:
+    - ${TEMPORALDB_ARCHIVE_HOST:?Shared durable Linux archive}:/archive:ro
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: unless-stopped
+services:
+  temporaldb-api:
+    <<: *temporaldb
+    env_file: ${TEMPORALDB_API_ENV_FILE:?Private API-only runtime environment}
+    command: [python, -m, temporaldb.api.app]
+    ports: ["127.0.0.1:${TEMPORALDB_PORT:-8088}:8080"]
+  temporaldb-worker:
+    <<: *temporaldb
+    env_file: ${TEMPORALDB_WORKER_ENV_FILE:?Private worker-only runtime environment}
+    command: [python, -m, temporaldb.worker.runner]

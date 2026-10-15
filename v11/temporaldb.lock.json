@@ -1,0 +1,42 @@
+{
+  "host_compatibility": 11,
+  "client_compatibility": 11,
+  "service": "TemporalDB",
+  "version": "0.2.0",
+  "source_commit": "f5da4d95c6809472d35b333aa2c02d77552a4739",
+  "image_id": "sha256:3b4cd98f1286b2973840bae1a82d35b9de41b8783a6085d1b00e4f3aac68b2db",
+  "platform": "linux/arm64",
+  "artifact": "temporaldb-0.2.0-linux-arm64.docker.tar",
+  "artifact_sha256": "cddc1629d0ac90df163a4422c20cf6563dbc2d9ba903f47e7424b1d63ecf26b1",
+  "distribution": "local-docker-save; unpublished",
+  "registry_reference": null,
+  "provenance": {
+    "image_id": "sha256:3b4cd98f1286b2973840bae1a82d35b9de41b8783a6085d1b00e4f3aac68b2db",
+    "platform": "linux/arm64",
+    "labels": {
+      "org.opencontainers.image.revision": "f5da4d95c6809472d35b333aa2c02d77552a4739",
+      "org.opencontainers.image.source": "https://github.com/Adventures-OpenBQ/temporalDB-docker",
+      "org.opencontainers.image.title": "TemporalDB",
+      "org.opencontainers.image.version": "0.2.0"
+    },
+    "version": "0.2.0",
+    "source_commit": "f5da4d95c6809472d35b333aa2c02d77552a4739",
+    "source_date_epoch": "1792044772",
+    "artifact": "temporaldb-0.2.0-linux-arm64.docker.tar",
+    "artifact_sha256": "cddc1629d0ac90df163a4422c20cf6563dbc2d9ba903f47e7424b1d63ecf26b1",
+    "distribution": "local-docker-save; unpublished",
+    "registry_reference": null,
+    "build_command": "scripts/build_release.py --platform linux/arm64",
+    "lock_sha256": "34bd8f3f77eb10306b7df6fe904836f20c21cf62e6aab1767f10ec1043674ae3",
+    "extension_lock_sha256": "17f302af620e7342dc96315d6fbc39f4523e8eb75b509aa660438eb914f69f8f"
+  },
+  "providers": {
+    "eodhd": {
+      "reviewed_commit": "8e97520431c34d1d7e30380ee3f4bbce2c1914e8"
+    },
+    "yfinance": {
+      "reviewed_commit": "4569315def2fe23337716e0ea70aa7b78c3f3104"
+    }
+  },
+  "qualification_report": "temporaldb-qualification.json"
+}
