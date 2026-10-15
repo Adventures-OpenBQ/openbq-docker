@@ -133,7 +133,8 @@ SSRM_CACHE_BYTES = int(os.environ.get("OPENBQ_SSRM_CACHE_BYTES", 3 << 30))  # 3 
 SSRM_TTL = float(os.environ.get("OPENBQ_SSRM_TTL", 900))                     # 15 minutes
 SSRM_DEADLINE = float(os.environ.get("OPENBQ_SSRM_DEADLINE", 300))           # per cold acquisition
 SSRM_SLOTS = 2  # cold acquisitions at once: each holds a full result (~1-2 GB for 150 MB of JSON)
-SSRM_SORT_MAX = 16  # sortModel entries: each is one full sort of the frame on the GIL
+SSRM_SORT_MAX = 3     # sortModel entries (BDOBB sends 1; shift-click a few): each is a full sort on the GIL
+SSRM_FILTER_MAX = 16  # filterModel entries: each is a full pass over the frame
 SSRM_VIEWS = 8      # filtered+sorted row orders kept per frame
 _SSRM_TIMEOUT = json.dumps({"detail": "The widget's result did not arrive in time."}).encode()
 _SSRM_KEYS = frozenset({"startRow", "endRow", "sortModel", "filterModel", "rowGroupCols",
@@ -176,7 +177,7 @@ class SsrmCache:
                  slots=SSRM_SLOTS, deadline=SSRM_DEADLINE):
         self.max_bytes, self.ttl, self.clock, self.deadline = max_bytes, ttl, clock, deadline
         self.slots = asyncio.Semaphore(slots)
-        self.entries = OrderedDict()  # key -> (df, nbytes, expiry, views)
+        self.entries = OrderedDict()  # key -> [df, nbytes (frame + its views), expiry, views]
         self.inflight = {}            # key -> asyncio.Task
         self.total = 0
 
@@ -185,10 +186,32 @@ class SsrmCache:
         entry = self.entries.get(key)
         return entry is not None and entry[2] > self.clock()
 
-    def views(self, key, df) -> OrderedDict:
-        """The row orders kept with this frame (dropped with it); a throwaway once it is gone."""
+    def view(self, key, df, view):
+        """The kept row order of `view` on this frame, or None."""
         entry = self.entries.get(key)
-        return entry[3] if entry is not None and entry[0] is df else OrderedDict()
+        if entry is None or entry[0] is not df or view not in entry[3]:
+            return None
+        entry[3].move_to_end(view)
+        return entry[3][view]
+
+    def add_view(self, key, df, view, order):
+        """Keep `order` with its frame (at most SSRM_VIEWS, LRU), counted in the byte budget."""
+        entry = self.entries.get(key)
+        if entry is None or entry[0] is not df:  # the frame is gone: nothing to keep it with
+            return
+        views = entry[3]
+        old = views.pop(view, None)
+        delta = order.nbytes - (old.nbytes if old is not None else 0)
+        views[view] = order
+        while len(views) > SSRM_VIEWS:
+            delta -= views.popitem(last=False)[1].nbytes
+        entry[1] += delta
+        self.total += delta
+        self._evict()
+
+    def _evict(self):
+        while self.total > self.max_bytes and len(self.entries) > 1:
+            self.total -= self.entries.popitem(last=False)[1][1]
 
     async def get(self, key, acquire):
         if self.fresh(key):
@@ -214,10 +237,9 @@ class SsrmCache:
             old = self.entries.pop(key, None)
             if old is not None:
                 self.total -= old[1]
-            self.entries[key] = (df, nbytes, self.clock() + self.ttl, OrderedDict())
+            self.entries[key] = [df, nbytes, self.clock() + self.ttl, OrderedDict()]
             self.total += nbytes
-            while self.total > self.max_bytes and len(self.entries) > 1:
-                self.total -= self.entries.popitem(last=False)[1][1]
+            self._evict()
             return df
         finally:
             self.inflight.pop(key, None)
@@ -317,7 +339,8 @@ def _ssrm_body(raw: bytes) -> dict:
         if (not isinstance(item, dict) or set(item) != {"colId", "sort"}
                 or not isinstance(item["colId"], str) or item["sort"] not in ("asc", "desc")):
             raise SsrmBadRequest()
-    if len(sorts) > SSRM_SORT_MAX or len({item["colId"] for item in sorts}) != len(sorts):
+    if (len(sorts) > SSRM_SORT_MAX or len(filters) > SSRM_FILTER_MAX
+            or len({item["colId"] for item in sorts}) != len(sorts)):
         raise SsrmBadRequest()
     for spec in filters.values():
         if not isinstance(spec, dict):
@@ -350,7 +373,10 @@ def _view_order(df, body):
             continue
         series = pd.to_numeric(out[col], errors="coerce")
         lo = _number(spec["filter"])
-        if spec["type"] == "equals":
+        if spec["type"] == "equals" and pd.api.types.is_integer_dtype(out[col]) and lo.is_integer():
+            want = int(spec["filter"])  # the parsed value, exact: a float cast loses ids past 2^53
+            out = out[out[col] == want] if -2**63 <= want < 2**63 else out.iloc[0:0]
+        elif spec["type"] == "equals":
             out = out[series == lo]
         elif spec["type"] == "greaterThanOrEqual":
             out = out[series >= lo]
@@ -364,7 +390,7 @@ def _view_order(df, body):
     # own null placement (AG Grid's: first ascending, last descending) and only
     # a mixed-type column (numbers and "n/a") falls back to text order.
     # ponytail: a NEW view still re-filters and re-sorts the whole frame (seconds
-    # of GIL-bound CPU on FINRA/FFIEC sizes); _page keeps the last SSRM_VIEWS
+    # of GIL-bound CPU on FINRA/FFIEC sizes); the cache keeps the last SSRM_VIEWS
     # orders per frame so its further pages are a slice. A sorted-index per
     # column would make new views cheap too, if typing a filter proves slow.
     for item in reversed(body["sortModel"]):
@@ -408,16 +434,8 @@ async def _declared_params(request, wid):
     return _SSRM_DECLARED[wid]
 
 
-def _page(df, body, views):
-    """One page of a view, reusing its row order from `views` (the frame's own, LRU)."""
-    view = json.dumps([body["filterModel"], body["sortModel"]], sort_keys=True)
-    order = views.pop(view, None)  # pop + set, not move_to_end: another thread may evict it
-    if order is None:
-        order = _view_order(df, body)
-    views[view] = order
-    while len(views) > SSRM_VIEWS:
-        views.popitem(last=False)
-    return _ssrm_json_safe(df.iloc[order[body["startRow"]:body["endRow"]]]), len(order)
+def _page(df, order, body):
+    return _ssrm_json_safe(df.iloc[order[body["startRow"]:body["endRow"]]])
 
 
 async def _ssrm(request):
@@ -447,16 +465,24 @@ async def _ssrm(request):
         params = [(k, v) for k, v in params if k in declared]
     key = (route, tuple(sorted(params)))
     authorization = request.headers.get("authorization")
-    hit = SSRM_CACHE.fresh(key)  # get() answers a fresh key without awaiting, so this holds
+    # hit: the frame AND this view's row order came from the cache, so no provider
+    # call and no new sort. get() answers a fresh key without awaiting, so this holds.
+    hit = SSRM_CACHE.fresh(key)
+    view = json.dumps([body["filterModel"], body["sortModel"]], sort_keys=True)
     try:
         df = await SSRM_CACHE.get(key, lambda: _acquire(request.app, route, params, authorization))
-        rows, total = await asyncio.to_thread(_page, df, body, SSRM_CACHE.views(key, df))
+        order = SSRM_CACHE.view(key, df, view)
+        if order is None:
+            hit = False
+            order = await asyncio.to_thread(_view_order, df, body)
+            SSRM_CACHE.add_view(key, df, view, order)
+        rows, total = await asyncio.to_thread(_page, df, order, body), len(order)
     except SsrmBadRequest:
         return refused
     except SsrmUpstream as exc:
         return _cors(request, Response(exc.body, exc.status, media_type=exc.media_type))
     reply = json.dumps({"rowData": rows, "rowCount": total}, allow_nan=False, default=_json_default)
-    # hit: no provider was called for this page, so the door refunds its daily quote.
+    # On a hit the door refunds its daily quote.
     return _cors(request, Response(reply, 200, media_type="application/json",
                                    headers={"x-openbq-ssrm": "hit" if hit else "miss"}))
 

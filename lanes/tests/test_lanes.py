@@ -1035,8 +1035,8 @@ class SsrmFinalFixTest(unittest.IsolatedAsyncioTestCase):
     async def test_a_repeated_or_over_long_sort_model_is_refused(self):
         app = self.app([{f"c{i}": i for i in range(20)}])
         dup = await self.post(app, sortModel=[{"colId": "c0", "sort": "asc"}, {"colId": "c0", "sort": "desc"}])
-        over = await self.post(app, sortModel=[{"colId": f"c{i}", "sort": "asc"} for i in range(17)])
-        ok = await self.post(app, sortModel=[{"colId": f"c{i}", "sort": "asc"} for i in range(16)])
+        over = await self.post(app, sortModel=[{"colId": f"c{i}", "sort": "asc"} for i in range(4)])
+        ok = await self.post(app, sortModel=[{"colId": f"c{i}", "sort": "asc"} for i in range(3)])
         self.assertEqual((dup.status_code, over.status_code, ok.status_code), (400, 400, 200))
         self.assertEqual(dup.json(), {"detail": openbq_lanes._SSRM_REFUSED})
 
@@ -1133,3 +1133,51 @@ class SsrmFinalFixTest(unittest.IsolatedAsyncioTestCase):
             {"filterType": "number", "type": "equals", "filter": 2},
             {"filterType": "number", "type": "equals", "filter": 1}]}}
         self.assertEqual((await self.post(app, filterModel=combined)).status_code, 400)
+
+
+class SsrmFinalFixRound2Test(unittest.IsolatedAsyncioTestCase):
+    """Re-review: hit means frame AND view reused, tighter caps, views in the byte budget, exact equals."""
+
+    req = SsrmRowsTest.req
+    client = SsrmRowsTest.client
+    asyncSetUp = SsrmFixRound1Test.asyncSetUp
+    app = SsrmFixRound1Test.app
+    post = SsrmFinalFixTest.post
+
+    async def test_a_novel_view_on_a_cached_frame_is_a_miss_and_its_next_page_a_hit(self):
+        app = self.app([{"v": i} for i in range(5)])
+        await self.post(app)  # the frame is acquired
+        novel = await self.post(app, sortModel=[{"colId": "v", "sort": "desc"}])
+        again = await self.post(app, startRow=2, endRow=4, sortModel=[{"colId": "v", "sort": "desc"}])
+        self.assertEqual((novel.headers["x-openbq-ssrm"], again.headers["x-openbq-ssrm"]), ("miss", "hit"))
+        self.assertEqual([r["v"] for r in again.json()["rowData"]], [2, 1])
+
+    async def test_more_than_16_filters_are_refused(self):
+        app = self.app([{f"c{i}": "x" for i in range(17)}])
+        text = {"filterType": "text", "type": "contains", "filter": ""}
+        ok = await self.post(app, filterModel={f"c{i}": text for i in range(16)})
+        over = await self.post(app, filterModel={f"c{i}": text for i in range(17)})
+        self.assertEqual((ok.status_code, over.status_code), (200, 400))
+
+    async def test_view_orders_count_against_the_byte_budget(self):
+        frame = pd.DataFrame([{"v": i} for i in range(100)])
+        size = int(frame.memory_usage(deep=True).sum())
+        app = self.app([{"v": i} for i in range(100)])
+        order = 100 * 8  # one view's row positions (int64)
+        # two frames and their default views fit, not a third view
+        openbq_lanes.SSRM_CACHE.max_bytes = 2 * (size + order) + order // 2
+        await self.post(app, path="/api/v1/listed/data/ssrm?a=1")
+        await self.post(app, path="/api/v1/listed/data/ssrm?a=2")
+        cache = openbq_lanes.SSRM_CACHE
+        self.assertEqual(len(cache.entries), 2)
+        await self.post(app, path="/api/v1/listed/data/ssrm?a=2", sortModel=[{"colId": "v", "sort": "desc"}])
+        (key,) = cache.entries  # the a=2 frame's views pushed the a=1 frame out
+        self.assertEqual(key[1], (("a", "2"),))
+        views = cache.entries[key][3]
+        self.assertEqual(cache.total, size + sum(o.nbytes for o in views.values()))
+
+    async def test_number_equals_on_an_integer_column_is_exact(self):
+        app = self.app([{"id": 2**60, "n": 2**60}, {"id": 2**60 + 1, "n": 2**60 + 1}, {"id": None, "n": 1}])
+        for col in ("id", "n"):  # Int64 (has a null) and int64
+            r = await self.post(app, filterModel={col: {"filterType": "number", "type": "equals", "filter": 2**60}})
+            self.assertEqual([row[col] for row in r.json()["rowData"]], [2**60], col)
