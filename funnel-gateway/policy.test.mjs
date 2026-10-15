@@ -113,7 +113,6 @@ test("tickets: signed over the exact target, thirty seconds, base64url, refused 
   assert.equal(typeof socketTicketNonce(TOKEN, target, ticket, 1_700_000_000_000), "string");
   assert.equal(socketTicketValid(TOKEN, target, ticket, 1_700_000_000_000 + 29_000), true);
   assert.equal(socketTicketValid(TOKEN, target, ticket, 1_700_000_000_000 + 31_000), false);
-  assert.equal(socketTicketValid(TOKEN, target, ticket, 1_700_000_000_000 - 1), false);
   assert.equal(socketTicketValid(TOKEN + "x", target, ticket, 1_700_000_000_000), false);
   assert.equal(socketTicketValid(TOKEN, target + "?x=1", ticket, 1_700_000_000_000), false);
   // Tamper inside the signature, not its last character: the 43rd base64url character carries
@@ -123,6 +122,16 @@ test("tickets: signed over the exact target, thirty seconds, base64url, refused 
   assert.equal(socketTicketValid(TOKEN, target, ticket.slice(0, pos) + flipped + ticket.slice(pos + 1), 1_700_000_000_000), false);
   assert.equal(socketTicketValid("", target, ticket, 1_700_000_000_000), false);
   assert.equal(socketTicketNonce(TOKEN, target, "junk", 1_700_000_000_000), null);
+});
+
+test("tickets tolerate a signer clock up to five seconds ahead; expiry stays exact", () => {
+  const target = "/ref/live_grid_ws", now = 1_700_000_000_000;
+  // Minted by a signer whose clock reads 4 s / 6 s ahead of this verifier's.
+  assert.equal(socketTicketValid(TOKEN, target, socketTicket(TOKEN, target, now + 4000), now), true);
+  assert.equal(socketTicketValid(TOKEN, target, socketTicket(TOKEN, target, now + 6000), now), false);
+  const ticket = socketTicket(TOKEN, target, now);
+  assert.equal(socketTicketValid(TOKEN, target, ticket, now + 30_000), true); // the expiry millisecond
+  assert.equal(socketTicketValid(TOKEN, target, ticket, now + 30_001), false); // expired
 });
 
 test("socketTarget admits exactly /ref/live_grid_ws, no query; later lines' sockets stay refused", () => {

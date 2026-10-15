@@ -373,13 +373,11 @@ test("upstream redirects, error text, invalid JSON and oversized responses never
   }
 });
 
-test("a full-catalogue widgets.json fits MAX_BODY; one past it is an honest 502", async t => {
-  // Measured against the live v12.4 openbb-api on 2026-09-20: 331 widgets,
-  // 1,678,152 bytes of compact JSON, about 20% inside the 2 MiB MAX_BODY this
-  // gateway already applied. What matters is the failure mode when a future
-  // catalogue outgrows it: getJson destroys the response and rejects, so the
-  // caller sees a 502 rather than a manifest silently cut in half.
-  let size = 1_700_000;
+test("root manifests get MANIFEST_MAX (16 MiB); every other path keeps 2 MiB", async t => {
+  // openbq-api's widgets.json measured 5.0 MB (998 widgets) on 2026-10-15, past the 2 MiB
+  // every other body is held to. Over either cap, getJson destroys the response and the
+  // caller sees an honest 502, never a document silently cut in half.
+  let size = 5_000_000;
   const upstream = createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(Object.fromEntries(
@@ -387,12 +385,18 @@ test("a full-catalogue widgets.json fits MAX_BODY; one past it is an honest 502"
   });
   upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
   t.after(() => new Promise(resolve => upstream.close(resolve)));
-  const { port } = await fixture(t, { apiOrigin: `http://127.0.0.1:${upstream.address().port}` },
-    { requestJson: getJson });
-  const ok = await http(port, "/api/widgets.json");
-  assert.equal(ok.status, 200);
-  assert.equal(Object.keys(JSON.parse(ok.text)).length, 400);
+  const origin = `http://127.0.0.1:${upstream.address().port}`;
+  const { port } = await fixture(t, { apiOrigin: origin, refOrigin: origin }, { requestJson: getJson });
+  for (const path of ["/api/widgets.json", "/api/apps.json", "/ref/widgets.json", "/ref/apps.json"]) {
+    const ok = await http(port, path);
+    assert.equal(ok.status, 200, path);
+    assert.equal(Object.keys(JSON.parse(ok.text)).length, 400);
+  }
+  // The same ~5 MB on a DATA route is still past MAX_BODY.
+  assert.equal((await http(port, quote)).status, 502);
   size = 2 * 1024 * 1024 + 1024;
+  assert.equal((await http(port, quote)).status, 502);
+  size = 16 * 1024 * 1024 + 1024;
   const over = await http(port, "/api/widgets.json");
   assert.equal(over.status, 502);
   assert.equal(over.text, '{"error":"Request refused"}');
@@ -498,6 +502,16 @@ test("a browser socket is admitted on a ticket: right target, right Origin, once
   // No ticket and no bearer is what it always was; a ticket buys nothing on the REST side.
   assert.equal((await wsConnect(port, browser, LIVE)).status, 401);
   assert.equal((await http(port, ticketed(quote, socketTicket(TOKEN, quote)), browser)).status, 401);
+});
+
+test("a ticket replayed at its exact expiry millisecond is still refused", async t => {
+  let clock = 1_700_000_000_000;
+  const { port } = await fixture(t, { previewOrigin: PREVIEW }, { openRef: refused, now: () => clock });
+  const ticket = socketTicket(TOKEN, LIVE, clock);
+  const admitted = await wsConnect(port, browser, ticketed(LIVE, ticket));
+  assert.equal(admitted.status, 101); admitted.ws.terminate();
+  clock += 30_000; // now === expiry: the verifier still accepts it, so the nonce must still be held
+  assert.equal((await wsConnect(port, browser, ticketed(LIVE, ticket))).status, 401);
 });
 
 test("tickets are off until the operator names the preview origin", async t => {

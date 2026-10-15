@@ -14,6 +14,10 @@ import { WebSocket, WebSocketServer } from "ws";
 import { refSubscription, socketTarget, socketTicketNonce, upstreamPath, stateFile } from "./policy.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
+// The root manifests are static catalogue documents, not data: openbq-api's widgets.json is
+// 5.0 MB (998 widgets). They get their own cap; every other path keeps MAX_BODY.
+const MANIFESTS = new Set(["/api/widgets.json", "/api/apps.json", "/ref/widgets.json", "/ref/apps.json"]);
+const MANIFEST_MAX = 16 * 1024 * 1024;
 const MAX_SOCKET = 65536;
 /**
  * The packaged desktop app's webview origins (V10-P1, user ruling 2026-10-15). Tauri's http
@@ -89,7 +93,7 @@ export function connectRef(config) {
 /** Bounded JSON-only request (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
 export async function getJson(path, config, signal) {
   const { url, headers } = target(path, config);
-  const svg = path === LOGO, limit = svg ? MAX_SVG : MAX_BODY;
+  const svg = path === LOGO, limit = svg ? MAX_SVG : MANIFESTS.has(path) ? MANIFEST_MAX : MAX_BODY;
   return new Promise((resolve, rejectPromise) => {
     const request = httpRequest(url, { method: "GET", headers, signal }, response => {
       if (response.statusCode !== 200 ||
@@ -252,7 +256,7 @@ export function createGateway(config, { requestJson = getJson, openRef = connect
       // What was signed is the literal text, so that is refused here, not by luck below.
       const nonce = cut >= 0 && tickets.length === 1 && req.url.slice(cut + 8) === tickets[0]
         ? socketTicketNonce(config.token, want, tickets[0], now()) : null;
-      for (const [used, until] of admitted) if (until <= now()) admitted.delete(used);
+      for (const [used, until] of admitted) if (until < now()) admitted.delete(used);
       if (!nonce || admitted.has(nonce)) return reject(socket, 401);
       admitted.set(nonce, Number(tickets[0].split(".")[0]));
     } else {

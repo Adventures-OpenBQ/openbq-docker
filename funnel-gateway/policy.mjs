@@ -171,6 +171,9 @@ export function upstreamPath(url) {
  * arrives at v8, /grid/live_grid_ws at v10.
  */
 const TICKET_MS = 30_000;
+// The signer (the web layer, on Vercel) and this verifier keep separate clocks; a signer a
+// few seconds ahead must not fail every ticket. Expiry itself stays exact.
+const TICKET_SKEW_MS = 5_000;
 const ticketKey = token => createHmac("sha256", token).update("bdobb socket ticket v1").digest();
 const ticketSignature = (token, expiry, nonce, target) =>
   createHmac("sha256", ticketKey(token)).update(`${expiry}.${nonce}.${target}`).digest();
@@ -185,7 +188,7 @@ export function socketTicketNonce(token, target, ticket, now = Date.now()) {
   const match = typeof ticket === "string" && /^(\d{13})\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$/.exec(ticket);
   if (!match || typeof token !== "string" || !token) return null;
   const expiry = Number(match[1]);
-  if (now > expiry || expiry - now > TICKET_MS) return null;
+  if (now > expiry || expiry - now > TICKET_MS + TICKET_SKEW_MS) return null;
   const given = Buffer.from(match[3], "base64url");
   const wanted = ticketSignature(token, expiry, match[2], target);
   return given.length === wanted.length && timingSafeEqual(given, wanted) ? match[2] : null;
