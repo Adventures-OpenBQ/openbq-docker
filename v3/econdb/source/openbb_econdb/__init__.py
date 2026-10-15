@@ -1,3 +1,6 @@
+# Derived from the OpenBB Platform (https://github.com/OpenBB-finance/OpenBB) at 174d7e69,
+# Copyright (c) 2021-2023 OpenBB Inc., licensed under the MIT License (see LICENSE).
+# Modifications Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0 (see NOTICE).
 """EconDB provider module."""
 
 from openbb_core.provider.abstract.provider import Provider
@@ -24,3 +27,9 @@ aggregate statistics.""",
     },
     repr_name="EconDB",
 )
+
+# openbq: every fetcher also under an econdb-only model key EconDb<Std>, which the
+# routes in econdb_router.py use, so their only provider is econdb even when another
+# extension (openbq-eodhd on v9) implements the same standard model.
+for _std_key, _fetcher in list(econdb_provider.fetcher_dict.items()):
+    econdb_provider.fetcher_dict[f"EconDb{_std_key}"] = _fetcher
