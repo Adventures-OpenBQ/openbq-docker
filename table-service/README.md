@@ -116,6 +116,8 @@ offers a year and a quarter form) and relabels its fiscal periods from
 `<url>/api/v1/fundamentals/fiscal_year_end`, both with the widget's own headers.
 Nothing is set per widget. Without `url`, or when widgets.json does not answer, the
 rows stay as reported and the card says *Fiscal labels as reported*.
+From v9 the same widgets.json entry also gives each declared column its provider
+aggregation hint (`data.table.columnsDefs[].aggregation`), which Rita's table tools read.
 
 The configurable qualification profile uses an 8 GiB container ceiling, 7 GiB
 global reservations and 6 GiB per principal, two compute workers, four admitted
