@@ -21,7 +21,8 @@ def main():
   ('private key',r'-----BEGIN [A-Z ]*PRIVATE KEY-----'),
   ('tailnet host',r'(?i)(?:[a-z0-9-]+\.)+[a-z0-9-]+\.ts\.net\b'),
   # 100.100.100.100 is Tailscale's fixed MagicDNS resolver on every tailnet (rita-resolv.conf), not a deployment detail.
-  ('private address',r'\b(?!100\.100\.100\.100\b)(?:100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])|192\.168|10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b'),
+  # 100.64.0.0 is the base of the tailnet CGNAT block (100.64.0.0/10, key-maint's tier check), never a host address.
+  ('private address',r'\b(?!100\.100\.100\.100\b)(?!100\.64\.0\.0\b)(?:100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])|192\.168|10\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b'),
   # Tailscale ULA addresses; the trailing hex digit keeps the bare prefix (a CIDR in docs) from matching.
   ('tailnet IPv6',r'(?i)\bfd7a:115c:a1e0:[0-9a-f:]*[0-9a-f]\b'),
   ('local home',r'/Users/[A-Za-z0-9_.-]+/|/home/[A-Za-z0-9_.-]+/'),
@@ -49,8 +50,9 @@ def main():
    if (match.group(1),value) in public_demo:continue
    if value and not value.startswith(('$','<')) and not re.fullmatch(r'(?:YOUR_[A-Z_]+|EXAMPLE_[A-Z_]+|PLACEHOLDER|CHANGE_ME|CHANGEME)',value):
     findings.append((label,'filled credential assignment'))
-  for match in re.finditer(r'(?i)"[a-z0-9_]*(?:api_key|token|password|secret|access_key_id)"[ \t\r\n]*:[ \t\r\n]*"([^"\n]*)"',text):
-   value=match.group(1).strip()
+  for match in re.finditer(r'(?i)"([a-z0-9_]*(?:api_key|token|password|secret|access_key_id))"[ \t\r\n]*:[ \t\r\n]*"([^"\n]*)"',text):
+   value=match.group(2).strip()
+   if (match.group(1).upper(),value) in public_demo:continue
    if value and not value.startswith(('$','<')) and not re.fullmatch(r'(?:YOUR_[A-Z_]+|EXAMPLE_[A-Z_]+|PLACEHOLDER|CHANGE_ME|CHANGEME)',value):
     findings.append((label,'filled JSON credential'))
  files=git('ls-files','--cached','--others','--exclude-standard','-z').decode().split('\0')
