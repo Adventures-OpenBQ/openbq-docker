@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 *.env
 !*.env.example
+# Public demo keys only (tests/test_credentials_demo.py).
+!credentials.demo.env
 ts-state/
 __pycache__/
 *.pyc
