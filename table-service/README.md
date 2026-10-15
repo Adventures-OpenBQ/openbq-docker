@@ -103,6 +103,20 @@ volume during restart tests. A fresh volume inherits image ownership; for an exi
 volume, provision ownership explicitly. `table-config` may also hold private backend
 acquisition configuration; leave backend_config null for upload-only operation.
 
+`backend_config` names that private file, BDOBB's `ServerBackendConfig`
+(`server/table-ingest/README.md` in the pinned source). Give each backend its base
+`url`, as a client connection names it:
+
+```json
+{"backends": {"openbb": {"url": "https://backend.example/api", "widgets": {"income": {"url": "https://backend.example/api/api/v1/equity/fundamental/income", "headers": {"Authorization": "Basic …"}, "parameters": ["symbol", "period"], "response": {"kind": "rows", "columns": [], "provenance": {"sourceWidgetId": "income"}}}}}}}
+```
+
+Ingest reads `<url>/widgets.json` to tell a statement widget (one whose `period`
+offers a year and a quarter form) and relabels its fiscal periods from
+`<url>/api/v1/fundamentals/fiscal_year_end`, both with the widget's own headers.
+Nothing is set per widget. Without `url`, or when widgets.json does not answer, the
+rows stay as reported and the card says *Fiscal labels as reported*.
+
 The configurable qualification profile uses an 8 GiB container ceiling, 7 GiB
 global reservations and 6 GiB per principal, two compute workers, four admitted
 jobs and four HTTP exchanges. It admits 2 MiB uploads, 8 MiB encoded sources,
