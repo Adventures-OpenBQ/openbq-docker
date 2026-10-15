@@ -47,3 +47,6 @@ secrets/
 # Python demo runtime caches
 __pycache__/
 *.pyc
+
+# key-maint admin socket directory (host-only, 0700)
+key-maint-admin/
