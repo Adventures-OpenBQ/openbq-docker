@@ -287,6 +287,45 @@ test("upstream HTTP prefix stripping, Basic injection and no client credential f
   assert.ok(!response.text.includes(TOKEN));
 });
 
+test("a reference GET forwards with no credential; Omni and unlisted dotted paths 404; a down reference is 502", async t => {
+  const seen = [];
+  const upstream = createServer((req, res) => {
+    seen.push({ url: req.url, headers: req.headers });
+    if (req.url === "/assets/bdobb-logo.svg") {
+      res.writeHead(200, { "Content-Type": "image/svg+xml" }); return res.end("<svg/>");
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end('{"ok":true}');
+  });
+  upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
+  t.after(() => new Promise(resolve => upstream.close(resolve)));
+  const { port } = await fixture(t, { refOrigin: `http://127.0.0.1:${upstream.address().port}` }, { requestJson: getJson });
+  const ok = await http(port, "/ref/metric_widget?x=1", { ...HEADERS, Origin: ORIGIN, Cookie: "viewer=session" });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.text, '{"ok":true}');
+  assert.equal(seen[0].url, "/metric_widget?x=1");
+  assert.equal(seen[0].headers.authorization, undefined);
+  assert.equal(seen[0].headers.cookie, undefined);
+  for (const bad of ["/ref/omni-sql-widget", "/ref/assets/other.svg", "/ref/metric_widget.json"]) {
+    assert.equal((await http(port, bad)).status, 404, bad);
+  }
+  assert.equal((await http(port, "/ref/metric_widget", HEADERS, "POST")).status, 405);
+  const logo = await http(port, "/ref/assets/bdobb-logo.svg");
+  assert.equal(logo.status, 200);
+  assert.equal(logo.text, "<svg/>");
+  assert.equal(logo.headers["content-type"], "image/svg+xml");
+  assert.equal(logo.headers["x-content-type-options"], "nosniff");
+  assert.match(logo.headers["content-security-policy"], /sandbox/);
+  assert.equal(seen.length, 2);
+  // A down reference: the door's own refusal, never the upstream's.
+  const dead = createServer(); dead.listen(0, "127.0.0.1"); await once(dead, "listening");
+  const deadPort = dead.address().port; await new Promise(resolve => dead.close(resolve));
+  const down = await fixture(t, { refOrigin: `http://127.0.0.1:${deadPort}` }, { requestJson: getJson });
+  const gone = await http(down.port, "/ref/metric_widget");
+  assert.equal(gone.status, 502);
+  assert.equal(gone.text, '{"error":"Request refused"}');
+});
+
 test("upstream redirects, error text, invalid JSON and oversized responses never escape", async t => {
   let mode;
   const upstream = createServer((req, res) => {

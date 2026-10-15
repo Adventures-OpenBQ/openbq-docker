@@ -46,32 +46,43 @@ function reply(res, code, value = { error: "Request refused" }) {
 function reject(socket, code) {
   socket.end(`HTTP/1.1 ${code} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
 }
-// One upstream at this tag: /api/... -> openbq-api, plain HTTP on the bridge, behind the
-// stack's Basic pair; the prefix is stripped ("/api/api/v1/x" -> "/api/v1/x") and the
-// credential injected. Nothing the caller sent goes with it.
+// Two upstreams: /api/... -> openbq-api, plain HTTP on the bridge, behind the stack's Basic
+// pair; the prefix is stripped ("/api/api/v1/x" -> "/api/v1/x") and the credential injected.
+// /ref/... -> the keyless reference fixture, "/ref" stripped, NO Authorization header.
+// Nothing the caller sent goes with either.
+const LOGO = "/ref/assets/bdobb-logo.svg", MAX_SVG = 262144;
 function target(path, config) {
-  return { url: new URL(path.slice(4), config.apiOrigin),
-    headers: { Authorization: config.apiAuthorization, Accept: "application/json" } };
+  if (path.startsWith("/api/")) {
+    return { url: new URL(path.slice(4), config.apiOrigin),
+      headers: { Authorization: config.apiAuthorization, Accept: "application/json" } };
+  }
+  return { url: new URL(path.slice(4), config.refOrigin),
+    headers: { Accept: path === LOGO ? "image/svg+xml" : "application/json" } };
 }
+/** The reference logo's bytes: the one non-JSON body the door relays. */
+class SvgBody { constructor(text) { this.text = text; } }
 
-/** Bounded JSON-only request; never relay cookies, errors, redirects or credentials. */
+/** Bounded JSON-only request (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
 export async function getJson(path, config, signal) {
   const { url, headers } = target(path, config);
+  const svg = path === LOGO, limit = svg ? MAX_SVG : MAX_BODY;
   return new Promise((resolve, rejectPromise) => {
     const request = httpRequest(url, { method: "GET", headers, signal }, response => {
       if (response.statusCode !== 200 ||
-          !/^application\/json(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
+          !(svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(response.headers["content-type"] ?? "")) {
         response.destroy(); return rejectPromise(new Error("Invalid upstream response"));
       }
       let size = 0; const parts = [];
       response.on("data", chunk => {
         size += chunk.length;
-        if (size > MAX_BODY) { response.destroy(); rejectPromise(new Error("Body limit")); }
+        if (size > limit) { response.destroy(); rejectPromise(new Error("Body limit")); }
         else parts.push(chunk);
       });
       response.on("error", rejectPromise);
       response.on("end", () => {
-        try { resolve(JSON.parse(Buffer.concat(parts).toString("utf8"))); }
+        const text = Buffer.concat(parts).toString("utf8");
+        if (svg) return resolve(new SvgBody(text));
+        try { resolve(JSON.parse(text)); }
         catch { rejectPromise(new Error("Invalid JSON")); }
       });
     });
@@ -188,7 +199,15 @@ export function createGateway(config, { requestJson = getJson, now = Date.now } 
       const timer = setTimeout(() => controller.abort(), 12000);
       const disconnect = () => { if (!res.writableEnded) controller.abort(); };
       res.once("close", disconnect);
-      try { reply(res, 200, await requestJson(path, config, controller.signal)); }
+      try {
+        const body = await requestJson(path, config, controller.signal);
+        if (body instanceof SvgBody) {
+          // sandbox: an SVG opened directly runs no script and loads nothing.
+          res.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'" });
+          res.end(body.text);
+        } else reply(res, 200, body);
+      }
       finally { clearTimeout(timer); res.off("close", disconnect); inflight--; }
     } catch { if (!res.headersSent) reply(res, 502); else res.destroy(); }
   });

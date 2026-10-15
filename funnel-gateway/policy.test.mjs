@@ -20,6 +20,37 @@ test("the two root documents forward exactly, with no query", () => {
   assert.equal(route("/api/templates.json"), null);
 });
 
+test("the reference root documents forward exactly, with no query", () => {
+  assert.equal(route("/ref/widgets.json"), "/ref/widgets.json");
+  assert.equal(route("/ref/apps.json"), "/ref/apps.json");
+  assert.equal(route("/ref/widgets.json?x=1"), null);
+});
+
+test("every reference GET forwards under the shape bounds, re-serialised; Omni refused", () => {
+  assert.equal(route("/ref/metric_widget"), "/ref/metric_widget");
+  assert.equal(route("/ref/table_widget"), "/ref/table_widget");
+  assert.equal(route("/ref/data/prices"), "/ref/data/prices");
+  assert.equal(route("/ref/pdf_widget_base64"), "/ref/pdf_widget_base64");
+  // Omni routes (code-executing or not) are refused at the door.
+  for (const bad of ["/ref/omni-widget", "/ref/omni-sql-widget", "/ref/omni-python-widget"]) {
+    assert.equal(route(bad), null, bad);
+  }
+  // The four exact dotted documents (ruled 2026-10-15) forward, no query; other dotted paths stay refused.
+  for (const ok of ["/ref/agents.json", "/ref/bundle.apps.json",
+    "/ref/market-examples.apps.json", "/ref/assets/bdobb-logo.svg"]) {
+    assert.equal(route(ok), ok, ok);
+  }
+  for (const bad of ["/ref/agents.json?x=1", "/ref/assets/other.svg", "/ref/assets/bdobb-logo.svg/x"]) {
+    assert.equal(route(bad), null, bad);
+  }
+  // Same structural refusals as /api: uppercase, dot, control char, duplicate key, 41 pairs.
+  for (const bad of [
+    "/ref/Metric_Widget", "/ref/metric_widget.json",
+    "/ref/metric_widget?x=a%0d%0aY:1", "/ref/metric_widget?a=1&a=2",
+    "/ref/metric_widget?" + "a=1&".repeat(41).slice(0, -1),
+  ]) assert.equal(route(bad), null, bad);
+});
+
 test("every api/v1 route forwards under the shape bounds, re-serialised", () => {
   assert.equal(route("/api/api/v1/equity/price/quote?symbol=AAPL&provider=yfinance"),
     "/api/api/v1/equity/price/quote?symbol=AAPL&provider=yfinance");

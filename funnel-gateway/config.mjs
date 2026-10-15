@@ -61,6 +61,10 @@ export function validateConfig(settings, secrets) {
     apiAuthorization: "Basic " + Buffer.from(`${secrets.apiUsername}:${secrets.apiPassword}`).toString("base64"),
     // Never accept a caller-supplied upstream or a configurable generic proxy.
     apiOrigin: "http://openbq-api:6900",
+    // The Episode 3 reference (the episode3-demo service, network alias openbq-reference):
+    // a keyless local fixture on the same bridge, so a fixed service name like apiOrigin,
+    // never a setting, and NO credential is presented on the bridge.
+    refOrigin: "http://openbq-reference:17783",
   };
 }
 

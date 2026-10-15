@@ -54,6 +54,12 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
  * routes the client fetches, so they are not routes this door forwards.
  */
 const OPENBB_ROUTE_RE = /^\/api\/api\/v1\/[a-z0-9_/-]{1,200}$/;
+// The reference backend's routes (Episode 3): same lowercase-segment class as /api/api/v1.
+const REF_ROUTE_RE = /^\/ref\/[a-z0-9_/-]{1,200}$/;
+// Its root documents and logo, forwarded as exact paths with no query (dotted, so outside
+// REF_ROUTE_RE; the four extra ones ruled in 2026-10-15).
+const REF_DOCUMENTS = new Set(["/ref/widgets.json", "/ref/apps.json", "/ref/agents.json",
+  "/ref/bundle.apps.json", "/ref/market-examples.apps.json", "/ref/assets/bdobb-logo.svg"]);
 const PARAM_NAME_RE = /^[A-Za-z_][A-Za-z0-9_.[\]-]{0,63}$/;
 // Not a regex: a control-character class is exactly what eslint's
 // no-control-regex forbids, and a comparison says the same thing plainly.
@@ -117,6 +123,28 @@ export function upstreamPath(url) {
     for (const [name, value] of pairs) {
       if (!PARAM_NAME_RE.test(name) || value.length > MAX_VALUE_CHARS ||
           hasControlChar(value)) return null;
+    }
+    const forwarded = url.pathname + (pairs.length ? "?" + params.toString() : "");
+    return forwarded.length <= MAX_URL_CHARS ? forwarded : null;
+  }
+
+  // --- the reference backend (Episode 3), offered whole through /ref. The upstream is
+  // openbq-reference:17783, a keyless local fixture, so NO credential is injected
+  // (server.mjs target()). The root documents exactly, no query; every other GET
+  // under the SAME structural bounds as /api/api/v1 (lowercase segments, no dot, no %,
+  // bounded query, re-serialised). /ref/omni* is refused so no code-executing Omni route
+  // is ever forwarded. Dotted paths pass only as the exact REF_DOCUMENTS.
+  if (REF_DOCUMENTS.has(url.pathname)) {
+    if (url.search) return null;
+    return url.pathname;
+  }
+  if (url.pathname.startsWith("/ref/")) {
+    if (url.pathname.startsWith("/ref/omni")) return null;
+    if (!REF_ROUTE_RE.test(url.pathname)) return null;
+    const pairs = [...params];
+    if (pairs.length > MAX_QUERY_PAIRS) return null;
+    for (const [name, value] of pairs) {
+      if (!PARAM_NAME_RE.test(name) || value.length > MAX_VALUE_CHARS || hasControlChar(value)) return null;
     }
     const forwarded = url.pathname + (pairs.length ? "?" + params.toString() : "");
     return forwarded.length <= MAX_URL_CHARS ? forwarded : null;
