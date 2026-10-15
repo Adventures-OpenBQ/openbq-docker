@@ -17,7 +17,7 @@ const MAX_BODY = 2 * 1024 * 1024;
 // The root manifests are static catalogue documents, not data: openbq-api's widgets.json is
 // 5.0 MB (998 widgets). They get their own cap; every other path keeps MAX_BODY.
 const MANIFESTS = new Set(["/api/widgets.json", "/api/apps.json", "/ref/widgets.json", "/ref/apps.json"]);
-const MANIFEST_MAX = 16 * 1024 * 1024;
+const MANIFEST_MAX = 16 * 1024 * 1024; // ponytail: manifests are buffered and parsed (~6x their size at peak); 8 concurrent 16 MiB manifests could pass mem_limit 512m — stream them unparsed if that ever matters.
 const MAX_SOCKET = 65536;
 /**
  * The packaged desktop app's webview origins (V10-P1, user ruling 2026-10-15). Tauri's http

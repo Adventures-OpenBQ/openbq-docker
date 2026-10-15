@@ -134,6 +134,13 @@ test("tickets tolerate a signer clock up to five seconds ahead; expiry stays exa
   assert.equal(socketTicketValid(TOKEN, target, ticket, now + 30_001), false); // expired
 });
 
+test("the skew tolerance boundary is exactly 5000 ms ahead", () => {
+  const target = "/ref/live_grid_ws", now = 1_700_000_000_000;
+  // TICKET_SKEW_MS (5000) is private to policy.mjs; the literal pins the boundary.
+  assert.equal(socketTicketValid(TOKEN, target, socketTicket(TOKEN, target, now + 5000), now), true);
+  assert.equal(socketTicketValid(TOKEN, target, socketTicket(TOKEN, target, now + 5001), now), false);
+});
+
 test("socketTarget admits exactly /ref/live_grid_ws, no query; later lines' sockets stay refused", () => {
   assert.equal(socketTarget("/ref/live_grid_ws", ORIGIN), "/ref/live_grid_ws");
   for (const raw of [
