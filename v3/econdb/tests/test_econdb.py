@@ -72,11 +72,13 @@ class EconDbTest(unittest.TestCase):
 
     def test_widgets_are_econdb_namespaced_and_keyless(self):
         widgets = build_json(app.openapi(), [])
-        self.assertEqual(sorted(k for k in widgets if "econdb" in k), [
+        self.assertEqual(sorted(k for k in widgets if k.endswith("_econdb_obb")), [
             "econdb_economy_available_indicators_econdb_obb",
             "econdb_economy_country_profile_econdb_obb",
             "econdb_economy_indicators_econdb_obb",
         ])
+        self.assertFalse([k for k in widgets if k.startswith("econdb_") and not k.endswith("_econdb_obb")],
+                         "an econdb route offers another provider")
         w = widgets["econdb_economy_indicators_econdb_obb"]
         self.assertEqual((w["endpoint"], w["type"]), (ROUTE, "table"))
         self.assertLessEqual({"symbol", "country", "start_date", "end_date", "transform"},
