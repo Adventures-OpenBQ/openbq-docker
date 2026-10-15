@@ -54,6 +54,27 @@ class ApiImages(unittest.TestCase):
                 self.assertIn("COPY examples/episode3/assets/bdobb-logo.svg /workspace/bdobb-logo.svg", text)
                 self.assertTrue(re.search(r"(?m)^WORKDIR /workspace$", text))
 
+    def test_every_api_image_builds_installs_and_gates_openbq_eodhd(self):
+        # v9: the base image installs openbq-eodhd from v9/eodhd/source, as Dockerfile.v3 does.
+        for name in API_DOCKERFILES:
+            text = dockerfile(name)
+            with self.subTest(name):
+                self.assertIn("COPY v9/eodhd/source /eodhd", text)
+                self.assertIn("--wheel-dir /wheels /eodhd", text)
+                self.assertIn("EODHD-APIs-Python-Financial-Library/archive/f98e69d797140ca03f16fa7451046d84aab9643e.tar.gz", text)
+                self.assertIn("python -m pip install --constraint /tmp/requirements.lock /tmp/eodhd/eodhd-*.whl", text)
+                self.assertIn("python -m pip install --no-deps /tmp/eodhd/openbq_eodhd-9.0.0-py3-none-any.whl", text)
+                self.assertIn("RUN python /tmp/eodhd-verify/verify.py", text)
+
+    def test_the_api_service_gets_eodhd_api_key_from_the_credentials_files(self):
+        import yaml
+
+        api = yaml.safe_load((ROOT / "docker-compose.yml").read_text())["services"]["openbq-api"]
+        paths = [f["path"] for f in api["env_file"]]
+        self.assertEqual(paths, ["./credentials.demo.env", "./credentials.env"])
+        self.assertIn("EODHD_API_KEY", (ROOT / "credentials.env.example").read_text())
+        self.assertIn("EODHD_API_KEY=demo", (ROOT / "credentials.demo.env").read_text().splitlines())
+
     def test_fixture_widgets_are_copied_into_every_api_image(self):
         for name in API_DOCKERFILES:
             with self.subTest(name):

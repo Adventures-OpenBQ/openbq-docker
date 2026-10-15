@@ -5,6 +5,13 @@ RUN python -m pip install hatchling==1.32.4 packaging==26.3 pathspec==1.1.1 plug
 COPY v3/videos/source /videos
 COPY v3/econdb/source /econdb
 RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /videos /econdb
+# v9: openbq-eodhd 9.0.0 and the official EODHD SDK, built exactly as Dockerfile.v3 builds them
+# (v9/eodhd/source.json), so the base image serves obb.eodhd.* too.
+RUN python -m pip install setuptools==84.0.0
+COPY v9/eodhd/source /eodhd
+RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /eodhd \
+    && python -m pip wheel --no-deps --wheel-dir /wheels \
+       "eodhd @ https://github.com/EodHistoricalData/EODHD-APIs-Python-Financial-Library/archive/f98e69d797140ca03f16fa7451046d84aab9643e.tar.gz"
 
 FROM python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS odp
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -25,6 +32,15 @@ COPY v3/videos/verify.py /tmp/ext-verify/videos.py
 COPY v3/econdb/verify.py /tmp/ext-verify/econdb/verify.py
 COPY v3/econdb/tests /tmp/ext-verify/econdb/tests
 RUN python /tmp/ext-verify/videos.py && python /tmp/ext-verify/econdb/verify.py && rm -rf /tmp/ext-verify
+# v9: EODHD provider extension, served as obb.eodhd.* (/api/v1/eodhd/*) with its "EODHD" app, installed
+# as in Dockerfile.v3: the SDK's dependencies resolve under the ODP lock as constraints.
+COPY --from=extensions-build /wheels/eodhd-*.whl /wheels/openbq_eodhd-9.0.0-py3-none-any.whl /tmp/eodhd/
+RUN python -m pip install --constraint /tmp/requirements.lock /tmp/eodhd/eodhd-*.whl \
+    && python -m pip install --no-deps /tmp/eodhd/openbq_eodhd-9.0.0-py3-none-any.whl \
+    && python -m pip check && openbb-build && rm -rf /tmp/eodhd
+COPY v9/eodhd/verify.py /tmp/eodhd-verify/verify.py
+COPY v9/eodhd/tests /tmp/eodhd-verify/tests
+RUN python /tmp/eodhd-verify/verify.py && rm -rf /tmp/eodhd-verify
 COPY lanes/openbq_lanes.py /usr/local/lib/python3.12/site-packages/openbq_lanes.py
 WORKDIR /workspace
 # BDOBB example dashboards, appended to /apps.json by the lanes hook (examples/bdobb/README.md).
