@@ -825,11 +825,12 @@ class SsrmFixRound1Test(unittest.IsolatedAsyncioTestCase):
     client = SsrmRowsTest.client
 
     async def asyncSetUp(self):
-        for name in ("SSRM_ROUTES", "SSRM_CACHE", "_SSRM_DECLARED", "_CATALOG_CACHE"):
+        for name in ("SSRM_ROUTES", "SSRM_CACHE", "_SSRM_DECLARED", "_SSRM_COLUMNS", "_CATALOG_CACHE"):
             self.addCleanup(setattr, openbq_lanes, name, getattr(openbq_lanes, name))
         openbq_lanes.SSRM_ROUTES = {"/api/v1/listed/data": "listed_obb"}
         openbq_lanes.SSRM_CACHE = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900)
         openbq_lanes._SSRM_DECLARED = {}
+        openbq_lanes._SSRM_COLUMNS = {}
         openbq_lanes._CATALOG_CACHE = {}
 
     def app(self, rows, widgets=None, raises=False):
@@ -916,6 +917,17 @@ class SsrmFixRound1Test(unittest.IsolatedAsyncioTestCase):
                 r = await c.post(f"/api/v1/listed/data/ssrm?a=1&b=2&junk={junk}", json=self.req())
                 self.assertEqual(r.status_code, 200)
         self.assertEqual(self.queries, [[("a", "1"), ("b", "2")]])  # one GET, junk never sent
+
+    async def test_rows_carry_exactly_the_declared_columns(self):
+        # BDOBB's paged provider requires every row's keys to equal columnsDefs: OpenBB omits
+        # None fields, so a field absent from every record must still arrive, as null.
+        widgets = {"listed_obb": {"data": {"table": {"columnsDefs": [{"field": "a"}, {"field": "b"}, {"field": "c"}]}}}}
+        app = self.app([{"a": 2, "b": "x", "z": 9}, {"a": 1, "z": 8}], widgets)
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm", json=self.req(sortModel=[{"colId": "a", "sort": "asc"}]))
+            unknown = await c.post("/api/v1/listed/data/ssrm", json=self.req(sortModel=[{"colId": "z", "sort": "asc"}]))
+        self.assertEqual(r.json()["rowData"], [{"a": 1, "b": None, "c": None}, {"a": 2, "b": "x", "c": None}])
+        self.assertEqual(unknown.status_code, 400)  # an undeclared column is not served
 
     async def test_a_widget_without_declared_params_keeps_its_params_and_is_looked_up_once(self):
         app = self.app([{"v": 1}], {"listed_obb": {"name": "no params"}})

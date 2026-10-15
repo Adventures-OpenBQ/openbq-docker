@@ -259,8 +259,13 @@ def _rows_from(payload):
     return rows if len(rows) == len(data) else []  # mixed/non-dict rows: not a table
 
 
-async def _acquire(app, route, params, authorization):
-    """GET the full result ONCE through the app itself, so a lane route keeps its lane."""
+async def _acquire(app, route, params, authorization, columns=None):
+    """GET the full result ONCE through the app itself, so a lane route keeps its lane.
+
+    With the widget's declared columns, the frame holds exactly those: BDOBB's paged
+    provider requires each row's keys to equal columnsDefs, and OpenBB omits None
+    fields, so a field absent from every record is added as nulls and undeclared
+    fields are dropped (they are never shown)."""
     headers = {"accept-encoding": "identity"}
     if authorization:
         headers["authorization"] = authorization
@@ -290,7 +295,7 @@ async def _acquire(app, route, params, authorization):
                         df[col] = pd.array(values, dtype="Int64")
                     except (OverflowError, TypeError, ValueError):  # past int64: keep the floats
                         pass
-        return df
+        return df.reindex(columns=columns) if columns else df
 
     # ponytail: a thread cannot be cancelled, so a build past the deadline keeps
     # running and holding its memory after its slot is freed (ceiling: one extra
@@ -415,6 +420,7 @@ def _json_default(value):
 
 
 _SSRM_DECLARED = {}  # widget id -> its declared param names, from the fixed /widgets.json
+_SSRM_COLUMNS = {}  # widget id -> its declared columnsDefs fields (None: undeclared), same source
 
 
 async def _declared_params(request, wid):
@@ -424,6 +430,9 @@ async def _declared_params(request, wid):
         if await _widget_ids(cache, request) is None:
             return None
         entry = json.loads(cache["/widgets.json"][0]).get(wid)
+        defs = (((entry.get("data") or {}).get("table") or {}).get("columnsDefs") if isinstance(entry, dict) else None) or []
+        fields = [d["field"] for d in defs if isinstance(d, dict) and isinstance(d.get("field"), str)]
+        _SSRM_COLUMNS[wid] = list(dict.fromkeys(fields)) or None
         params = entry.get("params") if isinstance(entry, dict) else None
         if not isinstance(params, list):  # kept as None: the catalogue is fixed, so never re-parse it
             _SSRM_DECLARED[wid] = None
@@ -470,7 +479,7 @@ async def _ssrm(request):
     hit = SSRM_CACHE.fresh(key)
     view = json.dumps([body["filterModel"], body["sortModel"]], sort_keys=True)
     try:
-        df = await SSRM_CACHE.get(key, lambda: _acquire(request.app, route, params, authorization))
+        df = await SSRM_CACHE.get(key, lambda: _acquire(request.app, route, params, authorization, _SSRM_COLUMNS.get(SSRM_ROUTES[route])))
         order = SSRM_CACHE.view(key, df, view)
         if order is None:
             hit = False
