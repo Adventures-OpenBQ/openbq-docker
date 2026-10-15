@@ -77,3 +77,7 @@ def test_the_gateway_examples_hold_placeholders_only():
     assert env == {'GATEWAY_TOKEN': '', 'OPENBB_API_USERNAME': '', 'OPENBB_API_PASSWORD': ''}
     settings = json.loads((ROOT / 'funnel-gateway/settings.example.json').read_text())
     assert 'YOUR-TAILNET' in settings['origin'] and 'example' in settings['previewOrigin']
+
+
+def test_the_private_gateway_configuration_is_gitignored():
+    assert 'gateway-config/' in (ROOT / '.gitignore').read_text().splitlines()

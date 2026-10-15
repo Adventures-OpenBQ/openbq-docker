@@ -98,10 +98,14 @@ class FederalReserveDallasBankingFetcher(
 
         # The workbook's sheet was renamed upstream: old name, new name, then the only sheet.
         sheets = ExcelFile(BytesIO(data[0]["_raw"])).sheet_names
-        sheet = next(
-            (s for s in ("CSV_BCS_Index_Results", "BCS_Index_Results") if s in sheets),
-            sheets[0] if len(sheets) == 1 else "CSV_BCS_Index_Results",
-        )
+        names = ("CSV_BCS_Index_Results", "BCS_Index_Results")
+        sheet = next((s for s in names if s in sheets), sheets[0] if len(sheets) == 1 else None)
+        if sheet is None:  # renamed again, in a workbook of several sheets
+            from openbb_core.app.model.abstract.error import OpenBBError
+
+            raise OpenBBError(
+                f"The Dallas Fed workbook has no sheet named {' or '.join(names)}; it has {', '.join(sheets)}."
+            )
         records = parse_keyed_survey(
             data[0]["_raw"],
             sheet,
