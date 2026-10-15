@@ -92,10 +92,14 @@ class FederalReserveDallasIgreaFetcher(
 
         # The workbook's sheet was renamed upstream: old name, new name, then the only sheet.
         sheets = ExcelFile(BytesIO(data[0]["_raw"])).sheet_names
-        sheet = next(
-            (s for s in ("IGREA", "Kilian Index") if s in sheets),
-            sheets[0] if len(sheets) == 1 else "IGREA",
-        )
+        names = ("IGREA", "Kilian Index")
+        sheet = next((s for s in names if s in sheets), sheets[0] if len(sheets) == 1 else None)
+        if sheet is None:  # renamed again, in a workbook of several sheets
+            from openbb_core.app.model.abstract.error import OpenBBError
+
+            raise OpenBBError(
+                f"The Dallas Fed workbook has no sheet named {' or '.join(names)}; it has {', '.join(sheets)}."
+            )
         frame = read_excel(BytesIO(data[0]["_raw"]), sheet_name=sheet)
         frame = frame.rename(
             columns={frame.columns[0]: "date", frame.columns[1]: "value"}

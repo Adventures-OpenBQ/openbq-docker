@@ -123,8 +123,15 @@ the [OpenBQ reference backend](examples/episode3/README.md) with fictional pivot
 widgets. The shared private Tailscale sidecar serves ODP on 443 and the reference
 backend on 8443. No NAS host ports or public Funnel are enabled.
 
+The overlay also runs [key-maint](key-maint/README.md), the provider key status
+service behind BDOBB's Settings ▸ Provider API Keys. It mounts `credentials.env`
+(create it first, as in [Start](#start), or Docker makes a directory of that
+name) and `./key-maint-admin`, whose 0700 mode guards the key-value socket;
+key-maint sets that mode itself on start.
+
 ```sh
 cp v3.env.example v3.env
+mkdir -p key-maint-admin
 # Optional: add your frontend origin to EXTRA_CORS_ORIGINS.
 docker compose -f docker-compose.yml -f docker-compose.v3.yml config --quiet
 docker compose -f docker-compose.yml -f docker-compose.v3.yml build
@@ -137,7 +144,7 @@ examples for an 80-card BDOBB file import. The two Episode 3 app entries carry
 the BDOBB logo in standard image fields. Workspace is an optional Episode 2
 comparison, not a prerequisite for this setup.
 
-The v3 images remain candidates pending the recorded runtime and frontend
-acceptance checks; no `v3.0.0` release is claimed here.
+Released as `v3.0.0` with BDOBB v3.0.0: `ghcr.io/adventures-openbq/openbq-local:3.0.0`
+and `openbq-key-maint:3.0.0` are the images the 2026-10-15 regression ran on a NAS.
 
 The reference recipe carries forward the previously qualified PDF repair from `bdobb-dev/backends-for-openbb` commit `32615f789f9423ea14d3f95003da250f4ef5bcfc`. Sample and Bitcoin PDFs use immutable GitHub raw URLs because the original S3 bucket returns AllAccessDisabled. Downloaded bytes match the pinned upstream fixtures; this changes asset transport, not PDF content.
