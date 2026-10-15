@@ -161,6 +161,39 @@ Retained Python and native dependencies execute in bounded dedicated
 the exact image and matching platform for recovery; native macOS evidence is a
 separate boundary. This local fixture qualification is not NAS/deployment health.
 
+Gold selection uses a separate private `/run/temporaldb/gold` tmpfs, mounted
+`noexec,nosuid,nodev`, owned by UID/GID 65532 with mode 0700. Its default aggregate
+quota is 1 GiB per active API/worker container (`TEMPORALDB_GOLD_SCRATCH_BYTES`).
+Set `TEMPORALDB_GOLD_SCRATCH_DIRECTORY` to that directory. `TEMPORALDB_GOLD_SCRATCH_LIMIT_BYTES` defaults to 805306368
+(768 MiB): it caps each DuckDB engine's temporary spill files. Source and Gold
+selection each use a separate DuckDB engine with 256 MB memory and one thread;
+Arrow/control batches contain at most 2048 rows. A build can have both engines
+active, and concurrent builds share the filesystem quota. Per-engine limits do
+not guarantee aggregate fit; budget up to 512 MB engine memory per active build.
+
+This scratch is ephemeral selection work, never accepted output, audit evidence,
+or executable staging. Completion and exceptions remove process-owned scratch;
+a container restart discards its tmpfs, including remnants of a killed process.
+An invalid/unwritable directory or filesystem smaller than its configured cap
+prevents startup; capacity exhaustion fails the job without publishing Gold. Preserve the
+ordinary 64 MiB `/tmp` and separate executable runtime staging. For larger
+histories or concurrent work, provision a larger private local-disk mount at the
+same path (replace the Compose tmpfs entry), retain its permissions and noexec
+mount options, and configure finite engine/filesystem budgets together. Never
+point scratch at an archive or evidence mount. Tmpfs usage consumes container/
+host memory up to its quota; allow 1 GiB per concurrently active container plus
+engine memory and executable staging, or size local disk explicitly.
+
+Gold uses the already pinned DuckDB engine for temporary selection. PostgreSQL
+retains immutable selection authority; DuckLake retains accepted data. Scratch
+contains no durable Gold output and does not require another processing engine.
+There is no permanent dataset row cap. Row widths, action/retrieval lineage and
+concurrent builds change space demand; measure representative workloads before
+increasing capacity. Public query limits remain 100000 rows, 64 MiB and the
+absolute execution deadline. Final-artifact qualification is a separate release
+gate from source-mounted diagnostics.
+
+
 Recovery inventory additionally includes Q3 audit rows, original execution
 receipts and Arrow result objects, their full accepted normalization/Gold/tick
 input closure, every protected hold, and **all referenced native archive blobs**.

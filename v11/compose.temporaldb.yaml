@@ -6,7 +6,7 @@ x-temporaldb: &temporaldb
   profiles: [temporaldb-v11]
   pull_policy: never
   read_only: true
-  tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=67108864,mode=1777", "/run/temporaldb/runtime:rw,exec,nosuid,nodev,size=2147483648,mode=1777"]
+  tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=67108864,mode=1777", "/run/temporaldb/runtime:rw,exec,nosuid,nodev,size=2147483648,mode=1777", "/run/temporaldb/gold:rw,noexec,nosuid,nodev,size=${TEMPORALDB_GOLD_SCRATCH_BYTES:-1073741824},uid=65532,gid=65532,mode=0700"]
   volumes:
     - ${TEMPORALDB_ARCHIVE_HOST:?Shared durable Linux archive}:/archive:ro
   cap_drop: [ALL]
@@ -17,6 +17,8 @@ services:
     <<: *temporaldb
     environment:
       TEMPORALDB_EVIDENCE_ARCHIVE: /evidence
+      TEMPORALDB_GOLD_SCRATCH_DIRECTORY: /run/temporaldb/gold
+      TEMPORALDB_GOLD_SCRATCH_LIMIT_BYTES: ${TEMPORALDB_GOLD_SCRATCH_LIMIT_BYTES:-805306368}
     volumes:
       - ${TEMPORALDB_ARCHIVE_HOST:?Shared durable runtime archive}:/archive:ro
       - ${TEMPORALDB_EVIDENCE_HOST:?Provision evidence/blobs for uid 65532}:/evidence:rw
@@ -27,6 +29,8 @@ services:
     <<: *temporaldb
     environment:
       TEMPORALDB_EVIDENCE_ARCHIVE: /evidence
+      TEMPORALDB_GOLD_SCRATCH_DIRECTORY: /run/temporaldb/gold
+      TEMPORALDB_GOLD_SCRATCH_LIMIT_BYTES: ${TEMPORALDB_GOLD_SCRATCH_LIMIT_BYTES:-805306368}
     volumes:
       - ${TEMPORALDB_ARCHIVE_HOST:?Shared durable runtime archive}:/archive:ro
       - ${TEMPORALDB_EVIDENCE_HOST:?Provision evidence/blobs for uid 65532}:/evidence:ro
