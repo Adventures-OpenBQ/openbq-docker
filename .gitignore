@@ -48,9 +48,14 @@ secrets/
 __pycache__/
 *.pyc
 
-# funnel-gateway (web profile) runtime configuration
-gateway-config/
+# key-maint admin socket directory (host-only, 0700)
+key-maint-admin/
+
+# Gateway dependencies (installed by npm ci; never committed)
 funnel-gateway/node_modules/
+
+# funnel-gateway (web profile) runtime configuration (settings.json holds the real tailnet origin)
+gateway-config/
 
 # Task-owned local native table build and private operator configuration.
 table-source/
