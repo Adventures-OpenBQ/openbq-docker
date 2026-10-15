@@ -185,14 +185,17 @@ class SsrmCache:
             task.add_done_callback(lambda t: t.cancelled() or t.exception())  # retrieved even if every caller left
         return await asyncio.shield(task)
 
+    async def _acquired(self, acquire):
+        async with self.slots:
+            df = await acquire()
+            return df, await asyncio.to_thread(lambda: int(df.memory_usage(deep=True).sum()))
+
     async def _fill(self, key, acquire):
         try:
-            async with self.slots:
-                try:
-                    df = await asyncio.wait_for(acquire(), self.deadline)
-                except TimeoutError:
-                    raise SsrmUpstream(504, _SSRM_TIMEOUT, "application/json") from None
-                nbytes = await asyncio.to_thread(lambda: int(df.memory_usage(deep=True).sum()))
+            try:  # one deadline from the start: the wait for a slot, the fetch and the build
+                df, nbytes = await asyncio.wait_for(self._acquired(acquire), self.deadline)
+            except TimeoutError:
+                raise SsrmUpstream(504, _SSRM_TIMEOUT, "application/json") from None
             old = self.entries.pop(key, None)
             if old is not None:
                 self.total -= old[1]
@@ -240,6 +243,9 @@ async def _acquire(app, route, params, authorization):
             return None
         return pd.DataFrame(_rows_from(payload))
 
+    # ponytail: a thread cannot be cancelled, so a build past the deadline keeps
+    # running and holding its memory after its slot is freed (ceiling: one extra
+    # frame per timed-out build); a process-level build worker could be killed.
     df = await asyncio.to_thread(frame)
     if df is None:
         raise SsrmUpstream(502, json.dumps({"detail": "The widget's result is not JSON."}).encode(),
@@ -339,8 +345,9 @@ def _apply_query(df, body):
 
 
 def _ssrm_json_safe(page) -> list:
-    """Records of Python values (floats exact, NaN -> None), unlike to_json's 10-digit default."""
-    return page.astype(object).where(page.notna(), None).to_dict("records")
+    """Records of Python values (floats exact; NaN and +/-inf -> None), unlike to_json's 10-digit default."""
+    cells = page.astype(object)
+    return cells.where(cells.notna() & ~cells.isin([math.inf, -math.inf]), None).to_dict("records")
 
 
 def _json_default(value):

@@ -984,3 +984,36 @@ class SsrmFixRound1Test(unittest.IsolatedAsyncioTestCase):
             await cache.get((key, ()), acquire)
         self.assertEqual(list(cache.entries), [("k1", ()), ("k3", ())])
         self.assertEqual(cache.total, 2 * size)
+
+
+class SsrmFixRound2Test(unittest.IsolatedAsyncioTestCase):
+    """Re-review fixes: non-finite floats, one deadline over the slot wait too."""
+
+    req = SsrmRowsTest.req
+    client = SsrmRowsTest.client
+    asyncSetUp = SsrmFixRound1Test.asyncSetUp
+    app = SsrmFixRound1Test.app
+
+    async def test_infinities_become_null(self):
+        app = self.app([{"x": float("inf"), "m": "a"}, {"x": float("-inf"), "m": float("inf")}, {"x": 1.5, "m": "b"}])
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm", json=self.req())  # the source JSON says Infinity
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([(row["x"], row["m"]) for row in r.json()["rowData"]],
+                         [(None, "a"), (None, None), (1.5, "b")])
+
+    async def test_a_queued_acquisition_times_out_within_the_deadline_and_never_takes_a_slot(self):
+        cache = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900, slots=1, deadline=0.2)
+        started = []
+
+        async def hang(name):
+            started.append(name)
+            await asyncio.Event().wait()
+
+        t0 = time.monotonic()
+        results = await asyncio.gather(cache.get(("a", ()), lambda: hang("a")),
+                                       cache.get(("b", ()), lambda: hang("b")), return_exceptions=True)
+        self.assertLess(time.monotonic() - t0, 0.35)  # b waited for a's slot inside its own 0.2 s
+        self.assertTrue(all(isinstance(e, openbq_lanes.SsrmUpstream) and e.status == 504 for e in results))
+        self.assertEqual(started, ["a"])  # b never got the slot
+        self.assertFalse(cache.slots.locked())  # and nothing holds it now
