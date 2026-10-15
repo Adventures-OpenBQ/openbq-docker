@@ -301,7 +301,7 @@
   "refetchInterval": 15000,
   "gridData": {
    "w": 20,
-   "h": 14
+   "h": 12
   },
   "params": []
  },

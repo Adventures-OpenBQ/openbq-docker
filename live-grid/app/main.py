@@ -37,6 +37,7 @@ from app.sector_map import (
     build_sector_figure,
     etfs_to_seed,
     fetch_weights,
+    refresh_prev_close,
 )
 from app.symbol_meta import get_meta
 from app.ta.figure import delta as ta_delta
@@ -514,11 +515,17 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             weights = await asyncio.to_thread(fetch_weights, client)
         except WeightsUnavailable as exc:
             log.warning("sector map: %s", exc)
-            return JSONResponse({"data": [], "layout": {"title": {"text": f"Sector map: {exc}"}}},
+            # `detail` is what BDOBB shows on a failed card; the title is for Workspace.
+            return JSONResponse({"detail": str(exc), "data": [],
+                                 "layout": {"title": {"text": f"Sector map: {exc}"}}},
                                 status_code=502)
         due = etfs_to_seed(quotes.rows, now=asyncio.get_running_loop().time())
-        if due:
-            await asyncio.to_thread(quotes.seed, due, client)
+        cold = [s for s in due if quotes.rows.get(s, {}).get("price") is None]
+        warm = [s for s in due if s not in cold]
+        if cold:
+            await asyncio.to_thread(quotes.seed, cold, client)
+        if warm:
+            await asyncio.to_thread(refresh_prev_close, quotes, warm, client)
         changes = {s: quotes.rows.get(s, {}).get("change_percent") for s in etfs}
         return JSONResponse(build_sector_figure(weights, changes))
 

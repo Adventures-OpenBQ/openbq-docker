@@ -12,7 +12,9 @@ from app.sector_map import (
     build_sector_figure,
     etfs_to_seed,
     fetch_weights,
+    refresh_prev_close,
 )
+from app.quotes import QuoteTable
 
 # The live SPY.US response on 2026-10-15, trimmed to the shape EODHD returns.
 SPY_WEIGHTS = {
@@ -100,6 +102,16 @@ def test_failure_is_cached_briefly():
     assert fetch_weights(client, now=301.0)["Technology"] == 41.2029
 
 
+def test_a_cached_failure_raises_a_fresh_exception():
+    client = FakeFundamentals(exc=RuntimeError("402 quota"))
+    with pytest.raises(WeightsUnavailable) as first:
+        fetch_weights(client, now=0.0)
+    with pytest.raises(WeightsUnavailable) as second:
+        fetch_weights(client, now=15.0)
+    assert second.value is not first.value, "one shared exception grows its traceback per raise"
+    assert str(second.value) == str(first.value)
+
+
 def _weights():
     return {k: v["Equity_%"] for k, v in SPY_WEIGHTS.items()}
 
@@ -119,7 +131,7 @@ def test_figure_is_one_treemap_sized_by_weight_coloured_by_percent():
     assert t["text"][i] == "XLK<br>41.2% · +0.84%"
     e = t["labels"].index("Energy")
     assert t["text"][e] == "XLE<br>3.5% · -2.10%"
-    assert t["marker"]["cmid"] == 0
+    assert "cmid" not in t["marker"], "plotly ignores cmid once cmin/cmax are set"
     assert t["marker"]["cmax"] == pytest.approx(2.1)
     assert t["marker"]["cmin"] == pytest.approx(-2.1)
 
@@ -178,6 +190,22 @@ def test_warm_etfs_are_reseeded_so_the_previous_close_rolls_over():
     assert sorted(etfs_to_seed(rows, now=1300.0)) == sorted(SECTOR_ETFS.values())
 
 
+def test_reseed_keeps_the_live_price_and_refreshes_the_previous_close():
+    class Rest:
+        def get_live_stock_prices(self, ticker):
+            return {"close": "100", "previousClose": "90"}
+
+    quotes = QuoteTable()
+    row = quotes.rows.setdefault("XLK", {"symbol": "XLK"})
+    row.update(price=189.3, change_percent=-0.006, day_high=191.0)
+    quotes._prev_close["XLK"] = 190.43
+    refresh_prev_close(quotes, ["XLK"], Rest())
+    assert row["price"] == 189.3, "a live tick price must not fall back to the delayed REST close"
+    assert row["day_high"] == 191.0
+    assert quotes._prev_close["XLK"] == 90.0
+    assert row["change_percent"] == pytest.approx((189.3 - 90) / 90)
+
+
 # ---- route ---------------------------------------------------------------
 
 from tests.test_main import FakeRest, make_client  # noqa: E402
@@ -232,3 +260,17 @@ def test_route_502_when_weights_fail(monkeypatch):
     assert r.status_code == 502
     assert r.json()["data"] == []
     assert "Sector map:" in r.json()["layout"]["title"]["text"]
+    assert "SPY.US sector weights" in r.json()["detail"], "bdobb shows `detail`, not the title"
+
+
+def test_route_reseeds_a_warm_etf_without_losing_its_live_price(monkeypatch):
+    rest = FakeRestWithWeights()
+    client = make_client(monkeypatch, seed_client=rest)
+    row = client.app.state.quotes.rows.setdefault("XLK", {"symbol": "XLK"})
+    row.update(price=120.0, change_percent=0.01)
+    sector_map._seeded_at["XLK"] = float("-inf")  # due for its 5-minute re-seed
+    t = client.get("/sector_map").json()["data"][0]
+    assert "XLK.US" in rest.calls
+    assert row["price"] == 120.0
+    # FakeRest's previousClose is 90 -> (120 - 90) / 90
+    assert t["text"][t["labels"].index("Technology")] == "XLK<br>41.2% · +33.33%"

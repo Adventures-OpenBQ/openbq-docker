@@ -14,6 +14,8 @@ import math
 import time
 from typing import Any
 
+from app.quotes import QuoteTable
+
 log = logging.getLogger(__name__)
 
 # EODHD (Morningstar) sector name -> SPDR sector ETF. Checked against the live
@@ -98,7 +100,7 @@ def fetch_weights(client, now: float | None = None) -> dict[str, float]:
     hit = _cache.get("weights")
     if hit and hit[1] > now:
         if isinstance(hit[0], WeightsUnavailable):
-            raise hit[0]
+            raise WeightsUnavailable(str(hit[0]))  # fresh: a shared one grows its traceback
         return hit[0]
     try:
         weights = _read(client.get_fundamentals_data(ticker="SPY.US", filter=_FILTER))
@@ -145,7 +147,6 @@ def build_sector_figure(weights: dict[str, float], changes: dict[str, float | No
                 "marker": {
                     "colors": colors,
                     "colorscale": _COLORSCALE,
-                    "cmid": 0,
                     "cmin": -bound,
                     "cmax": bound,
                     "showscale": True,
@@ -158,3 +159,22 @@ def build_sector_figure(weights: dict[str, float], changes: dict[str, float | No
             "template": "plotly_dark",
         },
     }
+
+
+def refresh_prev_close(quotes: QuoteTable, symbols: list[str], client) -> None:
+    """Re-read each symbol's previous close without touching its live row.
+
+    QuoteTable.seed would also overwrite the price, volume and day range with
+    EODHD's delayed REST snapshot, so seed a scratch table and take only the
+    previous close from it, then re-derive the change from the live price.
+    """
+    scratch = QuoteTable()
+    scratch.seed(symbols, client)
+    for sym in symbols:
+        prev = scratch._prev_close.get(sym)
+        row = quotes.rows.get(sym)
+        if not prev or not row or row.get("price") is None:
+            continue
+        quotes._prev_close[sym] = prev
+        row["change"] = row["price"] - prev
+        row["change_percent"] = (row["price"] - prev) / prev
