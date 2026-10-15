@@ -14,8 +14,10 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
  * admitted.
  *
  * Not a generic reverse proxy. If a path is not matched below, it is refused.
- * At this tag the stack serves one upstream behind the door, plus /state:
+ * At this tag the stack serves two upstreams behind the door, plus /state:
  *   /api/...   -> openbq-api    (the whole ODP widget catalogue)
+ *   /ref/...   -> openbq-reference (Episode 3's keyless reference backend; its one
+ *                 socket, /ref/live_grid_ws, through the ticketed socket door below)
  *   /state/... -> the gateway's own per-user store (server.mjs, stateFile below)
  * /ai (Rita) is not served by openbq-docker. MCP, provider-key paths and the
  * API's own /docs, /openapi.json and /redoc are never routes this door forwards.
@@ -165,9 +167,8 @@ export function upstreamPath(url) {
  * the bearer itself never signs anything a browser sees. Thirty seconds covers
  * a connect; the gateway also refuses a nonce it has already admitted.
  *
- * The verifier ships before any socket route does, so that the contract the web
- * layer signs against is the stack's from the first tag that has a door. No socket
- * route exists at this tag: /news/ws/news arrives at v8, /grid/live_grid_ws at v10.
+ * One socket route at this tag, /ref/live_grid_ws (socketTarget below); /news/ws/news
+ * arrives at v8, /grid/live_grid_ws at v10.
  */
 const TICKET_MS = 30_000;
 const ticketKey = token => createHmac("sha256", token).update("bdobb socket ticket v1").digest();
@@ -192,15 +193,39 @@ export function socketTicketNonce(token, target, ticket, now = Date.now()) {
 export const socketTicketValid = (...args) => socketTicketNonce(...args) !== null;
 
 /**
- * The socket a ticket may name, under exactly the rules the upgrade handler applies.
- * Returns the canonical target, or null. No upgrade route exists at this tag, so
- * every target is null; v8 adds /news/ws/news, v10 /grid/live_grid_ws.
+ * The socket a ticket may name, under exactly the rules the upgrade handler applies -- and
+ * the SAME function the web layer's ticket signer calls, so the two can never drift. One
+ * route at this tag, and it takes no query: the whole subscription is the frame.
  */
 export function socketTarget(raw, origin) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//")) return null;
   let url; try { url = new URL(raw, origin); } catch { return null; }
   if (url.origin !== origin || url.hash) return null;
+  // raw === pathname: no query (not even a bare "?"), and no "..", "%" or case folding.
+  if (url.pathname === "/ref/live_grid_ws" && raw === url.pathname) return url.pathname;
   return null;
+}
+
+// The reference live grid's symbol grammar: one symbol, or a comma watchlist (user ruling
+// 2026-10-15). `^` for an index symbol (^GSPC), `.` for an exchange suffix (AAPL.US).
+const SYMBOL_LIST_RE = /^[A-Za-z0-9.^_,-]{1,240}$/;
+
+/**
+ * A /ref/live_grid_ws frame: `{"params":{"symbol":"A,B"}}`, sent on open and again on
+ * every symbol change over the same open socket. Re-validated on every frame (not just the
+ * first). The frame that reaches the reference is rebuilt from the one value that passed,
+ * so no extra property, no second key and no display name of the caller's is ever forwarded.
+ * Returns the frame to forward, or null to close the socket.
+ */
+export function refSubscription(data) {
+  let frame;
+  try { frame = JSON.parse(data.toString()); } catch { return null; }
+  if (!frame || typeof frame !== "object" || Object.keys(frame).join() !== "params") return null;
+  const params = frame.params;
+  if (!params || typeof params !== "object" || Object.keys(params).join() !== "symbol") return null;
+  const raw = params.symbol;
+  if (typeof raw !== "string" || !SYMBOL_LIST_RE.test(raw)) return null;
+  return JSON.stringify({ params: { symbol: raw } });
 }
 
 /**

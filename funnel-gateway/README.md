@@ -42,10 +42,11 @@ Caller headers, cookies and credentials are never relayed.
 | `/state/<digits>/<file>` | PUT, DELETE | one of the app's JSON stores (`policy.mjs` `stateFile`); 256 KiB a file, 2 MiB and 200 files a user; `application/json` only |
 | `/ai/**` | — | not served by openbq-docker: 404 (POST 405) |
 | `/news/**` | — | the wire arrives at v8: 404 |
-| any WebSocket upgrade | — | no socket route at this tag: 401 without the token, else 404 |
+| `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, six budget units, 240 s lifetime, 10 s to the first frame |
+| any other WebSocket upgrade | — | 401 without the token, else 403 (foreign Origin) or 404 |
 | everything else | — | 404 |
 
-Budgets (settings): `requestsPerMinute` (default 60, ≤ 600), `maxConcurrent` (8, ≤ 32),
+Budgets (settings): `requestsPerMinute` (default 60, ≤ 600), `maxConcurrent` (8, ≤ 32), `maxSockets` (4, ≤ 32),
 `quoteDailyLimit` (100, ≤ 10000, UTC day). Counters are in memory and reset on restart; keep one
 instance.
 
@@ -56,10 +57,9 @@ instance.
   the same pair as in `credentials.env` (repeated so the gateway never loads provider keys).
 - `gateway-config/settings.json` (from `funnel-gateway/settings.example.json`, read-only bind):
   `origin` (`https://openbq.<tailnet>.ts.net:10000`), `stateDir` (`/var/lib/bdobb/state` to turn
-  `/state` on), and the budgets. An unknown
+  `/state` on), `previewOrigin` (the web preview's HTTPS origin, to turn socket tickets on), and the budgets. An unknown
   key is refused at startup, including Rita's `ritaOrigin`, `ritaAddress` and `socksProxy` and
-  the keys of later lines (`rssOrigin`, `rssAddress`, `feeds`, `previewOrigin` and `maxSockets`
-  at v8; `liveGrid` at v10).
+  the keys of later lines (`rssOrigin`, `rssAddress` and `feeds` at v8; `liveGrid` at v10).
 
 ## Ports and serve files
 

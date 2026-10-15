@@ -3,7 +3,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { upstreamPath, stateFile, socketTicket, socketTicketNonce, socketTicketValid, socketTarget } from "./policy.mjs";
+import { upstreamPath, stateFile, socketTicket, socketTicketNonce, socketTicketValid, socketTarget, refSubscription } from "./policy.mjs";
 
 // Built at run time so the public-content scan never sees a literal tailnet name.
 const TAILNET = ["example-tailnet", "ts", "net"].join(".");
@@ -125,12 +125,34 @@ test("tickets: signed over the exact target, thirty seconds, base64url, refused 
   assert.equal(socketTicketNonce(TOKEN, target, "junk", 1_700_000_000_000), null);
 });
 
-test("no socket is a target a ticket may name at openbq-docker v3.0.0", () => {
+test("socketTarget admits exactly /ref/live_grid_ws, no query; later lines' sockets stay refused", () => {
+  assert.equal(socketTarget("/ref/live_grid_ws", ORIGIN), "/ref/live_grid_ws");
   for (const raw of [
+    "/ref/live_grid_ws?x=1", "/ref/live_grid_ws?", "/ref/live_grid_ws#x", "/ref/live_grid_ws/",
+    "/ref/other_ws", "/ref/../ref/live_grid_ws", "/REF/live_grid_ws",
     "/news/ws/news",                    // v8
     "/grid/live_grid_ws",               // v10
     "/news/ws/news?admin=1", "/news/ws/news#x",
     "/grid/ta_series_ws?symbol=AAPL&interval=5m",
     "/", "//x", "x", 7, null,
   ]) assert.equal(socketTarget(raw, ORIGIN), null, String(raw));
+});
+
+test("refSubscription relays only a symbol params frame, rebuilt, else null", () => {
+  assert.equal(refSubscription('{"params":{"symbol":"AAPL"}}'), '{"params":{"symbol":"AAPL"}}');
+  assert.equal(refSubscription(Buffer.from('{"params":{"symbol":"AAPL,MSFT"}}')), '{"params":{"symbol":"AAPL,MSFT"}}');
+  assert.equal(refSubscription('{"params":{"symbol":"^GSPC,AAPL.US,BRK-B"}}'), '{"params":{"symbol":"^GSPC,AAPL.US,BRK-B"}}');
+  // Whitespace the caller added is not forwarded: the frame is rebuilt.
+  assert.equal(refSubscription('{ "params" : { "symbol" : "AAPL" } }'), '{"params":{"symbol":"AAPL"}}');
+  assert.equal(refSubscription('{"params":{"symbol":"' + "A".repeat(240) + '"}}'), '{"params":{"symbol":"' + "A".repeat(240) + '"}}');
+  for (const bad of ['{"params":{"symbol":"AAPL","x":1}}', '{"params":{"ticker":"AAPL"}}',
+    '{"params":{"symbol":123}}', '{"params":{"symbol":["AAPL"]}}', '{"params":{"symbol":null}}',
+    '{"subscribe":[]}', '{"params":{"symbol":""}}', '{"params":["symbol"]}', '{"params":null}',
+    '{"params":{"symbol":"AAPL MSFT"}}', '{"params":{"symbol":"AAPL\\nX"}}', '{"params":{"symbol":"AAPL;MSFT"}}',
+    '{"params":{"symbol":"' + "A".repeat(241) + '"}}', '["params"]', 'null', '7', 'not json', '']) {
+    assert.equal(refSubscription(bad), null, bad);
+  }
+  // A caller's extra top-level key never survives the rebuild; a doubled key is not two values.
+  assert.equal(refSubscription('{"params":{"symbol":"AAPL"},"admin":1}'), null);
+  assert.equal(refSubscription('{"params":{"symbol":"AAPL"},"params":{"symbol":"MSFT"}}'), '{"params":{"symbol":"MSFT"}}');
 });

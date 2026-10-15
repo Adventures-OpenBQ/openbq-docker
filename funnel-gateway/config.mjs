@@ -7,28 +7,28 @@ import { isAbsolute, normalize } from "node:path";
 // The door is the stack node's Funnel port 10000: the node's :443 stays openbq-api and :8443
 // the episode 3 reference, both for the tailnet, and Funnel offers only 443, 8443 and 10000.
 // A portless origin is still accepted
-// for a reader who publishes a dedicated node's :443 instead.
-function httpsOrigin(value) {
+// for a reader who publishes a dedicated node's :443 instead. `tailnet` is false only for
+// previewOrigin, the web preview's own (Vercel) origin, which is not on the tailnet.
+function httpsOrigin(value, tailnet = false, allowedPort = "10000") {
   const url = new URL(value);
-  if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "10000") ||
+  if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== allowedPort) ||
       url.pathname !== "/" || url.search || url.hash ||
-      !/^[a-z0-9-]+\.[a-z0-9-]+\.ts\.net$/.test(url.hostname)) {
+      (tailnet && !/^[a-z0-9-]+\.[a-z0-9-]+\.ts\.net$/.test(url.hostname))) {
     throw new Error("Invalid HTTPS origin");
   }
   return url.origin;
 }
 
 // Every key a settings file may carry at this tag. A key from a later line (the wire's
-// rssOrigin/rssAddress/feeds and the socket keys previewOrigin/maxSockets at v8, liveGrid
-// at v10) is refused rather than ignored: a stack at this tag has no such upstream, and a
+// rssOrigin/rssAddress/feeds at v8, liveGrid at v10) is refused rather than ignored: a stack at this tag has no such upstream, and a
 // silently ignored setting is how an operator believes a door is configured when it is not.
 // openbq-docker serves no /ai (Rita), so ritaOrigin, ritaAddress and socksProxy are refused too.
-const SETTINGS_KEYS = new Set(["origin", "stateDir", "quoteDailyLimit",
-  "requestsPerMinute", "maxConcurrent"]);
+const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "quoteDailyLimit",
+  "requestsPerMinute", "maxConcurrent", "maxSockets"]);
 
 export function validateConfig(settings, secrets) {
   for (const key of Object.keys(settings)) if (!SETTINGS_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`);
-  const origin = httpsOrigin(settings.origin);
+  const origin = httpsOrigin(settings.origin, true);
   if (!/^[A-Za-z0-9_-]{32,256}$/.test(secrets.token ?? "") ||
       typeof secrets.apiUsername !== "string" || !/^[A-Za-z0-9_.@-]{1,128}$/.test(secrets.apiUsername) ||
       typeof secrets.apiPassword !== "string" || !secrets.apiPassword.length ||
@@ -49,6 +49,13 @@ export function validateConfig(settings, secrets) {
   if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1 || maxConcurrent > 32) {
     throw new Error("Max concurrent must be between 1 and 32");
   }
+  const maxSockets = settings.maxSockets ?? 4;
+  if (!Number.isInteger(maxSockets) || maxSockets < 1 || maxSockets > 32) {
+    throw new Error("Max sockets must be between 1 and 32");
+  }
+  // The web preview's own origin. Naming it turns on socket tickets (server.mjs): the one
+  // Origin, besides the gateway's own, a WebSocket may arrive from. Unset = off.
+  const previewOrigin = settings.previewOrigin === undefined ? null : httpsOrigin(settings.previewOrigin, false);
   // Where the web preview's per-user configuration is kept (server.mjs /state). A
   // writable directory mounted into this otherwise read-only container. Unset = off.
   const stateDir = settings.stateDir === undefined ? null : settings.stateDir;
@@ -56,7 +63,7 @@ export function validateConfig(settings, secrets) {
     throw new Error("State directory must be a normalized absolute path");
   }
   return {
-    origin, quoteDailyLimit, requestsPerMinute, maxConcurrent, stateDir,
+    origin, previewOrigin, quoteDailyLimit, requestsPerMinute, maxConcurrent, maxSockets, stateDir,
     token: secrets.token,
     apiAuthorization: "Basic " + Buffer.from(`${secrets.apiUsername}:${secrets.apiPassword}`).toString("base64"),
     // Never accept a caller-supplied upstream or a configurable generic proxy.
