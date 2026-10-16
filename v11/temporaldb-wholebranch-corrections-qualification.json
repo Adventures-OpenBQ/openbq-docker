@@ -1,0 +1,459 @@
+{
+  "status": "affected_gates_passed_scoped_final_review_pending",
+  "release_approved": false,
+  "artifact": {
+    "image_id": "sha256:486634d5aa36dc29c1ae9d0f7cbf73d2328b843d33671bbcd5c9f8eadede7e7e",
+    "platform": "linux/arm64",
+    "labels": {
+      "org.opencontainers.image.revision": "219e7e7dc261064e1868d0c9888e102711c3a2b0",
+      "org.opencontainers.image.source": "https://github.com/Adventures-OpenBQ/temporalDB-docker",
+      "org.opencontainers.image.title": "TemporalDB",
+      "org.opencontainers.image.version": "0.4.0"
+    },
+    "version": "0.4.0",
+    "source_commit": "219e7e7dc261064e1868d0c9888e102711c3a2b0",
+    "source_date_epoch": "1792155796",
+    "artifact": "temporaldb-0.4.0-linux-arm64.docker.tar",
+    "artifact_sha256": "3b03d312d5c7ae4d5487fd5ed17c23c76fe8c40a5c5a8e93e3f70b982f34ab24",
+    "distribution": "local-docker-save; unpublished",
+    "registry_reference": null,
+    "build_command": "scripts/build_release.py --platform linux/arm64",
+    "lock_sha256": "127fb6f9200781fa0ac71305a878e422f28b070a8df0f734cec3f53ae60d960a",
+    "extension_lock_sha256": "17f302af620e7342dc96315d6fbc39f4523e8eb75b509aa660438eb914f69f8f"
+  },
+  "main_runtime_archive": "1402249ec33aa1cda0679e35f9cb2babbdb220ae5649323a87a3bd110b3fcf1b",
+  "bulk_fixture_runtime_archive": "a70e98eeac8ef475fb2bfa10e5fbd6466a1d09761e6a3f1a8d700a02c81c1ea1",
+  "focused_tests": {
+    "affected": {
+      "passed": 21,
+      "seconds": 195.99
+    },
+    "final_fixture_helpers": {
+      "passed": 6,
+      "seconds": 47.64
+    },
+    "overlap": "Groups overlap; not a distinct summed test count."
+  },
+  "gates": {
+    "combined": {
+      "status": "passed",
+      "pytest_cases": 1,
+      "pytest_seconds": 584.02,
+      "orchestration_seconds": 584.5315214999719,
+      "api_processes": 2,
+      "worker_processes": 2,
+      "phase_order": "UI and process/mount proof, stop owned main services, split bundle verification, isolated bulk controller, independent restore",
+      "archive_mounts": "read-only",
+      "api_evidence": "read-write",
+      "worker_evidence": "read-only",
+      "chromium_cases": 1,
+      "chromium_seconds": 27.4
+    },
+    "filtered_history": [
+      {
+        "kind": "gold",
+        "corrections": false,
+        "scope": {
+          "schema_version": 1,
+          "workspace_id": "4292faee-257e-4623-affb-7d5303e93692",
+          "entitlement_id": "paid",
+          "principal_id": "alice"
+        },
+        "manifest": {
+          "schema_version": 1,
+          "manifest_id": "0b065ea9-89e9-5758-8dcb-65dcc3146106",
+          "pins": [
+            {
+              "schema_version": 1,
+              "catalog_id": "hot",
+              "snapshot_id": 11
+            }
+          ],
+          "projection_versions": {
+            "gold.eodhd.eod": "daily-v1"
+          },
+          "publication_id": "d075152c-3248-4334-b5a2-ebd3f14582bd"
+        },
+        "execution_id": "417c547f-7d9f-4628-8368-08548ac45366",
+        "snapshot_execution_id": "e7674c5d-56f4-431f-8368-ffa179c216d6",
+        "run_id": "1d5fd9e5-6c55-4b2c-a081-f74350edb4a0",
+        "replay_execution_id": "d52c45eb-40bd-4140-9fa8-191344e6bf8a",
+        "result_hash": "ce543e0bff67eef1e448b4e055e6ff5fc684712fd876068016229c872937627b",
+        "rows": 1,
+        "exact_replay": true,
+        "bundle_files": 4627
+      },
+      {
+        "kind": "silver",
+        "corrections": false,
+        "scope": {
+          "schema_version": 1,
+          "workspace_id": "4292faee-257e-4623-affb-7d5303e93692",
+          "entitlement_id": "paid",
+          "principal_id": "alice"
+        },
+        "manifest": {
+          "schema_version": 1,
+          "manifest_id": "7aee31e5-926f-4bd5-ad64-013a7cc0cf79",
+          "pins": [
+            {
+              "schema_version": 1,
+              "catalog_id": "hot",
+              "snapshot_id": 11
+            }
+          ],
+          "projection_versions": {
+            "eodhd.eod": "scale-1"
+          },
+          "publication_id": "3adcda1f-1a59-4e96-b52c-d822f30e3d77"
+        },
+        "execution_id": "4924029a-e38e-4b85-aeda-3c4a16c75dda",
+        "snapshot_execution_id": "f63379c7-0334-4653-b243-228733966883",
+        "run_id": "b662c38e-f081-4951-ade9-8da8d023c900",
+        "replay_execution_id": "0492aa97-4544-4fb5-a7fd-3d4948d33f49",
+        "result_hash": "ce543e0bff67eef1e448b4e055e6ff5fc684712fd876068016229c872937627b",
+        "rows": 1,
+        "exact_replay": true,
+        "bundle_files": 4627
+      },
+      {
+        "kind": "gold",
+        "corrections": true,
+        "scope": {
+          "schema_version": 1,
+          "workspace_id": "f0cdcc45-36dc-4c8b-a409-12d71383eb3c",
+          "entitlement_id": "paid",
+          "principal_id": "alice"
+        },
+        "manifest": {
+          "schema_version": 1,
+          "manifest_id": "186c3e57-ac19-5df6-9480-1372d4044fd4",
+          "pins": [
+            {
+              "schema_version": 1,
+              "catalog_id": "hot",
+              "snapshot_id": 12
+            }
+          ],
+          "projection_versions": {
+            "gold.eodhd.eod": "daily-v1"
+          },
+          "publication_id": "f1a9710e-ca23-4e81-92ac-6f27dfdb089a"
+        },
+        "execution_id": "bc539947-67d1-478f-9803-b3c4521f84f4",
+        "snapshot_execution_id": "6ad5a07d-86a3-40fd-8d5d-f0f2f56a1ea8",
+        "run_id": "9da6fff8-0fd7-4f6e-8d9a-45f840b08789",
+        "replay_execution_id": "1ba7881f-ef87-410c-a280-050503604a52",
+        "result_hash": "ecd900eec6988b7d6170b2937a8a1f01fd309687e6e091a81fdb1b133e2b0473",
+        "rows": 1,
+        "exact_replay": true,
+        "bundle_files": 4627
+      },
+      {
+        "kind": "silver",
+        "corrections": true,
+        "scope": {
+          "schema_version": 1,
+          "workspace_id": "f0cdcc45-36dc-4c8b-a409-12d71383eb3c",
+          "entitlement_id": "paid",
+          "principal_id": "alice"
+        },
+        "manifest": {
+          "schema_version": 1,
+          "manifest_id": "ea56cb6f-f6e9-44e5-9601-99ea7654b283",
+          "pins": [
+            {
+              "schema_version": 1,
+              "catalog_id": "hot",
+              "snapshot_id": 12
+            }
+          ],
+          "projection_versions": {
+            "eodhd.eod": "scale-1"
+          },
+          "publication_id": "38390afd-aaf5-4888-9ca0-33f271419d93"
+        },
+        "execution_id": "098ed544-0b46-40cd-a11b-d4f490190ca5",
+        "snapshot_execution_id": "b81c97e1-6672-43bf-b6b6-4cfa3785526d",
+        "run_id": "d8273f0a-4199-4681-8543-a954d9c5fe33",
+        "replay_execution_id": "5ed465cf-bcc9-43cc-a399-bf2188707f1d",
+        "result_hash": "ecd900eec6988b7d6170b2937a8a1f01fd309687e6e091a81fdb1b133e2b0473",
+        "rows": 1,
+        "exact_replay": true,
+        "bundle_files": 4627
+      }
+    ],
+    "schema_witnesses": [
+      {
+        "case": "quality-page",
+        "candidate_keys": 2051,
+        "first_page_excluded": true,
+        "manifest": {
+          "schema_version": 1,
+          "manifest_id": "e8e1173a-0103-52c8-b075-58581aabbc8f",
+          "pins": [
+            {
+              "schema_version": 1,
+              "catalog_id": "hot",
+              "snapshot_id": 13
+            }
+          ],
+          "projection_versions": {
+            "gold.eodhd.eod": "daily-v1"
+          },
+          "publication_id": "cd8cd52a-6a2b-4dee-a33d-e40640722125"
+        },
+        "execution_id": "31163b67-6c29-4426-acd7-6c80773b5b37",
+        "rows": 0,
+        "schema": [
+          {
+            "name": "value",
+            "type": "int64",
+            "nullable": true
+          },
+          {
+            "name": "quality",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "assertion_id",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "capture_id",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "effective_from",
+            "type": "date32[day]",
+            "nullable": true
+          },
+          {
+            "name": "effective_to",
+            "type": "null",
+            "nullable": true
+          }
+        ],
+        "run_id": "dc01f530-c814-4b77-a472-9945a91d1d37",
+        "replay_execution_id": "c1070f61-f0c8-471e-9a2c-261c9a663c47",
+        "exact_replay": true
+      },
+      {
+        "case": "tombstone",
+        "candidate_keys": 2,
+        "first_page_excluded": false,
+        "manifest": {
+          "schema_version": 1,
+          "manifest_id": "d486d50e-9266-5edc-a3db-38fd7bd438c7",
+          "pins": [
+            {
+              "schema_version": 1,
+              "catalog_id": "hot",
+              "snapshot_id": 14
+            }
+          ],
+          "projection_versions": {
+            "gold.eodhd.eod": "daily-v1"
+          },
+          "publication_id": "43de1a4f-2d05-473d-8b92-ebd3bb2e8035"
+        },
+        "execution_id": "8f112c55-58a7-4564-8c2a-0a267276deab",
+        "rows": 0,
+        "schema": [
+          {
+            "name": "value",
+            "type": "int64",
+            "nullable": true
+          },
+          {
+            "name": "assertion_id",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "capture_id",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "effective_from",
+            "type": "date32[day]",
+            "nullable": true
+          },
+          {
+            "name": "effective_to",
+            "type": "null",
+            "nullable": true
+          }
+        ],
+        "run_id": "f391defb-3a57-43cf-a51f-239ffa849594",
+        "replay_execution_id": "cacf551b-3af4-4b38-a9c0-6b07e57f6ef9",
+        "exact_replay": true
+      }
+    ],
+    "cross_pin_selection_library": {
+      "boundary": "unpatched installed selection library over independently accepted exact pins; no composed control publication",
+      "cases": [
+        {
+          "case": "precedence",
+          "inputs": {
+            "schema_version": 1,
+            "manifest_id": "6c302881-90c3-439a-b0b1-028e5542b56e",
+            "pins": [
+              {
+                "schema_version": 1,
+                "catalog_id": "hot",
+                "snapshot_id": 15
+              },
+              {
+                "schema_version": 1,
+                "catalog_id": "cold",
+                "snapshot_id": 8
+              }
+            ],
+            "projection_versions": {
+              "fixture.fundamentals": "cross-pin-1",
+              "fixture.eod": "cross-pin-1"
+            },
+            "publication_id": null
+          },
+          "preferred_value": 2,
+          "filtered_requested_rows": 0,
+          "earlier_value": 1,
+          "scope_refused": true
+        },
+        {
+          "case": "action-withdrawal",
+          "inputs": {
+            "schema_version": 1,
+            "manifest_id": "8c235547-a835-4bf1-a75a-561b1e489b86",
+            "pins": [
+              {
+                "schema_version": 1,
+                "catalog_id": "hot",
+                "snapshot_id": 16
+              },
+              {
+                "schema_version": 1,
+                "catalog_id": "cold",
+                "snapshot_id": 9
+              }
+            ],
+            "projection_versions": {
+              "fixture.fundamentals": "cross-pin-1",
+              "fixture.splits": "cross-pin-1"
+            },
+            "publication_id": null
+          },
+          "current_inputs": {
+            "schema_version": 1,
+            "manifest_id": "3551426a-e4e5-4b6e-9d4b-46eb10f3ff46",
+            "pins": [
+              {
+                "schema_version": 1,
+                "catalog_id": "hot",
+                "snapshot_id": 16
+              },
+              {
+                "schema_version": 1,
+                "catalog_id": "cold",
+                "snapshot_id": 10
+              }
+            ],
+            "projection_versions": {
+              "fixture.fundamentals": "cross-pin-1",
+              "fixture.splits": "cross-pin-1"
+            },
+            "publication_id": null
+          },
+          "earlier_adjusted_close": "5",
+          "current_adjusted_close": null,
+          "earlier_vector_unchanged": true
+        },
+        {
+          "case": "fred-group",
+          "inputs": {
+            "schema_version": 1,
+            "manifest_id": "91596da8-2d56-4d39-a007-6fd40533b565",
+            "pins": [
+              {
+                "schema_version": 1,
+                "catalog_id": "hot",
+                "snapshot_id": 17
+              },
+              {
+                "schema_version": 1,
+                "catalog_id": "cold",
+                "snapshot_id": 11
+              }
+            ],
+            "projection_versions": {
+              "fred.series/observations": "d3-fred-2:458e054ba1c57e513684990cc24d70492f02f3152557bf241e6409e55d3304fa"
+            },
+            "publication_id": null
+          },
+          "closure_keys": [
+            "TEST:2026-01-01:2026-02-01",
+            "TEST:2026-01-01:2026-03-01"
+          ],
+          "filtered_values": [
+            "100"
+          ]
+        }
+      ],
+      "helper_sha256": "e28841ddf074d25f0561ab3e1b55ece6081fcdc70cba19f4d128069c70bc45ea"
+    },
+    "split_service_bundle": {
+      "configured_evidence_store": true,
+      "publication_mapping_count": 1,
+      "returned_files": 4631,
+      "all_returned_paths_hashed": true,
+      "before_unified_merge": true
+    },
+    "independent_restore": {
+      "verified_run_ids": [
+        "6b3388d3-3bfc-43e8-9b09-75b8f99c6268"
+      ],
+      "object_count": 301,
+      "table_count": 94,
+      "exact_record_equal": true
+    }
+  },
+  "fixture_helpers": {
+    "accepted_history_support.py": "3c0baef5f42229d700d917ae3a2f5919ef059f33144737d2f59811a5c4bd46ce",
+    "query_closure_support.py": "e28841ddf074d25f0561ab3e1b55ece6081fcdc70cba19f4d128069c70bc45ea",
+    "installed_query_selection.py": "e6e03a3644ea332fc819ec8cc4cd943d1a24ae6d5d46ac9c223a59f2f044dd0d"
+  },
+  "source_boundary": {
+    "installed_source_files": 104,
+    "migrations": 27,
+    "all_001_027_unchanged_from_b769": true,
+    "public_limits_unchanged": true,
+    "installed_dependencies_equal_previous": 19
+  },
+  "reuse": {
+    "previous_source": "b769205ac1a5d1bf4280433beb944966cdc75498",
+    "previous_image": "sha256:fa9ed15f19b69f3cb8058753bfdcfcc989e747d94cfb2702a0b139da1ccf3770",
+    "previous_main_archive": "3cabfeb63fd23afe921ff79b41f81d85d702e4b4f5be6f1458e252d4d177813b",
+    "proof": "reuse-proof.json",
+    "scope": "Unchanged tick branch, budget, typed conversion, publication/results and dependency/migration boundaries reuse prior ordinary tick/bridge evidence; provider/settings/Workspace/FUSE identities retain their earlier chained proofs. These are not executions against the new image."
+  },
+  "limits": [
+    "Filtered dataset Gold/Silver requests; arbitrary SQL WHERE pushdown was not added and SQL virtual inputs retain source caps.",
+    "Gold empty schema may traverse multiple exact-pin authorized candidate-key batches before projecting one surviving witness; no one-raw-decode or constant-work claim.",
+    "Cross-pin coordination performs four skinny metadata stages and bounded scratch imports; unchanged deadlines apply.",
+    "Cross-pin evidence uses the installed selection library over independently genuinely accepted pins with a supported custom rule; no composed multi-pin control publication receipt is claimed.",
+    "Scale-1 archive and helpers are explicitly bulk fixtures, not provider acquisition/parser proof.",
+    "Independent restore explicitly checks only the UI protected run; extra fixture inventory is included in full PG/S3 equality. Individual bulk and empty-schema runs have exact replay before restore, not independent restore claims.",
+    "Local unpublished Linux arm64 artifact; no release, registry, deployment, merge, cutover, NAS, power-loss durability or packaged Tauri qualification."
+  ],
+  "historical_evidence": "../final-fix/qualification.json and ../task6-qualification.md retain original artifact identities, failures, warnings and baseline dispositions.",
+  "tested_checkouts": {
+    "H": "a8c0f0220588ac9efe4bbf2c78c59685d3753351",
+    "C": "6f30422af1ca193d6a60fc5a673e943cd0624975",
+    "later_changes": "documentation and host artifact pins only"
+  }
+}

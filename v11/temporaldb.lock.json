@@ -3,27 +3,27 @@
   "client_compatibility": 11,
   "service": "TemporalDB",
   "version": "0.4.0",
-  "source_commit": "b769205ac1a5d1bf4280433beb944966cdc75498",
-  "image_id": "sha256:fa9ed15f19b69f3cb8058753bfdcfcc989e747d94cfb2702a0b139da1ccf3770",
+  "source_commit": "219e7e7dc261064e1868d0c9888e102711c3a2b0",
+  "image_id": "sha256:486634d5aa36dc29c1ae9d0f7cbf73d2328b843d33671bbcd5c9f8eadede7e7e",
   "platform": "linux/arm64",
   "artifact": "temporaldb-0.4.0-linux-arm64.docker.tar",
-  "artifact_sha256": "2dbc5371bf5041397a0760c877703abd44dd78953b95cd01130aad86b4f8edae",
+  "artifact_sha256": "3b03d312d5c7ae4d5487fd5ed17c23c76fe8c40a5c5a8e93e3f70b982f34ab24",
   "distribution": "local-docker-save; unpublished",
   "registry_reference": null,
   "provenance": {
-    "image_id": "sha256:fa9ed15f19b69f3cb8058753bfdcfcc989e747d94cfb2702a0b139da1ccf3770",
+    "image_id": "sha256:486634d5aa36dc29c1ae9d0f7cbf73d2328b843d33671bbcd5c9f8eadede7e7e",
     "platform": "linux/arm64",
     "labels": {
-      "org.opencontainers.image.revision": "b769205ac1a5d1bf4280433beb944966cdc75498",
+      "org.opencontainers.image.revision": "219e7e7dc261064e1868d0c9888e102711c3a2b0",
       "org.opencontainers.image.source": "https://github.com/Adventures-OpenBQ/temporalDB-docker",
       "org.opencontainers.image.title": "TemporalDB",
       "org.opencontainers.image.version": "0.4.0"
     },
     "version": "0.4.0",
-    "source_commit": "b769205ac1a5d1bf4280433beb944966cdc75498",
-    "source_date_epoch": "1792153133",
+    "source_commit": "219e7e7dc261064e1868d0c9888e102711c3a2b0",
+    "source_date_epoch": "1792155796",
     "artifact": "temporaldb-0.4.0-linux-arm64.docker.tar",
-    "artifact_sha256": "2dbc5371bf5041397a0760c877703abd44dd78953b95cd01130aad86b4f8edae",
+    "artifact_sha256": "3b03d312d5c7ae4d5487fd5ed17c23c76fe8c40a5c5a8e93e3f70b982f34ab24",
     "distribution": "local-docker-save; unpublished",
     "registry_reference": null,
     "build_command": "scripts/build_release.py --platform linux/arm64",
@@ -38,10 +38,10 @@
       "reviewed_commit": "a3c07f2964b5376aadadf2e465fd5a0062cb1d18"
     }
   },
-  "qualification_report": "temporaldb-wholebranch-fix-qualification.json",
+  "qualification_report": "temporaldb-wholebranch-corrections-qualification.json",
   "candidate_qualification": {
     "status": "affected_gates_passed_scoped_final_review_pending",
-    "reason": "New installed combined/filtered history/split bundle/independent UI restore, ordinary tick and daily runtime, and installed-wheel analysis bridge passed. Prior baseline closed with recorded dispositions. Scoped final fix review pending; no release approval."
+    "reason": "Consolidated installed correction gate passed, including projected empty schemas, cross-pin selection, large histories, UI, split bundle and independent UI-run restore. Scoped review pending; no release approval."
   },
   "provider_host": {
     "version": "11.0.0",
