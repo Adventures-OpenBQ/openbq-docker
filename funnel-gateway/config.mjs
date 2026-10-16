@@ -28,6 +28,8 @@ function httpsOrigin(value, tailnet = true, allowedPort = "10000") {
 const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "quoteDailyLimit",
   "requestsPerMinute", "maxConcurrent", "maxSockets", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs"]);
 
+const DEFAULT_SSRM_ROUTES = JSON.parse(readFileSync(new URL("./ssrm-routes.json", import.meta.url), "utf8"));
+
 export function validateConfig(settings, secrets) {
   for (const key of Object.keys(settings)) if (!SETTINGS_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`);
   const origin = httpsOrigin(settings.origin);
@@ -68,7 +70,8 @@ export function validateConfig(settings, secrets) {
   if (!Number.isInteger(tableTimeoutMs) || tableTimeoutMs < 1000 || tableTimeoutMs > 65000) throw new Error("Invalid table timeout");
   const tableService = settings.tableService ?? false;
   const tableDesktopPrincipal = settings.tableDesktopPrincipal ?? null;
-  const ssrmRoutes = settings.ssrmRoutes ?? [];
+  // Unset = the 23 routes od serves (ssrm-routes.json, lanes/ssrm_widgets.json as door paths).
+  const ssrmRoutes = settings.ssrmRoutes ?? DEFAULT_SSRM_ROUTES;
   if (typeof tableService !== "boolean" || !validSsrmRoutes(ssrmRoutes)) throw new Error("Invalid table settings");
   if (tableDesktopPrincipal !== null && !/^desktop:[A-Za-z0-9_-]{1,100}$/.test(tableDesktopPrincipal)) throw new Error("Invalid desktop table principal");
   const credential = value => typeof value === "string" && /^[A-Za-z0-9_-]{32,256}$/.test(value);

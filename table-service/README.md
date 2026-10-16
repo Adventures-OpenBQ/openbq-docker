@@ -41,8 +41,7 @@ Add to private gateway settings:
 {
   "tableService": true,
   "tableDesktopPrincipal": "desktop:owner",
-  "tableTimeoutMs": 65000,
-  "ssrmRoutes": []
+  "tableTimeoutMs": 65000
 }
 ```
 
@@ -88,7 +87,9 @@ Success, error, disconnect and deadlines release the associated lane's capacity.
 
 Standard provider SSRM POSTs are exact entries in `ssrmRoutes`, e.g.
 `/api/api/v1/reviewed_provider/rows`; review each actual provider endpoint before
-registering it. The web `SSRM_ROUTES_JSON` must contain the same paths. Query rules
+registering it. Unset, it defaults to the 23 routes od serves
+(`funnel-gateway/ssrm-routes.json`, `lanes/ssrm_widgets.json` as door paths); set it
+only to narrow that list, and `[]` turns SSRM through the door off. The web `SSRM_ROUTES_JSON` must contain the same paths. Query rules
 remain the existing bounded API policy; these POSTs use the existing injected Basic
 credential and daily vendor/concurrency budget. No broad POST prefix or generic proxy
 is introduced. Existing GET API and state routes retain their policies.

@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { tableRoute, validSsrmRoutes } from "./policy.mjs";
+import { validateConfig } from "./config.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const widgets = JSON.parse(readFileSync(join(here, "..", "lanes", "ssrm_widgets.json"), "utf8"));
@@ -30,4 +31,15 @@ test("every committed SSRM route admits a POST and an unlisted sibling does not"
   // An unlisted /ssrm POST and a GET on a listed route are both refused.
   assert.equal(tableRoute(new URL("/api/api/v1/not/listed/ssrm", "https://example.com"), "POST", config), null);
   assert.equal(tableRoute(new URL(doorPaths[0], "https://example.com"), "GET", config), null);
+});
+
+test("the gateway's committed default is exactly the lanes list as door paths", () => {
+  assert.deepEqual(JSON.parse(readFileSync(join(here, "ssrm-routes.json"), "utf8")), doorPaths);
+});
+
+test("a settings file without ssrmRoutes admits the 23 routes; an explicit list still wins", () => {
+  const settings = { origin: `https://openbq.${["example-tailnet", "ts", "net"].join(".")}:10000` };
+  const secrets = { token: "t".repeat(32), apiUsername: "u", apiPassword: "p" };
+  assert.deepEqual(validateConfig(settings, secrets).ssrmRoutes, doorPaths);
+  assert.deepEqual(validateConfig({ ...settings, ssrmRoutes: [] }, secrets).ssrmRoutes, []);
 });
