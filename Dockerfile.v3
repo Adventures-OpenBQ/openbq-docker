@@ -61,6 +61,7 @@ COPY v9/eodhd/verify.py /tmp/eodhd-verify/verify.py
 COPY v9/eodhd/tests /tmp/eodhd-verify/tests
 RUN python /tmp/eodhd-verify/verify.py && rm -rf /tmp/eodhd-verify
 COPY lanes/openbq_lanes.py /usr/local/lib/python3.12/site-packages/openbq_lanes.py
+COPY lanes/ssrm_widgets.json /workspace/ssrm_widgets.json
 WORKDIR /workspace
 # BDOBB example dashboards, appended to /apps.json by the lanes hook (examples/bdobb/README.md).
 COPY examples/bdobb/apps.json /workspace/bdobb_apps.json

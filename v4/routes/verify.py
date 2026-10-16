@@ -26,6 +26,9 @@ assert all(client.get('/api/v1/calendar/trading', params={'exchange': mic, 'year
            for mic in ['XLON', 'XTSE', 'XETR', 'XTKS', 'XHKG'])
 tokyo = client.get('/api/v1/calendar/trading', params={'exchange': 'XTKS', 'year': 2026}).json()['data']
 assert tokyo['TradingHours']['LunchBreakStart'] == '11:30:00' and tokyo['TradingHours']['Close'] == '15:30:00'
+tokyo_2024 = client.get('/api/v1/calendar/trading', params={'exchange': 'XTKS', 'year': 2024}).json()['data']
+assert tokyo_2024['TradingHours']['Close'] == '15:30:00', tokyo_2024['TradingHours']  # 15:00 until 2024-11-05
+assert not any(h['Type'] == 'EarlyClose' for h in tokyo_2024['ExchangeHolidays'].values())
 for params in [{'exchange': 'XXXX', 'year': 2026}, {'exchange': 'XNYS', 'year': 1989}, {'exchange': 'XTKS', 'year': 1991}]:
     assert client.get('/api/v1/calendar/trading', params=params).status_code == 404, params
 
