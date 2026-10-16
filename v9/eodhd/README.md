@@ -2,10 +2,11 @@
 
 # openbq-eodhd in ODP v9
 
-`source/` is the openbq-eodhd provider extension 9.0.0, vendored from
-Adventures-OpenBQ/openbq-eodhd at tag `v9.0.0`. That package is bdobb-dev/openbb-docker's
+`source/` is the openbq-eodhd provider extension 9.0.1, vendored from
+Adventures-OpenBQ/openbq-eodhd at tag `v9.0.1`. That package is bdobb-dev/openbb-docker's
 `openbb-eodhd` (v9.6.3, fixes through v9.6.6), renamed `openbq-eodhd` (module `openbq_eodhd`)
-(`source.json`; per-file record in [docs/v9/eodhd-port.md](../../docs/v9/eodhd-port.md)).
+(`source.json`; per-file record in [docs/v9/eodhd-port.md](../../docs/v9/eodhd-port.md)),
+plus the v9 review fixes released as 9.0.1.
 Its own README describes the data. `Dockerfile.v3` builds it as a wheel and
 installs it on the locked ODP recipe with the provider-fixes overlay applied.
 
@@ -48,7 +49,8 @@ EODHD's public `demo` token; it uses the standard routes, so it needs them.
 
 ## SDK
 
-The official EODHD library is built from the commit `source/pyproject.toml`
-pins (GitHub archive `f98e69d`). The packages it adds to the ODP lock are
-pinned in `requirements.extra.lock` (recorded from the 9.0.0 gate build's
-`pip freeze`), and the images install it `--no-deps`, as `v3/yfinance` does.
+The official EODHD library is vendored inside the package, at
+`source/openbq_eodhd/_vendor/eodhd` (MIT, upstream commit `f98e69d`; see
+`source/NOTICE`), so nothing fetches it at build time. Its runtime
+dependencies (numpy, pandas, requests, rich) are all in the ODP lock, and the
+images install the wheel `--no-deps`, as `v3/yfinance` does.

@@ -402,8 +402,6 @@ class TestTrailingDivYield:
 
     def test_a_failed_split_fetch_fails_the_call(self, monkeypatch, eodhd_credentials):
         """No silently wrong yield: a /splits error maps like any SDK error."""
-        from unittest.mock import MagicMock
-
         from openbb_core.app.model.abstract.error import OpenBBError
 
         client = MagicMock()

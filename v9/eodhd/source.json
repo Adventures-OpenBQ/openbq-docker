@@ -1,9 +1,9 @@
 {
   "repository": "https://github.com/Adventures-OpenBQ/openbq-eodhd.git",
-  "tag": "v9.0.0",
-  "commit": "8da243541b9d5e268873f199d66f96f67c70d1dc",
-  "version": "9.0.0",
-  "sdk": "eodhd @ https://github.com/EodHistoricalData/EODHD-APIs-Python-Financial-Library/archive/f98e69d797140ca03f16fa7451046d84aab9643e.tar.gz",
+  "tag": "v9.0.1",
+  "commit": "59603cc1957b01af98b75be257520b0f48a637fc",
+  "version": "9.0.1",
+  "sdk": "vendored at openbq_eodhd/_vendor/eodhd from https://github.com/EodHistoricalData/EODHD-APIs-Python-Financial-Library at f98e69d797140ca03f16fa7451046d84aab9643e",
   "sdk_license": "MIT",
   "license": "Apache-2.0",
   "donor": {

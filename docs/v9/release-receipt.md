@@ -6,7 +6,7 @@ Gated tree: `d66e4d0` (`claude/openbq-docker-v9`). This receipt commit changes o
 
 ## What v9.0.0 adds over v8.0.0
 
-- **The EODHD provider extension, openbq-eodhd 9.0.0** (Episode 9). It is vendored in `v9/eodhd/source/` from Adventures-OpenBQ/openbq-eodhd at `8da2435`. `v9/eodhd/source/` is byte-identical to `git archive 8da2435`. `v9/eodhd/source.json` names that commit and the tag `v9.0.0`.
+- **The EODHD provider extension, openbq-eodhd 9.0.1** (Episode 9; 9.0.0 at the 2026-10-14 cut, see *Re-cut*). It is vendored in `v9/eodhd/source/` from Adventures-OpenBQ/openbq-eodhd at `59603cc`, tag `v9.0.1`, and is byte-identical to `git archive v9.0.1`; `v9/eodhd/source.json` names both. 9.0.1 is 9.0.0 (`7f4cbe2`, the release on PyPI) plus the v9 review fixes, merged upstream in openbq-eodhd #2: the key is redacted from errors, quota and upstream failures are mapped, the dividend yield uses a split-only basis, and calendar paging handles single days. The EODHD SDK is vendored inside the package, so the images no longer fetch it or pin its extra dependencies.
   - The package is bdobb-dev/openbb-docker's `openbb-eodhd` v9.6.3, with fixes through v9.6.6, renamed `openbq-eodhd` (module `openbq_eodhd`). The ledger is `docs/v9/eodhd-port.md`.
   - The OpenBB contract is unchanged from the donor: provider `eodhd`, `obb.eodhd.*` on `/api/v1/eodhd`, and widget ids `eodhd_*_eodhd_obb`.
   - The image installs it (`Dockerfile.v3`) and runs `v9/eodhd/verify.py` at build time.
@@ -40,3 +40,22 @@ Gated tree: `d66e4d0` (`claude/openbq-docker-v9`). This receipt commit changes o
 The served examples keep `img` empty: the image does not serve `/openbq/bdobb-logo.svg`, which BDOBB's current `apps:sync` writes. *V4 core tools* is the older single-probe *Date expressions* tab; BDOBB v7.0.0 and later ship six probes and a note. Both need a later stack change.
 
 No image was published and nothing was deployed.
+
+## Re-cut (2026-10-16)
+
+The regression walk re-cut v9.0.0 after the v9 review. The review's EODHD fixes went upstream first, in openbq-eodhd #2, and shipped as openbq-eodhd 9.0.1 (`59603cc`). 9.0.0 (`7f4cbe2`) was already on PyPI and can't be replaced. This tree vendors 9.0.1 (`99a3f95`), with the SDK inside the package, so `v9/eodhd/requirements.extra.lock` is gone. `verify.py` also refuses a separately installed `eodhd` (`de99d73`, from review M2).
+
+Gates on `de99d73`:
+- `scripts/check-public.py --history HEAD`: PASS.
+- `tests`: 33 passed.
+- `docker build` of both API Dockerfiles: built, `pip check` clean, and `verify.py` PASS for openbq-eodhd 9.0.1, amd64 and arm64.
+- The NAS ran the image with `nas-verify` (smoke, app layouts, CFTC, heavy routes, isolation, provider fixes, v4 routes): all passed.
+- Live EODHD calls with the demo token: prices and dividends returned 200. A refused symbol returned 502 with no key and no `api_token` in the body.
+- The BDOBB client regression passed: OBBject warnings, E05-047, 9 fixtures, the apps walk (46 non-BLS and 5 BLS apps), and the smoke nine. The smoke nine needed a rerun: its first run hit one transient yfinance profile failure, and the route then answered 200 three times in a row.
+
+GHCR `9.0.0`, built for amd64 and arm64:
+- `openbq-local` `sha256:84ef1e13fece055b798057b14a02a6a12ab831370250650f1cd797bdb975ca29`, image revision `de99d73`.
+- `openbq-table-service` `sha256:f80413f2c049867ae5d93fccf0073a6d3714cf033fdd34dfa47b9c75acf83774`, from BDOBB `8e7fca1` per `table-service/source.lock.json`, unchanged.
+- `openbq-key-maint` `sha256:ba2d3d252680be8c5c804296f29aea2ebde935ad1294dce65df56295728445b5`, the 8.0.0 image re-tagged, unchanged.
+
+The funnel gateway stays at 8.0.0. `latest` was not moved.
