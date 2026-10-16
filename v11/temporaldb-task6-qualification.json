@@ -1,0 +1,15 @@
+{
+  "status": "in_progress",
+  "source_commit": "75d5389d0b68a7041b84e7e7e1f04d097d8ff9b1",
+  "image_id": "sha256:fae4ef24f77d45d8c87de6095d71515e83fda1c1eab2bad68595b6c5c42a4ec2",
+  "artifact_sha256": "e1f91f1dce98bc159caf9326d3f86841589b35b47c1b6876658862fa323153cb",
+  "runtime_platform": "linux/arm64",
+  "release_approved": false,
+  "required_gates_pending": [
+    "optimized installed runtime/session",
+    "combined UI/publication-denial/independent restore",
+    "exact installed provider topology",
+    "broad TemporalDB final inventory",
+    "independent review closure"
+  ]
+}
