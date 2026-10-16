@@ -115,8 +115,7 @@ Real `credentials.env` files may be used on the NAS, but stay out of Git and Doc
 
 The optional [v3 Compose overlay](docker-compose.v3.yml) builds two independent
 services: ODP with [our original yfinance extension](v3/yfinance/README.md), and
-the [OpenBQ reference backend](examples/episode3/README.md) with fictional pivot
-widgets. The shared private Tailscale sidecar serves ODP on 443 and the reference
+the [OpenBQ reference backend](examples/episode3/README.md). The shared private Tailscale sidecar serves ODP on 443 and the reference
 backend on 8443. No NAS host ports or public Funnel are enabled.
 
 The overlay also runs [key-maint](key-maint/README.md), the provider key status
@@ -134,10 +133,11 @@ docker compose -f docker-compose.yml -f docker-compose.v3.yml build
 docker compose -f docker-compose.yml -f docker-compose.v3.yml up -d
 ```
 
-The reference `/apps.json` advertises 74 self-contained cards with zero missing
+The reference `/apps.json` advertises 70 self-contained cards with zero missing
 widget references. Its `/bundle.apps.json` download adds the keyless ODP market
-examples for an 80-card BDOBB file import. The two Episode 3 app entries carry
-the BDOBB logo in standard image fields. Workspace is an optional Episode 2
+examples for a 76-card BDOBB file import. No app carries BDOBB layout extensions:
+BDOBB v3 refuses them, and the pivot examples arrive with v4. The Episode 3 app
+entry carries the BDOBB logo in standard image fields. Workspace is an optional Episode 2
 comparison, not a prerequisite for this setup.
 
 Released as `v3.0.0` with BDOBB v3.0.0: `ghcr.io/adventures-openbq/openbq-local:3.0.0`

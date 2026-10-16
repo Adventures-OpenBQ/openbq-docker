@@ -14,16 +14,18 @@ class ReferenceTests(unittest.TestCase):
     def test_catalog_resolution(self):
         widgets = self.client.get('/widgets.json').json()
         apps = self.client.get('/apps.json').json()
-        self.assertEqual(len(apps), 2)
-        self.assertEqual(sum(len(t['layout']) for a in apps for t in a['tabs'].values()), 74)
+        self.assertEqual(len(apps), 1)
+        self.assertEqual(sum(len(t['layout']) for a in apps for t in a['tabs'].values()), 70)
         self.assertIn('omni-python-widget', widgets)
         for a in apps:
             for tab in a['tabs'].values():
                 for card in tab['layout']:
                     self.assertIn(card['i'], widgets)
         bundle = self.client.get('/bundle.apps.json').json()
-        self.assertEqual(len(bundle), 3)
-        self.assertEqual(sum(len(t['layout']) for a in bundle for t in a['tabs'].values()), 80)
+        self.assertEqual(len(bundle), 2)
+        self.assertEqual(sum(len(t['layout']) for a in bundle for t in a['tabs'].values()), 76)
+        # BDOBB v3 refuses layout-level extensions (UNSUPPORTED_EXTENSION), so none may be served.
+        self.assertFalse([c for a in bundle for t in a['tabs'].values() for c in t['layout'] if 'extensions' in c])
         optional = self.client.get('/market-examples.apps.json').json()
         self.assertEqual(len(optional), 1)
         market = {card['i'] for a in optional for t in a['tabs'].values() for card in t['layout']}

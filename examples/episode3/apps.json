@@ -1066,183 +1066,6 @@
     ]
   },
   {
-    "name": "Episode 3 \u2014 Pivot examples",
-    "description": "Deterministic fictional data. Monthly OHLC, cross-tabs, ordered Mean/Count measures and null handling. Requires the Episode 3 sample backend; no credentials.",
-    "tabs": {
-      "monthly-ohlc": {
-        "id": "monthly-ohlc",
-        "name": "Monthly OHLC",
-        "layout": [
-          {
-            "i": "openbq_demo_prices",
-            "x": 0,
-            "y": 0,
-            "w": 40,
-            "h": 20,
-            "state": {
-              "params": {}
-            },
-            "extensions": {
-              "bdobb": {
-                "version": 1,
-                "profile": "pivot-v1",
-                "pivot": {
-                  "enabled": true,
-                  "grouping": [
-                    "asset",
-                    "date"
-                  ],
-                  "split": [],
-                  "buckets": {
-                    "date": "month"
-                  },
-                  "aggregationFns": {
-                    "open": "first",
-                    "high": "max",
-                    "low": "min",
-                    "close": "last",
-                    "volume": "sum"
-                  }
-                }
-              }
-            }
-          }
-        ]
-      },
-      "cross-tab": {
-        "id": "cross-tab",
-        "name": "Asset cross-tab",
-        "layout": [
-          {
-            "i": "openbq_demo_prices",
-            "x": 0,
-            "y": 0,
-            "w": 40,
-            "h": 20,
-            "state": {
-              "params": {}
-            },
-            "extensions": {
-              "bdobb": {
-                "version": 1,
-                "profile": "pivot-v1",
-                "pivot": {
-                  "enabled": true,
-                  "grouping": [
-                    "date"
-                  ],
-                  "split": [
-                    "asset"
-                  ],
-                  "buckets": {
-                    "date": "month"
-                  },
-                  "aggregationFns": {
-                    "volume": "sum",
-                    "close": "mean"
-                  }
-                }
-              }
-            }
-          }
-        ]
-      },
-      "mean-count": {
-        "id": "mean-count",
-        "name": "Mean and Count",
-        "layout": [
-          {
-            "i": "openbq_demo_prices",
-            "x": 0,
-            "y": 0,
-            "w": 40,
-            "h": 20,
-            "state": {
-              "params": {}
-            },
-            "extensions": {
-              "bdobb": {
-                "version": 1,
-                "profile": "pivot-v1",
-                "pivot": {
-                  "enabled": true,
-                  "grouping": [
-                    "asset"
-                  ],
-                  "split": [],
-                  "measures": [
-                    {
-                      "id": "mean",
-                      "sourceFieldId": "volume",
-                      "aggregation": "mean"
-                    },
-                    {
-                      "id": "count",
-                      "sourceFieldId": "volume",
-                      "aggregation": "count"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        ]
-      },
-      "null-handling": {
-        "id": "null-handling",
-        "name": "Null handling",
-        "layout": [
-          {
-            "i": "openbq_demo_nulls",
-            "x": 0,
-            "y": 0,
-            "w": 40,
-            "h": 20,
-            "state": {
-              "params": {}
-            },
-            "extensions": {
-              "bdobb": {
-                "version": 1,
-                "profile": "pivot-v1",
-                "pivot": {
-                  "enabled": true,
-                  "grouping": [
-                    "asset"
-                  ],
-                  "split": [],
-                  "measures": [
-                    {
-                      "id": "mean",
-                      "sourceFieldId": "value",
-                      "aggregation": "mean"
-                    },
-                    {
-                      "id": "count",
-                      "sourceFieldId": "value",
-                      "aggregation": "count"
-                    },
-                    {
-                      "id": "sum",
-                      "sourceFieldId": "value",
-                      "aggregation": "sum"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        ]
-      }
-    },
-    "groups": [],
-    "prompts": [],
-    "allowCustomization": true,
-    "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
-    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
-    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K"
-  },
-  {
     "name": "Episode 3 \u2014 Keyless market examples",
     "description": "Keyless SEC and original OpenBQ yfinance V5 examples. Statements are long-form line_item/value rows, pivoted by reporting date. Requires the v3 ODP image; Yahoo availability and rate limits are external.",
     "img": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
@@ -1267,24 +1090,6 @@
                 "period": "quarter",
                 "limit": "12"
               }
-            },
-            "extensions": {
-              "bdobb": {
-                "version": 1,
-                "profile": "pivot-v1",
-                "pivot": {
-                  "enabled": true,
-                  "grouping": [
-                    "line_item"
-                  ],
-                  "split": [
-                    "date"
-                  ],
-                  "aggregationFns": {
-                    "value": "first"
-                  }
-                }
-              }
             }
           },
           {
@@ -1300,24 +1105,6 @@
                 "period": "quarter",
                 "limit": "12"
               }
-            },
-            "extensions": {
-              "bdobb": {
-                "version": 1,
-                "profile": "pivot-v1",
-                "pivot": {
-                  "enabled": true,
-                  "grouping": [
-                    "line_item"
-                  ],
-                  "split": [
-                    "date"
-                  ],
-                  "aggregationFns": {
-                    "value": "first"
-                  }
-                }
-              }
             }
           },
           {
@@ -1332,24 +1119,6 @@
                 "provider": "yfinance",
                 "period": "quarter",
                 "limit": "12"
-              }
-            },
-            "extensions": {
-              "bdobb": {
-                "version": 1,
-                "profile": "pivot-v1",
-                "pivot": {
-                  "enabled": true,
-                  "grouping": [
-                    "line_item"
-                  ],
-                  "split": [
-                    "date"
-                  ],
-                  "aggregationFns": {
-                    "value": "first"
-                  }
-                }
               }
             }
           }
@@ -1382,19 +1151,6 @@
                 "symbol": "AAPL",
                 "provider": "sec"
               }
-            },
-            "extensions": {
-              "bdobb": {
-                "version": 1,
-                "profile": "pivot-v1",
-                "pivot": {
-                  "enabled": true,
-                  "grouping": [
-                    "transaction_type"
-                  ],
-                  "split": []
-                }
-              }
             }
           },
           {
@@ -1409,29 +1165,6 @@
                 "provider": "yfinance",
                 "start_date": "2025-01-01",
                 "end_date": "2025-03-31"
-              }
-            },
-            "extensions": {
-              "bdobb": {
-                "version": 1,
-                "profile": "pivot-v1",
-                "pivot": {
-                  "enabled": true,
-                  "grouping": [
-                    "date"
-                  ],
-                  "split": [],
-                  "buckets": {
-                    "date": "month"
-                  },
-                  "aggregationFns": {
-                    "open": "first",
-                    "high": "max",
-                    "low": "min",
-                    "close": "last",
-                    "volume": "sum"
-                  }
-                }
               }
             }
           }

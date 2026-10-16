@@ -15,7 +15,7 @@ widgets = fetch('/widgets.json')
 apps = fetch('/apps.json')
 ids = [c['i'] for a in apps for t in a['tabs'].values() for c in t['layout']]
 missing = sorted(set(ids) - widgets.keys())
-assert len(apps) == 2 and len(ids) == 74, 'Unexpected self-contained app catalog'
+assert len(apps) == 1 and len(ids) == 70, 'Unexpected self-contained app catalog'
 assert len(widgets) == 72, 'Unexpected widget registry'
 assert not missing, 'App layout references absent widgets'
 assert 'omni-python-widget' in widgets, 'Python Omni widget must be served (gated by OPENBQ_OMNI_EXEC_ALLOWED)'
@@ -23,9 +23,11 @@ assert len(fetch('/data/prices')) == 5 and len(fetch('/data/nulls')) == 5
 assert len(fetch('/table_widget')) == 3
 assert fetch('/metric_widget')[0]['value'] == '1,234,567'
 assert fetch('/health')['status'] == 'ok'
-assert len(fetch('/bundle.apps.json')) == 3
+bundle = fetch('/bundle.apps.json')
+assert len(bundle) == 2
+assert not [c for a in bundle for t in a['tabs'].values() for c in t['layout'] if 'extensions' in c], 'BDOBB v3 refuses layout extensions'
 assert len(fetch('/market-examples.apps.json')) == 1
-for app in apps:
+for app in bundle:
     if app['name'].startswith('Episode 3'):
         assert all(app[k].startswith('data:image/svg+xml;base64,') for k in ('img', 'img_dark', 'img_light'))
 with urlopen(base + '/assets/bdobb-logo.svg', timeout=20) as r:
