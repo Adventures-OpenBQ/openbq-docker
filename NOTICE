@@ -59,7 +59,7 @@ OpenBQ yfinance (v3/yfinance/source)
 Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v3/yfinance/source/NOTICE. It uses yfinance (Ran Aroussi and contributors, Apache-2.0) as a dependency.
 
 openbq-eodhd (v9/eodhd/source)
-Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v9/eodhd/source/LICENSE and NOTICE. Vendored from Adventures-OpenBQ/openbq-eodhd v9.0.0, which is bdobb-dev/openbb-docker's openbb-eodhd renamed (commits recorded in v9/eodhd/source.json and docs/v9/eodhd-port.md). It uses the official EODHD Python library (EOD Historical Data, MIT per its PyPI metadata), which Dockerfile.v3 builds from the pinned commit; it is not stored in this repository.
+Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v9/eodhd/source/LICENSE and NOTICE. Vendored from Adventures-OpenBQ/openbq-eodhd v9.0.1, which is bdobb-dev/openbb-docker's openbb-eodhd renamed, plus the v9 review fixes (commits recorded in v9/eodhd/source.json and docs/v9/eodhd-port.md). It carries the official EODHD Python library (EOD Historical Data, MIT), vendored inside the package at v9/eodhd/source/openbq_eodhd/_vendor/eodhd from upstream commit f98e69d; its copyright and licence are in v9/eodhd/source/NOTICE.
 
 Video Library extension (v3/videos/source, openbb-videos 3.0.1)
 Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0, vendored from bdobb-dev/openbb-docker 13816e1 (v3/videos/source.json). The two sample videos, the widget definition and its parameter in openbb_videos/router.py are adapted from OpenBB's reference backend (https://github.com/OpenBB-finance/backends-for-openbb, getting-started/reference-backend/widgets_youtube.py), Copyright (c) 2024 OpenBB, MIT License; that notice is reproduced in the file.
