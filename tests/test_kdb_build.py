@@ -34,8 +34,8 @@ def test_the_override_builds_kdb_locally_and_changes_nothing_else():
     assert set(OVERRIDE['services']) == {'openbq-kdb'} and set(kdb) == {'build', 'image'}
     assert kdb['build']['context'] == 'kdb-x' and kdb['image'] == 'openbq-kdb-x:local'
     assert kdb['build']['args'] == {'KX_VERSION': '${KX_VERSION:-~latest~}'}
-    # Without the override, the stack still pulls the operator's published image.
-    assert BASE['services']['openbq-kdb']['image'] == 'ghcr.io/artcashin/kdb-x:amd64'
+    # Without the override, the stack pulls the maintainer's private image, pinned by digest (D2).
+    assert BASE['services']['openbq-kdb']['image'] == '${KDB_IMAGE:-ghcr.io/artcashin/kdb-x:amd64@sha256:013490f90a166e0863651f2c8a7f5d24e8d1beec68d2e3e541c1a2281653a77c}'
     assert 'build' not in BASE['services']['openbq-kdb']
 
 
@@ -44,3 +44,16 @@ def test_the_entrypoint_runs_the_stacks_script_on_the_stacks_port():
     assert 'exec "$QBIN" "$@" -p "$PORT"' in entry
     kdb = BASE['services']['openbq-kdb']
     assert kdb['command'] == ['/opt/openbq-kdb/startup.q']  # REVIEW (2026-10-14): /opt/kdb-ws renamed /opt/openbq-kdb and kdb['environment']['KX_PORT'] == '5000'
+
+
+def test_the_docs_say_the_default_kdb_image_is_private_amd64_only_and_how_to_build_your_own():
+    """D2: kdb+ is proprietary, so the default image is private and never published; readers
+    build their own from their licensed KDB-X with compose.kdb-build.yml."""
+    for path in ('README.md', 'kdb-x/README.md', 'NOTICE'):
+        text = (ROOT / path).read_text()
+        assert 'private' in text and 'amd64' in text and 'KDB_IMAGE' in text, path
+        assert 'compose.kdb-build.yml' in text, path
+        # A floating tag is never named on its own: the digest-pinned ref, or none.
+        assert 'kdb-x:amd64`' not in text and 'kdb-x:amd64)' not in text, path
+    # The documented build names the real service.
+    assert 'build openbq-kdb' in (ROOT / 'kdb-x/README.md').read_text()

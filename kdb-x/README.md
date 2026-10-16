@@ -90,12 +90,15 @@ straight across — it is platform-independent, unlike the binary.
 
 ## In this stack (the `live` profile)
 
-`docker-compose.yml` runs `kdb` from `ghcr.io/artcashin/kdb-x:amd64`, an image
-built from this recipe. To build your own instead, add the override file, which
-points `kdb` at this directory and tags the result `openbq-kdb-x:local`:
+`docker-compose.yml` runs `openbq-kdb` from `${KDB_IMAGE}`. Its default is the
+maintainer's private image, built from this recipe, pinned by digest and for
+linux/amd64 only; it is not public, and no kdb image is ever published, because
+kdb+ is proprietary. To use your own, set `KDB_IMAGE`, or build it from your
+licensed KDB-X with the override file, which points `openbq-kdb` at this
+directory and tags the result `openbq-kdb-x:local`:
 
 ```bash
-docker compose -f docker-compose.yml -f compose.kdb-build.yml --profile live build kdb
+docker compose -f docker-compose.yml -f compose.kdb-build.yml --profile live build openbq-kdb
 docker compose -f docker-compose.yml -f compose.kdb-build.yml --profile live up -d
 ```
 

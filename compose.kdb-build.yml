@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Build the openbq-kdb service's image from kdb-x/ (the recipe downloads KDB-X from KX at build time; this repository
-# ships no KX software and no licence) instead of pulling ghcr.io/artcashin/kdb-x:amd64.
+# ships no KX software and no licence) instead of pulling the default private image (amd64 only, KDB_IMAGE).
 #   docker compose -f docker-compose.yml -f compose.kdb-build.yml --profile live build openbq-kdb
 #   docker compose -f docker-compose.yml -f compose.kdb-build.yml --profile live up -d
 # Everything else about openbq-kdb (volumes, crash recovery, licence mount, network) comes from
