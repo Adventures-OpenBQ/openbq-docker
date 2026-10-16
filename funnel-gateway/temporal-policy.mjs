@@ -18,6 +18,8 @@ const rules = [
   ['POST', /^\/temporal\/temporal\/v1\/audits$/, []],
   ['GET', new RegExp(`^/temporal/temporal/v1/audits/${UUID}$`), []],
   ['POST', new RegExp(`^/temporal/temporal/v1/audits/${UUID}/replay$`), []],
+  ['POST', new RegExp(`^/temporal/temporal/v1/audits/${UUID}/publications$`), []],
+  ['GET', new RegExp(`^/temporal/temporal/v1/audits/${UUID}/publications/${UUID}$`), []],
 ];
 const values = { revision: /^[1-9][0-9]{0,8}$/, receipt_id: new RegExp(`^${UUID}$`), cursor: /^[A-Za-z0-9_.=-]{1,2048}$/ };
 export function temporalRoute(url, method, config) {

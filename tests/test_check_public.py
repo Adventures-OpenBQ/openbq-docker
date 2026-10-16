@@ -152,7 +152,7 @@ class PushHistory(unittest.TestCase):
 
     def test_malformed_nonempty_protocol_fails_closed(self):
         invalid = [
-            "\n", "bad record\n", self.record(self.zero, self.zero),
+            "\n", "bad record " + self.bad + "\n", self.record(self.zero, self.zero),
             self.record(self.base[:-1], self.zero),
             self.record("g" * len(self.base), self.zero),
             self.record(self.base, "f" * len(self.base)),

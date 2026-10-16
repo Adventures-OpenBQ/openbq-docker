@@ -68,3 +68,19 @@ test('a slow POST body cannot race past the TemporalDB concurrency cap', async t
   assert.equal(await pending,429);
   upstreamResponse.writeHead(200,{'Content-Type':'application/json'});upstreamResponse.end('{}');await active;
 });
+
+test('protected publication routes admit only canonical exact POST and GET shapes', () => {
+  const collection = root+'/audits/'+id+'/publications';
+  const item = collection+'/'+id;
+  for (const [method,path] of [['POST',collection],['GET',item]]) {
+    assert.equal(overlay.temporalRoute(new URL(path,settings.origin),method,{temporalDB:true})?.path,path);
+    assert.equal(overlay.temporalRoute(new URL(path,settings.origin),method,{}),null);
+  }
+  for (const [method,path] of [
+    ['GET',collection],['POST',item],['PUT',item],['DELETE',item],
+    ['POST',collection+'?format=arrow-ipc-stream-v1'],['GET',item+'?cursor=x'],
+    ['GET',item+'/extra'],['POST',collection+'/'],
+    ['GET',collection+'/AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA'],
+    ['GET',collection+'/not-uuid'],['GET',collection+'/%2e%2e%2f'+id],
+  ]) assert.equal(overlay.temporalRoute(new URL(path,settings.origin),method,{temporalDB:true}),null,method+' '+path);
+});
