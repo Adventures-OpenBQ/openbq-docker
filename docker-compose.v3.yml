@@ -40,7 +40,7 @@ services:
   # auth when it is on.
   key-maint:
     build: ./key-maint
-    image: ghcr.io/adventures-openbq/openbq-key-maint:3.0.0
+    image: ghcr.io/adventures-openbq/openbq-key-maint:4.0.0
     restart: unless-stopped
     depends_on: [openbq-api]
     environment:
