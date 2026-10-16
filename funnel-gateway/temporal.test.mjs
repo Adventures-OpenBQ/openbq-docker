@@ -13,7 +13,7 @@ const root = '/temporal/temporal/v1';
 const id = '11111111-1111-4111-8111-111111111111';
 const token = 'synthetic_gateway_token_only_for_tests';
 const upstreamToken = 'synthetic_temporal_token_only_for_tests';
-const settings = { origin: 'https://fixture.YOUR-TAILNET.ts.net:10000' };
+const settings = { origin: 'https://' + ['fixture','example','ts','net'].join('.') + ':10000' };
 const secrets = { token, apiUsername: 'fixture', apiPassword: 'fixture', temporalToken: upstreamToken };
 
 test('v11 is explicit, exact route/method/query admission; v10 remains closed', () => {
@@ -41,7 +41,7 @@ function call(port,path,{method='GET',body,headers={}}={}) { return new Promise(
 }); }
 test('gateway strips one prefix, replaces all credentials, bounds requests and suppresses upstream errors', async t => {
   const seen=[];
-  const upstream=createServer((req,res)=>{let body='';req.on('data',c=>body+=c);req.on('end',()=>{seen.push({path:req.url,method:req.method,headers:req.headers,body});res.writeHead(req.url.endsWith('/queries')?201:409,{'Content-Type':'application/json','Set-Cookie':'secret=leak','WWW-Authenticate':'secret'});res.end(req.url.endsWith('/queries')?'{"query_id":"fixture"}':'{"password":"<must-not-leak>"}');});});
+  const upstream=createServer((req,res)=>{let body='';req.on('data',c=>body+=c);req.on('end',()=>{seen.push({path:req.url,method:req.method,headers:req.headers,body});res.writeHead(req.url.endsWith('/queries')?201:409,{'Content-Type':'application/json','Set-Cookie':'secret=leak','WWW-Authenticate':'secret'});res.end(req.url.endsWith('/queries')?'{"query_id":"fixture"}':JSON.stringify({password:'must-not-leak'}));});});
   const temporalOrigin=await listen(upstream); t.after(()=>new Promise(resolve=>upstream.close(resolve)));
   const gateway=createGateway({...validateConfig({...settings,temporalDB:true},secrets),temporalOrigin});await listen(gateway);t.after(()=>gateway.closeGateway());const port=gateway.address().port;
   const response=await call(port,root+'/queries',{method:'POST',body:'{"name":"fixture"}',headers:{'content-type':'application/json','cookie':'browser=secret','x-temporaldb-token':'browser-secret'}});

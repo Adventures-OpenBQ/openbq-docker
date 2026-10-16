@@ -1727,3 +1727,54 @@ test("subscriptionRoute: the whole grammar", () => {
     assert.equal(subscriptionRoute(u(p), m), null, `${m} ${p}`);
   }
 });
+
+test("PostgreSQL state selection requires v11 and excludes a legacy directory", () => {
+  assert.equal(validateConfig({ ...settings, apiUpstream: "v11", stateStorage: "postgresql" }, secrets).stateStorage, "postgresql");
+  for (const patch of [{ stateStorage: "" }, { stateStorage: "postgresql" },
+    { stateStorage: "postgresql", apiUpstream: "v11", stateDir: "/tmp/state" }]) {
+    assert.throws(() => validateConfig({ ...settings, ...patch }, secrets));
+  }
+});
+
+test("selected remote state retains text IDs, validates admission and never falls back", async t => {
+  const seen = [];
+  const { port } = await fixture(t, { stateStorage: "postgresql", apiUpstream: "v11" }, {
+    requestState: async (method, id, name, body, cfg, signal) => {
+      seen.push([method, id, name]);
+      if (id === "99") throw new Error("secret unavailable");
+      return { status: 200, json: { files: { "settings.json": " {\"extension\":1} " } } };
+    },
+  });
+  assert.equal((await http(port, "/state/00042")).status, 200);
+  assert.deepEqual(seen, [["GET", "00042", undefined]]);
+  assert.equal((await http(port, "/state/99")).status, 502);
+  assert.equal((await http(port, "/state/42?x=1")).status, 404);
+  assert.equal((await http(port, "/state/42/evil.json")).status, 404);
+});
+
+test("remote state limits concurrency and releases work on client disconnect and shutdown", async t => {
+  let admitted, aborted;
+  let admission = new Promise(resolve => { admitted = resolve; });
+  let abortion = new Promise(resolve => { aborted = resolve; });
+  const { server, port } = await fixture(t, { stateStorage: "postgresql", maxConcurrent: 1 }, {
+    requestState: async (_method, id, _name, _body, _cfg, signal) => {
+      if (id === '43') return { status: 200, json: { files: {} } };
+      admitted();
+      return new Promise((_resolve, reject) => signal.addEventListener('abort', () => {
+        aborted(); reject(new Error('cancelled'));
+      }, { once: true }));
+    },
+  });
+  const start = () => {
+    const req = request({ host:'127.0.0.1', port, path:'/state/42', headers:HEADERS });
+    req.on('error', () => {}); req.end(); return req;
+  };
+  const first = start(); await admission;
+  assert.equal((await http(port, '/state/43')).status, 429);
+  first.destroy(); await abortion;
+  assert.equal((await http(port, '/state/43')).status, 200);
+  admission = new Promise(resolve => { admitted = resolve; });
+  abortion = new Promise(resolve => { aborted = resolve; });
+  start(); await admission;
+  await server.closeGateway(); await abortion;
+});

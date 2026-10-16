@@ -419,3 +419,12 @@ acquisition/PASS; whole-session all-chunk acceptance and replay closure are not
 implemented. See the current P evidence report for exact qualification failures and
 limits. Registry publication, live providers, public networking and deployment are
 not established by these local checks.
+
+### Optional shared OpenBQ settings
+
+[Settings provisioning and migration](settings/README.md) describes the separate
+PostgreSQL settings database, stable key principal and explicit legacy-copy
+import/reverse export. Append `v11/compose.settings.yaml` after the existing v11
+gateway overlay and select gateway `stateStorage: "postgresql"` with
+`apiUpstream: "v11"`. Runtime and migration env files are separate. This opt-in
+path does not migrate official Workspace relational data or authorize a cutover.

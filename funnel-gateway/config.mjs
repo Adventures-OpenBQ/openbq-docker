@@ -36,7 +36,7 @@ function tailnetAddress(value) {
 // one switch: live-grid is the opt-in `live` compose profile here, so the door must be told
 // it runs, and /grid answers 503 until it is.
 const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "quoteDailyLimit",
-  "requestsPerMinute", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "temporalDB", "apiUpstream"]);
+  "requestsPerMinute", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "temporalDB", "apiUpstream", "stateStorage"]);
 
 export function validateConfig(settings, secrets) {
   for (const key of Object.keys(settings)) if (!SETTINGS_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`);
@@ -117,11 +117,16 @@ export function validateConfig(settings, secrets) {
   if (typeof temporalDB !== "boolean") throw new Error("temporalDB must be true or false");
   const apiUpstream = settings.apiUpstream === undefined ? "v10" : settings.apiUpstream;
   if (apiUpstream !== "v10" && apiUpstream !== "v11") throw new Error("apiUpstream must be v10 or v11");
+  const stateStorage = settings.stateStorage === undefined ? "file" : settings.stateStorage;
+  if (!["file", "postgresql"].includes(stateStorage) ||
+      (stateStorage === "postgresql" && (apiUpstream !== "v11" || settings.stateDir !== undefined))) {
+    throw new Error("Invalid state storage selection");
+  }
   if (temporalDB && (!/^[A-Za-z0-9_-]{32,256}$/.test(secrets.temporalToken ?? "") || secrets.temporalToken === secrets.token)) {
     throw new Error("TemporalDB requires a separate server-only token");
   }
   return {
-    apiUpstream, temporalDB, temporalOrigin: temporalDB ? "http://temporaldb-api:8080" : null,
+    stateStorage, apiUpstream, temporalDB, temporalOrigin: temporalDB ? "http://temporaldb-api:8080" : null,
     temporalAuthorization: temporalDB ? "Bearer " + secrets.temporalToken : null,
     origin, quoteDailyLimit, requestsPerMinute, maxConcurrent, maxSockets, previewOrigin, stateDir,
     rssOrigin, rssAddress, feeds,

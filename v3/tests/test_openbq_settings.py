@@ -374,3 +374,19 @@ def test_a_delete_without_one_integer_revision_answers_400_and_keeps_the_docks(a
     put_docks(client, docks(3))
     assert client.delete(DOCKS + query, headers=AUTH).status_code == 400
     assert client.get(DOCKS, headers=AUTH).json()["dashboard"]["revision"] == 3
+
+
+def test_selected_pg_never_falls_back_to_file_when_configuration_is_invalid(api, monkeypatch):
+    client, module = api
+    monkeypatch.setenv("OPENBQ_SETTINGS_BACKEND", "postgresql")
+    monkeypatch.setenv("OPENBQ_SETTINGS_DSN", "invalid sentinel fixture")
+    response = client.post("/pro/display-settings", json={"theme": "dark"}, headers=AUTH)
+    assert response.status_code == 503
+    assert not list(module.STORE.glob("*.json"))
+
+
+def test_private_state_never_passes_through_disabled_or_basic(api):
+    client, _ = api
+    response = client.options("/_openbq/settings/v1/state/42", headers=AUTH)
+    assert response.status_code == 404
+    assert "access-control-allow-origin" not in response.headers

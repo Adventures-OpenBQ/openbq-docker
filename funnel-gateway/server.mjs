@@ -14,6 +14,8 @@ import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
 import { upstreamPath, newsSubscription, liveGridSubscription, socketTarget, socketTicketNonce, stateFile } from "./policy.mjs";
 
+import { requestState as remoteState } from "./state-store.mjs";
+
 import { temporalRoute, temporalStatus } from "./temporal-policy.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -459,9 +461,10 @@ async function handleState(req, res, url, config) {
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openNews = connectNews,
   openGrid = connectGrid, sendSubscription = sendGrid, fetchPage = getGridPage,
-  now = Date.now, socketMs = 240000, firstFrameMs = 10000 } = {}) {
+  requestState = remoteState, now = Date.now, socketMs = 240000, firstFrameMs = 10000 } = {}) {
   let budget = config.requestsPerMinute, resetAt = now() + 60000, quoteCount = 0, day = Math.floor(now() / 86400000);
   let inflight = 0, sockets = 0;
+  const stateCalls = new Set();
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
   const admitted = new Map();
   function spend(cost) {
@@ -535,7 +538,28 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (req.headers.origin && req.headers.origin !== config.origin) return reply(res, 403);
       if (url.pathname.startsWith("/state/")) {
         if (!spend(1)) return reply(res, 429);
-        return await handleState(req, res, url, config);
+        if (config.stateStorage !== "postgresql") return await handleState(req, res, url, config);
+        const match = /^\/state\/(\d{1,20})(?:\/(.+))?$/.exec(url.pathname);
+        if (!match || url.search || (match[2] !== undefined && !stateFile(match[2]))) return reply(res, 404);
+        const [, id, name] = match;
+        if (name === undefined ? req.method !== "GET" : !["PUT", "DELETE"].includes(req.method)) return reply(res, 405);
+        if (inflight >= config.maxConcurrent) return reply(res, 429);
+        inflight++;
+        const controller = new AbortController(); stateCalls.add(controller);
+        const abort = () => controller.abort();
+        res.once("close", abort); req.once("aborted", abort);
+        try {
+          let body;
+          if (req.method === "PUT") {
+            body = await jsonBody(req, STATE_FILE_MAX);
+            if (typeof body === "number") return reply(res, body);
+          }
+          const answer = await requestState(req.method, id, name, body, config,
+            AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]));
+          return reply(res, answer.status, answer.json);
+        } finally {
+          stateCalls.delete(controller); res.off("close", abort); req.off("aborted", abort); inflight--;
+        }
       }
       if (url.pathname.startsWith("/grid/api/subscriptions")) {
         const route = subscriptionRoute(url, req.method);
@@ -789,6 +813,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     });
   });
   server.closeGateway = () => {
+    for (const controller of stateCalls) controller.abort();
     for (const client of wss.clients) client.terminate();
     server.closeAllConnections();
     return new Promise(resolve => server.close(resolve));

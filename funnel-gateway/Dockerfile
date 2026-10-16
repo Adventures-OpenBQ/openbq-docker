@@ -9,7 +9,7 @@ FROM node:22-alpine
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
-COPY policy.mjs temporal-policy.mjs config.mjs server.mjs entry.mjs healthcheck.mjs verify.mjs check-upstreams.mjs ./
+COPY state-store.mjs policy.mjs temporal-policy.mjs config.mjs server.mjs entry.mjs healthcheck.mjs verify.mjs check-upstreams.mjs ./
 # A fresh named volume inherits the mount point's owner, and Docker creates it root-owned
 # unless the image already carries it. The service runs as uid 1000, so without this every
 # /state PUT would fail its mkdir and 502 on a volume the operator just declared.

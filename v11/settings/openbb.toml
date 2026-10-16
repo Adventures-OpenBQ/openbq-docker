@@ -1,0 +1,3 @@
+# v11-only: settings wraps the existing lanes hook; default provider auth stays on.
+[middleware]
+hooks = ["openbq_settings:middleware", "openbq_lanes:middleware"]
