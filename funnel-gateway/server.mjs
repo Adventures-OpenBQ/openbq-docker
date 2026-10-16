@@ -221,7 +221,7 @@ async function tableExchange(req, res, route, config) {
   const principal = route.managed ? tablePrincipal(req, config) : null;
   if (route.managed && !principal) return reply(res,401);
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),config.tableTimeoutMs ?? TABLE_DEADLINE_MS);
+  const timer=setTimeout(()=>controller.abort(),route.managed ? config.tableTimeoutMs ?? TABLE_DEADLINE_MS : config.ssrmTimeoutMs ?? 170000);
   const disconnect=()=>{if(!res.writableEnded)controller.abort();}; res.once("close",disconnect);
   try {
     const body=await tableBody(req,route,controller.signal);

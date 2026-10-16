@@ -71,6 +71,8 @@ and buffered to completion, so truncation, overflow and timeout never publish a
 partial success. Status-only sanitized failures retain 400/401/404/409/410/413/429/503;
 other upstream failures become 502. Credentials and upstream error bodies never relay.
 No mutation is retried automatically. Configured deadlines are 1000–65000 ms.
+SSRM POSTs (`ssrmRoutes`) have their own `ssrmTimeoutMs`, default 170000 and at most
+300000 (od's `OPENBQ_SSRM_DEADLINE`), because a first page acquires the whole result.
 
 Cancellation and cleanup remain reachable during ordinary HTTP saturation. Each
 of the web relay, gateway and service reserves **two concurrent control requests**
