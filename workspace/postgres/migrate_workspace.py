@@ -120,7 +120,7 @@ def canonical_postgres_checks(table, checks):
 
 def postgres_schema(connection):
     from sqlalchemy import inspect
-    # The pinned schema has no views, routines, foreign tables or user triggers.
+    # The pin has no row security, policies, views, routines, foreign tables or user triggers.
     # Reflection of ordinary tables alone would silently accept these extensions.
     extras = connection.exec_driver_sql("""SELECT
       EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -129,7 +129,12 @@ def postgres_schema(connection):
               WHERE n.nspname='public') OR
       EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
               JOIN pg_namespace n ON n.oid=c.relnamespace
-              WHERE n.nspname='public' AND NOT t.tgisinternal)""").scalar_one()
+              WHERE n.nspname='public' AND NOT t.tgisinternal) OR
+      EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+              WHERE n.nspname='public' AND (c.relrowsecurity OR c.relforcerowsecurity)) OR
+      EXISTS (SELECT 1 FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid
+              JOIN pg_namespace n ON n.oid=c.relnamespace
+              WHERE n.nspname='public')""").scalar_one()
     if extras:
         raise ValueError('unrecognized PostgreSQL schema objects')
     inspector = inspect(connection)
@@ -256,6 +261,8 @@ def main():
         mapping=json.loads(mapping_path.read_text())
         mapping_output=safe_path(args.mapping_output,args.root,output=not Path(args.mapping_output).exists())
         if mapping_output==mapping_path or mapping_output==source:raise ValueError('mapping output overlaps input')
+        if args.action=='export-sqlite' and mapping_output==output:
+            raise ValueError('mapping and SQLite outputs overlap')
     if args.action=='inventory':result=inventory(source,manifest)
     elif args.action=='snapshot':result=snapshot(source,output,manifest)
     elif args.action=='import':result=import_database(source,Path(args.root),manifest,args.run_id,mapping,mapping_output)

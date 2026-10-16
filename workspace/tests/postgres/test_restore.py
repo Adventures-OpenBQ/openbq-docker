@@ -137,6 +137,82 @@ e.dispose()
                        '--mapping','/fixture/mapping-input.json','--mapping-output',mapping+'.reverse')
 
 
+    def test_row_security_drift_refuses_all_operations_before_mutation_or_listener(self):
+        import hashlib,subprocess,time
+        mapping=self.root/(self.name+'-rls-map.json')
+        source=self.root/os.environ.get('WORKSPACE_SOURCE','full-source-v6.db')
+        args=['--root','/fixture','--source','/fixture/'+source.name,'--run-id','rls-check',
+              '--mapping','/fixture/mapping-input.json','--mapping-output','/fixture/'+mapping.name]
+        self.run_image('-m','scripts.workspace_migration','import',*args)
+        evidence="""from scripts import workspace_migration as m
+import json
+e=m.pg_engine()
+with m.locked_target(e) as c:
+ print(m.fingerprint({'tables':m.data_evidence(c,'postgresql',m.load_manifest()),
+ 'checkpoints':[list(r) for r in c.exec_driver_sql('SELECT run_id,source_hash,normalized_hash,manifest_hash,target_identity,evidence FROM workspace_admin.migration_runs')],
+ 'ready':[list(map(str,r)) for r in c.exec_driver_sql('SELECT * FROM workspace_admin.readiness')]}))
+e.dispose()
+"""
+        before=self.run_image('-c',evidence).stdout
+        preserved={p:p.read_bytes() for p in (source,mapping,self.root/'sqlite-baseline-v6/secrets.env')}
+        for label,ddl in (
+            ('enabled','ALTER TABLE public.dashboard_item ENABLE ROW LEVEL SECURITY'),
+            ('forced','ALTER TABLE public.dashboard_item FORCE ROW LEVEL SECURITY'),
+            ('policy-only','CREATE POLICY task52_drift ON public.dashboard_item USING (true)')):
+            with self.subTest(variant=label):
+                docker('exec',self.root.name+'-pg','psql','-U','postgres','-d',self.name,'-v','ON_ERROR_STOP=1','-c',ddl)
+                try:
+                    # Direct schema validation is the RED boundary on the old image.
+                    self.run_image('-c',"from scripts import workspace_migration as m\ne=m.pg_engine()\nwith m.locked_target(e) as c:m.validate_postgres(c,m.load_manifest())",expected=1)
+                    self.run_image('-m','scripts.workspace_migration','import',*args,expected=1)
+                    self.run_image('-m','scripts.workspace_migration','verify',*args[:6],expected=1)
+                    output=self.root/(self.name+'-'+label+'.db');outmap=self.root/(output.name+'.json')
+                    self.run_image('-m','scripts.workspace_migration','export-sqlite','--root','/fixture',
+                        '--output','/fixture/'+output.name,'--quiesced','--mapping','/fixture/mapping-input.json',
+                        '--mapping-output','/fixture/'+outmap.name,expected=1)
+                    self.assertFalse(output.exists());self.assertFalse(outmap.exists())
+                    values=env_values(self.root/'runtime.env');values.update(DB_NAME=self.name,
+                        WORKSPACE_PERMISSION_MAP_FILE='/fixture/'+mapping.name,DATA_DIR='/fixture/sqlite-baseline-v6')
+                    env=save_env(self.root/(self.name+'-'+label+'.env'),values)
+                    job=self.name+'-'+label
+                    docker('run','-d','--name',job,'--label','openbq.task=5.2','--platform','linux/amd64',
+                        '--network',self.root.name,'--env-file',str(env),'-v',str(self.root)+':/fixture:ro',
+                        os.environ['WORKSPACE_TEST_IMAGE'])
+                    try:
+                        result=docker('wait',job,timeout=30)
+                        self.assertEqual(result.stdout.strip(),'1','row-security drift must refuse serve')
+                        logs=docker('logs',job).stdout
+                        self.assertNotIn('supervisord started',logs)
+                        self.assertEqual(docker('inspect','--format','{{.State.ExitCode}}',job).stdout.strip(),'1')
+                    finally:docker('rm','-f',job,check=False)
+                finally:
+                    docker('exec',self.root.name+'-pg','psql','-U','postgres','-d',self.name,'-v','ON_ERROR_STOP=1','-c',
+                        'ALTER TABLE public.dashboard_item DISABLE ROW LEVEL SECURITY; ALTER TABLE public.dashboard_item NO FORCE ROW LEVEL SECURITY; DROP POLICY IF EXISTS task52_drift ON public.dashboard_item')
+                self.assertEqual(self.run_image('-c',evidence).stdout,before,'refused operations changed database data/checkpoints')
+                for path,content in preserved.items():self.assertTrue(path.read_bytes()==content,'refusal changed preserved source/map/keys')
+
+    def test_reverse_export_refuses_resolved_output_collision_before_work(self):
+        mapping=self.root/(self.name+'-collision-map.json')
+        self.run_image('-m','scripts.workspace_migration','import','--root','/fixture',
+            '--source','/fixture/'+os.environ.get('WORKSPACE_SOURCE','full-source-v6.db'),'--run-id','collision-check',
+            '--mapping','/fixture/mapping-input.json','--mapping-output','/fixture/'+mapping.name)
+        for index,relative in enumerate(('', './', 'alias/../')):
+            (self.root/'alias').mkdir(exist_ok=True)
+            output=self.root/(self.name+'-overlap-'+str(index)+'.db')
+            args=['export-sqlite','--root','/fixture','--output','/fixture/'+output.name,
+                  '--quiesced','--mapping','/fixture/mapping-input.json',
+                  '--mapping-output','/fixture/'+relative+output.name]
+            self.run_image('-m','scripts.workspace_migration',*args,expected=1)
+            self.assertFalse(output.exists(),'refused overlap published a non-database artifact')
+            # A CLI invocation guard proves rejection precedes engine/temp DB work.
+            self.run_image('-c',"from scripts import workspace_migration as m\ndef forbidden(*a,**k):raise AssertionError('work started')\nm.pg_engine=forbidden\nm.tempfile.TemporaryDirectory=forbidden\ntry:m.main()\nexcept ValueError:raise SystemExit(19)",*args,expected=19)
+        output=self.root/(self.name+'-distinct.db');outmap=self.root/(output.name+'.json')
+        self.run_image('-m','scripts.workspace_migration','export-sqlite','--root','/fixture',
+            '--output','/fixture/'+output.name,'--quiesced','--mapping','/fixture/mapping-input.json',
+            '--mapping-output','/fixture/'+outmap.name)
+        self.assertTrue(output.read_bytes().startswith(b'SQLite format 3\x00'))
+        self.assertTrue(outmap.is_file())
+
     def test_complete_pg_schema_refuses_extra_objects_and_constraint_drift(self):
         code="""from scripts import workspace_migration as m
 engine=m.pg_engine();manifest=m.load_manifest()

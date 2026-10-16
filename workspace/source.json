@@ -21,7 +21,7 @@
     "runtime_inventory_sha256": "204a795c9759bf83e73c14d10f92d38bd93cd568681b5454f99cbb2f34cbb189"
   },
   "postgresql_build": {
-    "runtime_image_id": "sha256:8584771cf973a68affbb3fbef1eeb060e11b5029f59ee8d73cf2fee783a56c99",
+    "runtime_image_id": "sha256:9b5b871ba1f000e7269056329ee254eb22936409301034bd9c0f512a32ea374c",
     "frontend_image_id": "sha256:c229c6a509195e34f819ea9d42e05f049016c02363e93ac514125dab77da3a06",
     "architecture": "amd64",
     "python": "3.13.16",
@@ -34,12 +34,12 @@
       "routers/pro/helpers.cpython-313-x86_64-linux-gnu.so": "92f7b0865bd4627d16e518ee098483b798c0ec98a0b46723205bcb51584b42ac",
       "api/models/tauri_models.py": "6be6d9a751561bcd97b1acac034b83af3ae18954a7e433a63a6b603d9cdf14af",
       "scripts/workspace_pg.py": "b14c8e9aab5a2b0c833afe48e638719d6136f7a017ccfb164fa2cfc0aede0bab",
-      "scripts/workspace_migration.py": "8f6c6e4c2792808e9766b855cea07bbe6acce9369e5e8083b5657c9bf836b7fd",
+      "scripts/workspace_migration.py": "5e4a4a93d69b59446668b8c4132ea3ad283630dd5997299b95dffbae05017f7b",
       "scripts/workspace_schema_manifest.json": "8b2c32f5e1046412dc605fc34e14c49f7d140f5c5ba97bb704e113a026fd56db"
     },
     "assembly": {
       "packaged": {
-        "postgres/migrate_workspace.py": "8f6c6e4c2792808e9766b855cea07bbe6acce9369e5e8083b5657c9bf836b7fd",
+        "postgres/migrate_workspace.py": "5e4a4a93d69b59446668b8c4132ea3ad283630dd5997299b95dffbae05017f7b",
         "postgres/schema_manifest.json": "8b2c32f5e1046412dc605fc34e14c49f7d140f5c5ba97bb704e113a026fd56db"
       },
       "patches": {
