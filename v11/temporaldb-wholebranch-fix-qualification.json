@@ -1,0 +1,172 @@
+{
+  "status": "affected_gates_passed_scoped_final_review_pending",
+  "release_approved": false,
+  "artifact": {
+    "image_id": "sha256:fa9ed15f19b69f3cb8058753bfdcfcc989e747d94cfb2702a0b139da1ccf3770",
+    "platform": "linux/arm64",
+    "labels": {
+      "org.opencontainers.image.revision": "b769205ac1a5d1bf4280433beb944966cdc75498",
+      "org.opencontainers.image.source": "https://github.com/Adventures-OpenBQ/temporalDB-docker",
+      "org.opencontainers.image.title": "TemporalDB",
+      "org.opencontainers.image.version": "0.4.0"
+    },
+    "version": "0.4.0",
+    "source_commit": "b769205ac1a5d1bf4280433beb944966cdc75498",
+    "source_date_epoch": "1792153133",
+    "artifact": "temporaldb-0.4.0-linux-arm64.docker.tar",
+    "artifact_sha256": "2dbc5371bf5041397a0760c877703abd44dd78953b95cd01130aad86b4f8edae",
+    "distribution": "local-docker-save; unpublished",
+    "registry_reference": null,
+    "build_command": "scripts/build_release.py --platform linux/arm64",
+    "lock_sha256": "127fb6f9200781fa0ac71305a878e422f28b070a8df0f734cec3f53ae60d960a",
+    "extension_lock_sha256": "17f302af620e7342dc96315d6fbc39f4523e8eb75b509aa660438eb914f69f8f"
+  },
+  "main_runtime_archive": "3cabfeb63fd23afe921ff79b41f81d85d702e4b4f5be6f1458e252d4d177813b",
+  "bulk_fixture_runtime_archive": "fd57b647f46719c4cc8bbb54840109416ffe7716a20463eb14b0a27ec8fae0f8",
+  "bulk_fixture_limit": "Genuine archive_current from same installed image with explicit scale-1 fixture projection map. Physical data arranged through real fenced normalization/Gold acceptance; not provider-parser acquisition proof. Query/protect/replay production classes unpatched.",
+  "bulk_helper_sha256": "3c0baef5f42229d700d917ae3a2f5919ef059f33144737d2f59811a5c4bd46ce",
+  "bulk_controller_sha256": "bc541cd9544422980a3a9d0aa438d48e6bc16608199b80bd302453bee525cd6f",
+  "source_migrations": {
+    "installed_count": 27,
+    "old_001_026_unchanged": true,
+    "027_worker_only_cursor_scope_and_role_checks": "passed"
+  },
+  "gates": {
+    "combined": {
+      "status": "passed",
+      "pytest_cases": 1,
+      "pytest_seconds": 528.69,
+      "chromium_cases": 1,
+      "chromium_seconds": 28.4,
+      "api_processes": 2,
+      "worker_processes": 2,
+      "phase_order": "UI process/mount proof; stop owned module services; verify split bundle; isolated bulk controller; independent restore",
+      "archive_mounts": "read-only",
+      "api_evidence": "read-write",
+      "worker_evidence": "read-only"
+    },
+    "filtered_history": {
+      "status": "passed",
+      "cases": [
+        {
+          "kind": "gold",
+          "corrections": false,
+          "rows": 1,
+          "exact_replay": true,
+          "run_id": "6bc9a137-35c7-418f-aad1-2610bddca3eb"
+        },
+        {
+          "kind": "silver",
+          "corrections": false,
+          "rows": 1,
+          "exact_replay": true,
+          "run_id": "c579e7a6-2d23-4767-b29a-7930e9828b81"
+        },
+        {
+          "kind": "gold",
+          "corrections": true,
+          "rows": 1,
+          "exact_replay": true,
+          "run_id": "e455b671-8d19-4cad-b2ec-d42c8b9e78e1"
+        },
+        {
+          "kind": "silver",
+          "corrections": true,
+          "rows": 1,
+          "exact_replay": true,
+          "run_id": "3cbc926e-6eec-41af-b071-c2768de7d89a"
+        }
+      ],
+      "accepted_rows_each_arrangement": 100001,
+      "boundaries": [
+        "original",
+        "exact snapshot",
+        "protect",
+        "archived replay",
+        "service bundle"
+      ]
+    },
+    "split_service_bundle": {
+      "status": "passed",
+      "configured_evidence_store": true,
+      "publication_mapping_count": 1,
+      "all_returned_paths_hashed": true,
+      "returned_files": 4631,
+      "before_unified_merge": true,
+      "scope_negative": "installed foreign workspace; focused service regression also foreign entitlement"
+    },
+    "independent_restore": {
+      "status": "passed",
+      "verified_run_ids": [
+        "8de91d97-0f79-4b0c-81af-3da082c8b0aa"
+      ],
+      "object_count": 241,
+      "table_count": 94,
+      "exact_record_equal": true,
+      "scope": "Explicit UI protected run only; extra bulk inventory included in complete PG/S3 equality. Individual bulk protected runs have exact replay evidence, not independent restore claims."
+    },
+    "ordinary_runtime": {
+      "status": "passed",
+      "seconds": 100.27047425002092,
+      "archive_read_only": true,
+      "phase_statuses": {
+        "current": "passed",
+        "snapshot": "passed",
+        "protect": "passed",
+        "replay": "passed",
+        "tick-current": "passed",
+        "tick-replay": "passed"
+      },
+      "tick_protect": "passed",
+      "archive_bytes_modes_unchanged": true,
+      "cleanup_exit": 0,
+      "volume_removed": true,
+      "evidence_mount_limit": "archive RO; evidence and reports RW shared by API/worker child processes; role-specific shipped policy separately proved by final-fix combined02"
+    },
+    "installed_wheel_arrow_polars_bridge": {
+      "status": "passed",
+      "tests": 2,
+      "seconds": 162.67,
+      "wheel": "temporaldb-0.4.0-py3-none-any.whl",
+      "sha256": "30391a73dd6b7048b1da1a7ec2c00ac6980c635ae4963317a68b256075d61429",
+      "migration027_sha256": "c965f56fdaa0613c0c7b2241abb8fdbb4eb6bf797abe4af4a0753a84e6ae434f",
+      "server_dependency_lock_sha256": "127fb6f9200781fa0ac71305a878e422f28b070a8df0f734cec3f53ae60d960a",
+      "analysis_lock_sha256": "cd8e15da65153fdd84789881ca37c9d24eaef58c6a03bde2bc7a02e9c322fd1e"
+    }
+  },
+  "prior_failed_attempt": {
+    "status": "failed_prerequisite",
+    "attempt": 1,
+    "exit_code": 1,
+    "seconds": 251.3460729579674,
+    "reason": "Bundled pnpm attempted automatic dependency install/purge and refused without TTY before browser work. No install/purge performed. Retry used existing pnpm10.34.4 and Node22.16.0; no production edit or rebuild."
+  },
+  "baseline": {
+    "original_nodes": 725,
+    "passing_evidence_at_original_baseline": 712,
+    "intentional_skips": 11,
+    "local_mount_unavailable": 1,
+    "stale_http200_empty_array_negative": 1,
+    "frozen_continuation": {
+      "passed": 202,
+      "skipped": 6,
+      "failed_stale_negative": 1
+    },
+    "later_changed_fixture_group": {
+      "passed": 9,
+      "seconds": 154.55,
+      "includes": "HTTP200 null negative and both legitimate empty-window cases; separate evidence, not a single 725-pass suite."
+    },
+    "baseline_review": "Task6 closing SPEC and QUALITY approved for old bd19/source75/fae with recorded limits. Final fix scoped review pending."
+  },
+  "limits": [
+    "Unpublished local Linux arm64 candidate; no registry, deploy, merge, release or cutover approval.",
+    "No fresh live-paid acquisition, NAS load, power-loss durability, signing, packaged Tauri lifecycle or independent reproducible rebuild qualification.",
+    "Unchanged session/provider/settings/Workspace/native-analysis mount boundaries reuse original identities with exact byte/dependency comparison; not new-image executions.",
+    "Public 100000-row/64MiB caps, private batch2048 and original scratch/memory/deadline bounds retained; no universal wall-time claim.",
+    "Zero-match schema may use one authorized exact-pin dataset witness; Gold projects that logical-key closure to preserve shape. This is a separate schema exception, not zero unrelated decodes.",
+    "One DB clock sample per budget derives conservative monotonic deadline; no proof against arbitrary DB clock steps. Final fenced PG authority retained.",
+    "Deferred inherited runner._filter performs one PG capture_intent lookup per distinct selected capture and lacks per-row loop checks; final selected row/byte/deadline checks retained."
+  ],
+  "evidence": "TemporalDB docs/releases/v11/final-fix/ contains curated identity, reports and SHA256 raw evidence index. Historical Task6 evidence preserved separately."
+}

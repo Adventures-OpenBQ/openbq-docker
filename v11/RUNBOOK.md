@@ -391,10 +391,46 @@ coordination or durable acknowledgement prevents fresh provider data from return
 
 ## Current candidate qualification
 
-The pinned TemporalDB 0.4.0 Linux arm64 image was built from clean executable source
+The current local TemporalDB 0.4.0 Linux arm64 image is built from executable source
+`b769205ac1a5d1bf4280433beb944966cdc75498`, image
+`sha256:fa9ed15f19b69f3cb8058753bfdcfcc989e747d94cfb2702a0b139da1ccf3770`.
+The exact Docker-save SHA256 is in `temporaldb.lock.json`; current gate results are
+in `temporaldb-wholebranch-fix-qualification.json`. Later evidence commits are not image
+source. Load and verify this exact unpublished artifact before provisioning.
+
+The new installed combined gate passed1 pytest/528.69s and1 Chromium/28.4s. It
+covers actual2API/2worker mount policy, configured split-store service bundling,
+filtered Gold/Silver over100001 accepted current/history rows and independent UI
+protected-run restore (94 tables/241 objects). The isolated bulk fixture has its
+own genuine scale-1 archive; its four protected runs have exact replay evidence,
+not individual independent restore claims. The main environment is
+`3cabfeb63fd23afe921ff79b41f81d85d702e4b4f5be6f1458e252d4d177813b`;
+the bulk fixture environment is
+`fd57b647f46719c4cc8bbb54840109416ffe7716a20463eb14b0a27ec8fae0f8`.
+Main workers stop before the bulk controller phase.
+
+The new RO-archive ordinary gate passed current/snapshot/protect/replay and a
+small genuine accepted tick/protect/replay; the narrow installed-wheel Arrow/Polars
+bridge passed2 tests. Shared RW evidence in the ordinary diagnostic does not replace
+the combined gate's API-RW/worker-RO proof. Attempt01's pnpm prerequisite failure
+is retained separately from the successful explicit Node22/pnpm10.34.4 retry.
+
+The original725-node baseline has712 nodes with passing evidence,11 skips,1 local
+mount unavailable and1 stale HTTP200-empty-array negative. A later focused group
+passes the corrected null negative and legitimate empty windows. The prior actual
+Linux native mount is reused. Task6 closing review approved those old-source
+baseline dispositions; scoped final fix review is still pending. Unchanged
+provider/settings/Workspace/session/native-analysis evidence retains original
+source/image identities with byte/dependency comparisons, not new-image claims.
+See P's `docs/releases/v11/final-fix-qualification.md` for current proof and limits.
+No release, registry push, merge, deployment or cutover is authorized.
+
+### Historical Task6 candidate qualification
+
+The historical TemporalDB 0.4.0 Linux arm64 image was built from clean executable source
 `75d5389d0b68a7041b84e7e7e1f04d097d8ff9b1`. The exact local image and Docker-save
-SHA256 are in `temporaldb.lock.json`; `temporaldb-task6-qualification.json` records
-current gate status. Later harness/documentation commits are not the image source.
+SHA256 are retained in `temporaldb-task6-qualification.json`, which records
+the gate status at that time. Later harness/documentation commits are not the image source.
 The archive is unpublished. Load and verify that exact artifact before provisioning.
 
 The final installed provider topology passed two tests with the requested image

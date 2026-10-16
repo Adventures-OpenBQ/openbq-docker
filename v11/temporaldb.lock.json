@@ -3,27 +3,27 @@
   "client_compatibility": 11,
   "service": "TemporalDB",
   "version": "0.4.0",
-  "source_commit": "75d5389d0b68a7041b84e7e7e1f04d097d8ff9b1",
-  "image_id": "sha256:fae4ef24f77d45d8c87de6095d71515e83fda1c1eab2bad68595b6c5c42a4ec2",
+  "source_commit": "b769205ac1a5d1bf4280433beb944966cdc75498",
+  "image_id": "sha256:fa9ed15f19b69f3cb8058753bfdcfcc989e747d94cfb2702a0b139da1ccf3770",
   "platform": "linux/arm64",
   "artifact": "temporaldb-0.4.0-linux-arm64.docker.tar",
-  "artifact_sha256": "e1f91f1dce98bc159caf9326d3f86841589b35b47c1b6876658862fa323153cb",
+  "artifact_sha256": "2dbc5371bf5041397a0760c877703abd44dd78953b95cd01130aad86b4f8edae",
   "distribution": "local-docker-save; unpublished",
   "registry_reference": null,
   "provenance": {
-    "image_id": "sha256:fae4ef24f77d45d8c87de6095d71515e83fda1c1eab2bad68595b6c5c42a4ec2",
+    "image_id": "sha256:fa9ed15f19b69f3cb8058753bfdcfcc989e747d94cfb2702a0b139da1ccf3770",
     "platform": "linux/arm64",
     "labels": {
-      "org.opencontainers.image.revision": "75d5389d0b68a7041b84e7e7e1f04d097d8ff9b1",
+      "org.opencontainers.image.revision": "b769205ac1a5d1bf4280433beb944966cdc75498",
       "org.opencontainers.image.source": "https://github.com/Adventures-OpenBQ/temporalDB-docker",
       "org.opencontainers.image.title": "TemporalDB",
       "org.opencontainers.image.version": "0.4.0"
     },
     "version": "0.4.0",
-    "source_commit": "75d5389d0b68a7041b84e7e7e1f04d097d8ff9b1",
-    "source_date_epoch": "1792149403",
+    "source_commit": "b769205ac1a5d1bf4280433beb944966cdc75498",
+    "source_date_epoch": "1792153133",
     "artifact": "temporaldb-0.4.0-linux-arm64.docker.tar",
-    "artifact_sha256": "e1f91f1dce98bc159caf9326d3f86841589b35b47c1b6876658862fa323153cb",
+    "artifact_sha256": "2dbc5371bf5041397a0760c877703abd44dd78953b95cd01130aad86b4f8edae",
     "distribution": "local-docker-save; unpublished",
     "registry_reference": null,
     "build_command": "scripts/build_release.py --platform linux/arm64",
@@ -38,10 +38,10 @@
       "reviewed_commit": "a3c07f2964b5376aadadf2e465fd5a0062cb1d18"
     }
   },
-  "qualification_report": "temporaldb-task6-qualification.json",
+  "qualification_report": "temporaldb-wholebranch-fix-qualification.json",
   "candidate_qualification": {
-    "status": "installed_gates_passed_broad_and_final_review_pending",
-    "reason": "Final optimized runtime phase composite, combined UI/protected restore and exact provider topology passed. Broad P aggregate and final evidence review remain pending; no release approval."
+    "status": "affected_gates_passed_scoped_final_review_pending",
+    "reason": "New installed combined/filtered history/split bundle/independent UI restore, ordinary tick and daily runtime, and installed-wheel analysis bridge passed. Prior baseline closed with recorded dispositions. Scoped final fix review pending; no release approval."
   },
   "provider_host": {
     "version": "11.0.0",
@@ -61,7 +61,7 @@
         "distribution": "verified local clean commit archive; remote availability not asserted"
       }
     },
-    "qualification": "Reviewed Task5.1 fix1 Linux arm64 image:20 installed hashes match. Final Task6 exact-image recorded provider topology passed2/253.00s; retained settings encoding/TLS/recovery evidence unchanged.",
+    "qualification": "Historical Task5.1 fix1 Linux arm64 image:20 installed hashes match. Task6 provider topology passed2/253.00s with TemporalDB source75/fae. Unchanged provider/settings source and dependencies are reused by exact comparison for final sourceb769/fa9; provider topology was not rerun against fa9.",
     "settings_source_commit": "5b18205a5e0553a071f3644d86815a8c0f79879f",
     "installed_source_hashes": {
       "v3/openbq_settings.py": "a24bc9310fb30282d9fd9c9bf182528402d0d4050738372a0b1123917dfbc30d",
