@@ -14,6 +14,10 @@
 > - It loads `credentials.env` (`EODHD_API_KEY` and the `OPENBB_API_*` pair); this line has no
 >   `api-auth.env` and commits no key, not even EODHD's public demo key (`scripts/smoke.py`
 >   reads `EODHD_DEMO_WS_KEY` from the environment).
+> - The image runs as uid 10001 with a read-only root (`/data` and `/tmp` are the only
+>   writable paths). A `live-grid-data` volume created by an earlier root-run build is owned
+>   by root; give it to the new user once:
+>   `docker compose --profile live run --rm --user 0 live-grid chown -R 10001:10001 /data`.
 > - History comes from openbq-api's EODHD namespace (`OPENBB_HISTORY_NAMESPACE=eodhd`, so
 >   `/api/v1/eodhd/<class>/price/historical`, provider `eodhd`), because openbq-api has no
 >   standard routers and no openbb-kdb read-through provider. There is no kdb history cache:

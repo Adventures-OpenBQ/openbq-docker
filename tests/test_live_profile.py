@@ -191,3 +191,21 @@ def test_the_live_grid_image_does_not_carry_the_q_demo_chart():
     copies = [line for line in (ROOT / 'live-grid/Dockerfile').read_text().splitlines()
               if line.startswith(('COPY', 'ADD'))]
     assert copies and not any('live-chart' in line for line in copies)
+
+
+def test_live_grid_is_pinned_and_runs_unprivileged():
+    """D21 (2026-10-16): the base by digest, plotly by checksum, `pip check`, a non-root user
+    that owns /data (so a new named volume inherits it), and compose's read-only root."""
+    import re
+
+    dockerfile = (ROOT / 'live-grid/Dockerfile').read_text()
+    assert re.search(r'^FROM python:3\.12-slim@sha256:[0-9a-f]{64}$', dockerfile, re.M)
+    assert re.search(r'^ADD --checksum=sha256:[0-9a-f]{64} https://cdn\.plot\.ly/plotly-2\.35\.2\.min\.js ', dockerfile, re.M)
+    assert 'pip check' in dockerfile
+    assert 'install -d -o 10001 -g 10001 /data' in dockerfile and '\nUSER 10001:10001\n' in dockerfile
+    lg = SERVICES['live-grid']
+    assert lg['read_only'] is True and lg['cap_drop'] == ['ALL']
+    assert lg['security_opt'] == ['no-new-privileges:true']
+    assert any(t.startswith('/tmp:') for t in lg['tmpfs'])
+    assert 'version = "10.0.0"' in (ROOT / 'live-grid/pyproject.toml').read_text()
+    assert re.search(r'^FROM debian:bookworm-slim@sha256:[0-9a-f]{64}$', (ROOT / 'kdb-x/Dockerfile').read_text(), re.M)

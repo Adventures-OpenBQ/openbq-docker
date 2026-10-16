@@ -7,7 +7,8 @@
 # from KX's own distribution portal at build time, so whoever runs the build
 # obtains it directly from KX under their own acceptance of KX's terms. That
 # is the whole point -- a kdb+ binary may not be redistributed, so this repo
-# does not carry one and neither does any image published from it.
+# does not carry one. An image BUILT from it does contain q: keep it local or
+# in a private registry, and never make it public (D2).
 #
 # The licence is NOT baked in either. Mount your own kc.lic at runtime:
 #   docker run -v "$PWD/kdb-license:/licence:ro" -e QLIC=/licence ...
@@ -17,8 +18,9 @@
 # Build for one platform (loads into the local daemon):
 #   docker build -t kdb-x:local kdb-x/
 #
-# Build a real multi-arch image and push it (buildx cannot --load two
-# platforms at once, which is why this pushes):
+# Build a real multi-arch image and push it to a PRIVATE registry (buildx cannot
+# --load two platforms at once, which is why this pushes; the package must stay
+# private, since it carries q):
 #   docker buildx build --platform linux/amd64,linux/arm64 \
 #     -t ghcr.io/<you>/kdb-x:1.1 --push kdb-x/
 #
@@ -26,7 +28,8 @@
 # resolves anyway on the platform it happens to match, so a broken one looks
 # fine until an amd64 host silently pulls AArch64 binaries:
 #   docker buildx imagetools inspect ghcr.io/<you>/kdb-x:1.1
-FROM debian:bookworm-slim
+# Pinned by digest (the multi-arch index, so both platforms resolve), D21.
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
 
 # TARGETARCH is set by buildx per platform. KX names its Linux builds by a
 # different scheme, so map rather than assume: `l64` is x86-64, `l64arm` is
