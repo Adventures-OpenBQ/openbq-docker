@@ -1045,7 +1045,7 @@
   },
   {
     "name": "Example Dashboard - Version 7.0.0",
-    "description": "The v7.0.0 iPad touch showcase: three built-in widgets, each with a touch gesture to try. The Note lists the gestures, including tapping the left rail to open it and tapping outside to close it. The Clock reflows and opens its menu on a tap; the long Markdown card scrolls with a one-finger drag and zooms with a pinch. No backend is needed. Opens in BDOBB 7.0.0 or later.",
+    "description": "The v7.0.0 iPad touch showcase: three built-in widgets, each with a touch gesture to try. The Note lists the gestures, including tapping the left rail to open it and tapping outside to close it. The Clock reflows; the long Markdown card scrolls with a one-finger drag and zooms with a two-finger pinch. Every widget is a built-in, so no backend is needed. Opens in BDOBB 7.0.0 or later.",
     "img": "/openbq/bdobb-logo.svg",
     "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
@@ -1063,7 +1063,7 @@
             "h": 9,
             "state": {
               "params": {
-                "text": "## Try these gestures\n- **No mouse?** Tap the left rail to open it, and tap anywhere outside it to close. With a trackpad or Magic Keyboard it opens on hover, like on desktop.\n- **Two-finger pinch** anywhere to zoom.\n- **Drag** inside the Markdown card to scroll it.\n- **Tap** a card's title, then the \u22ef menu.\n- **Double-tap** a card title to maximize, and again to restore.\n- Tap into this note and type \u2014 the pane must not collapse while focused."
+                "text": "## Try these gestures\n- **No mouse?** Tap the left rail to open it, and tap anywhere outside it to close. With a trackpad or Magic Keyboard it opens on hover, like on desktop.\n- **Two-finger pinch** anywhere to zoom.\n- **Drag** inside the Markdown card to scroll it.\n- **Tap** a card's \u22ef for its menu (with widget controls collapsed, tap the \u2304 first).\n- **Double-tap** a card header's empty background, or tap \u2922, to maximize, and again to restore. Double-tapping the title renames the card.\n- Tap into this note and type \u2014 the pane must not collapse while focused."
               }
             }
           },
