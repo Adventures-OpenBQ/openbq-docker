@@ -5,9 +5,11 @@
 
 EODHD has no trailing-yield endpoint, so this derives it the way tiingo's
 provider defines the model: for each of the last `limit` trading days,
-trailing 12-month dividends per share divided by that day's close. Two
-dedicated calls per request (dividends + EOD closes); both are cheap
-single-credit endpoints and the series is date-windowed to the limit.
+trailing 12-month dividends per share divided by that day's adjusted close
+(/div values are split-adjusted, so a raw close would cut every pre-split
+yield by the split ratio). Two dedicated calls per request (dividends + EOD
+closes); both are cheap single-credit endpoints and the series is
+date-windowed to the limit.
 """
 
 from datetime import date as dateType, timedelta
@@ -92,7 +94,7 @@ class EODHDTrailingDivYieldFetcher(
 
         rows = []
         for bar in data["prices"]:
-            d, close = _d(bar.get("date")), bar.get("close")
+            d, close = _d(bar.get("date")), bar.get("adjusted_close")
             if d is None or not close:
                 continue
             ttm = sum(v for dd, v in dividends if d - timedelta(days=365) < dd <= d)

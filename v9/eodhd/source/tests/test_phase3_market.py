@@ -362,8 +362,8 @@ class TestTrailingDivYield:
                 {"date": "2025-08-01", "value": 0.24},  # > 365d before 2026-08-31
             ],
             "prices": [
-                {"date": "2026-08-28", "close": 300.0},
-                {"date": "2026-08-31", "close": 320.0},
+                {"date": "2026-08-28", "adjusted_close": 300.0},
+                {"date": "2026-08-31", "adjusted_close": 320.0},
             ],
         }
         rows = EODHDTrailingDivYieldFetcher.transform_data(q, data)
@@ -374,9 +374,24 @@ class TestTrailingDivYield:
     def test_limit_window(self):
         q = EODHDTrailingDivYieldQueryParams(symbol="AAPL", limit=1)
         data = {"dividends": [], "prices": [
-            {"date": "2026-08-28", "close": 300.0},
-            {"date": "2026-08-31", "close": 320.0},
+            {"date": "2026-08-28", "adjusted_close": 300.0},
+            {"date": "2026-08-31", "adjusted_close": 320.0},
         ]}
         rows = EODHDTrailingDivYieldFetcher.transform_data(q, data)
         assert len(rows) == 1 and rows[0].date == date(2026, 8, 31)
         assert rows[0].trailing_dividend_yield == 0.0
+
+    def test_yield_is_continuous_across_a_split(self):
+        """/div values are split-adjusted, so the price must be too (O2): on
+        a 4:1 split the raw close drops 4x and the yield must not jump."""
+        q = EODHDTrailingDivYieldQueryParams(symbol="AAPL", limit=2)
+        data = {
+            "dividends": [{"date": "2026-05-12", "value": 0.20}],  # $0.80 pre-split
+            "prices": [
+                {"date": "2026-08-28", "close": 400.0, "adjusted_close": 100.0},
+                {"date": "2026-08-31", "close": 100.0, "adjusted_close": 100.0},
+            ],
+        }
+        before, after = EODHDTrailingDivYieldFetcher.transform_data(q, data)
+        assert before.trailing_dividend_yield == pytest.approx(0.20 / 100.0)
+        assert after.trailing_dividend_yield == pytest.approx(before.trailing_dividend_yield)
