@@ -15,6 +15,7 @@ and gated on bar close. A six-indicator macro refreshed every second would be
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 
@@ -27,6 +28,9 @@ log = logging.getLogger("live-grid.ta")
 
 CALLS_PER_REQUEST = 5
 EODHD_URL = "https://eodhd.com/api/technical/{symbol}"
+# httpx quotes the request URL, key included, in a status error (as
+# openbq_eodhd's _client.py redacts it on openbq-api).
+_API_TOKEN = re.compile(r"(api_token(?:=|%3[dD]))[^&%\s'\"]*")
 
 
 @dataclass(frozen=True)
@@ -152,9 +156,10 @@ class EodhdSource:
                 self.total_calls += CALLS_PER_REQUEST
                 fetched.append((req, rows))
             except Exception as exc:  # noqa: BLE001 - a chart beats an error page
-                log.warning("eodhd %s failed for %s: %s", req.name, symbol, exc)
+                detail = _API_TOKEN.sub(r"\1***", str(exc))
+                log.warning("eodhd %s failed for %s: %s", req.name, symbol, detail)
                 annotations.extend(
-                    Annotation(col, "local", f"EODHD fetch failed: {exc}")
+                    Annotation(col, "local", f"EODHD fetch failed: {detail}")
                     for col in _columns(req)
                 )
                 fetched.append((req, None))

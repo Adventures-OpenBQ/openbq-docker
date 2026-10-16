@@ -76,6 +76,24 @@ async def test_a_fetch_failure_degrades_to_local_rather_than_erroring():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("sep", ["=", "%3D"])
+async def test_a_fetch_failure_never_logs_or_annotates_the_key(sep, caplog):
+    """httpx quotes the request URL, api_token included, in a status error."""
+    async def failing_fetch(query):
+        raise RuntimeError(
+            "Client error '401 Unauthorized' for url "
+            f"'https://eodhd.com/api/technical/AAPL.US?function=rsi&api_token{sep}SECRETKEY&fmt=json'"
+        )
+
+    src = EodhdSource("SECRETKEY", fetch=failing_fetch)
+    result = await src.series(fixture_frame(), [resolve("rsi", period=14)],
+                              "AAPL.US", "1d", "2024-01-21")
+    assert "401" in result.annotations[0].note
+    assert "SECRETKEY" not in result.annotations[0].note
+    assert "SECRETKEY" not in caplog.text and "401" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_a_response_missing_a_field_nulls_it_and_says_so():
     """EODHD field names have drifted before; a partial payload must not raise."""
     async def partial_fetch(query):
