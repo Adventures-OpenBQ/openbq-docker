@@ -467,8 +467,11 @@ class EODHDEconomicCalendarFetcher(
             earliest, latest = _row_date(page[-1]), _row_date(page[0])
             if earliest == latest:  # over 1,000 events on one civil date
                 collected.extend(page)
+                # a page of a new day (the busy day ended on a multiple of
+                # 1,000) is that day's first 1,000 in its own window: restart
+                limit = EODHDEconomicCalendarFetcher._PAGE_LIMIT
+                offset = offset + limit if earliest == paging_day else limit
                 cur_to = earliest
-                offset += EODHDEconomicCalendarFetcher._PAGE_LIMIT
                 paging_day = earliest
                 continue
 

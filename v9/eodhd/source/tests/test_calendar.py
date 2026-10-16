@@ -350,6 +350,26 @@ class TestEconomicCalendar:
         assert len(rows) == len(events)
         assert len({r["type"] for r in rows}) == len(events)
 
+    def test_exact_thousand_day_then_a_full_day_skips_nothing(self):
+        """A busy day of exactly 1,000 events, then a day that fills a page
+        on its own: the offset must restart with the new day's window."""
+        events = [{"date": "2026-03-10 12:00:00", "type": f"a{i}"} for i in range(1000)]
+        events += [{"date": "2026-03-09 12:00:00", "type": f"b{i}"} for i in range(1500)]
+        events += [{"date": "2026-03-08 12:00:00", "type": f"c{i}"} for i in range(100)]
+
+        class FakeApi:
+            def get_economic_events_data(self, date_from, date_to, country, comparison, limit, offset=0):  # noqa: ARG002
+                sel = [r for r in events if date_from <= r["date"][:10] <= date_to]
+                return sel[offset:offset + limit]  # already date-descending
+
+        query = EODHDEconomicCalendarQueryParams(start_date="2026-03-01", end_date="2026-03-10")
+        with patch(
+            "openbq_eodhd.models.calendar._fetch",
+            lambda credentials, call, context: call(FakeApi()),
+        ):
+            rows = EODHDEconomicCalendarFetcher._fetch_windowed(query, CREDS)
+        assert sorted(r["type"] for r in rows) == sorted(r["type"] for r in events)
+
     def test_limit_truncates_after_the_full_walk(self):
         days = [f"2026-09-{n:02d}" for n in range(10, 0, -1)]
         page1 = _econ_page([(d, 100) for d in days])
