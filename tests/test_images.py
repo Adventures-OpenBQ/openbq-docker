@@ -59,6 +59,16 @@ class ApiImages(unittest.TestCase):
             with self.subTest(name):
                 self.assertIn("COPY v5/fixtures /workspace/openbq-fixtures", dockerfile(name))
 
+    def test_the_v3_overlay_builds_under_the_release_version(self):
+        # A local build of the overlay must not overwrite an earlier release's images.
+        # The gateway keeps the version it was brought down at (4.0.0 for v4-v7), so the
+        # release is the overlay's published key-maint tag.
+        overlay = dockerfile("docker-compose.v3.yml")
+        release = re.search(r"image: ghcr.io/adventures-openbq/openbq-key-maint:(\S+)", overlay).group(1)
+        for name in ("openbq-local", "openbq-episode3-demo"):
+            with self.subTest(name):
+                self.assertIn(f"image: {name}:{release}\n", overlay)
+
 
 if __name__ == "__main__":
     unittest.main()

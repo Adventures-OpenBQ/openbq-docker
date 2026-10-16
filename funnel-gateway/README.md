@@ -74,7 +74,7 @@ the ordinary concurrency and rate budgets. See [managed tables](../table-service
 - `gateway-config/settings.json` (from `funnel-gateway/settings.example.json`, read-only bind):
   `origin` (`https://openbq.<tailnet>.ts.net:10000`), `stateDir` (`/var/lib/bdobb/state` to turn
   `/state` on), `previewOrigin` (the web preview's portless HTTPS origin, to turn socket tickets on; the example leaves it unset, so tickets stay off until a Vercel origin exists), the budgets, and the table keys (`tableService`, `tableDesktopPrincipal`,
-  `ssrmRoutes`, `tableTimeoutMs`; see [managed tables](../table-service/README.md)). An unknown
+  `ssrmRoutes`, `tableTimeoutMs`, `ssrmTimeoutMs`; see [managed tables](../table-service/README.md)). An unknown
   key is refused at startup, including Rita's `ritaOrigin`, `ritaAddress` and `socksProxy` and
   the keys of later lines (`rssOrigin`, `rssAddress` and `feeds` at v8; `liveGrid` at v10).
 

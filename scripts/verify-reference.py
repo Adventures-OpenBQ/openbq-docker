@@ -23,11 +23,13 @@ assert len(fetch('/data/prices')) == 5 and len(fetch('/data/nulls')) == 5
 assert len(fetch('/table_widget')) == 3
 assert fetch('/metric_widget')[0]['value'] == '1,234,567'
 assert fetch('/health')['status'] == 'ok'
-assert len(fetch('/bundle.apps.json')) == 3
+bundle = fetch('/bundle.apps.json')
+assert len(bundle) == 3
 assert len(fetch('/market-examples.apps.json')) == 1
-for app in apps:
-    if app['name'].startswith('Episode 3'):
-        assert all(app[k].startswith('data:image/svg+xml;base64,') for k in ('img', 'img_dark', 'img_light'))
+episode3 = [app for app in bundle if app['name'].startswith('Episode 3')]
+assert len(episode3) == 2, 'The bundle carries both Episode 3 apps'
+for app in episode3:
+    assert all(app[k].startswith('data:image/svg+xml;base64,') for k in ('img', 'img_dark', 'img_light'))
 with urlopen(base + '/assets/bdobb-logo.svg', timeout=20) as r:
     assert r.headers['Content-Type'].startswith('image/svg+xml') and b'<svg' in r.read()
 print(json.dumps({'status':'passed','widgets':len(widgets),'apps':len(apps),'cards':len(ids),'missing_references':len(missing)}))

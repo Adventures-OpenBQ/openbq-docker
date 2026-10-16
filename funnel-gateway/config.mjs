@@ -26,7 +26,9 @@ function httpsOrigin(value, tailnet = true, allowedPort = "10000") {
 // silently ignored setting is how an operator believes a door is configured when it is not.
 // openbq-docker serves no /ai (Rita), so ritaOrigin, ritaAddress and socksProxy are refused too.
 const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "quoteDailyLimit",
-  "requestsPerMinute", "maxConcurrent", "maxSockets", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs"]);
+  "requestsPerMinute", "maxConcurrent", "maxSockets", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs", "ssrmTimeoutMs"]);
+
+const DEFAULT_SSRM_ROUTES = JSON.parse(readFileSync(new URL("./ssrm-routes.json", import.meta.url), "utf8"));
 
 export function validateConfig(settings, secrets) {
   for (const key of Object.keys(settings)) if (!SETTINGS_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`);
@@ -66,9 +68,14 @@ export function validateConfig(settings, secrets) {
   }
   const tableTimeoutMs = settings.tableTimeoutMs ?? 65000;
   if (!Number.isInteger(tableTimeoutMs) || tableTimeoutMs < 1000 || tableTimeoutMs > 65000) throw new Error("Invalid table timeout");
+  // An SSRM first page acquires the widget's whole result (od's lane deadline 165 s, its
+  // SSRM deadline 300 s), so it gets its own limit, up to od's; managed routes keep theirs.
+  const ssrmTimeoutMs = settings.ssrmTimeoutMs ?? 170000;
+  if (!Number.isInteger(ssrmTimeoutMs) || ssrmTimeoutMs < 1000 || ssrmTimeoutMs > 300000) throw new Error("Invalid SSRM timeout");
   const tableService = settings.tableService ?? false;
   const tableDesktopPrincipal = settings.tableDesktopPrincipal ?? null;
-  const ssrmRoutes = settings.ssrmRoutes ?? [];
+  // Unset = the 23 routes od serves (ssrm-routes.json, lanes/ssrm_widgets.json as door paths).
+  const ssrmRoutes = settings.ssrmRoutes ?? DEFAULT_SSRM_ROUTES;
   if (typeof tableService !== "boolean" || !validSsrmRoutes(ssrmRoutes)) throw new Error("Invalid table settings");
   if (tableDesktopPrincipal !== null && !/^desktop:[A-Za-z0-9_-]{1,100}$/.test(tableDesktopPrincipal)) throw new Error("Invalid desktop table principal");
   const credential = value => typeof value === "string" && /^[A-Za-z0-9_-]{32,256}$/.test(value);
@@ -79,7 +86,7 @@ export function validateConfig(settings, secrets) {
   return {
     tableOrigin: tableService ? "http://table-service:8080" : null,
     tableGatewayToken: secrets.tableGatewayToken, tableRelayToken: secrets.tableRelayToken,
-    tableDesktopPrincipal, ssrmRoutes, tableTimeoutMs,
+    tableDesktopPrincipal, ssrmRoutes, tableTimeoutMs, ssrmTimeoutMs,
     origin, previewOrigin, quoteDailyLimit, requestsPerMinute, maxConcurrent, maxSockets, stateDir,
     token: secrets.token,
     apiAuthorization: "Basic " + Buffer.from(`${secrets.apiUsername}:${secrets.apiPassword}`).toString("base64"),
