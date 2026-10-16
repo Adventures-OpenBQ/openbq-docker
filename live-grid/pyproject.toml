@@ -29,7 +29,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "httpx", "ruff==0.15.22"]
+# moto[server]: test_lake_readback.py runs a ThreadedMotoServer S3 fake (D26).
+dev = ["pytest", "pytest-asyncio", "httpx", "ruff==0.15.22", "moto[server]"]
 
 [tool.setuptools]
 packages = ["app"]

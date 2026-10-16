@@ -491,10 +491,12 @@ test("operator verifier makes no upstream or provider calls, wire on or off", as
  * included), and records what it was asked. `grid.status` lets a test make it fail.
  */
 async function gridStub(t) {
-  const grid = { status: 200, seen: [] };
+  // `open` is what a request without the pair gets: 401 from a locked live-grid.
+  const grid = { status: 200, open: 401, seen: [] };
   const server = createServer((req, res) => {
     grid.seen.push({ path: req.url, auth: req.headers.authorization });
-    res.writeHead(grid.status, { "Content-Type": "application/json" }); res.end("{}");
+    res.writeHead(req.headers.authorization ? grid.status : grid.open, { "Content-Type": "application/json" });
+    res.end("{}");
   });
   server.listen(0, "127.0.0.1"); await once(server, "listening");
   t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
@@ -576,8 +578,12 @@ test("the preflight proves live-grid answers /health behind the stack's own Basi
   await checkUpstreams(cfg);
   // Asked for /health and nothing else, WITH the credential. Without it live-grid answers
   // 401 and the preflight would stop a healthy stack from opening its door -- which is the
-  // whole reason this leg carries the pair.
-  assert.deepEqual(grid.seen, [{ path: "/health", auth: cfg.apiAuthorization }]);
+  // whole reason this leg carries the pair. Then once WITHOUT it (D26, review 2026-10-16):
+  // that must be 401, or live-grid's lock is off and the door must not open.
+  assert.deepEqual(grid.seen, [{ path: "/health", auth: cfg.apiAuthorization }, { path: "/health", auth: undefined }]);
+  grid.open = 200;
+  await assert.rejects(checkUpstreams(cfg), /live-grid lock preflight failed: no credential answered HTTP 200, wanted 401/);
+  grid.open = 401;
   // Anything but a 200 stops the door: 401 (the pair is wrong or absent) and 503 (live-grid
   // is up but not ready) are both refusals, not warnings.
   for (const status of [401, 503, 500]) {

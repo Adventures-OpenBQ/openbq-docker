@@ -231,7 +231,7 @@ Funnel offers only 443, 8443 and 10000; 10000 is the only port any file funnels
 
 ```sh
 docker compose --profile web up -d            # add --profile live (and "liveGrid": true) for /grid
-docker compose --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked, live-grid and wire answer if on
+docker compose --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked, live-grid answers and is locked, wire answers, if on
 docker compose --profile web exec funnel-gateway node verify.mjs           # the door's own lock, on the bridge
 cp ts-config/serve-funnel.json ts-config/serve.json.new && jq empty ts-config/serve.json.new && mv ts-config/serve.json.new ts-config/serve.json   # the door opens; the sidecar live-applies it, and a malformed file would kill it
 # with the v3 overlay running, swap its file instead:
