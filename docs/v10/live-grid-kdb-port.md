@@ -418,11 +418,11 @@ Needs a KX licence in `kdb-license/`, `rustfs.env` filled, and the stack built:
 
 **1. kdb killed mid-session.**
 1. With live-grid recording (watchlist has symbols, market open or a crypto symbol), note
-   the count: `docker compose exec live-grid python -c "from kdb_store.config import resolve_config; from kdb_store.session import KdbSession; from kdb_store.store import KdbStore; s=KdbStore(KdbSession(resolve_config())); print(s._call(lambda c: c('count trades').py()))"`
-   and `ls` the log: `docker compose exec kdb ls -l /data/logs`.
-2. `docker compose kill -s SIGKILL kdb`, wait 10 s, `docker compose start kdb`
-   (and once with `docker compose up -d --force-recreate kdb`, which recreates the container).
-3. `docker compose logs kdb` shows `tlog: replaying tlog_<date>` and `tick log active`.
+   the count: `docker compose exec live-grid python -c "from openbq_kdb.config import resolve_config; from openbq_kdb.session import KdbSession; from openbq_kdb.store import KdbStore; s=KdbStore(KdbSession(resolve_config())); print(s._call(lambda c: c('count trades').py()))"`
+   and `ls` the log: `docker compose exec openbq-kdb ls -l /data/logs`.
+2. `docker compose kill -s SIGKILL openbq-kdb`, wait 10 s, `docker compose start openbq-kdb`
+   (and once with `docker compose up -d --force-recreate openbq-kdb`, which recreates the container).
+3. `docker compose logs openbq-kdb` shows `tlog: replaying tlog_<date>` and `tick log active`.
 4. Re-run the count: it equals the count before the kill plus whatever arrived after
    live-grid reconnected (within 60 s, the retry latch), never less than before the kill.
    `/health` `ticks.endpoint` reads `loopback` again; `ticks.dropped` counts only the outage.
@@ -812,11 +812,11 @@ The first run needs a rebuild of live-grid; kdb-store is copied into its image:
 `docker compose --profile live build live-grid && docker compose --profile live up -d`.
 **After** drills A to C (not before: its last step, `prune_ticks(2030)`, empties `trades`
 in kdb's memory; the tick log keeps the rows, and a kdb restart brings them back), run
-`kdb-store/scripts/tick_check.py` against the real q:
-`docker compose cp kdb-store/scripts/tick_check.py live-grid:/tmp/ && docker compose exec
+`v10/kdb/source/scripts/tick_check.py` against the real q:
+`docker compose cp v10/kdb/source/scripts/tick_check.py live-grid:/tmp/ && docker compose exec
 live-grid python /tmp/tick_check.py`. It must report `FAILURES: none`, including the new
 `ticks_present` checks. `ticks_present` is the one statement the cloud could only
-simulate. Then run `docker compose restart kdb` to restore the day from the log. The
+simulate. Then run `docker compose restart openbq-kdb` to restore the day from the log. The
 script's own `TICKCHK` rows come back too; they are dated 2025-06-10, so live-grid's next
 rolling-window prune drops them.
 
@@ -834,9 +834,9 @@ print(json.load(u.urlopen(r))["ticks"])
 PY
 }
 kdb_count() { docker compose exec -T live-grid python - <<'PY'
-from kdb_store.config import resolve_config
-from kdb_store.session import KdbSession
-from kdb_store.store import KdbStore
+from openbq_kdb.config import resolve_config
+from openbq_kdb.session import KdbSession
+from openbq_kdb.store import KdbStore
 s = KdbStore(KdbSession(resolve_config()))
 print(s._call(lambda c: c("(count trades; count distinct select time, sym, price, size from trades)").py()))
 s.session.close()
@@ -850,10 +850,10 @@ PY
 
 1. `kdb_count; lg_ticks`. Note `C0` (the rows), the distinct count `D0`, and `W0`
    (`written`).
-2. `docker compose kill -s SIGKILL kdb`, then wait 100 s. During the wait, `lg_ticks`
+2. `docker compose kill -s SIGKILL openbq-kdb`, then wait 100 s. During the wait, `lg_ticks`
    shows `spooled` rising (about 24/s) and `dropped` 0. `docker compose exec live-grid
    ls -l /data/spool` shows `ticks_<date>_000000.jsonl`.
-3. `docker compose start kdb`. `docker compose logs kdb | grep tlog` shows
+3. `docker compose start openbq-kdb`. `docker compose logs openbq-kdb | grep tlog` shows
    `tlog: replaying tlog_<date>`.
 4. Within a few seconds (backoff of at most 15 s; usually the next 1 to 8 s step):
    `lg_ticks` shows `spooled` 0, `replayed` about equal to the step-2 peak, and `dropped`
@@ -869,7 +869,7 @@ PY
 - no distinct-row criterion. EODHD's crypto feed itself repeats byte-identical trade messages (no trade id or venue in a message): measured 2026-10-13, 30 s of BTC-USD and ETH-USD raw from EODHD gave 2,588 trades, 1,509 distinct (time, sym, price, size), groups up to 59; the Mac kdb showed the same shape (groups up to 70). kdb stores what the feed sends, so `C1 - C0 == W1 - W0` (with `deduped` for any in-doubt batch) is the test that nothing was written twice;
 - the kdb log shows the `tlog: replaying` line.
 
-Repeat once with `docker compose up -d --force-recreate kdb` in place of `start`.
+Repeat once with `docker compose up -d --force-recreate openbq-kdb` in place of `start`.
 
 **Receipt, drill A (Mac, 2026-10-13, `drill-a.sh`, branch at 83690fa).** live-grid
 rebuilt as `openbq-live-grid:10.0.0`; `/health` carries `spooled`, `replayed` and
@@ -890,14 +890,14 @@ the `--force-recreate` variant, B, C and `tick_check.py`.
 **B. live-grid SIGKILLed mid-outage.**
 
 1. `kdb_count; lg_ticks`. Note `C0`, `D0` and `W0`.
-2. `docker compose kill -s SIGKILL kdb`, then wait 30 s. `lg_ticks` shows `spooled` `S`
+2. `docker compose kill -s SIGKILL openbq-kdb`, then wait 30 s. `lg_ticks` shows `spooled` `S`
    (about 700) and `W1` (`written`, unchanged since kdb died).
 3. `docker compose kill -s SIGKILL live-grid`, then wait 10 s, then
    `docker compose start live-grid`.
 4. `lg_ticks` (the new process; kdb is still down): `spooled` ≥ `S`, because the
    leftovers were counted at startup and new ticks are added to them. `replayed` is 0 and
    `dropped` is 0. `docker compose logs live-grid | grep "left by a previous run"`.
-5. `docker compose start kdb`. Within a few seconds `lg_ticks` shows `spooled` 0,
+5. `docker compose start openbq-kdb`. Within a few seconds `lg_ticks` shows `spooled` 0,
    `replayed` ≥ `S` and `dropped` 0.
 6. Wait 60 s, then `kdb_count; lg_ticks` for `C2`, `D2` and `W2` (the new process's
    `written`).
@@ -1138,7 +1138,7 @@ User ruling: alternative 1, packaged origins only. Not provisional.
 - **Tests.** `gateway.test.mjs`: three new tests (desktop origins on HTTP, the mint-and-open
   round trip bound to Origin, target and single use, the endpoint's refusals). Local run, node
   26.10.0: 90 of 91 pass; the failure, "DELETE takes one symbol in the path", fails identically
-  (421) on the untouched base 72834aa.
+  (421) on the untouched base 72834aa. (Since superseded: after the 2026-10-16 review fixes all 132 gateway tests pass.)
 - **Client.** BDOBB `claude/v10-grid-socket-ticket` 1a310c6 fetches a ticket before every
   connect when the backend's credential is a header; its OPEN-QUESTIONS records V10-P1 resolved.
 - **Not run.** The packaged app against a running gateway (Mac).

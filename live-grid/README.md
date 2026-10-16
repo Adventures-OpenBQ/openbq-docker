@@ -8,7 +8,7 @@
 > Differences from the text below, which is the donor's:
 >
 > - It runs only under the opt-in `live` compose profile (`docker compose --profile live up -d`),
->   with the `kdb` service beside it. It has no host port and no Serve entry; BDOBB's web
+>   with the `openbq-kdb` service beside it. It has no host port and no Serve entry; BDOBB's web
 >   preview reaches it through the funnel-gateway's `/grid` family (the `web` profile, with
 >   `"liveGrid": true`).
 > - It loads `credentials.env` (`EODHD_API_KEY` and the `OPENBB_API_*` pair); this line has no
@@ -88,10 +88,9 @@ reports the current lease count.
 
 Every trade this service already receives over the websocket is now also
 recorded into whichever q the same **`openbq-kdb`** resolution chain finds —
-in the stock compose setup, the **same kdb+ instance `openbb-api` spawns**,
-reached at `127.0.0.1:5000` through the shared tailscale network namespace
-(no new port, and this container never spawns its own q; see
-`docker-compose.yml`'s `KDB_EMBEDDED=false`). See
+on openbq-docker, the **`openbq-kdb` service**, reached at `openbq-kdb:5000`
+on the internal `live-private` network (`KDB_BIND_HOST=openbq-kdb`; no host
+port, and this container never spawns its own q: `KDB_EMBEDDED=false`). See
 [openbb-kdb/README.md](../openbb-kdb/README.md#configuration) for the full
 chain (bring-your-own q dropped in `./kdb`, then loopback, then `KDB_HOST`) —
 this service's `KDB_EMBEDDED=false` only opts it out of the *spawning* step,

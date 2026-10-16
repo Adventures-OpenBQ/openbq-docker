@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """FastAPI app tying the pieces together: widgets.json, REST seeding, the
-websocket stream, and health. One service, loopback-only; Tailscale Serve is
-the ingress (see the repo compose file)."""
+websocket stream, and health. One service. openbq-docker's compose runs it on
+0.0.0.0:6903 on its bridges with no host port and no Serve entry; the
+funnel-gateway's /grid family is the ingress."""
 from __future__ import annotations
 
 import asyncio
