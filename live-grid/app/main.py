@@ -26,7 +26,7 @@ from app.auth import BasicAuthMiddleware, auth_enabled
 from app.classify import FEEDS, classify
 from app.feeds import FeedManager
 from app.figure import build_figure
-from app.leases import DEFAULT_TTL, LeaseRegistry
+from app.leases import DEFAULT_TTL, MAX_LEASE_TTL_S, LeaseRegistry
 from app.openbb_client import fetch_series
 from app.quotes import QuoteTable
 from app.symbol_meta import get_meta
@@ -559,6 +559,14 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                 raise HTTPException(
                     status_code=422, detail="ttl must be a finite positive number"
                 ) from None
+            ttl = min(ttl, MAX_LEASE_TTL_S)  # D20: renewable, never permanent
+        # D20: the cap /api/subscriptions enforces, on the same union of what is subscribed;
+        # renewing a symbol already leased costs no new slot.
+        if len(_subscribed() | {str(s).strip().upper() for s in symbols}) > max_symbols:
+            raise HTTPException(
+                status_code=507,
+                detail=f"cap of {max_symbols} reached for EODHD; remove a symbol first",
+            )
         granted = leases.renew(
             symbols,
             now=asyncio.get_running_loop().time(),

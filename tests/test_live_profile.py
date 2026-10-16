@@ -182,3 +182,12 @@ def test_env_example_sets_nothing_and_names_no_home_directory():
     for path in ('.env.example', 'README.md', 'docs/v10/live-grid-kdb-port.md'):
         body = (ROOT / path).read_text()
         assert '~/Developer' not in body and "maintainer's licence" not in body, path
+
+
+def test_the_live_grid_image_does_not_carry_the_q_demo_chart():
+    """D19 (2026-10-16): live-chart.html takes any ?ws= URL and writes feed data into innerHTML
+    unescaped, on live-grid's origin, and loads a CDN script with no integrity hash. Nothing on
+    this stack can reach it (no host port, no /grid route), so it stays out of the image."""
+    copies = [line for line in (ROOT / 'live-grid/Dockerfile').read_text().splitlines()
+              if line.startswith(('COPY', 'ADD'))]
+    assert copies and not any('live-chart' in line for line in copies)

@@ -19,6 +19,8 @@ import logging
 log = logging.getLogger(__name__)
 
 DEFAULT_TTL = 300.0
+# The longest lease /subscribe grants (D20): a caller renews; it cannot pin a feed for good.
+MAX_LEASE_TTL_S = 3600.0
 
 
 class LeaseRegistry:

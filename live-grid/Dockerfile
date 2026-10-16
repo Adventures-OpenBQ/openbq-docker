@@ -24,10 +24,9 @@ RUN pip install /srv/openbq-kdb
 
 COPY live-grid/pyproject.toml ./
 COPY live-grid/app/ app/
-# openbq-kdb's q demo chart, served at /static/live-chart.html so bdobb-v2's
-# Website widget has a durable URL (context is the repo root, so the
-# v10/kdb/source/q/ is reachable -- same reasoning as the openbq-kdb COPY)
-COPY v10/kdb/source/q/live-chart.html app/static/live-chart.html
+# openbq-kdb's q demo chart (v10/kdb/source/q/live-chart.html) is NOT copied (D19): it takes
+# any ?ws= URL and writes feed data into innerHTML unescaped, on this origin, and no route on
+# this stack reaches it.
 COPY live-grid/widgets.json ./
 # apps.json is served by GET /apps.json; the route reads it from disk, so
 # leaving it out of the image is a 500, not a missing feature.

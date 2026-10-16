@@ -115,3 +115,18 @@ def test_remove_rolls_back_memory_when_the_write_fails(tmp_path):
     with pytest.raises(OSError):
         w.remove("AAPL")
     assert w.symbols() == ["AAPL"]
+
+
+def test_the_write_is_durable_the_file_and_its_directory_are_fsynced(tmp_path, monkeypatch):
+    """D18 (review 2026-10-16): atomic is not durable. Without an fsync of the temp file before
+    the rename and of the directory after it, a power loss can leave watchlist.json empty,
+    which reload() would read as an empty watchlist."""
+    import os
+    import stat
+
+    kinds = []
+    real = os.fsync
+    monkeypatch.setattr(os, "fsync", lambda fd: (kinds.append(stat.S_ISDIR(os.fstat(fd).st_mode)), real(fd)))
+    w = Watchlist(str(tmp_path / "watchlist.json"))
+    w.add("AAPL")
+    assert kinds == [False, True]

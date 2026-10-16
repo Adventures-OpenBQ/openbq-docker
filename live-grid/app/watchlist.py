@@ -91,13 +91,23 @@ class Watchlist:
 
         Same directory because os.replace is only atomic within one filesystem,
         and the watchlist lives on a mount that is not the container's root.
+        Durable as well as atomic (D18): the temp file is fsynced before the
+        rename and the directory after it, so a power loss leaves the old file
+        or the new one, never an empty one.
         """
         self._path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=str(self._path.parent), suffix=".tmp")
         try:
             with os.fdopen(fd, "w") as handle:
                 json.dump(self.symbols(), handle, indent=2)
+                handle.flush()
+                os.fsync(handle.fileno())
             os.replace(tmp, self._path)
+            dir_fd = os.open(self._path.parent, os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
         except BaseException:
             # Leave no debris if the write or the replace failed.
             try:

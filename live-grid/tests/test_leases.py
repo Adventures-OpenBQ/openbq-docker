@@ -225,3 +225,30 @@ def test_subscribe_still_accepts_a_normal_ttl():
     r = client.post("/subscribe", json={"symbols": ["AAPL"], "ttl": 60})
     assert r.status_code == 200
     datetime.fromisoformat(r.json()["leases"]["AAPL"])
+
+
+def test_subscribe_clamps_a_huge_ttl(monkeypatch):
+    """D20 (review 2026-10-16): ttl=1e12 passed the finite-positive check and leased a feed for
+    good. It is clamped to MAX_LEASE_TTL_S."""
+    from datetime import timezone
+
+    from app.leases import MAX_LEASE_TTL_S
+    from tests.test_main import make_client
+
+    r = make_client().post("/subscribe", json={"symbols": ["AAPL"], "ttl": 1e12})
+    assert r.status_code == 200
+    expiry = datetime.fromisoformat(r.json()["leases"]["AAPL"])
+    left = (expiry - datetime.now(timezone.utc)).total_seconds()
+    assert 0 < left <= MAX_LEASE_TTL_S + 1
+
+
+def test_subscribe_honours_the_symbol_cap(monkeypatch):
+    """D20: /api/subscriptions enforces LIVE_GRID_MAX_SYMBOLS; /subscribe leased without limit."""
+    from tests.test_main import make_client
+
+    monkeypatch.setenv("LIVE_GRID_MAX_SYMBOLS", "2")
+    client = make_client()
+    assert client.post("/subscribe", json={"symbols": ["A", "B", "C"]}).status_code == 507
+    assert client.post("/subscribe", json={"symbols": ["A", "B"]}).status_code == 200
+    # renewing what is already leased costs no new slot
+    assert client.post("/subscribe", json={"symbols": ["A", "B"]}).status_code == 200
