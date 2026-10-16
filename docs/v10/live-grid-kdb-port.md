@@ -440,7 +440,11 @@ Needs a KX licence in `kdb-license/`, `rustfs.env` filled, and the stack built:
 
 **4. RustFS and the flush.**
 1. `docker compose ps`: rustfs healthy, rustfs-init exited 0, eod-dump running. With
-   `rustfs.env` absent or holding `rustfsadmin`, rustfs exits 1 with the message.
+   `rustfs.env` absent or holding `rustfsadmin`, rustfs logs the refusal once and idles
+   unhealthy (D22: no restart loop); `docker compose --profile live up -d` reports
+   rustfs-init's dependency as failed, and kdb and live-grid run and answer without the store.
+   The health check's `curl` is present in `rustfs/rustfs:1.0.1` (checked 2026-10-16 on the
+   pinned digest); confirm rustfs turns healthy with `rustfs.env` filled.
 2. Flush a day by hand: `docker compose exec eod-dump python /opt/eod_dump.py --date <yesterday>`;
    re-run it (the version goes 0 then 1, row count unchanged).
 3. Read-back: `/series?symbol=<sym>&interval=1m&start=<3 days ago>&end=<today>` reports

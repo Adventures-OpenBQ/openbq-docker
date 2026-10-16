@@ -67,7 +67,13 @@ def test_rustfs_fails_closed_on_an_empty_or_default_root_pair():
     rustfs = SERVICES['rustfs']
     script = rustfs['command'][0]
     assert rustfs['entrypoint'] == ['/bin/sh', '-ec']
-    assert ':*|*:|rustfsadmin:*|*:rustfsadmin)' in script and 'exit 1' in script
+    assert ':*|*:|rustfsadmin:*|*:rustfsadmin)' in script
+    # D22 (2026-10-16): the refusal idles instead of exiting, so unless-stopped does not turn it
+    # into a restart loop logging every second; the health check stays failing, and the store
+    # never starts. SIGTERM still ends it at once.
+    refusal = script.split('rustfsadmin)', 1)[1].split('esac', 1)[0]
+    assert 'exit 1 ;;' not in refusal and "trap 'exit 1' TERM INT" in refusal
+    assert 'while :; do sleep 3600 & wait $$!; done ;;' in refusal  # $$: compose's escape for $
     assert script.rstrip().endswith('exec /entrypoint.sh rustfs')
     assert rustfs['healthcheck']['test'] == ['CMD', 'curl', '-fsS', 'http://127.0.0.1:9000/health']
     assert rustfs['restart'] == 'unless-stopped'

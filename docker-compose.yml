@@ -341,14 +341,19 @@ services:
       RUSTFS_VOLUMES: /data
       RUSTFS_ADDRESS: 0.0.0.0:9000
       RUSTFS_CONSOLE_ENABLE: "false"
-    # Fail closed: no store with an empty or public-default root pair.
+    # Fail closed: no store with an empty or public-default root pair. The refusal idles rather
+    # than exiting (D22): with unless-stopped an exit 1 was a restart loop logging the refusal
+    # every second. Idle, it logs once, the health check keeps failing (so rustfs-init and
+    # eod-dump never start), and SIGTERM still ends it at once. Fill rustfs.env and run
+    # `docker compose --profile live up -d` again; the changed env recreates it.
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
         case "$${RUSTFS_ACCESS_KEY:-}:$${RUSTFS_SECRET_KEY:-}" in
           :*|*:|rustfsadmin:*|*:rustfsadmin)
-            echo "rustfs: set RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY in rustfs.env (not empty, not the default)" >&2
-            exit 1 ;;
+            echo "rustfs: set RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY in rustfs.env (not empty, not the default); idle, no store" >&2
+            trap 'exit 1' TERM INT
+            while :; do sleep 3600 & wait $$!; done ;;
         esac
         exec /entrypoint.sh rustfs
     healthcheck:
