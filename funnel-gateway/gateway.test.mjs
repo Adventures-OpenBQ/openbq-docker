@@ -874,9 +874,11 @@ async function tableFixture(t, patch = {}) {
     const chunks=[]; for await (const chunk of req) chunks.push(chunk);
     calls.push({path:req.url, headers:req.headers, method:req.method, body:Buffer.concat(chunks).toString()});
     if(req.url === "/sessions/stalled/commands")return;
+    if(req.url.startsWith("/api/v1/test/rows?slow=")){await new Promise(r=>setTimeout(r,Number(new URL(req.url,"http://x").searchParams.get("slow"))));if(res.destroyed)return;}
     if(req.url === "/sessions/truncated/commands"){res.writeHead(200,{"Content-Type":"application/json"});res.write('{"partial":');setImmediate(()=>res.destroy());return;}
     if(req.url === "/sessions/oversized/commands"){res.writeHead(200,{"Content-Type":"application/json"});res.end(JSON.stringify({text:"x".repeat(8388608)}));return;}
-    res.writeHead(req.url === "/sessions/missing/commands" ? 410 : 200, {"Content-Type":"application/json", "Set-Cookie":"secret=bad"});
+    const ssrm=req.url.startsWith("/api/v1/test/rows") ? {"x-openbq-ssrm":req.url.includes("cached=1") ? "hit" : "miss"} : {};
+    res.writeHead(req.url === "/sessions/missing/commands" ? 410 : 200, {"Content-Type":"application/json", "Set-Cookie":"secret=bad", ...ssrm});
     res.end(JSON.stringify({ok:true}));
   });
   upstream.listen(0,"127.0.0.1"); await once(upstream,"listening");
@@ -930,6 +932,17 @@ test("table batches fail atomically on truncation, oversize or deadline; standar
   assert.equal((await call("/table/sessions/../healthz").catch(error=>{throw new Error("traversal",{cause:error});})).status,421);
   assert.equal((await call("/table/sessions/%2e%2e/healthz").catch(error=>{throw new Error("encoded",{cause:error});})).status,421);
   const capped=await tableFixture(t,{quoteDailyLimit:1});assert.equal((await capped.call("/api/api/v1/test/rows","POST",'{}')).status,200);assert.equal((await capped.call("/api/api/v1/test/rows","POST",'{}')).status,429);
+});
+test("SSRM exchanges have their own deadline, longer than managed table routes", async t => {
+  assert.equal(validateConfig(settings, secrets).ssrmTimeoutMs, 170000);
+  assert.equal(validateConfig({...settings, ssrmTimeoutMs: 300000}, secrets).ssrmTimeoutMs, 300000);
+  for (const ssrmTimeoutMs of [999, 300001, "170000", 1.5]) assert.throws(() => validateConfig({...settings, ssrmTimeoutMs}, secrets));
+  const {call} = await tableFixture(t, {tableTimeoutMs: 40, ssrmTimeoutMs: 400});
+  assert.equal((await call("/table/sessions/stalled/commands", "POST", '{}')).status, 502);
+  assert.equal((await call("/api/api/v1/test/rows?slow=150", "POST", '{}')).status, 200);
+  const started = Date.now();
+  assert.equal((await call("/api/api/v1/test/rows?slow=5000", "POST", '{}')).status, 502);
+  assert.ok(Date.now() - started < 2000);
 });
 test("table routes admit the packaged desktop Origins behind the lock, and no other", async t => {
   const {call,calls}=await tableFixture(t);
@@ -1203,4 +1216,16 @@ test("/ref/live_grid_ws: a refused upgrade never allocates a socket slot, so the
     assert.equal((await refConnect(port, { ...HEADERS, Origin: ORIGIN }, path)).status, 404, path);
   }
   const admitted = await refConnect(port); assert.equal(admitted.status, 101); admitted.ws.terminate();
+});
+
+test("an SSRM page served from od's cache refunds the daily quote; a miss spends it; a client header cannot", async t => {
+  const {call,calls}=await tableFixture(t,{quoteDailyLimit:1});
+  for (let i=0;i<3;i++) {
+    const hit=await call("/api/api/v1/test/rows?cached=1","POST",'{}');
+    assert.equal(hit.status,200); assert.equal(hit.headers["x-openbq-ssrm"],undefined);
+  }
+  const spoof=await call("/api/api/v1/test/rows","POST",'{}',{"x-openbq-ssrm":"hit"});
+  assert.equal(spoof.status,200); assert.equal(calls.at(-1).headers["x-openbq-ssrm"],undefined);
+  assert.equal((await call("/api/api/v1/test/rows","POST",'{}')).status,429);  // the miss spent the one quote
+  assert.equal((await call("/api/api/v1/test/rows?cached=1","POST",'{}')).status,429);
 });
