@@ -38,7 +38,7 @@ a chart that joins cached history to bars built from the live feed.
   15-20 minutes behind), for callers that want a quote without the live feed.
 - `GET /health` — per-feed connection state, plus a `ticks` block
   (`buffered`, `written`, `dropped`, `spooled`, `replayed`, `deduped`,
-  `endpoint`) when the chart is enabled; see "The tick spool" below.
+  `quarantined`, `endpoint`) when the chart is enabled; see "The tick spool" below.
 - `GET /chart?symbol=AAPL&interval=1d` — Plotly figure JSON, the Workspace
   `kdb_cache_chart` widget.
 - `GET /series?symbol=AAPL&interval=1d&start=&end=` — `{bars, cache}` for
@@ -132,7 +132,10 @@ dropping ~100 s of crypto ticks while kdb was down, then waiting out a fixed
 - **`/health` `ticks`.** `spooled` is the number of ticks on disk now.
   `replayed` and `deduped` count since start. `written` includes `replayed`.
   `dropped` counts only ticks truly lost: buffer overflow, the cap, or a
-  spool I/O error.
+  spool I/O error. `quarantined` counts ticks in `spool/quarantine/`: a
+  segment whose send raised 5 times in a row (an error that recurs on every
+  resend, not kdb being down) is moved there so newer ticks can flow; the
+  count survives restarts.
 - **Reconnect backoff** (openbq-kdb `session.py`). After kdb stops answering,
   live-grid retries after 1 s, doubling each time, capped at 15 s
   (`KDB_RETRY_INITIAL_S`, `KDB_RETRY_MAX_S`). This replaces the fixed 60 s

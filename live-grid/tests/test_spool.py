@@ -450,9 +450,10 @@ def test_fsync_runs_at_the_configured_cadence(tmp_path, monkeypatch):
         s.append([row])
         clock.now += 0.2
     file_syncs = [t for t in synced]
-    # one directory fsync for the new file, then at most one data fsync per second
-    assert 9 <= len(file_syncs) <= 12
-    gaps = [b - a for a, b in zip(file_syncs[1:], file_syncs[2:])]
+    # the cursor save as the file opens (D16: its seq; the temp file and the directory), one
+    # directory fsync for the new file, then at most one data fsync per second
+    assert 11 <= len(file_syncs) <= 14
+    gaps = [b - a for a, b in zip(file_syncs[3:], file_syncs[4:])]
     assert all(g >= 1.0 - 1e-9 for g in gaps)
     # an idle spool with unsynced appends is synced by the next flush's sync()
     s.append([row])
@@ -605,3 +606,133 @@ def test_a_failed_append_is_counted_dropped_and_leaves_no_partial_line(tmp_path,
         got += [r[2] for r in seg.rows]
         s.ack(seg)
     assert got == [1.0, 4.0]
+
+
+# -- review fixes 2026-10-16 (D5, D15, D16) ------------------------------------------
+
+
+class _Poison:
+    """A store that refuses any batch holding a price of -1 with the same q error, every time."""
+
+    def __init__(self):
+        self.frames = []
+
+    def write_ticks(self, frame):
+        if (frame["price"] == -1).any():
+            raise RuntimeError("'type")
+        self.frames.append(frame)
+        return len(frame)
+
+    def ticks_present(self, frame):
+        return 0
+
+
+def test_a_batch_that_always_fails_is_quarantined_and_the_spool_moves_on(tmp_path, caplog):
+    """D5: an error that recurs on every resend (a 'type after a schema change) used to block
+    the spool for good. After MAX_FAILURES sends the segment goes to quarantine/, /health counts
+    it, newer ticks flow, and only the first failure and the quarantine log a warning."""
+    store = _Poison()
+    rec = TickRecorder(store, spool=TickSpool(tmp_path / "spool"))
+    rec.record("BTC-USD", -1, 0.0, T0)
+    rec.flush()  # sent, raised: spooled in doubt
+    for i in range(1, 51):
+        rec.record("BTC-USD", float(i), 0.0, T0 + timedelta(seconds=i))
+        rec.flush()
+    assert rec.stats()["quarantined"] == 1 and rec.spooled == 0
+    written = [p for f in store.frames for p in f["price"]]
+    assert written == [float(i) for i in range(1, 51)]
+    (qfile,) = (tmp_path / "spool" / spool_mod.QUARANTINE).iterdir()
+    assert [decode(line)[0][2] for line in qfile.read_bytes().splitlines(keepends=True)] == [-1.0]
+    warnings = [r for r in caplog.records if r.levelname == "WARNING" and r.name == "app.recorder"]
+    assert len(warnings) <= 3, [r.getMessage() for r in warnings]
+    # a restart still reports it
+    assert TickSpool(tmp_path / "spool").quarantined == 1
+
+
+def test_the_failure_count_survives_a_restart(tmp_path):
+    """D5: a restart does not reset the count, so a poison segment cannot block forever."""
+    rec = TickRecorder(_Poison(), spool=TickSpool(tmp_path / "spool"))
+    rec.record("BTC-USD", -1, 0.0, T0)
+    rec.flush()
+    for _ in range(spool_mod.MAX_FAILURES - 2):
+        rec.flush()
+    rec.close()
+    rec = TickRecorder(_Poison(), spool=TickSpool(tmp_path / "spool"))
+    rec.flush()
+    assert rec.spooled == 1
+    rec.flush()
+    assert rec.spooled == 0 and rec.stats()["quarantined"] == 1
+
+
+def test_a_graceful_stop_waits_for_the_flush_in_flight(tmp_path):
+    """D15: compose stop cancels the drain loop, but a flush already in its worker thread keeps
+    running. stash must wait for it, so the older in-doubt batch is spooled before the newer
+    buffer and replay keeps time order."""
+    import threading
+
+    started, release = threading.Event(), threading.Event()
+
+    class Dying:
+        def write_ticks(self, frame):
+            started.set()
+            release.wait(5)
+            raise RuntimeError("the q at the other end has gone away")
+
+    rec = TickRecorder(Dying(), spool=TickSpool(tmp_path / "spool"))
+    rec.record("BTC-USD", 1.0, 0.0, T0)
+    flusher = threading.Thread(target=rec.flush)
+    flusher.start()
+    assert started.wait(5)
+    rec.record("BTC-USD", 2.0, 0.0, T0 + timedelta(seconds=1))
+    stasher = threading.Thread(target=rec.stash)
+    stasher.start()
+    stasher.join(0.3)
+    assert stasher.is_alive(), "stash ran alongside the flush"
+    release.set()
+    flusher.join(5)
+    stasher.join(5)
+    s = TickSpool(tmp_path / "spool")
+    rows = []
+    while (seg := s.head(100)) is not None:
+        rows += [r[2] for r in seg.rows]
+        s.ack(seg)
+    assert rows == [1.0, 2.0] and rec.dropped == 0
+
+
+def test_replay_never_raises_when_the_cursor_cannot_be_saved(tmp_path, monkeypatch):
+    """D16: a full disk makes _save_state raise; replay must still return, as documented."""
+    store = _Poison()
+    spool = TickSpool(tmp_path / "spool")
+    spool.append([(T0, "BTC-USD", 1.0, 0.0)])
+    rec = TickRecorder(store, spool=spool)
+
+    def full(*_a, **_k):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(spool, "_save_state", full)
+    assert rec.replay() == 0
+
+
+def test_a_spool_file_name_is_never_reused(tmp_path, monkeypatch):
+    """D16: if the cursor save fails after a finished file is deleted, the on-disk cursor still
+    names that file at its old offset. A new file must not take the same name, or a restart
+    would treat its first bytes as acknowledged and lose them."""
+    s = TickSpool(tmp_path / "spool")
+    s.append([(T0, "BTC-USD", float(i), 0.0) for i in range(5)])
+    first = sorted(p.name for p in (tmp_path / "spool").glob("ticks_*"))[0]
+    seg = s.head(100)
+    real = s._save_state
+
+    def full():  # the save in _finish_file, after the unlink
+        raise OSError(28, "No space left on device")
+
+    s.stage(seg)
+    monkeypatch.setattr(s, "_save_state", full)
+    with pytest.raises(OSError):
+        s.ack(seg)
+    monkeypatch.setattr(s, "_save_state", real)
+    s.append([(T0, "ETH-USD", float(i), 0.0) for i in range(7)])
+    names = sorted(p.name for p in (tmp_path / "spool").glob("ticks_*"))
+    assert names and first not in names
+    s.close()
+    assert TickSpool(tmp_path / "spool").count == 7

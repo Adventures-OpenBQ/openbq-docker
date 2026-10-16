@@ -23,7 +23,16 @@ Layout, all under one directory on live-grid's persistent volume
 - `spool.state` -- the replay cursor `{"file", "offset", "inflight"}`:
   everything in `file` before byte `offset` is acknowledged by kdb;
   `inflight`, when set, is the end of the segment last sent and not yet
-  confirmed. Replaced atomically (temp file, fsync, rename, fsync dir).
+  confirmed. Replaced atomically (temp file, fsync, rename, fsync dir). It also
+  keeps `seq`, `[UTC date, n]` for the last file opened, so a deleted file's
+  name is never reused that day (D16: a cursor left naming a deleted file
+  would otherwise skip the first bytes of its namesake), and `fails`, how many
+  sends of the head segment have raised (D5).
+- `quarantine/` -- segments that failed MAX_FAILURES sends in a row (a q error
+  that recurs on every resend, such as a `'type` after a schema change). They
+  are moved here, acknowledged, and counted in `/health` (`ticks.quarantined`),
+  so one poison batch cannot block every newer tick until the cap drops them.
+  Same line format, kept for an operator to inspect or re-send.
 
 Durability. Appends are written through to the OS on every call, so a hard
 kill of live-grid (SIGKILL, OOM) loses nothing that was appended. fsync runs
@@ -44,8 +53,9 @@ Bounded. `max_bytes` (LIVE_GRID_SPOOL_MAX_MB, default 256) caps the files'
 total size. Past it, new ticks are dropped and counted, never written, and a
 warning is logged; an I/O error is the same. Nothing fills the disk silently.
 
-Single-threaded by design: only `TickRecorder.flush` (one worker thread at a
-time) calls in here; `stats()`-style reads of the counters are plain ints.
+Single-threaded by design: only `TickRecorder.flush` and, at shutdown,
+`TickRecorder.stash` call in here, one at a time under the recorder's lock
+(D15); `stats()`-style reads of the counters are plain ints.
 """
 
 from __future__ import annotations
@@ -65,6 +75,11 @@ PREFIX = "ticks_"
 SUFFIX = ".jsonl"
 DEFAULT_MAX_MB = 256
 DEFAULT_FSYNC_S = 1.0
+QUARANTINE = "quarantine"
+# Sends of one segment that may raise before it is quarantined (D5). At the 0.2 s flush that is
+# about a second of retries for an error that never clears; a q that is merely down raises
+# KdbUnavailable instead, which never counts.
+MAX_FAILURES = 5
 
 
 @dataclass
@@ -118,6 +133,9 @@ class TickSpool:
         self._refusing = False  # log the first refusal of a run, not every one
         self._batch_seq = 0
         self._state = {"file": None, "offset": 0, "inflight": None}
+        self._seq = None  # [day, n] of the last file opened; n only rises within a day (D16)
+        self.fails = 0  # raised sends of the head segment (D5)
+        self.quarantined = 0  # ticks moved to quarantine/
         self._load()
 
     # -- startup ---------------------------------------------------------------
@@ -136,12 +154,18 @@ class TickSpool:
             saved = json.loads(state_path.read_text())
             if isinstance(saved, dict):
                 self._state.update({k: saved.get(k) for k in ("file", "offset", "inflight")})
+                self._seq = saved.get("seq")
+                self.fails = int(saved.get("fails") or 0)
         except FileNotFoundError:
             pass
         except (OSError, ValueError) as exc:
             log.warning("tick spool: unreadable cursor %s (%s); replaying from the start", state_path, exc)
         if not files or self._state.get("file") != files[0]:
             self._state = {"file": files[0] if files else None, "offset": 0, "inflight": None}
+            self.fails = 0
+        quarantine = self.dir / QUARANTINE
+        if quarantine.is_dir():
+            self.quarantined = sum(_count_lines(p, 0) for p in quarantine.iterdir() if p.is_file())
         self._state["offset"] = int(self._state.get("offset") or 0)
         for name in files:
             path = self.dir / name
@@ -158,6 +182,7 @@ class TickSpool:
         files = self._files()
         if files and self._state["file"] != files[0]:
             self._state = {"file": files[0], "offset": 0, "inflight": None}
+            self.fails = 0
         if self.count:
             log.warning("tick spool: %d ticks left by a previous run in %s; replaying them first",
                         self.count, self.dir)
@@ -212,7 +237,11 @@ class TickSpool:
         self.dir.mkdir(parents=True, exist_ok=True)
         seqs = [int(n[len(PREFIX) + 11:-len(SUFFIX)]) for n in self._files()
                 if n.startswith(f"{PREFIX}{day}_") and n[len(PREFIX) + 11:-len(SUFFIX)].isdigit()]
-        name = f"{PREFIX}{day}_{(max(seqs) + 1) if seqs else 0:06d}{SUFFIX}"
+        # Past every name on disk AND every name used today (D16). Persisted before the file exists.
+        used = self._seq[1] if isinstance(self._seq, list) and self._seq[0] == day else -1
+        self._seq = [day, max([used] + seqs) + 1]
+        self._save_state()
+        name = f"{PREFIX}{day}_{self._seq[1]:06d}{SUFFIX}"
         self._fh = open(self.dir / name, "ab")
         self._fh_name = name
         self._fh_size = 0
@@ -400,7 +429,25 @@ class TickSpool:
         self.count -= len(seg.rows)
         self._advance(seg.file, seg.end)
 
+    def fail(self) -> bool:
+        """A send of the head segment raised. True once it has failed MAX_FAILURES times."""
+        self.fails += 1
+        self._save_state()
+        return self.fails >= MAX_FAILURES
+
+    def quarantine(self, seg: Segment) -> None:
+        """Move `seg` to quarantine/ (fsynced) and acknowledge it, so replay moves on."""
+        qdir = self.dir / QUARANTINE
+        qdir.mkdir(parents=True, exist_ok=True)
+        with open(qdir / seg.file, "ab") as fh:
+            fh.write(b"".join(encode(r) for r in seg.rows))
+            fh.flush()
+            os.fsync(fh.fileno())
+        self.quarantined += len(seg.rows)
+        self.ack(seg)
+
     def _advance(self, name: str, end: int) -> None:
+        self.fails = 0
         self._state = {"file": name, "offset": end, "inflight": None}
         path = self.dir / name
         size = path.stat().st_size if path.exists() else end
@@ -429,7 +476,7 @@ class TickSpool:
         self.dir.mkdir(parents=True, exist_ok=True)
         tmp = self.dir / (STATE_NAME + ".tmp")
         with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(self._state, fh)
+            json.dump(dict(self._state, seq=self._seq, fails=self.fails), fh)
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp, self.dir / STATE_NAME)

@@ -21,9 +21,12 @@ donor's tests pin) a failed batch is dropped and counted, as before.
 """
 
 import logging
+import threading
 import time
 from collections import deque
 from datetime import datetime, timedelta
+
+from app.spool import MAX_FAILURES
 
 log = logging.getLogger(__name__)
 
@@ -60,6 +63,9 @@ class TickRecorder:
         self.replayed = 0  # of those, ticks that came from the spool
         self.deduped = 0  # in-doubt ticks kdb already held, so not sent again
         self._unavailable = _unavailable_type()
+        # D15: flush runs on a worker thread that cancelling the drain loop does not stop, so
+        # stash (shutdown) waits for it here instead of spooling the newer buffer first.
+        self._lock = threading.Lock()
 
     @property
     def buffered(self) -> int:
@@ -108,6 +114,10 @@ class TickRecorder:
 
     def flush(self) -> int:
         """Write the buffer as one batch (after any spooled backlog). Returns rows written."""
+        with self._lock:
+            return self._flush()
+
+    def _flush(self) -> int:
         batch = self._take()
         if self.spool is None:
             return self._flush_without_spool(batch)
@@ -165,6 +175,13 @@ class TickRecorder:
         spool = self.spool
         if spool is None or not spool.pending or self._backing_off():
             return 0
+        try:
+            return self._replay(spool)
+        except OSError as exc:  # D16: the cursor cannot be saved (disk full); retry next flush
+            log.warning("tick spool: replay stopped, cannot save the cursor: %s", exc)
+            return 0
+
+    def _replay(self, spool) -> int:
         deadline = self._clock() + REPLAY_BUDGET_S
         total = 0
         while spool.pending:
@@ -197,7 +214,15 @@ class TickRecorder:
                 log.info("tick spool: kdb unavailable, %d ticks wait: %s", spool.count, exc)
                 return total
             except Exception as exc:  # noqa: BLE001 - stays staged: in doubt next time
-                log.warning("tick spool: replay write failed after sending: %s", exc)
+                if spool.fail():
+                    # D5: the same error on every resend; set it aside rather than block.
+                    spool.quarantine(seg)
+                    log.warning("tick spool: quarantined %d ticks after %d failed sends: %s",
+                                len(seg.rows), MAX_FAILURES, exc)
+                    continue
+                # Warn once per segment; the retries every 0.2 s would flood the log.
+                (log.warning if spool.fails == 1 else log.debug)(
+                    "tick spool: replay write failed after sending: %s", exc)
                 return total
             spool.ack(seg)
             self.written += written
@@ -227,6 +252,7 @@ class TickRecorder:
             "spooled": self.spooled,
             "replayed": self.replayed,
             "deduped": self.deduped,
+            "quarantined": self.spool.quarantined if self.spool is not None else 0,
         }
 
     def stash(self) -> int:
@@ -235,7 +261,8 @@ class TickRecorder:
         if self.spool is None:
             return 0
         try:
-            kept = self.spool.append(self._take())
+            with self._lock:
+                kept = self.spool.append(self._take())
             self.spool.close()
             return kept
         except Exception:  # noqa: BLE001 - shutdown must finish
