@@ -77,13 +77,14 @@ def apply_openbb_http_settings(client) -> None:
         pass
 
 
-_API_TOKEN = re.compile(r"api_token=[^&\s'\"]*")
+_API_TOKEN = re.compile(r"(api_token(?:=|%3[dD]))[^&%\s'\"]*")
 
 
 def _redact(text: str) -> str:
     """Mask the key in upstream text: requests' connection and timeout errors
-    quote the full request URL, and the SDK puts the key in its query string."""
-    return _API_TOKEN.sub("api_token=***", text)
+    quote the full request URL, and the SDK puts the key in its query string,
+    which may arrive URL-encoded (api_token%3D<key>%26...)."""
+    return _API_TOKEN.sub(r"\1***", text)
 
 
 def raise_sdk_error(exc: Exception, context: str) -> NoReturn:

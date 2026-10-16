@@ -168,3 +168,13 @@ def test_mapped_errors_do_not_chain_the_keyed_original():
     assert FAKE_KEY not in str(info.value)
     assert "api_token=***" in str(info.value)
     assert info.value.__cause__ is None and info.value.__suppress_context__
+
+
+@pytest.mark.parametrize("sep", ["%3D", "%3d"])
+def test_url_encoded_key_is_redacted(sep):
+    from openbq_eodhd.models._client import raise_sdk_error
+
+    with pytest.raises(Exception) as info:
+        raise_sdk_error(RuntimeError(f"/api/eod/AAPL.US%3Fapi_token{sep}{FAKE_KEY}%26fmt%3Djson"), "bars")
+    assert FAKE_KEY not in str(info.value)
+    assert f"api_token{sep}***%26fmt" in str(info.value)
