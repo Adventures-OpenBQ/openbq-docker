@@ -604,6 +604,31 @@ class SsrmRowsTest(unittest.IsolatedAsyncioTestCase):
         body.update(over)
         return body
 
+    async def test_new_views_are_built_at_most_ssrm_slots_at_a_time(self):
+        import threading
+        app = self.app()
+        running, peak, lock = [0], [0], threading.Lock()
+        view_order = openbq_lanes._view_order
+
+        def counted(df, body):
+            with lock:
+                running[0] += 1
+                peak[0] = max(peak[0], running[0])
+            time.sleep(0.2)
+            with lock:
+                running[0] -= 1
+            return view_order(df, body)
+
+        async with self.client(app) as c:
+            await c.post("/api/v1/listed/data/ssrm", json=self.req())  # acquire the frame once
+            with mock.patch.object(openbq_lanes, "_view_order", counted):
+                replies = await asyncio.gather(*[
+                    c.post("/api/v1/listed/data/ssrm", json=self.req(
+                        filterModel={"value": {"filterType": "number", "type": "greaterThanOrEqual", "filter": n}}))
+                    for n in range(6)])
+        self.assertEqual({r.status_code for r in replies}, {200})
+        self.assertEqual(peak[0], openbq_lanes.SSRM_SLOTS)
+
     async def test_first_page_sorted_and_counted(self):
         app = self.app()
         async with self.client(app) as c:

@@ -177,6 +177,7 @@ class SsrmCache:
                  slots=SSRM_SLOTS, deadline=SSRM_DEADLINE):
         self.max_bytes, self.ttl, self.clock, self.deadline = max_bytes, ttl, clock, deadline
         self.slots = asyncio.Semaphore(slots)
+        self.view_slots = asyncio.Semaphore(slots)  # new views copy the frame: keep them off the 3 GiB budget's back
         self.entries = OrderedDict()  # key -> [df, nbytes (frame + its views), expiry, views]
         self.inflight = {}            # key -> asyncio.Task
         self.total = 0
@@ -487,7 +488,8 @@ async def _ssrm(request):
         order = SSRM_CACHE.view(key, df, view)
         if order is None:
             hit = False
-            order = await asyncio.to_thread(_view_order, df, body)
+            async with SSRM_CACHE.view_slots:
+                order = await asyncio.to_thread(_view_order, df, body)
             SSRM_CACHE.add_view(key, df, view, order)
         rows, total = await asyncio.to_thread(_page, df, order, body), len(order)
     except SsrmBadRequest:
