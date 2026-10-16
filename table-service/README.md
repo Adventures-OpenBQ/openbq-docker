@@ -41,8 +41,7 @@ Add to private gateway settings:
 {
   "tableService": true,
   "tableDesktopPrincipal": "desktop:owner",
-  "tableTimeoutMs": 65000,
-  "ssrmRoutes": []
+  "tableTimeoutMs": 65000
 }
 ```
 
@@ -72,6 +71,8 @@ and buffered to completion, so truncation, overflow and timeout never publish a
 partial success. Status-only sanitized failures retain 400/401/404/409/410/413/429/503;
 other upstream failures become 502. Credentials and upstream error bodies never relay.
 No mutation is retried automatically. Configured deadlines are 1000–65000 ms.
+SSRM POSTs (`ssrmRoutes`) have their own `ssrmTimeoutMs`, default 170000 and at most
+300000 (od's `OPENBQ_SSRM_DEADLINE`), because a first page acquires the whole result.
 
 Cancellation and cleanup remain reachable during ordinary HTTP saturation. Each
 of the web relay, gateway and service reserves **two concurrent control requests**
@@ -88,7 +89,9 @@ Success, error, disconnect and deadlines release the associated lane's capacity.
 
 Standard provider SSRM POSTs are exact entries in `ssrmRoutes`, e.g.
 `/api/api/v1/reviewed_provider/rows`; review each actual provider endpoint before
-registering it. The web `SSRM_ROUTES_JSON` must contain the same paths. Query rules
+registering it. Unset, it defaults to the 23 routes od serves
+(`funnel-gateway/ssrm-routes.json`, `lanes/ssrm_widgets.json` as door paths); set it
+only to narrow that list, and `[]` turns SSRM through the door off. The web `SSRM_ROUTES_JSON` must contain the same paths. Query rules
 remain the existing bounded API policy; these POSTs use the existing injected Basic
 credential and daily vendor/concurrency budget. No broad POST prefix or generic proxy
 is introduced. Existing GET API and state routes retain their policies.

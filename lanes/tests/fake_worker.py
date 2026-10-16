@@ -20,6 +20,11 @@ async def echo(request: Request):
             "accept-encoding": request.headers.get("accept-encoding")}
 
 
+@app.get("/api/v1/cftc/rows")
+async def rows():
+    return {"results": [{"pid": os.getpid()}]}
+
+
 @app.get("/api/v1/cftc/spin")
 def spin(seconds: float):
     end = time.monotonic() + seconds
