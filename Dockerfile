@@ -33,9 +33,10 @@ COPY v3/econdb/verify.py /tmp/ext-verify/econdb/verify.py
 COPY v3/econdb/tests /tmp/ext-verify/econdb/tests
 RUN python /tmp/ext-verify/videos.py && python /tmp/ext-verify/econdb/verify.py && rm -rf /tmp/ext-verify
 # v9: EODHD provider extension, served as obb.eodhd.* (/api/v1/eodhd/*) with its "EODHD" app, installed
-# as in Dockerfile.v3: the SDK's dependencies resolve under the ODP lock as constraints.
+# as in Dockerfile.v3: the SDK's dependencies not in the ODP lock are pinned in v9/eodhd/requirements.extra.lock.
 COPY --from=extensions-build /wheels/eodhd-*.whl /wheels/openbq_eodhd-9.0.0-py3-none-any.whl /tmp/eodhd/
-RUN python -m pip install --constraint /tmp/requirements.lock /tmp/eodhd/eodhd-*.whl \
+COPY v9/eodhd/requirements.extra.lock /tmp/eodhd/extra.lock
+RUN python -m pip install --no-deps -r /tmp/eodhd/extra.lock /tmp/eodhd/eodhd-*.whl \
     && python -m pip install --no-deps /tmp/eodhd/openbq_eodhd-9.0.0-py3-none-any.whl \
     && python -m pip check && openbb-build && rm -rf /tmp/eodhd
 COPY v9/eodhd/verify.py /tmp/eodhd-verify/verify.py

@@ -51,10 +51,11 @@ COPY v4/routes/verify.py /tmp/verify-routes.py
 RUN python -m pip install --no-deps /tmp/openbq_routes-4.0.0-py3-none-any.whl && python -m pip check && openbb-build \
     && python /tmp/verify-routes.py && rm /tmp/verify-routes.py /tmp/openbq_routes-4.0.0-py3-none-any.whl
 # v9: EODHD provider extension, served as obb.eodhd.* (/api/v1/eodhd/*) with its "EODHD" app.
-# The SDK's own dependencies resolve under the ODP lock as constraints, so no locked
-# package moves; record what they add in v9/eodhd/README.md (Mac build pending).
+# The SDK's dependencies not in the ODP lock are pinned in v9/eodhd/requirements.extra.lock
+# (recorded from the 9.0.0 gate build), so everything installs --no-deps as v3/yfinance does.
 COPY --from=yfinance-build /wheels/eodhd-*.whl /wheels/openbq_eodhd-9.0.0-py3-none-any.whl /tmp/eodhd/
-RUN python -m pip install --constraint /tmp/requirements.lock /tmp/eodhd/eodhd-*.whl \
+COPY v9/eodhd/requirements.extra.lock /tmp/eodhd/extra.lock
+RUN python -m pip install --no-deps -r /tmp/eodhd/extra.lock /tmp/eodhd/eodhd-*.whl \
     && python -m pip install --no-deps /tmp/eodhd/openbq_eodhd-9.0.0-py3-none-any.whl \
     && python -m pip check && openbb-build && rm -rf /tmp/eodhd
 COPY v9/eodhd/verify.py /tmp/eodhd-verify/verify.py
