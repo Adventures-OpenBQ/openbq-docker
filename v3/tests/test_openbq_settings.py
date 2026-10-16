@@ -7,6 +7,7 @@ pytest with starlette and httpx; openbb_core is stubbed, so any such Python work
 """
 import base64
 import importlib
+import hashlib
 import json
 import sys
 import types
@@ -390,3 +391,37 @@ def test_private_state_never_passes_through_disabled_or_basic(api):
     response = client.options("/_openbq/settings/v1/state/42", headers=AUTH)
     assert response.status_code == 404
     assert "access-control-allow-origin" not in response.headers
+
+
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig", "utf-16", "utf-32"])
+def test_key_settings_encoding_restores_with_legacy_serializer(api, encoding):
+    client, module = api
+    text = '{"extension":{"unknown":["café 雪",null,true,17,1e2,-0.0]},"theme":"dark"}'
+    expected = json.loads(text)
+
+    class Documents:
+        def write(self, key, raw):
+            assert key == "settings"
+            self.raw = raw
+
+        def read(self, key):
+            assert key == "settings"
+            return self.raw
+
+    documents = Documents()
+    token = module.DOCUMENTS.set(documents)
+    try:
+        response = client.post("/pro/display-settings", content=text.encode(encoding), headers=AUTH)
+        assert response.status_code == 200
+        assert response.json()["pro_display_settings"] == expected
+        assert client.get("/pro/user", headers=AUTH).json()["pro_display_settings"] == expected
+        assert documents.raw == json.dumps(expected).encode("utf-8")
+    finally:
+        module.DOCUMENTS.reset(token)
+    # Reverse export writes the stored bytes. Exercise the actual legacy reader.
+    stem = hashlib.sha256(b"alice:PLACEHOLDER").hexdigest()
+    (module.STORE / (stem + ".json")).write_bytes(documents.raw)
+    restored = client.get("/pro/user", headers=AUTH).json()["pro_display_settings"]
+    assert restored == expected
+    assert type(restored["extension"]["unknown"][3]) is int
+    assert type(restored["extension"]["unknown"][4]) is float

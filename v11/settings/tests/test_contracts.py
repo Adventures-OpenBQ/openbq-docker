@@ -64,5 +64,15 @@ class Contracts(unittest.TestCase):
             mapping_file.write_text('{"'+STEM+'":"'+PRINCIPAL+'","'+STEM+'":"bbbbbbbb-1111-4111-8111-111111111111"}')
             with self.assertRaises(Exception):mapping(mapping_file)
 
+    def test_key_inventory_refuses_encodings_unreadable_by_legacy(self):
+        for encoding in ('utf-8-sig', 'utf-16', 'utf-32'):
+            with self.subTest(encoding=encoding), tempfile.TemporaryDirectory() as root:
+                source=Path(root); (source/'keys').mkdir()
+                path=source/'keys'/(STEM+'.json')
+                raw='{"extension":{"label":"café 雪","number":1e2}}'.encode(encoding)
+                path.write_bytes(raw)
+                with self.assertRaises((ValueError, UnicodeError)):inventory(source,{STEM:PRINCIPAL})
+                self.assertEqual(path.read_bytes(),raw)
+
 
 if __name__=='__main__': unittest.main()

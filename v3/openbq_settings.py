@@ -137,7 +137,7 @@ async def _settings(request):
             settings = None
         if not isinstance(settings, dict):
             return JSONResponse({"detail": "The body must be a JSON object."}, status_code=400)
-        _save(path, settings, raw=body)
+        _save(path, settings)
         return JSONResponse({"pro_display_settings": settings})
     return JSONResponse({"detail": "Method not allowed."}, status_code=405)
 
@@ -165,10 +165,10 @@ def _load(path):
     return json.loads(path.read_text()) if path.exists() else {}
 
 
-def _save(path, data, raw=None):
+def _save(path, data):
     """Write atomically: a temp file, then rename over the old one."""
     if DOCUMENTS.get() is not None:
-        DOCUMENTS.get().write(_document_key(path), raw if raw is not None else json.dumps(data).encode())
+        DOCUMENTS.get().write(_document_key(path), json.dumps(data).encode("utf-8"))
         return
     STORE.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")

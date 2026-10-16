@@ -58,6 +58,14 @@ def main():
             except Exception: pass
             time.sleep(1)
         raise AssertionError('API startup failed')
+    def wait_gateway(base, headers):
+        deadline=time.monotonic()+30
+        while time.monotonic()<deadline:
+            try:
+                if request(base,'/state/00042',headers=headers,timeout=2)[0]==200:return
+            except Exception:pass
+            time.sleep(0.2)
+        raise AssertionError('gateway did not become ready')
     token='fixture_gateway_token_task51_1234567890'
     password="fixture-Sentinel@:/%?#'\\-secret"
     principal='aaaaaaaa-1111-4111-8111-111111111111'
@@ -171,7 +179,7 @@ def main():
                    '-v',str(H/'funnel-gateway')+':/gateway:ro','-v',str(H/'v11/settings/fixtures')+':/runner:ro',
                    '-v',str(directory)+':/fixture:ro','node:22','node','/runner/gateway.mjs')
             gateways.append('http://127.0.0.1:'+str(port(gw,8080)))
-        time.sleep(1)
+        for gateway in gateways:wait_gateway(gateway,gateway_headers)
         private='/_openbq/settings/v1/state/'
         for api in apis:
             assert request(api,'/pro/user',headers=bearer)[0]==401
@@ -380,8 +388,8 @@ def main():
         legacy_gateway=run('legacy-gateway','--network',prefix,'-v',str(H/'funnel-gateway')+':/gateway:ro',
           '-v',str(H/'v11/settings/fixtures')+':/runner:ro','-v',str(legacy_config)+':/fixture:ro',
           '-v',str(directory/'export')+':/legacy','-p','127.0.0.1::8080','node:22','node','/runner/gateway.mjs')
-        time.sleep(1)
         legacy_gateway_base='http://127.0.0.1:'+str(port(legacy_gateway,8080))
+        wait_gateway(legacy_gateway_base,gateway_headers)
         for identity in ('00042','77','78','88','99'):
             left=request(legacy_gateway_base,'/state/'+identity,headers=gateway_headers);right=request(gateways[0],'/state/'+identity,headers=gateway_headers)
             assert left[0]==right[0]==200 and json.loads(left[1])==json.loads(right[1])
@@ -408,13 +416,7 @@ def main():
             gw=run('gateway-'+suffix,'--network',prefix,'--add-host','openbq-v11:'+ip,'-p','127.0.0.1::8080',
               '-v',str(H/'funnel-gateway')+':/gateway:ro','-v',str(H/'v11/settings/fixtures')+':/runner:ro','-v',str(directory)+':/fixture:ro','node:22','node','/runner/gateway.mjs')
             gateways[i]='http://127.0.0.1:'+str(port(gw,8080))
-            deadline=time.monotonic()+30
-            while time.monotonic()<deadline:
-                try:
-                    if request(gateways[i],'/state/00042',headers=gateway_headers,timeout=2)[0]==200:break
-                except Exception:pass
-                time.sleep(0.2)
-            else:raise AssertionError('restored gateway did not become ready')
+            wait_gateway(gateways[i],gateway_headers)
             assert len(json.loads(request(gateways[i],'/state/77',headers=gateway_headers)[1])['files'])==8
             assert json.loads(request(apis[i],'/pro/user',headers=basic)[1])['pro_display_settings']['last']==1
         record('custom pg_dump fresh database pg_restore exact rows/checkpoints; both installed pairs reconnected')

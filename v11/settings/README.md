@@ -69,8 +69,8 @@ including leading zeroes, in the distinct `github` namespace. Only the existing
 machine Bearer can use `/_openbq/settings/v1/state/<id>[/<allowlisted-name>]`.
 That route is excluded from ordinary proxy policy. Key-mode request, root-folder,
 per-item dashboard/app, hidden docks, revision and last-write-wins behavior stays
-compatible. Raw settings/browser bytes are retained as BYTEA; dashboard/app
-mutations use the established JSON serializer and preserve unknown content keys.
+compatible. Key settings/dashboard/app writes use the established JSON serializer
+and preserve unknown content keys. Browser bytes are retained unchanged as BYTEA.
 
 Each mutation creates/locks the principal row before checking totals or reading
 and changing documents. This also serializes first writes to different files
@@ -105,6 +105,8 @@ mapping to one UUID are refused: select the authoritative generation explicitly.
 Unmapped, malformed, unknown, symlinked, noncanonical encoded or overquota sources
 are refused. `--exclude-temp` explicitly excludes only recognized abandoned
 legacy temporary names; their source hashes remain in the protected manifest.
+Key files must be readable by the legacy UTF-8 text loader: BOM, UTF-16 and UTF-32
+key source files are refused. Browser byte validation is unchanged.
 
 ```sh
 python -m openbq_settings_pg.migrate_json inventory --source /copy/source --mapping /private/map.json --quiesced-copy
@@ -126,6 +128,12 @@ Never overwrite the original source or treat an old pre-write snapshot as a
 rollback including later writes. Restore key files as OPENBQ_SETTINGS_DIR and
 browser numeric directories as gateway stateDir. Every later write requires a new
 quiesced export. No arbitrary historical schema conversion is provided.
+An earlier unreleased PG store may contain non-UTF-8 or BOM key settings. Export
+refuses these before publishing a generation; it never converts bytes or rewrites
+checkpoints automatically. Explicitly GET the logical settings with the affected
+principal's Basic credential, then POST that object through the fixed API before
+creating and verifying a new export. Existing checkpoints are not retroactively
+made valid. This policy does not authorize modifying live user state.
 
 Separately, run `pg_dump -Fc` with a protected operator connection, provision a
 fresh isolated settings-only database/roles, then `pg_restore --exit-on-error`

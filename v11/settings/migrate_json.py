@@ -38,7 +38,9 @@ def mapping(path):
 
 
 def records_shape(key, raw):
-    value = json.loads(raw)
+    # Match the legacy reader's UTF-8 text contract, including BOM refusal.
+    # Inventory and export verification must never bless unreadable key bytes.
+    value = json.loads(raw.decode("utf-8"))
     if not isinstance(value, dict):
         raise Refused()
     if key == "settings":
