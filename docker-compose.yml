@@ -186,8 +186,9 @@ services:
   # v10/kdb/source/q/persist.q (both mounted read-only; no copying by hand). persist.q is the classic
   # tickerplant log: every upd is appended to /data/logs/tlog_<UTC date> on the named volume
   # `kdb-data`, which survives `docker compose down`/`up` and container recreation; on boot,
-  # with `trades` empty, the logs are replayed with -11!, so a restarted q comes back with the
-  # day. Logs roll at the UTC date change and are deleted after 7 days. `docker compose down
+  # with `trades` empty, the logs of today and the 2 days before are replayed with -11! (a torn
+  # tail is first cut back to its last whole chunk), so a restarted q comes back with live-grid's
+  # 48 h window. Logs roll at the UTC date change and are deleted after 7 days. `docker compose down
   # -v` deletes the volume and with it the logs.
   # q executes arbitrary q code and authenticates nothing: it has no host port and no Serve or
   # Funnel entry, and it is on live-private only (internal: no egress), which live-grid and the
