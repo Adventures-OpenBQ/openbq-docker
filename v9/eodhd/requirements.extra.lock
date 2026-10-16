@@ -1,0 +1,8 @@
+# Adds only missing SDK packages; existing ODP pins are unchanged.
+contourpy==1.4.0
+cycler==0.12.1
+fonttools==4.67.0
+kiwisolver==1.5.1
+matplotlib==3.11.2
+pyparsing==3.3.3
+websocket-client==1.9.2

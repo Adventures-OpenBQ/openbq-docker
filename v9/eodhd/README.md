@@ -49,8 +49,6 @@ EODHD's public `demo` token; it uses the standard routes, so it needs them.
 ## SDK
 
 The official EODHD library is built from the commit `source/pyproject.toml`
-pins (GitHub archive `f98e69d`). Its dependencies resolve with the ODP lock as
-constraints, so no locked version moves; the packages it adds are not yet
-recorded in a lock file. Record them (`pip freeze` against
-`requirements.lock`) at the first image build and switch the install to
-`--no-deps` with that lock, as `v3/yfinance` does.
+pins (GitHub archive `f98e69d`). The packages it adds to the ODP lock are
+pinned in `requirements.extra.lock` (recorded from the 9.0.0 gate build's
+`pip freeze`), and the images install it `--no-deps`, as `v3/yfinance` does.

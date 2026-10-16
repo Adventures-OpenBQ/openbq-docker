@@ -62,7 +62,7 @@ class ApiImages(unittest.TestCase):
                 self.assertIn("COPY v9/eodhd/source /eodhd", text)
                 self.assertIn("--wheel-dir /wheels /eodhd", text)
                 self.assertIn("EODHD-APIs-Python-Financial-Library/archive/f98e69d797140ca03f16fa7451046d84aab9643e.tar.gz", text)
-                self.assertIn("python -m pip install --constraint /tmp/requirements.lock /tmp/eodhd/eodhd-*.whl", text)
+                self.assertIn("python -m pip install --no-deps -r /tmp/eodhd/extra.lock /tmp/eodhd/eodhd-*.whl", text)
                 self.assertIn("python -m pip install --no-deps /tmp/eodhd/openbq_eodhd-9.0.0-py3-none-any.whl", text)
                 self.assertIn("RUN python /tmp/eodhd-verify/verify.py", text)
 
