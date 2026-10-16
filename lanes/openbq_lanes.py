@@ -30,11 +30,13 @@ import base64
 import glob
 import json
 import logging
+import math
 import os
 import secrets
 import subprocess
 import sys
 import time
+from collections import OrderedDict
 
 import httpx
 from starlette.middleware.cors import CORSMiddleware
@@ -68,6 +70,446 @@ LOGO_FILE = os.environ.get("OPENBQ_BDOBB_LOGO", "/workspace/bdobb-logo.svg")
 # (under /api/v1/ so the v8 Funnel door's route rule admits it like any widget call).
 FIXTURES = os.environ.get("OPENBQ_FIXTURES", "/workspace/openbq-fixtures")
 FIXTURE_PREFIX = "/api/v1/openbq/fixtures/"
+# The OpenBQ API's largest table widgets (default response > ~10 MB) served as
+# server-paged SSRM tables (approach B): the API itself answers the standard
+# OpenBB SSRM contract so BDOBB's "LIVE · paged" provider pages them, and the
+# full GET never crosses the caches, the door or the client. The id->route list
+# is committed data (lanes/ssrm_widgets.json); a listed id absent from
+# /widgets.json is skipped.
+SSRM_FILE = os.environ.get("OPENBQ_SSRM_WIDGETS", "/workspace/ssrm_widgets.json")
+SSRM_SUFFIX = "/ssrm"
+SSRM_CAPS = {"sorting": True, "filtering": ["text", "number"]}
+
+
+def _load_ssrm_widgets(path=SSRM_FILE) -> dict:
+    """{route: widget_id} from the committed list; {} if it is missing or malformed."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            entries = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    routes = {}
+    if isinstance(entries, list):
+        for e in entries:
+            if isinstance(e, dict) and isinstance(e.get("id"), str) and isinstance(e.get("route"), str):
+                routes[e["route"]] = e["id"]
+    return routes
+
+
+SSRM_ROUTES = _load_ssrm_widgets()
+
+
+def _rewrite_widgets(body: bytes) -> bytes:
+    """Point each listed widget at <route>/ssrm as an ssrm_table; keep every other field.
+
+    A listed id absent from the catalogue is skipped. Only the three SSRM fields
+    are touched, so params, columnsDefs, name and category resolve exactly as before.
+    """
+    try:
+        widgets = json.loads(body)
+    except ValueError:
+        return body
+    if not isinstance(widgets, dict):
+        return body
+    changed = False
+    for route, wid in SSRM_ROUTES.items():
+        entry = widgets.get(wid)
+        if isinstance(entry, dict):
+            entry["type"] = "ssrm_table"
+            entry["endpoint"] = route + SSRM_SUFFIX
+            entry["ssrm"] = dict(SSRM_CAPS)
+            changed = True
+    if not changed:
+        return body
+    # As the API's JSONResponse renders it, so every unlisted widget stays byte-identical.
+    return json.dumps(widgets, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+
+
+# -- the SSRM rows endpoint ---------------------------------------------------
+# POST <route>/ssrm answers the OpenBB SSRM contract for a listed route. The
+# full GET runs once per (route, params) through the app itself, so a lane
+# route keeps its lane, deadline and size cap and Basic auth still applies;
+# the result is kept as a DataFrame and paged, filtered and sorted from there.
+# It sits behind the public door, so every request is checked in full before
+# anything is acquired, and no parser or exception text is ever reflected.
+SSRM_PAGE_MAX = 1000
+SSRM_BODY_MAX = 64 << 10  # an SSRM request is a few hundred bytes
+SSRM_CACHE_BYTES = int(os.environ.get("OPENBQ_SSRM_CACHE_BYTES", 3 << 30))  # 3 GiB
+SSRM_TTL = float(os.environ.get("OPENBQ_SSRM_TTL", 900))                     # 15 minutes
+SSRM_DEADLINE = float(os.environ.get("OPENBQ_SSRM_DEADLINE", 300))           # per cold acquisition
+SSRM_SLOTS = 2  # cold acquisitions at once: each holds a full result (~1-2 GB for 150 MB of JSON)
+SSRM_SORT_MAX = 3     # sortModel entries (BDOBB sends 1; shift-click a few): each is a full sort on the GIL
+SSRM_FILTER_MAX = 16  # filterModel entries: each is a full pass over the frame
+SSRM_VIEWS = 8      # filtered+sorted row orders kept per frame
+_SSRM_TIMEOUT = json.dumps({"detail": "The widget's result did not arrive in time."}).encode()
+_SSRM_KEYS = frozenset({"startRow", "endRow", "sortModel", "filterModel", "rowGroupCols",
+                        "groupKeys", "valueCols", "pivotCols", "pivotMode"})
+_SSRM_GROUP_KEYS = ("rowGroupCols", "groupKeys", "valueCols", "pivotCols")
+_SSRM_NUMBER = {"equals": {"filterType", "type", "filter"},
+                "inRange": {"filterType", "type", "filter", "filterTo"},
+                "greaterThanOrEqual": {"filterType", "type", "filter"},
+                "lessThanOrEqual": {"filterType", "type", "filter"}}
+_SSRM_REFUSED = ("This widget's table pages, sorts and filters (text contains; number equals, "
+                 "range, at least, at most) only; the request was refused.")
+
+
+class SsrmBadRequest(Exception):
+    """A request this endpoint refuses: grouping/values/pivot, a bad filter, or a bad slice."""
+
+
+class SsrmUpstream(Exception):
+    """A non-2xx from the acquisition GET; its status and body (the API's own answer) are kept."""
+
+    def __init__(self, status, body, media_type):
+        super().__init__(status)
+        self.status, self.body, self.media_type = status, body, media_type
+
+
+class SsrmCache:
+    """(route, params) -> DataFrame, LRU by deep bytes with a TTL and single-flight.
+
+    The acquisition runs as its own task that every caller awaits shielded, so a
+    caller that gives up never cancels it for the others sharing it. The newest
+    frame is always kept, so the total can pass max_bytes by at most that one
+    frame (dropping it would re-run the full GET for every page).
+
+    At most `slots` acquisitions run at once (waiters sharing one take none),
+    each within `deadline` seconds; past it every waiter gets the same 504,
+    nothing is cached and the slot is freed.
+    """
+
+    def __init__(self, max_bytes=SSRM_CACHE_BYTES, ttl=SSRM_TTL, clock=time.monotonic,
+                 slots=SSRM_SLOTS, deadline=SSRM_DEADLINE):
+        self.max_bytes, self.ttl, self.clock, self.deadline = max_bytes, ttl, clock, deadline
+        self.slots = asyncio.Semaphore(slots)
+        self.view_slots = asyncio.Semaphore(slots)  # new views copy the frame: keep them off the 3 GiB budget's back
+        self.entries = OrderedDict()  # key -> [df, nbytes (frame + its views), expiry, views]
+        self.inflight = {}            # key -> asyncio.Task
+        self.total = 0
+
+    def fresh(self, key) -> bool:
+        """A get() now would be served from the cache, with no acquisition."""
+        entry = self.entries.get(key)
+        return entry is not None and entry[2] > self.clock()
+
+    def view(self, key, df, view):
+        """The kept row order of `view` on this frame, or None."""
+        entry = self.entries.get(key)
+        if entry is None or entry[0] is not df or view not in entry[3]:
+            return None
+        entry[3].move_to_end(view)
+        return entry[3][view]
+
+    def add_view(self, key, df, view, order):
+        """Keep `order` with its frame (at most SSRM_VIEWS, LRU), counted in the byte budget."""
+        entry = self.entries.get(key)
+        if entry is None or entry[0] is not df:  # the frame is gone: nothing to keep it with
+            return
+        views = entry[3]
+        old = views.pop(view, None)
+        delta = order.nbytes - (old.nbytes if old is not None else 0)
+        views[view] = order
+        while len(views) > SSRM_VIEWS:
+            delta -= views.popitem(last=False)[1].nbytes
+        entry[1] += delta
+        self.total += delta
+        self._evict()
+
+    def _evict(self):
+        while self.total > self.max_bytes and len(self.entries) > 1:
+            self.total -= self.entries.popitem(last=False)[1][1]
+
+    async def get(self, key, acquire):
+        if self.fresh(key):
+            self.entries.move_to_end(key)
+            return self.entries[key][0]
+        task = self.inflight.get(key)
+        if task is None:
+            task = self.inflight[key] = asyncio.ensure_future(self._fill(key, acquire))
+            task.add_done_callback(lambda t: t.cancelled() or t.exception())  # retrieved even if every caller left
+        return await asyncio.shield(task)
+
+    async def _acquired(self, acquire):
+        async with self.slots:
+            df = await acquire()
+            return df, await asyncio.to_thread(lambda: int(df.memory_usage(deep=True).sum()))
+
+    async def _fill(self, key, acquire):
+        try:
+            try:  # one deadline from the start: the wait for a slot, the fetch and the build
+                df, nbytes = await asyncio.wait_for(self._acquired(acquire), self.deadline)
+            except TimeoutError:
+                raise SsrmUpstream(504, _SSRM_TIMEOUT, "application/json") from None
+            old = self.entries.pop(key, None)
+            if old is not None:
+                self.total -= old[1]
+            self.entries[key] = [df, nbytes, self.clock() + self.ttl, OrderedDict()]
+            self.total += nbytes
+            self._evict()
+            return df
+        finally:
+            self.inflight.pop(key, None)
+
+
+SSRM_CACHE = SsrmCache()
+
+
+def _rows_from(payload):
+    """A list of row dicts from an OpenBB response, whatever its envelope."""
+    data = payload.get("results") if isinstance(payload, dict) else payload
+    if isinstance(data, dict):
+        data = list(data.values())
+    if not isinstance(data, list):
+        return []
+    rows = [row for row in data if isinstance(row, dict)]
+    return rows if len(rows) == len(data) else []  # mixed/non-dict rows: not a table
+
+
+async def _acquire(app, route, params, authorization, columns=None):
+    """GET the full result ONCE through the app itself, so a lane route keeps its lane.
+
+    With the widget's declared columns, the frame holds exactly those: BDOBB's paged
+    provider requires each row's keys to equal columnsDefs, and OpenBB omits None
+    fields, so a field absent from every record is added as nulls and undeclared
+    fields are dropped (they are never shown)."""
+    headers = {"accept-encoding": "identity"}
+    if authorization:
+        headers["authorization"] = authorization
+    # raise_app_exceptions=False: an inner route's crash arrives as its ordinary 500
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://openbq", timeout=None) as client:
+        response = await client.get(route, params=params, headers=headers)
+    if not response.is_success:
+        raise SsrmUpstream(response.status_code, response.content,
+                           response.headers.get("content-type", "application/json"))
+
+    def frame():  # off the server loop: a 150 MB parse and frame build take seconds
+        import pandas as pd  # here, so the worker role never imports it for the hook
+        try:
+            payload = json.loads(response.content)
+        except ValueError:
+            return None
+        rows = _rows_from(payload)
+        df = pd.DataFrame(rows)
+        # An int column with a null is built as float64, which loses ids past 2^53:
+        # rebuild it from the parsed ints as nullable Int64.
+        for col in df.columns:
+            if df[col].dtype == "float64" and df[col].hasnans:
+                values = [row.get(col) for row in rows]
+                if all(v is None or type(v) is int for v in values):
+                    try:
+                        df[col] = pd.array(values, dtype="Int64")
+                    except (OverflowError, TypeError, ValueError):  # past int64: keep the floats
+                        pass
+        df = df.reindex(columns=columns) if columns else df
+        # The OBBject's warnings (e.g. a provider's record cap) ride every page of this frame.
+        warnings = payload.get("warnings") if isinstance(payload, dict) else None
+        df.attrs["warnings"] = warnings if isinstance(warnings, list) else []
+        return df
+
+    # ponytail: a thread cannot be cancelled, so a build past the deadline keeps
+    # running and holding its memory after its slot is freed (ceiling: one extra
+    # frame per timed-out build); a process-level build worker could be killed.
+    df = await asyncio.to_thread(frame)
+    if df is None:
+        raise SsrmUpstream(502, json.dumps({"detail": "The widget's result is not JSON."}).encode(),
+                           "application/json")
+    return df
+
+
+def _no_constant(_):
+    raise ValueError("NaN/Infinity")
+
+
+def _number(value) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise SsrmBadRequest()
+    try:
+        number = float(value)
+    except OverflowError:
+        raise SsrmBadRequest() from None
+    if not math.isfinite(number):
+        raise SsrmBadRequest()
+    return number
+
+
+def _ssrm_body(raw: bytes) -> dict:
+    """The SSRM request, checked in full (keys, types, bounds) before anything is acquired."""
+    try:
+        body = json.loads(raw, parse_constant=_no_constant)
+    except (ValueError, RecursionError):
+        raise SsrmBadRequest() from None
+    if not isinstance(body, dict) or set(body) != _SSRM_KEYS:
+        raise SsrmBadRequest()
+    start, end = body["startRow"], body["endRow"]
+    if (type(start) is not int or type(end) is not int
+            or start < 0 or end < start or end - start > SSRM_PAGE_MAX):
+        raise SsrmBadRequest()
+    if body["pivotMode"] is not False or any(body[k] != [] for k in _SSRM_GROUP_KEYS):
+        raise SsrmBadRequest()
+    sorts, filters = body["sortModel"], body["filterModel"]
+    if not isinstance(sorts, list) or not isinstance(filters, dict):
+        raise SsrmBadRequest()
+    for item in sorts:
+        if (not isinstance(item, dict) or set(item) != {"colId", "sort"}
+                or not isinstance(item["colId"], str) or item["sort"] not in ("asc", "desc")):
+            raise SsrmBadRequest()
+    if (len(sorts) > SSRM_SORT_MAX or len(filters) > SSRM_FILTER_MAX
+            or len({item["colId"] for item in sorts}) != len(sorts)):
+        raise SsrmBadRequest()
+    for spec in filters.values():
+        if not isinstance(spec, dict):
+            raise SsrmBadRequest()
+        kind, op = spec.get("filterType"), spec.get("type")
+        if kind == "text" and op == "contains" and set(spec) == {"filterType", "type", "filter"}:
+            if not isinstance(spec["filter"], str):
+                raise SsrmBadRequest()
+        elif kind == "number" and op in _SSRM_NUMBER and set(spec) == _SSRM_NUMBER[op]:
+            _number(spec["filter"])
+            if op == "inRange":
+                _number(spec["filterTo"])
+        else:
+            raise SsrmBadRequest()
+    return body
+
+
+def _view_order(df, body):
+    """filterModel then sortModel on a checked body: the row positions in order. Unknown columns -> 400."""
+    import numpy as np
+    import pandas as pd
+    if df.empty:  # nothing to page: any column is as good as any other
+        return np.arange(0)
+    out = df
+    for col, spec in body["filterModel"].items():
+        if col not in out.columns:
+            raise SsrmBadRequest()
+        if spec["filterType"] == "text":
+            out = out[out[col].astype("string").str.contains(spec["filter"], case=False, na=False, regex=False)]
+            continue
+        series = pd.to_numeric(out[col], errors="coerce")
+        lo = _number(spec["filter"])
+        if spec["type"] == "equals" and pd.api.types.is_integer_dtype(out[col]) and lo.is_integer():
+            want = int(spec["filter"])  # the parsed value, exact: a float cast loses ids past 2^53
+            out = out[out[col] == want] if -2**63 <= want < 2**63 else out.iloc[0:0]
+        elif spec["type"] == "equals":
+            out = out[series == lo]
+        elif spec["type"] == "greaterThanOrEqual":
+            out = out[series >= lo]
+        elif spec["type"] == "lessThanOrEqual":
+            out = out[series <= lo]
+        else:
+            out = out[(series >= lo) & (series <= _number(spec["filterTo"]))]
+    if any(item["colId"] not in out.columns for item in body["sortModel"]):
+        raise SsrmBadRequest()
+    # One stable pass per column, the last key first, so each column gets its
+    # own null placement (AG Grid's: first ascending, last descending) and only
+    # a mixed-type column (numbers and "n/a") falls back to text order.
+    # ponytail: a NEW view still re-filters and re-sorts the whole frame (seconds
+    # of GIL-bound CPU on FINRA/FFIEC sizes); the cache keeps the last SSRM_VIEWS
+    # orders per frame so its further pages are a slice. A sorted-index per
+    # column would make new views cheap too, if typing a filter proves slow.
+    for item in reversed(body["sortModel"]):
+        col, asc = item["colId"], item["sort"] == "asc"
+        how = {"ascending": asc, "kind": "mergesort", "na_position": "first" if asc else "last"}
+        try:
+            out = out.sort_values(col, **how)
+        except TypeError:
+            out = out.sort_values(col, key=lambda s: s.astype("string"), **how)
+    return df.index.get_indexer(out.index)
+
+
+def _ssrm_json_safe(page) -> list:
+    """Records of Python values (floats exact; NaN and +/-inf -> None), unlike to_json's 10-digit default."""
+    cells = page.astype(object)
+    return cells.where(cells.notna() & ~cells.isin([math.inf, -math.inf]), None).to_dict("records")
+
+
+def _json_default(value):
+    """A value json cannot write natively (a timestamp, should one appear): its ISO text."""
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
+_SSRM_DECLARED = {}  # widget id -> its declared param names, from the fixed /widgets.json
+_SSRM_COLUMNS = {}  # widget id -> its declared columnsDefs fields (None: undeclared), same source
+
+
+async def _declared_params(request, wid):
+    """The widget's declared param names, or None when the catalogue does not say."""
+    if wid not in _SSRM_DECLARED:
+        cache = LANE.catalogs if LANE is not None else _CATALOG_CACHE
+        if await _widget_ids(cache, request) is None:
+            return None
+        entry = json.loads(cache["/widgets.json"][0]).get(wid)
+        defs = (((entry.get("data") or {}).get("table") or {}).get("columnsDefs") if isinstance(entry, dict) else None) or []
+        fields = [d["field"] for d in defs if isinstance(d, dict) and isinstance(d.get("field"), str)]
+        _SSRM_COLUMNS[wid] = list(dict.fromkeys(fields)) or None
+        params = entry.get("params") if isinstance(entry, dict) else None
+        if not isinstance(params, list):  # kept as None: the catalogue is fixed, so never re-parse it
+            _SSRM_DECLARED[wid] = None
+            return None
+        rows = [p for row in params for p in (row if isinstance(row, list) else [row])]  # grouped rows too
+        _SSRM_DECLARED[wid] = frozenset(
+            p["paramName"] for p in rows if isinstance(p, dict) and isinstance(p.get("paramName"), str))
+    return _SSRM_DECLARED[wid]
+
+
+def _page(df, order, body):
+    return _ssrm_json_safe(df.iloc[order[body["startRow"]:body["endRow"]]])
+
+
+async def _ssrm(request):
+    """POST <route>/ssrm for a listed route; 404 otherwise."""
+    route = request.url.path[: -len(SSRM_SUFFIX)]
+    if route not in SSRM_ROUTES:
+        return _cors(request, JSONResponse({"detail": "Not Found"}, 404))
+    # The API's Basic auth is a route dependency, which this hook runs before:
+    # check it here, or a cached frame would be served to anyone.
+    if not _authorized(request):
+        return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+    refused = _cors(request, JSONResponse({"detail": _SSRM_REFUSED}, 400))
+    raw = b""
+    async for chunk in request.stream():
+        raw += chunk
+        if len(raw) > SSRM_BODY_MAX:
+            return refused
+    try:
+        body = _ssrm_body(raw)
+    except SsrmBadRequest:
+        return refused
+    params = request.query_params.multi_items()
+    # Only the widget's own params reach the GET and the key: junk params would
+    # otherwise each force a fresh full GET of the same data.
+    declared = await _declared_params(request, SSRM_ROUTES[route])
+    if declared is not None:
+        params = [(k, v) for k, v in params if k in declared]
+    key = (route, tuple(sorted(params)))
+    authorization = request.headers.get("authorization")
+    # hit: the frame AND this view's row order came from the cache, so no provider
+    # call and no new sort. get() answers a fresh key without awaiting, so this holds.
+    hit = SSRM_CACHE.fresh(key)
+    view = json.dumps([body["filterModel"], body["sortModel"]], sort_keys=True)
+    try:
+        df = await SSRM_CACHE.get(key, lambda: _acquire(request.app, route, params, authorization, _SSRM_COLUMNS.get(SSRM_ROUTES[route])))
+        order = SSRM_CACHE.view(key, df, view)
+        if order is None:
+            hit = False
+            async with SSRM_CACHE.view_slots:
+                order = await asyncio.to_thread(_view_order, df, body)
+            SSRM_CACHE.add_view(key, df, view, order)
+        rows, total = await asyncio.to_thread(_page, df, order, body), len(order)
+    except SsrmBadRequest:
+        return refused
+    except SsrmUpstream as exc:
+        return _cors(request, Response(exc.body, exc.status, media_type=exc.media_type))
+    page = {"rowData": rows, "rowCount": total}
+    if df.attrs.get("warnings"):
+        page["warnings"] = df.attrs["warnings"]
+    reply = json.dumps(page, allow_nan=False, default=_json_default)
+    # On a hit the door refunds its daily quote.
+    return _cors(request, Response(reply, 200, media_type="application/json",
+                                   headers={"x-openbq-ssrm": "hit" if hit else "miss"}))
+
+
 # The response's own framing; the API sets its own.
 _HOP = {b"content-length", b"transfer-encoding", b"connection", b"keep-alive"}
 # Per-caller CORS answers: never cached, _cors() recomputes them per request.
@@ -129,8 +571,10 @@ async def _widget_ids(cache, request):
     """The ids /widgets.json serves, from the catalog cache (built through the app if need be)."""
     if "/widgets.json" not in cache:
         transport = httpx.ASGITransport(app=request.app)
+        # The caller's Authorization (already checked), or the API's own auth refuses the build.
+        auth = request.headers.get("authorization")
         async with httpx.AsyncClient(transport=transport, base_url="http://openbq") as client:
-            await client.get("/widgets.json")  # through this hook, which caches it
+            await client.get("/widgets.json", headers={"authorization": auth} if auth else None)
     if "/widgets.json" not in cache:
         return None
     try:
@@ -201,6 +645,8 @@ def _is_catalog(request) -> bool:
 
 async def _catalog(cache, request, call_next):
     """Serve /widgets.json and /apps.json from their first successful build."""
+    if not _authorized(request):  # the cache must not outlive the API's own Basic auth
+        return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
     path = request.url.path
     if path not in cache:
         response = await call_next(request)
@@ -208,8 +654,8 @@ async def _catalog(cache, request, call_next):
             return response
         body = b"".join([chunk async for chunk in response.body_iterator])
         if path == "/widgets.json":
-            body = _with_fixture_widgets(body)
-        if path == "/apps.json":
+            body = _rewrite_widgets(_with_fixture_widgets(body))
+        elif path == "/apps.json":
             body = _with_extra_apps(body)
             apps = _json_list(body)
             if apps is not None and any(_cards(app) - BUILTIN_CARDS for app in apps):
@@ -509,6 +955,8 @@ async def middleware(request, call_next):
         if not _authorized(request):
             return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
         return _cors(request, JSONResponse(provider_descriptor(_provider_credentials())))
+    if request.method == "POST" and request.url.path.endswith(SSRM_SUFFIX):
+        return await _ssrm(request)  # before the lane, which would forward it to a worker with no such route
     if LANE is not None:
         return await LANE.handle(request, call_next)
     if _is_catalog(request):  # with the lane off, the catalogs keep their cache and BDOBB examples
