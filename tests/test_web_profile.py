@@ -66,6 +66,14 @@ def test_the_episode_3_configs_keep_the_reference_on_tailnet_8443():
         assert web['${TS_CERT_DOMAIN}:8443']['Handlers']['/']['Proxy'] == 'http://openbq-reference:17783', name
 
 
+def test_the_episode_6_configs_are_the_episode_3_config_plus_rita_and_mcp_tailnet_only():
+    # The v6 overlay swaps TS_SERVE_CONFIG to serve-v6*.json, so they keep serve-v3.json's ports (rss-ticker on 8088).
+    v3 = _serve('serve-v3.json')['Web']
+    for name in ('serve-v6.json', 'serve-v6-keys.json'):
+        serve = _serve(name)
+        assert {k: v for k, v in serve['Web'].items() if not k.endswith((':10443', ':11443'))} == v3, name
+        assert not any(serve['AllowFunnel'].values()), name
+
 def test_the_feed_pool_is_rss_feedhandler_8_0_1_pinned_by_digest():
     image = SERVICES['rss-ticker']['image']
     assert image.startswith('ghcr.io/artcashin/rss-feedhandler:8.0.1@sha256:'), image

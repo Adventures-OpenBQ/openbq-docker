@@ -1,0 +1,37 @@
+# Optional Episode 6 services: OpenBQ Rita (the agent) and the OpenBB MCP server.
+# Use together with docker-compose.yml and docker-compose.v3.yml. Rita's model
+# endpoint lives in the private rita.env (copy rita.env.example). Rita runs in the
+# tailscale service's network namespace; MCP is on openbq-internal. Neither service
+# publishes a host port; the Tailscale sidecar serves Rita on 10443 and MCP on
+# 11443 (ts-config/serve-v6.json). Image recipe: Adventures-OpenBQ/agent-rita.
+services:
+  tailscale:
+    environment:
+      TS_SERVE_CONFIG: /config/serve-v6.json
+  openbq-rita:
+    image: ghcr.io/adventures-openbq/openbq-rita:6.0.0@sha256:6e4224846448ce26b908b76edbc180ffc77ad8509564e2317126825113c4e520
+    restart: unless-stopped
+    # Rita shares the Tailscale sidecar's network namespace (like a Rita on a tailnet
+    # machine's host networking) so it can resolve and reach a tailnet model endpoint through
+    # MagicDNS. Serve reaches it on 127.0.0.1:7777. Recreating tailscale requires
+    # recreating openbq-rita too.
+    network_mode: "service:tailscale"
+    depends_on: [tailscale]
+    env_file: [./rita.env]
+    volumes:
+      - ./rita-resolv.conf:/etc/resolv.conf:ro
+  openbq-mcp:
+    image: ghcr.io/adventures-openbq/openbq-mcp:6.0.0@sha256:d76fbbac7392e58c71572195f1208c1ba03d4b959260c49e07a817c69851c8d2
+    restart: unless-stopped
+    command: [openbb-mcp, --host, 0.0.0.0, --port, "6901", --default-categories, equity, --tool-discovery]
+    environment:
+      OPENBB_MCP_DEFAULT_SKILLS_DIR: ""
+    volumes:
+      - openbq-mcp-data:/root/.openbb_platform
+    networks: [openbq-internal]
+networks:
+  openbq-internal:
+    driver_opts:
+      com.docker.network.driver.mtu: "1500"
+volumes:
+  openbq-mcp-data:

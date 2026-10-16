@@ -90,6 +90,16 @@ class ApiImages(unittest.TestCase):
             with self.subTest(name):
                 self.assertIn(f"image: {name}:{release}\n", overlay)
 
+    def test_the_v6_overlay_pins_the_release_by_digest(self):
+        # Rita and MCP are published images: the release tag plus the digest it was verified at.
+        # Later lines ship the Episode 6 builds unchanged (GHCR has 6.0.0 only), so the tag stays
+        # 6.0.0 while key-maint follows the line's version.
+        release = "6.0.0"
+        overlay = dockerfile("docker-compose.v6.yml")
+        for name in ("openbq-rita", "openbq-mcp"):
+            with self.subTest(name):
+                self.assertRegex(overlay, rf"image: ghcr.io/adventures-openbq/{name}:{re.escape(release)}@sha256:[0-9a-f]{{64}}\n")
+
 
 if __name__ == "__main__":
     unittest.main()

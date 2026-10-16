@@ -194,3 +194,39 @@ Released as `v3.0.0` with BDOBB v3.0.0: `ghcr.io/adventures-openbq/openbq-local:
 and `openbq-key-maint:3.0.0` are the images the 2026-10-15 regression ran on a NAS.
 
 The reference recipe carries forward the previously qualified PDF repair from `bdobb-dev/backends-for-openbb` commit `32615f789f9423ea14d3f95003da250f4ef5bcfc`. Sample and Bitcoin PDFs use immutable GitHub raw URLs because the original S3 bucket returns AllAccessDisabled. Downloaded bytes match the pinned upstream fixtures; this changes asset transport, not PDF content.
+
+## Episode 6: Rita and MCP
+
+The optional [v6 Compose overlay](docker-compose.v6.yml) adds OpenBQ Rita (the
+agent BDOBB talks to) and the OpenBB MCP server, both from private GHCR images
+pinned by digest. Their recipe is `Adventures-OpenBQ/agent-rita`. The shared
+private Tailscale sidecar serves Rita on 10443 and MCP on 11443, next to ODP on
+443 and the reference backend on 8443. No host ports or Funnel are enabled.
+
+```sh
+cp rita.env.example rita.env   # then chmod 600 and fill it in
+docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.v6.yml config --quiet
+docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.v6.yml pull openbq-rita openbq-mcp
+docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.v6.yml up -d
+```
+
+An existing, customised stack should edit its live `TS_SERVE_CONFIG` file in
+place, keeping its existing ports, instead of switching to `ts-config/serve-v6.json`:
+switching recreates tailscale (and Rita with it), and `serve-v6.json` drops extra
+ports such as 9443.
+`serve-v6.json` also has no Funnel door: with the [web preview door](#bdobb-web-preview-door-v4-opt-in),
+add the port 10000 entries from `ts-config/serve-v3-funnel.json` to the live file.
+
+Rita needs an OpenAI-compatible model endpoint, typically on the tailnet.
+Containers on a Docker bridge network do not get Tailscale MagicDNS, so Rita
+runs in the Tailscale sidecar's network namespace (`network_mode:
+"service:tailscale"`), mirroring the host networking of a Rita that runs
+directly on a tailnet machine. Its `/etc/resolv.conf` is the tracked
+[rita-resolv.conf](rita-resolv.conf), which points at Tailscale's MagicDNS
+resolver. Serve reaches Rita on `127.0.0.1:7777` inside that namespace. If the
+tailscale container is recreated, recreate `openbq-rita` too
+(`docker compose ... up -d --force-recreate openbq-rita`); otherwise it is left
+in the old, dead namespace. MCP advertises the 10 tool-discovery tools; categories load on demand.
+The images are the Episode 6 builds, pinned by digest (Rita with the agent-rita
+patches through 0012; see VERIFICATION.md).
+Released in `v6.0.0`, with BDOBB v6.0.0.
