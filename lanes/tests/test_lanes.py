@@ -1193,3 +1193,39 @@ class SsrmFinalFixRound2Test(unittest.IsolatedAsyncioTestCase):
         for col in ("id", "n"):  # Int64 (has a null) and int64
             r = await self.post(app, filterModel={col: {"filterType": "number", "type": "equals", "filter": 2**60}})
             self.assertEqual([row[col] for row in r.json()["rowData"]], [2**60], col)
+
+
+class SsrmWarningsTest(unittest.IsolatedAsyncioTestCase):
+    """An OBBject's warnings (e.g. FINRA's MBS record cap) reach every SSRM page, hit or miss."""
+
+    asyncSetUp, client, req = SsrmRowsTest.asyncSetUp, SsrmRowsTest.client, SsrmRowsTest.req
+
+    def app(self):
+        app = FastAPI()
+        self.gets = 0
+
+        @app.get("/api/v1/listed/data")
+        async def data(request: Request):
+            self.gets += 1
+            body = {"results": [{"name": "Alpha", "value": 1}]}
+            if request.query_params.get("capped") == "1":
+                body["warnings"] = [{"category": "OpenBBWarning", "message": "Results capped at 1 record."}]
+            return body
+
+        app.middleware("http")(openbq_lanes.middleware)
+        return app
+
+    async def test_warnings_ride_every_page(self):
+        app = self.app()
+        async with self.client(app) as c:
+            first = await c.post("/api/v1/listed/data/ssrm?capped=1", json=self.req())
+            again = await c.post("/api/v1/listed/data/ssrm?capped=1", json=self.req(startRow=0, endRow=50))
+        want = [{"category": "OpenBBWarning", "message": "Results capped at 1 record."}]
+        self.assertEqual((first.json()["warnings"], again.json()["warnings"]), (want, want))
+        self.assertEqual((again.headers["x-openbq-ssrm"], self.gets), ("hit", 1))
+
+    async def test_no_warnings_key_without_warnings(self):
+        app = self.app()
+        async with self.client(app) as c:
+            r = await c.post("/api/v1/listed/data/ssrm", json=self.req())
+        self.assertNotIn("warnings", r.json())

@@ -295,7 +295,11 @@ async def _acquire(app, route, params, authorization, columns=None):
                         df[col] = pd.array(values, dtype="Int64")
                     except (OverflowError, TypeError, ValueError):  # past int64: keep the floats
                         pass
-        return df.reindex(columns=columns) if columns else df
+        df = df.reindex(columns=columns) if columns else df
+        # The OBBject's warnings (e.g. a provider's record cap) ride every page of this frame.
+        warnings = payload.get("warnings") if isinstance(payload, dict) else None
+        df.attrs["warnings"] = warnings if isinstance(warnings, list) else []
+        return df
 
     # ponytail: a thread cannot be cancelled, so a build past the deadline keeps
     # running and holding its memory after its slot is freed (ceiling: one extra
@@ -490,7 +494,10 @@ async def _ssrm(request):
         return refused
     except SsrmUpstream as exc:
         return _cors(request, Response(exc.body, exc.status, media_type=exc.media_type))
-    reply = json.dumps({"rowData": rows, "rowCount": total}, allow_nan=False, default=_json_default)
+    page = {"rowData": rows, "rowCount": total}
+    if df.attrs.get("warnings"):
+        page["warnings"] = df.attrs["warnings"]
+    reply = json.dumps(page, allow_nan=False, default=_json_default)
     # On a hit the door refunds its daily quote.
     return _cors(request, Response(reply, 200, media_type="application/json",
                                    headers={"x-openbq-ssrm": "hit" if hit else "miss"}))
