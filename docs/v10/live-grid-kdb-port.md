@@ -669,9 +669,13 @@ is acknowledged without being sent and counted in `deduped`. Otherwise it is sen
 normal path (kdb unreachable, so `KdbUnavailable`) nothing is in doubt and no probe runs.
 That every tick lands exactly once is proved by the tests below. Two limits apply:
 
-- An in-doubt segment that was **not** applied, but whose every row coincidentally
-  already exists in `trades` (identical time, sym, price and size), would be skipped.
-  Only a segment of identical repeated prints could do that.
+- An in-doubt segment that was **not** applied, but whose every row already exists in
+  `trades` at least as many times as the segment holds it (identical time, sym, price and
+  size), would be skipped. EODHD's crypto feed repeats byte-identical prints (below: 1,509
+  distinct of 2,588 in 30 s, groups up to 59), so the probe counts rows as a multiset
+  (D17, 2026-10-16; a plain find made one twin per row enough). What remains is a run of
+  repeats split across two batches, the earlier applied with at least as many copies as
+  the in-doubt one; only a batch id in `trades` would close it.
 - A segment whose ticks have since been pruned (older than the 1-day window) would be
   re-sent and then pruned again.
 
