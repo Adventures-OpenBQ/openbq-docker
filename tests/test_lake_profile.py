@@ -53,7 +53,8 @@ def test_rustfs_is_the_upstream_image_pinned_to_a_released_version_and_digest():
 def test_nothing_in_the_tier_is_published_or_served():
     for name in TIER:
         assert 'ports' not in SERVICES[name], name
-        assert SERVICES[name]['networks'] == ['openbq-internal'], name
+        # D1: the store and its jobs are on the internal live-private network only.
+        assert SERVICES[name]['networks'] == ['live-private'], name
         assert 'network_mode' not in SERVICES[name], name
     env = SERVICES['rustfs']['environment']
     assert env['RUSTFS_CONSOLE_ENABLE'] == 'false'

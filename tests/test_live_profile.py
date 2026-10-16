@@ -33,7 +33,9 @@ def test_the_gateway_does_not_depend_on_the_live_profile():
 def test_nothing_in_the_live_profile_is_published_or_served():
     for name in LIVE:
         assert 'ports' not in SERVICES[name], name
-        assert SERVICES[name]['networks'] == ['openbq-internal'], name
+    # D1: q is on live-private only; live-grid also keeps openbq-internal for the gateway and the API.
+    assert SERVICES['openbq-kdb']['networks'] == ['live-private']
+    assert SERVICES['live-grid']['networks'] == ['openbq-internal', 'live-private']
     for config in ('serve.json', 'serve-funnel.json', 'serve-v3.json', 'serve-v6.json', 'serve-v6-keys.json'):
         text = (ROOT / 'ts-config' / config).read_text()
         assert 'kdb' not in text and 'live-grid' not in text and '6903' not in text, config
@@ -138,3 +140,32 @@ def test_one_licence_directory_reaches_every_service_that_needs_it():
     users = sorted(k for k, v in SERVICES.items() if any('kx-license' in str(m) for m in v.get('volumes', [])))
     assert users == ['eod-dump', 'live-grid', 'openbq-kdb']  # REVIEW (2026-10-14): kdb renamed openbq-kdb; sorted
     assert all(mount in SERVICES[k]['volumes'] for k in users)
+
+
+def test_q_and_the_store_are_on_an_internal_network_only_live_grid_and_the_lake_jobs_join():
+    """D1 (2026-10-16): q's IPC runs any q code and RustFS holds the root pair, so neither
+    may share a bridge with the internet-facing gateway or with openbq-api. They sit on
+    live-private (internal: no egress, no other peer); live-grid joins it and keeps
+    openbq-internal, so funnel-gateway still reaches live-grid."""
+    assert COMPOSE['networks']['live-private'] == {'internal': True}
+    private = {'openbq-kdb', 'rustfs', 'rustfs-init', 'eod-dump'}
+    for name in private:
+        assert SERVICES[name]['networks'] == ['live-private'], name
+    members = {k for k, v in SERVICES.items() if 'live-private' in v.get('networks', [])}
+    assert members == private | {'live-grid'}
+    # The gateway and the API cannot reach q's port or RustFS: no network in common.
+    for outsider in ('funnel-gateway', 'openbq-api', 'tailscale', 'rss-ticker', 'table-service'):
+        nets = set(SERVICES[outsider]['networks'])
+        for name in private:
+            assert not nets & set(SERVICES[name]['networks']), (outsider, name)
+    # ...but it can reach live-grid.
+    assert set(SERVICES['funnel-gateway']['networks']) & set(SERVICES['live-grid']['networks'])
+    # The overlays attach nothing to live-private either.
+    for overlay in ('docker-compose.v3.yml', 'docker-compose.v6.yml'):
+        assert 'live-private' not in (ROOT / overlay).read_text(), overlay
+
+
+def test_the_default_stack_keeps_its_v9_networks():
+    """D1: the default services are untouched; openbq-internal is still a plain bridge."""
+    assert COMPOSE['networks']['openbq-internal'] == {'driver': 'bridge'}
+    assert SERVICES['tailscale']['networks'] == SERVICES['openbq-api']['networks'] == ['openbq-internal']

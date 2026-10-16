@@ -189,8 +189,9 @@ services:
   # with `trades` empty, the logs are replayed with -11!, so a restarted q comes back with the
   # day. Logs roll at the UTC date change and are deleted after 7 days. `docker compose down
   # -v` deletes the volume and with it the logs.
-  # q executes arbitrary q code and authenticates nothing: it is on the bridge only, with no
-  # host port and no Serve or Funnel entry, and nothing but live-grid should ever reach it.
+  # q executes arbitrary q code and authenticates nothing: it has no host port and no Serve or
+  # Funnel entry, and it is on live-private only (internal: no egress), which live-grid and the
+  # lake jobs join. funnel-gateway, openbq-api and the sidecar share no network with it.
   openbq-kdb:
     profiles: [live]
     image: ghcr.io/artcashin/kdb-x:amd64
@@ -212,7 +213,7 @@ services:
     command: ["/opt/openbq-kdb/startup.q"]
     # q closes the open log handle in .z.exit on SIGTERM; give it time before SIGKILL.
     stop_grace_period: 30s
-    networks: [openbq-internal]
+    networks: [live-private]
   # live-grid: the live_grid widget backend (EODHD websocket quotes, symbol metadata, bars,
   # the tick chart). No host port and no Serve entry: BDOBB's web preview reaches it through
   # the funnel-gateway's /grid family (the `web` profile, with "liveGrid": true in
@@ -282,7 +283,8 @@ services:
       - ${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro
       # The durable watchlist (/data/watchlist.json) and the tick spool (/data/spool).
       - live-grid-data:/data
-    networks: [openbq-internal]
+    # openbq-internal for openbq-api, the gateway and EODHD egress; live-private for q and RustFS.
+    networks: [openbq-internal, live-private]
   # The S3 tier (v10 by user ruling; donor Episode 11, bdobb-dev/openbb-docker v11.0.0):
   # the kdb day is flushed nightly into a Delta Lake store on S3, and live-grid's chart seam
   # reads flushed days back. Same opt-in `live` profile; the default stack is unchanged.
@@ -291,7 +293,7 @@ services:
   # live-grid carry on without the store. See docs/v10/live-grid-kdb-port.md.
   #
   # rustfs: the S3 store. RustFS (Apache-2.0), used as its upstream image, unmodified
-  # (user ruling 2026-10-12: RustFS is the S3 store). On the bridge only: no host port,
+  # (user ruling 2026-10-12: RustFS is the S3 store). On live-private only: no host port,
   # no Serve, no Funnel, no tailnet node, so no certificate and no cert-sync. Plain HTTP,
   # path-style. The console is off.
   # rustfs-perms: one-shot, before rustfs. The RustFS image runs as uid/gid 10001, and a
@@ -352,7 +354,7 @@ services:
       # moved to another disk as a plain directory. Default ./rustfs-data (git-ignored);
       # set RUSTFS_DATA_DIR in the shell or in .env to put it elsewhere.
       - ${RUSTFS_DATA_DIR:-./rustfs-data}:/data
-    networks: [openbq-internal]
+    networks: [live-private]
   # rustfs-init: one-shot. Delta Lake does not create its own bucket; this makes it over
   # the plain S3 API (scripts/s3_init.py, pyarrow), idempotently. No vendor S3 client.
   rustfs-init:
@@ -369,9 +371,9 @@ services:
       - path: ./rustfs.env
         required: false
     command: ["python", "/opt/s3_init.py"]
-    networks: [openbq-internal]
+    networks: [live-private]
   # eod-dump: the kdb day cycle's .u.end as a sidecar. At 00:05 UTC it reads the UTC day
-  # that just ended out of kdb over IPC on the bridge and writes one Delta table per
+  # that just ended out of kdb over IPC on live-private and writes one Delta table per
   # (symbol, day) to the `ticks_live` library -- the HDB. It does not purge kdb's RAM
   # (live-grid's rolling window does). On start it also flushes yesterday, so a host that
   # was down at 00:05 catches up. The donor's NAS-side flush over HTTP is not carried.
@@ -397,7 +399,7 @@ services:
       QLIC: /opt/kx-license
     volumes:
       - ${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro
-    networks: [openbq-internal]
+    networks: [live-private]
 networks:
   table-private:
     internal: true
@@ -405,6 +407,9 @@ networks:
     driver: bridge
   openbq-internal:
     driver: bridge
+  # The `live` profile's q and S3 store (D1): no egress and no peer but live-grid and the lake jobs.
+  live-private:
+    internal: true
   workspace-internal:
     driver: bridge
     driver_opts:
