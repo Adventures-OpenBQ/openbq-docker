@@ -160,6 +160,8 @@ def _is_catalog(request) -> bool:
 
 async def _catalog(cache, request, call_next):
     """Serve /widgets.json and /apps.json from their first successful build."""
+    if not _authorized(request):  # the cache must not outlive the API's own Basic auth
+        return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
     path = request.url.path
     if path not in cache:
         response = await call_next(request)

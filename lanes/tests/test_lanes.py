@@ -8,10 +8,12 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 os.environ["OPENBQ_ROLE"] = "worker"  # importing the module must not spawn the production lane
@@ -264,6 +266,25 @@ class NoLaneTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(browser.headers.get("access-control-allow-origin"), "*")
         self.assertEqual(len(builds), 1)
 
+    async def test_a_cached_catalog_still_follows_basic_auth(self):
+        openbq_lanes._CATALOG_CACHE.clear()
+        self.addCleanup(openbq_lanes._CATALOG_CACHE.clear)
+        app = FastAPI()
+
+        @app.get("/widgets.json")
+        async def widgets(request: Request):
+            if not request.headers.get("authorization"):  # the API's Basic auth dependency
+                return JSONResponse({"detail": "Unauthorized"}, 401)
+            return {"w": {"name": "x"}}
+
+        app.middleware("http")(openbq_lanes.middleware)
+        with mock.patch.dict(os.environ, OPENBB_API_AUTH="true", OPENBB_API_USERNAME="u", OPENBB_API_PASSWORD="p"):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api") as client:
+                self.assertEqual((await client.get("/widgets.json", auth=("u", "p"))).status_code, 200)
+                anon = await client.get("/widgets.json")
+                wrong = await client.get("/widgets.json", auth=("u", "x"))
+        self.assertEqual((anon.status_code, wrong.status_code), (401, 401))
+        self.assertEqual(anon.headers.get("www-authenticate"), "Basic")
 
     async def test_providers_json_lists_names_and_follows_basic_auth(self):
         app = FastAPI()
