@@ -57,7 +57,7 @@ def test_nothing_in_the_tier_is_published_or_served():
         assert 'network_mode' not in SERVICES[name], name
     env = SERVICES['rustfs']['environment']
     assert env['RUSTFS_CONSOLE_ENABLE'] == 'false'
-    for config in ('serve.json', 'serve-funnel.json', 'serve-v3.json'):
+    for config in ('serve.json', 'serve-funnel.json', 'serve-v3.json', 'serve-v6.json', 'serve-v6-keys.json'):
         text = (ROOT / 'ts-config' / config).read_text()
         assert 'rustfs' not in text and '9000' not in text and '9001' not in text, config
 

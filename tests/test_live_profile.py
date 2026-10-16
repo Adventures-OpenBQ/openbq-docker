@@ -34,7 +34,7 @@ def test_nothing_in_the_live_profile_is_published_or_served():
     for name in LIVE:
         assert 'ports' not in SERVICES[name], name
         assert SERVICES[name]['networks'] == ['openbq-internal'], name
-    for config in ('serve.json', 'serve-funnel.json', 'serve-v3.json'):
+    for config in ('serve.json', 'serve-funnel.json', 'serve-v3.json', 'serve-v6.json', 'serve-v6-keys.json'):
         text = (ROOT / 'ts-config' / config).read_text()
         assert 'kdb' not in text and 'live-grid' not in text and '6903' not in text, config
 
