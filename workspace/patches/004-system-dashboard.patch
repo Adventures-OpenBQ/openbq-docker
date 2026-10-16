@@ -126,7 +126,7 @@
      User,
  )
  from api.rate_limit import LIMIT_DEFAULT, exempt_user_agent, limiter
-@@ -192,6 +196,118 @@
+@@ -192,6 +196,124 @@
      return {"success": True}
  
  
@@ -210,10 +210,16 @@
 +    try:
 +        await db.commit()
 +    except IntegrityError:
-+        # A concurrent first write won the unique (owner, id) row: answer as if it had been read first.
++        # A concurrent first write won the unique (owner, id) row: re-read it under lock and decide
++        # as if it had been read first -- 409 only when it is newer, else this write updates it.
 +        await db.rollback()
-+        row = await _system_row(db, user, system_id)
-+        return _system_newer(row, user)
++        row = await _system_row(db, user, system_id, lock=True)
++        if row.revision > revision:
++            newer = _system_newer(row, user)  # before the rollback expires the row
++            await db.rollback()
++            return newer
++        row.revision, row.content = revision, body["content"]
++        await db.commit()
 +    await db.refresh(row)
 +    return JSONResponse({"success": True, "dashboard": _system_record(row, user)})
 +
