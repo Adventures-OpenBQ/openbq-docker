@@ -3,10 +3,12 @@
 
 """HTTP Basic auth for every live-grid surface.
 
-Uses the SAME credentials as openbb-api, from the same `api-auth.env` that
-compose already mounts into this service: OPENBB_API_AUTH, OPENBB_API_USERNAME,
-OPENBB_API_PASSWORD. One credential for the stack's HTTP surfaces means one
-thing to rotate.
+Uses the SAME credentials as openbq-api: OPENBB_API_AUTH, OPENBB_API_USERNAME,
+OPENBB_API_PASSWORD, which openbq-docker's compose loads into this service from
+`credentials.env` (this line has no `api-auth.env`). One credential for the
+stack's HTTP surfaces means one thing to rotate. It is OFF unless
+OPENBB_API_AUTH is true, and `credentials.env.example` leaves it empty, so
+create_app logs a warning when it is off (D6).
 
 Read with os.environ rather than openbb_core.env.Env: api_app.py uses Env
 because it runs inside the Platform, but live-grid does not depend on

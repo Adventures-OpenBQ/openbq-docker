@@ -149,3 +149,34 @@ def test_the_page_asks_its_framing_app_for_the_credential_and_trusts_only_it(gua
     assert "e.source !== window.parent" in page
     assert '"openbb-auth"' in page and '"openbb-params-update"' in page
     assert "if (window.parent === window) return resolve({});" in page
+
+
+@pytest.mark.parametrize("method,path", [
+    ("get", "/static/subscriptions.html"),
+    ("get", "/apps.json"),
+    ("get", "/health"),
+    ("get", "/ticks?symbol=AAPL"),
+    ("post", "/subscribe"),
+    ("delete", "/api/subscriptions/AAPL"),
+])
+def test_every_other_surface_401s_without_credentials(guarded, method, path):
+    """D26 (2026-10-16): the middleware covers these, and now a test pins it."""
+    assert getattr(guarded, method)(path).status_code == 401
+
+
+def test_an_open_live_grid_says_so_at_startup(monkeypatch, caplog):
+    """D6: the shipped examples leave OPENBB_API_AUTH empty, so live-grid runs open on the
+    bridge. It must not do that silently."""
+    monkeypatch.delenv("OPENBB_API_AUTH", raising=False)
+    with caplog.at_level("WARNING", logger="live-grid"):
+        make_client()
+    assert any("OPENBB_API_AUTH" in r.getMessage() and r.levelname == "WARNING" for r in caplog.records)
+
+
+def test_a_guarded_live_grid_does_not_warn(monkeypatch, caplog):
+    monkeypatch.setenv("OPENBB_API_AUTH", "true")
+    monkeypatch.setenv("OPENBB_API_USERNAME", "alice")
+    monkeypatch.setenv("OPENBB_API_PASSWORD", "s3cret")
+    with caplog.at_level("WARNING", logger="live-grid"):
+        make_client()
+    assert not any("OPENBB_API_AUTH" in r.getMessage() for r in caplog.records)

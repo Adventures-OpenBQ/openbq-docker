@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware import Middleware
 
-from app.auth import BasicAuthMiddleware
+from app.auth import BasicAuthMiddleware, auth_enabled
 from app.classify import FEEDS, classify
 from app.feeds import FeedManager
 from app.figure import build_figure
@@ -254,6 +254,12 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     # catches it. Appending makes auth INNERMOST, which still covers every
     # path: middleware wraps the whole app, not a router.
     app.user_middleware.append(Middleware(BasicAuthMiddleware))
+    if not auth_enabled():
+        # D6: the shipped examples leave it empty, and on openbq-docker every peer of
+        # openbq-internal can reach :6903. Not refused (that would break the default `live`
+        # stack), but never silent.
+        log.warning("OPENBB_API_AUTH is not true: every live-grid route and websocket, "
+                    "including /api/subscriptions, is open to anything that can reach it")
 
     def _seed_client():
         nonlocal seed_client

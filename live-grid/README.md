@@ -179,15 +179,16 @@ key with websocket access (free-tier keys 403 on connect; the REST-only
 
 ### Authentication
 
-Every live-grid surface — REST routes, the subscriptions page and both
-websockets — requires HTTP Basic auth. The credentials are
-`OPENBB_API_USERNAME` and `OPENBB_API_PASSWORD`, read from the same
-`api-auth.env` that openbb-api uses and that compose already mounts here, so
-there is one credential to rotate for the stack's HTTP surfaces. Auth is **on
-by default in this stack**: compose loads `api-auth.env` into live-grid the
-same way it does for openbb-api, and `api-auth.env.example` ships
-`OPENBB_API_AUTH=true`, so the guard is live from the moment `api-auth.env`
-is copied into place.
+With `OPENBB_API_AUTH=true`, every live-grid surface — REST routes, the
+subscriptions page and both websockets — requires HTTP Basic auth. The
+credentials are `OPENBB_API_USERNAME` and `OPENBB_API_PASSWORD`, the same pair
+openbq-api uses; on openbq-docker compose loads them into live-grid from
+`credentials.env` (this line has no `api-auth.env`), so there is one
+credential to rotate for the stack's HTTP surfaces. Auth is **off by
+default**: `credentials.env.example` leaves `OPENBB_API_AUTH` empty, and then
+anything on `openbq-internal` can reach `/api/subscriptions`, `/subscribe`
+and the websockets. live-grid logs a warning at startup when it runs open.
+Set all three in `credentials.env` to turn the guard on.
 
 The guard is off only when `OPENBB_API_AUTH` is unset, or set to anything
 other than `1`, `true`, `yes` or `on` (case-insensitive) — `false` counts as
