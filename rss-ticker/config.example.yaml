@@ -1,0 +1,19 @@
+# rss-ticker: a user-agnostic shared feed pool. Clients subscribe feeds over
+# the websocket; nothing here names a feed, a user or a key. Every endpoint
+# is open -- run this tailnet-only (or otherwise placed), never funneled.
+
+# Articles a feed no longer lists are kept this long after they were last seen.
+retention_days: 7
+
+# Every feed polls at this interval. Be judicious: publishers monitor, and an
+# over-eager poller gets throttled or disconnected. 90 suits a pool of wires;
+# 300 suits blogs and newsletters.
+default_poll_interval_s: 300
+
+max_concurrent_polls: 8
+
+# 0.0.0.0 inside a container whose port is not published; 127.0.0.1 when a
+# proxy on the same host (Tailscale Serve) is the only intended way in.
+# The tradeoff: 0.0.0.0 is reachable by anything that can route to this
+# container's network -- and this server has no authentication.
+bind_host: 0.0.0.0

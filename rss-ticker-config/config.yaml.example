@@ -1,7 +1,7 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 
-# rss-ticker (ghcr.io/artcashin/rss-feedhandler:8.0.1) for the `web` profile, from
+# rss-ticker (ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0, built from ./rss-ticker) for the `web` profile, from
 # openbb-docker v8.0.3. A user-agnostic shared feed pool: BDOBB's News widget subscribes
 # feed URLs over the websocket, and nothing here names a feed, a user or a key. The
 # server refuses to start on any other key.
