@@ -325,6 +325,31 @@ class TestEconomicCalendar:
         assert "offset" not in third_kwargs
         assert len(rows) == 1050
 
+    def test_offset_paged_day_then_earlier_days_has_no_duplicates(self):
+        """A fake /economic-events honouring date_from/date_to/offset (O4):
+        the offset page that closes the busy day also carries earlier days,
+        which the walk re-fetches next, so only the busy day's rows count."""
+        events = [{"date": f"2026-03-10 {i % 24:02d}:00:00", "type": f"e{i}"} for i in range(1500)]
+        events += [
+            {"date": f"2026-03-0{d} 12:00:00", "type": f"d{d}-{i}"}
+            for d in (7, 8, 9) for i in range(100)
+        ]
+
+        class FakeApi:
+            def get_economic_events_data(self, date_from, date_to, country, comparison, limit, offset=0):  # noqa: ARG002
+                sel = [r for r in events if date_from <= r["date"][:10] <= date_to]
+                sel.sort(key=lambda r: r["date"], reverse=True)
+                return sel[offset:offset + limit]
+
+        query = EODHDEconomicCalendarQueryParams(start_date="2026-03-01", end_date="2026-03-10")
+        with patch(
+            "openbq_eodhd.models.calendar._fetch",
+            lambda credentials, call, context: call(FakeApi()),
+        ):
+            rows = EODHDEconomicCalendarFetcher._fetch_windowed(query, CREDS)
+        assert len(rows) == len(events)
+        assert len({r["type"] for r in rows}) == len(events)
+
     def test_limit_truncates_after_the_full_walk(self):
         days = [f"2026-09-{n:02d}" for n in range(10, 0, -1)]
         page1 = _econ_page([(d, 100) for d in days])

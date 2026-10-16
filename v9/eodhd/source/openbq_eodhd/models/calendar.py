@@ -452,11 +452,13 @@ class EODHDEconomicCalendarFetcher(
                 break
 
             if len(page) < EODHDEconomicCalendarFetcher._PAGE_LIMIT:
-                collected.extend(page)
                 if paging_day is None:
+                    collected.extend(page)
                     break  # short page: the window is fully covered
-                # the single day just finished; the range may still hold
-                # earlier days, so keep walking from the day before it
+                # the single day just finished; the page's tail holds earlier
+                # days, which the next window re-fetches from offset 0, so
+                # take only the paged day's rows here
+                collected.extend(r for r in page if _row_date(r) == paging_day)
                 cur_to = _prev_day(paging_day)
                 offset = 0
                 paging_day = None
