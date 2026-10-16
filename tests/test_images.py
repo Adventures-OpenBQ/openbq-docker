@@ -54,6 +54,14 @@ class ApiImages(unittest.TestCase):
                 self.assertIn("COPY examples/episode3/assets/bdobb-logo.svg /workspace/bdobb-logo.svg", text)
                 self.assertTrue(re.search(r"(?m)^WORKDIR /workspace$", text))
 
+    def test_the_v3_overlay_builds_under_the_release_version(self):
+        # A local build of the overlay must not overwrite an earlier release's images.
+        release = re.search(r"image: openbq-funnel-gateway:(\S+)", dockerfile("docker-compose.yml")).group(1)
+        overlay = dockerfile("docker-compose.v3.yml")
+        for name in ("openbq-local", "openbq-episode3-demo"):
+            with self.subTest(name):
+                self.assertIn(f"image: {name}:{release}\n", overlay)
+
 
 if __name__ == "__main__":
     unittest.main()
