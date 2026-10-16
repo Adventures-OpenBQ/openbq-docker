@@ -711,6 +711,43 @@ test("the mint endpoint is locked, desktop-only, and signs only a /grid socket",
     { ...HEADERS, Origin: DESKTOP[0] })).status, 404);
 });
 
+test("no ticket is minted while live-grid is off", async t => {
+  // D10 (review 2026-10-16): every /grid route answers 503 with liveGrid off; the mint did not.
+  const { port } = await fixture(t, { gridOrigin: null });
+  assert.equal((await mint(port, "/grid/live_grid_ws", DESKTOP[0])).status, 503);
+});
+
+test("a ticket refused for load is not used up; it opens the socket once the slot is free", async t => {
+  // D13 (review 2026-10-16): the nonce was recorded before the 429/503 checks, so a refusal
+  // for load burned it and the client had to mint again.
+  const { port } = await fixture(t, { maxSockets: 1 });
+  const path = "/grid/live_grid_ws", desk = { Host: HEADERS.Host, Origin: DESKTOP[0] };
+  const ticketOf = async () => JSON.parse((await mint(port, path, DESKTOP[0])).text).ticket;
+  const hold = await wsConnect(port, desk, ticketed(path, await ticketOf()));
+  assert.equal(hold.status, 101);
+  const ticket = await ticketOf();
+  assert.equal((await wsConnect(port, desk, ticketed(path, ticket))).status, 429);
+  const closed = once(hold.ws, "close"); hold.ws.terminate(); await closed;
+  await new Promise(resolve => setTimeout(resolve, 50));
+  const opened = await wsConnect(port, desk, ticketed(path, ticket));
+  assert.equal(opened.status, 101); opened.ws.terminate();
+  // ...and it is still single use.
+  assert.equal((await wsConnect(port, desk, ticketed(path, ticket))).status, 401);
+});
+
+test("a grid frame the day's budget cannot fully pay for spends none of it", async t => {
+  // D14 (review 2026-10-16): units were charged a symbol at a time, so a three-symbol frame
+  // against two units left spent both and was then refused anyway.
+  const { port } = await fixture(t, { quoteDailyLimit: 2 });
+  const { ws } = await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/grid/live_grid_ws");
+  const closed = once(ws, "close");
+  ws.send(JSON.stringify({ params: { symbol: "AAPL,MSFT,NVDA" } }));
+  await closed;
+  assert.equal((await http(port, "/grid/live_grid?symbol=AAPL")).status, 200);
+  assert.equal((await http(port, "/grid/live_grid?symbol=AAPL")).status, 200);
+  assert.equal((await http(port, "/grid/live_grid?symbol=AAPL")).status, 429);
+});
+
 // ---- The wire's socket: the first route this door serves over a socket (Ep. 8).
 
 test("the WS gate wants the credential, the Origin, the exact path and a configured wire", async t => {
@@ -1688,17 +1725,27 @@ test("the token exception is the page alone: exact path, GET, no query, this Hos
   assert.equal((await http(port, "/grid/subscriptions?x=1")).status, 404);
 });
 
-test("the page answers 503 with live-grid off, and a failed fetch is retried, not cached", async t => {
+test("with live-grid off the page is behind the lock again; a failed fetch is held 5 s, then retried", async t => {
+  // D12 (review 2026-10-16): an anonymous 503 told any caller the `live` profile was off. With
+  // it off the page is not served before the lock: 401 without the token, as at v9, and the
+  // grid's own 503 with it.
   const off = await subscriptionsFixture(t, { gridOrigin: null });
-  assert.equal((await http(off.port, "/grid/subscriptions", { Host: new URL(ORIGIN).host })).status, 503);
+  assert.equal((await http(off.port, "/grid/subscriptions", { Host: new URL(ORIGIN).host })).status, 401);
+  assert.equal((await http(off.port, "/grid/subscriptions")).status, 503);
   assert.equal(off.fetched.length, 0);
-  let fail = true; const tries = [];
-  const flaky = await fixture(t, {}, { fetchPage: async () => {
+  // D11: a failed fetch used to be retried on the very next anonymous request, one live-grid
+  // dial each. It is held for 5 s by the door's clock, then retried.
+  let fail = true, clock = 1_000_000; const tries = [];
+  const flaky = await fixture(t, {}, { now: () => clock, fetchPage: async () => {
     tries.push(1); if (fail) throw new Error("down"); return "<p>ok</p>";
   } });
-  assert.equal((await http(flaky.port, "/grid/subscriptions", { Host: new URL(ORIGIN).host })).status, 502);
+  const anon = { Host: new URL(ORIGIN).host };
+  for (let i = 0; i < 5; i++) assert.equal((await http(flaky.port, "/grid/subscriptions", anon)).status, 502);
+  assert.equal(tries.length, 1);
   fail = false;
-  assert.equal((await http(flaky.port, "/grid/subscriptions", { Host: new URL(ORIGIN).host })).text, "<p>ok</p>");
+  assert.equal((await http(flaky.port, "/grid/subscriptions", anon)).status, 502);
+  clock += 5000;
+  assert.equal((await http(flaky.port, "/grid/subscriptions", anon)).text, "<p>ok</p>");
   assert.equal(tries.length, 2);
 });
 
@@ -1749,6 +1796,23 @@ test("DELETE takes one symbol in the path; other methods and shapes are not rout
     ["/grid/api/subscriptions?symbol=X", "GET"], ["/grid/api/subscriptions", "PUT"],
     ["/grid/api/subscriptions/" + "A".repeat(25), "DELETE"]]) {
     assert.equal((await http(port, path, HEADERS, method)).status, 404, `${method} ${path}`);
+  }
+  assert.equal(sent.length, 2);
+});
+
+test("a literal %5E in the one-symbol DELETE path is the caret; every other % still gets 421", async t => {
+  // D8 (review 2026-10-16): WHATWG URL parsers percent-encode "^" in a path, so a client may
+  // send %5EGSPC. requestUrl refused every "%" before subscriptionRoute could read it.
+  const { port, sent } = await subscriptionsFixture(t);
+  for (const path of ["/grid/api/subscriptions/%5EGSPC", "/grid/api/subscriptions/%5eDJI"]) {
+    assert.equal((await http(port, path, HEADERS, "DELETE")).status, 200, path);
+  }
+  assert.deepEqual(sent.map(s => [s.method, s.path]),
+    [["DELETE", "/api/subscriptions/^GSPC"], ["DELETE", "/api/subscriptions/^DJI"]]);
+  for (const [path, method] of [["/grid/api/subscriptions/%5EGSPC%2F", "DELETE"], ["/grid/api/subscriptions/%2e%2e", "DELETE"],
+    ["/grid/api/subscriptions/%5E/x", "DELETE"], ["/grid/api/%5Esubscriptions/X", "DELETE"],
+    ["/grid/api/subscriptions/%5", "DELETE"], ["/api/api/v1/equity/%5E", "GET"]]) {
+    assert.equal((await http(port, path, HEADERS, method)).status, 421, `${method} ${path}`);
   }
   assert.equal(sent.length, 2);
 });

@@ -138,7 +138,15 @@ unit **per symbol** in the rebuilt frame, the first frame included (the upgrade'
 the slot and the per-minute budget for that first frame only; later frames cost one more
 per-minute unit). **Every** upstream push on `/grid/ta_chart_ws` charges one daily unit, the first
 included, and pushes after the first one per-minute unit. A charge that cannot be paid closes the
-relay and hands the slot back.
+relay and hands the slot back; a frame is charged for all its symbols or for none.
+
+**Sizing `quoteDailyLimit` with `"liveGrid": true`.** The example's 100 suits `/api` alone; the
+grid spends it in minutes. One open `live_grid` card of 7 symbols (the example dashboard's) pays 7
+units per params frame; with a 240 s socket lifetime and reconnects that is about 105 units an
+hour, ~2,500 a day. One open tick chart pays one unit per push, up to 60 per stream. Every unit
+comes out of the same counter as `/api/api/v1/**`, so when it is spent every widget answers 429
+until 00:00 UTC. Set it to what the vendor plan allows (the ceiling is 10000): roughly 2,500 per
+always-open grid card, plus 60 for each tick-chart stream opened, plus the `/api` traffic.
 
 **Frame cap.** `FRAME_CAP = 60` per socket lifetime (client frames on `live_grid_ws`, upstream
 pushes on `ta_chart_ws`), hard-coded and checked before either budget. One tick-chart stream is

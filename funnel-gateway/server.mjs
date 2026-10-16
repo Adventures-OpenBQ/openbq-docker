@@ -110,9 +110,15 @@ function authorized(req, config) {
 }
 function requestUrl(req, config) {
   if (req.headers.host !== new URL(config.origin).host || !req.url?.startsWith("/") ||
-      req.url.startsWith("//") || /[%\\#]/.test(req.url.split("?")[0]) || req.url.includes("#")) return null;
-  const url = new URL(req.url, config.origin);
-  return url.pathname === req.url.split("?")[0].replaceAll("^", "%5E") && url.origin === config.origin ? url : null;
+      req.url.startsWith("//") || req.url.includes("#")) return null;
+  const [raw, ...query] = req.url.split("?");
+  // D8: WHATWG URL parsers (WebKit's among them) percent-encode "^" in a path, so removing an
+  // index symbol arrives as /grid/api/subscriptions/%5EGSPC. That one escape, in that one
+  // one-symbol path, is read as the caret; every other "%" anywhere is still refused.
+  const path = /^\/grid\/api\/subscriptions\/[^/]+$/.test(raw) ? raw.replace(/%5e/gi, "^") : raw;
+  if (/[%\\#]/.test(path)) return null;
+  const url = new URL([path, ...query].join("?"), config.origin);
+  return url.pathname === path.replaceAll("^", "%5E") && url.origin === config.origin ? url : null;
 }
 const COMMON = {
   "Cache-Control": "no-store",
@@ -547,18 +553,24 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     if (budget.left < cost) return false;
     budget.left -= cost; return true;
   }
-  function quoteAllowed() {
+  // `units` at once or none of them (D14): a frame the day cannot fully pay for spends nothing.
+  function quoteAllowed(units = 1) {
     const currentDay = Math.floor(now() / 86400000);
     if (day !== currentDay) { day = currentDay; quoteCount = 0; }
-    if (quoteCount >= config.quoteDailyLimit) return false;
-    quoteCount++; return true;
+    if (quoteCount + units > config.quoteDailyLimit) return false;
+    quoteCount += units; return true;
   }
   // The Subscriptions page, fetched from live-grid once and kept: it is the one route served
   // before the lock (below), so an unauthenticated caller must cost no upstream dial and no
-  // share of the per-minute budget. A failed fetch is not kept; the next request retries.
-  let page = null;
+  // share of the per-minute budget. A failed fetch is held for PAGE_RETRY_MS (D11: otherwise
+  // every anonymous request while live-grid is down is one more dial carrying the Basic pair),
+  // then the next request retries.
+  const PAGE_RETRY_MS = 5000;
+  let page = null, pageFailedAt = -Infinity;
   function subscriptionsPage() {
-    if (!page) page = fetchPage(config, AbortSignal.timeout(10000)).catch(error => { page = null; throw error; });
+    if (!page && now() - pageFailedAt < PAGE_RETRY_MS) return Promise.reject(new Error("page fetch held"));
+    if (!page) page = fetchPage(config, AbortSignal.timeout(10000))
+      .catch(error => { page = null; pageFailedAt = now(); throw error; });
     return page;
   }
   async function handleSubscriptions(req, res, route) {
@@ -598,12 +610,13 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       // every watchlist call, which ARE behind the lock. The page holds no data and no
       // secret; it is served from memory after the first fetch, GET only, no query, no
       // body, on this door's own Host, before any other route is consulted.
-      if (req.method === "GET" && req.url === SUBSCRIPTIONS_PAGE) {
+      // With live-grid off there is no page, and no exception: the lock answers first, as for
+      // every path at v9, so an anonymous caller learns nothing about the profile (D12).
+      if (req.method === "GET" && req.url === SUBSCRIPTIONS_PAGE && config.gridOrigin) {
         const pageUrl = requestUrl(req, config);
         if (!pageUrl) return reply(res, 421);
         if (req.headers["transfer-encoding"] ||
             (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
-        if (!config.gridOrigin) return reply(res, 503);
         return replyPage(res, await subscriptionsPage());
       }
       // The lock precedes route discovery, health, Host and Origin validation.
@@ -612,6 +625,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (!url) return reply(res, 421);
       const origin = req.headers.origin;
       if (origin && origin !== config.origin && !DESKTOP_ORIGINS.has(origin)) return reply(res, 403);
+      if (req.method === "GET" && req.url === SUBSCRIPTIONS_PAGE) return reply(res, 503);  // live-grid off
       if (url.pathname.startsWith("/state/")) {
         if (!spend(1)) return reply(res, 429);
         return await handleState(req, res, url, config);
@@ -644,6 +658,8 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       // The ticket is in the body only; this door logs no request.
       if (url.pathname === "/grid/ws_ticket") {
         if (!DESKTOP_ORIGINS.has(origin)) return reply(res, 403);
+        // Every /grid ticket is for a live-grid socket, which answers 503 while it is off (D10).
+        if (!config.gridOrigin) return reply(res, 503);
         const keys = [...url.searchParams.keys()];
         const target = keys.length === 1 && keys[0] === "target"
           ? socketTarget(url.searchParams.get("target"), config.origin) : null;
@@ -688,7 +704,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     socket.setTimeout(10000, () => socket.destroy());
     const url = requestUrl(req, config);
     const tickets = url?.searchParams.getAll("ticket") ?? [];
-    let want;
+    let want, nonce = null;
     if (tickets.length && !req.headers.authorization) {
       // The browser's own socket. Relaying it through a Vercel Function bills function time while it is open, and a browser
       // cannot carry the machine token, so the web layer -- which checked the GitHub
@@ -704,11 +720,12 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       want = req.url.slice(0, cut);
       // cut < 0: the parser found a ticket the wire does not spell literally (tick%65t=).
       // What was signed is the literal text, so that is refused here, not by luck below.
-      const nonce = cut >= 0 && tickets.length === 1 && req.url.slice(cut + 8) === tickets[0]
+      nonce = cut >= 0 && tickets.length === 1 && req.url.slice(cut + 8) === tickets[0]
         ? socketTicketNonce(config.token, desktop ? req.headers.origin + want : want, tickets[0], now()) : null;
       for (const [used, until] of admitted) if (until < now()) admitted.delete(used);
       if (!nonce || admitted.has(nonce)) return reject(socket, 401);
-      admitted.set(nonce, Number(tickets[0].split(".")[0]));
+      // Recorded below, only once every refusal has passed (D13): a ticket refused for load
+      // (429, 503) is not spent, and nothing awaits in between, so it is still single use.
     } else {
       // The machine path: the same lock as HTTP, then the gateway's own Origin only.
       if (!authorized(req, config)) return reject(socket, 401);
@@ -745,6 +762,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     // never get as far as allocating a ws client. Six units, a socket's price, since a socket
     // occupies the door for as long as it is open.
     if (sockets >= config.maxSockets || !spend(6)) return reject(socket, 429);
+    if (nonce) admitted.set(nonce, Number(tickets[0].split(".")[0]));
     wss.handleUpgrade(req, socket, head, client => {
       sockets++;
       // The 10 s handshake deadline set above must not go on applying to an open socket.
@@ -845,7 +863,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
           // The rebuilt frame, not the caller's bytes: this is the list that will reach
           // live-grid, so it is the list that is charged for.
           const symbols = JSON.parse(frame).params.symbol.split(",").length;
-          for (let i = 0; i < symbols; i++) if (!quoteAllowed()) return close();
+          if (!quoteAllowed(symbols)) return close();
         }
         subscribed = true; clearTimeout(initial);
         // Connect upstream ONLY on the first validated frame: an invalid or missing
