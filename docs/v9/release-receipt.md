@@ -6,7 +6,7 @@ Gated tree: `d66e4d0` (`claude/openbq-docker-v9`). This receipt commit changes o
 
 ## What v9.0.0 adds over v8.0.0
 
-- **The EODHD provider extension, openbq-eodhd 9.0.0** (Episode 9). It is vendored in `v9/eodhd/source/` from Adventures-OpenBQ/openbq-eodhd at `8da2435`. `v9/eodhd/source/` is byte-identical to `git archive 8da2435`. `v9/eodhd/source.json` names that commit and the tag `v9.0.0`.
+- **The EODHD provider extension, openbq-eodhd 9.0.1** (Episode 9). It is vendored in `v9/eodhd/source/` from Adventures-OpenBQ/openbq-eodhd at `59603cc`, tag `v9.0.1`, and is byte-identical to `git archive v9.0.1`; `v9/eodhd/source.json` names both. 9.0.1 is 9.0.0 (`7f4cbe2`, the release on PyPI) plus the v9 review fixes, merged upstream in openbq-eodhd #2: the key is redacted from errors, quota and upstream failures are mapped, the dividend yield uses a split-only basis, and calendar paging handles single days. The EODHD SDK is vendored inside the package, so the images no longer fetch it or pin its extra dependencies.
   - The package is bdobb-dev/openbb-docker's `openbb-eodhd` v9.6.3, with fixes through v9.6.6, renamed `openbq-eodhd` (module `openbq_eodhd`). The ledger is `docs/v9/eodhd-port.md`.
   - The OpenBB contract is unchanged from the donor: provider `eodhd`, `obb.eodhd.*` on `/api/v1/eodhd`, and widget ids `eodhd_*_eodhd_obb`.
   - The image installs it (`Dockerfile.v3`) and runs `v9/eodhd/verify.py` at build time.

@@ -18,7 +18,7 @@ from openbq_eodhd.models._client import apply_openbb_http_settings, get_client
 def test_pinned_sdk_still_exposes_the_attributes_we_configure():
     """Guards the SDK pin. If a bump renames these, this fails in CI rather
     than silently reverting provider="eodhd" to unconfigured HTTP."""
-    from eodhd import APIClient
+    from openbq_eodhd._vendor.eodhd import APIClient
 
     client = APIClient("demo")
     assert hasattr(client, "_session"), "SDK no longer has _session -- pin moved"
@@ -26,7 +26,7 @@ def test_pinned_sdk_still_exposes_the_attributes_we_configure():
 
 
 def test_session_is_replaced_with_openbbs_configured_session():
-    from eodhd import APIClient
+    from openbq_eodhd._vendor.eodhd import APIClient
 
     client = APIClient("demo")
     before = client._session
@@ -40,7 +40,7 @@ def test_session_is_replaced_with_openbbs_configured_session():
 
 def test_configured_timeout_is_applied(monkeypatch):
     import openbq_eodhd.models._client as mod
-    from eodhd import APIClient
+    from openbq_eodhd._vendor.eodhd import APIClient
 
     client = APIClient("demo")
     monkeypatch.setattr(
@@ -53,7 +53,7 @@ def test_configured_timeout_is_applied(monkeypatch):
 
 
 def test_no_configured_timeout_leaves_the_sdk_default():
-    from eodhd import APIClient
+    from openbq_eodhd._vendor.eodhd import APIClient
 
     client = APIClient("demo")
     default = client._timeout
@@ -64,7 +64,7 @@ def test_no_configured_timeout_leaves_the_sdk_default():
 def test_settings_failure_never_breaks_the_client(monkeypatch):
     """Transport preferences are a nicety; a failure resolving them must not
     take down a data request."""
-    from eodhd import APIClient
+    from openbq_eodhd._vendor.eodhd import APIClient
 
     client = APIClient("demo")
     monkeypatch.setattr(
@@ -116,14 +116,14 @@ def _served(exc_or_call):
 
 
 def _http_error(status):
-    from eodhd.errors import EODHDHTTPError
+    from openbq_eodhd._vendor.eodhd.errors import EODHDHTTPError
 
     return EODHDHTTPError(status, "{}", f"({status}) https://eodhd.com/api - boom")
 
 
 def _closed_port(client):
     """A real requests connection error: its text quotes the URL with the key."""
-    from eodhd.APIs.BaseAPI import BaseAPI
+    from openbq_eodhd._vendor.eodhd.APIs.BaseAPI import BaseAPI
 
     api = BaseAPI(session=client._session, timeout=(2.0, 2.0))
     api._api_url = "http://127.0.0.1:9/api"
