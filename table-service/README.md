@@ -107,11 +107,11 @@ volume, provision ownership explicitly. `table-config` may also hold private bac
 acquisition configuration; leave backend_config null for upload-only operation.
 
 `backend_config` names that private file, BDOBB's `ServerBackendConfig`
-(`server/table-ingest/README.md` in the pinned source). Give each backend its base
-`url`, as a client connection names it:
+(`server/table-ingest/README.md` in the pinned source). The four limits are required (a file without them fails every backend
+acquisition). Give each backend its base `url`, as a client connection names it:
 
 ```json
-{"backends": {"openbb": {"url": "https://backend.example/api", "widgets": {"income": {"url": "https://backend.example/api/api/v1/equity/fundamental/income", "headers": {"Authorization": "Basic …"}, "parameters": ["symbol", "period"], "response": {"kind": "rows", "columns": [], "provenance": {"sourceWidgetId": "income"}}}}}}}
+{"maxBytes": 8388608, "maxRows": 20000, "maxColumns": 64, "timeoutMs": 60000, "backends": {"openbb": {"url": "https://backend.example/api", "widgets": {"income": {"url": "https://backend.example/api/api/v1/equity/fundamental/income", "headers": {"Authorization": "Basic …"}, "parameters": ["symbol", "period"], "response": {"kind": "rows", "columns": [], "provenance": {"sourceWidgetId": "income"}}}}}}}
 ```
 
 Ingest reads `<url>/widgets.json` to tell a statement widget (one whose `period`
