@@ -121,7 +121,7 @@ GitHub session) signs a ticket and the browser opens
   `origin` (`https://openbq.<tailnet>.ts.net:10000`), `previewOrigin` (the web preview's portless HTTPS origin, to turn socket tickets on; unset leaves them off), `stateDir`
   (`/var/lib/bdobb/state` to turn `/state` on), the budgets, `rssOrigin`/`rssAddress`/`feeds`
   (both-or-neither; feeds need them) and the table keys (`tableService`, `tableDesktopPrincipal`,
-  `ssrmRoutes`, `tableTimeoutMs`; see [managed tables](../table-service/README.md)). An unknown key,
+  `ssrmRoutes`, `tableTimeoutMs`, `ssrmTimeoutMs`; see [managed tables](../table-service/README.md)). An unknown key,
   including Rita's `ritaOrigin`, `ritaAddress` and `socksProxy` and v10's `liveGrid`, is refused at startup.
 - `rss-ticker-config/config.yaml` (from `config.yaml.example`).
 

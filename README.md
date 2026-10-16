@@ -70,6 +70,44 @@ python3 scripts/verify-lane-contract.py LANE_URL IN_PROCESS_URL  # same answers 
 docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:2.0.0 python -m unittest discover -s lanes/tests
 ```
 
+### Large datasets as server-paged tables
+
+The 23 largest table widgets (default response over about 10 MB: FINRA bonds, FFIEC institution structure, the EIA petroleum and gas tables and others) are rewritten in `/widgets.json` to `type: "ssrm_table"` with endpoint `<route>/ssrm`. BDOBB renders them as a paged table, so the full GET never crosses the catalogue caches, the Funnel door or the client. Only `type`, `endpoint` and `ssrm` change; params, columns and names are as before, and a listed id the catalogue lacks is skipped.
+
+`POST <route>/ssrm` answers the OpenBB SSRM request for listed routes only (anything else is 404). The request body is the SSRM JSON; the widget's own params go in the query string. Basic auth is checked first, when it is on, before the cache is read. Params the widget does not declare are dropped before the fetch and the cache key, so they cannot force a fresh download. The first request for a route and params gets the full result once through the API itself, so heavy routes keep their lane, deadline and size cap. The result is cached as a pandas DataFrame (3 GiB LRU by memory, 15-minute TTL); concurrent first requests share one acquisition, at most 2 acquisitions run at once, and one that is not done in 300 s (slot wait included) gets 504 and caches nothing. The reply is `{"rowData", "rowCount"}`: the rows filtered (text contains, case-insensitive; number equals, range, at least, at most) with at most 16 filters, and sorted by at most 3 distinct columns, at most 1,000 per page. When the widget declares `columnsDefs`, every row carries exactly those fields: one absent from the provider's records comes back `null`, and undeclared fields are not served. The last 8 filtered and sorted row orders are kept with each cached result and count against its memory budget, so further pages of the same view are a slice. NaN and infinite numbers come back as `null`; other floats round-trip exactly, and integers stay exact when the column has nulls. A malformed body, more than 16 filters, a sort over 3 columns or naming a column twice, grouping, values, pivot, a combined (`operator`/`conditions`) or unknown filter gets 400; an upstream non-2xx keeps its status and sanitised body. A 200 carries `x-openbq-ssrm: hit` only when both the result and that view's row order came from the cache (no fetch, no new filter or sort), and `miss` otherwise.
+
+The list is committed data, `lanes/ssrm_widgets.json`:
+
+| Widget id | Route |
+|---|---|
+| `bls_jolts_revisions_bls_obb` | `/api/v1/bls/jolts/revisions` |
+| `eia_petroleum_imports_exports_and_movements_movements_of_crude_oil_and_selected_products_by_rail_eia_obb` | `/api/v1/eia/petroleum/imports_exports_and_movements/movements_of_crude_oil_and_selected_products_by_rail` |
+| `tmx_fixedincome_prices_tmx_obb` | `/api/v1/tmx/fixedincome/prices` |
+| `eia_petroleum_refining_and_processing_refinery_net_input_eia_obb` | `/api/v1/eia/petroleum/refining_and_processing/refinery_net_input` |
+| `eia_natural_gas_consumption_end_use_natural_gas_consumption_by_end_use_eia_obb` | `/api/v1/eia/natural_gas/consumption_end_use/natural_gas_consumption_by_end_use` |
+| `eia_coal_by_mine_by_plant_eia_obb` | `/api/v1/eia/coal/by_mine_by_plant` |
+| `ecb_eligible_assets_ecb_obb` | `/api/v1/ecb/eligible_assets` |
+| `eia_petroleum_refining_and_processing_refinery_blender_net_input_eia_obb` | `/api/v1/eia/petroleum/refining_and_processing/refinery_blender_net_input` |
+| `eia_petroleum_refining_and_processing_refinery_net_production_eia_obb` | `/api/v1/eia/petroleum/refining_and_processing/refinery_net_production` |
+| `eia_petroleum_refining_and_processing_natural_gas_plant_field_production_eia_obb` | `/api/v1/eia/petroleum/refining_and_processing/natural_gas_plant_field_production` |
+| `imf_chokepoint_volume_imf_obb` | `/api/v1/imf/chokepoint_volume` |
+| `eia_petroleum_imports_exports_and_movements_movements_by_tanker_and_barge_between_pad_districts_eia_obb` | `/api/v1/eia/petroleum/imports_exports_and_movements/movements_by_tanker_and_barge_between_pad_districts` |
+| `eia_natural_gas_prices_natural_gas_prices_eia_obb` | `/api/v1/eia/natural_gas/prices/natural_gas_prices` |
+| `eia_petroleum_prices_weekly_retail_gasoline_and_diesel_prices_eia_obb` | `/api/v1/eia/petroleum/prices/weekly_retail_gasoline_and_diesel_prices` |
+| `eia_petroleum_status_report_eia_obb` | `/api/v1/eia/petroleum_status_report` |
+| `cftc_fx_forward_trades_cftc_obb` | `/api/v1/cftc/fx_forward_trades` |
+| `eia_natural_gas_summary_natural_gas_summary_eia_obb` | `/api/v1/eia/natural_gas/summary/natural_gas_summary` |
+| `cftc_swap_trades_cftc_obb` | `/api/v1/cftc/swap_trades` |
+| `ny_market_expectations_federal_reserve_obb` | `/api/v1/federal_reserve/ny/market_expectations` |
+| `ffiec_institutions_federal_reserve_obb` | `/api/v1/federal_reserve/ffiec/institutions` |
+| `finra_fixedincome_bonds_finra_obb` | `/api/v1/finra/fixedincome/bonds` |
+| `finra_fixedincome_bond_prices_finra_obb` | `/api/v1/finra/fixedincome/bond_prices` |
+| `ffiec_institution_structure_federal_reserve_obb` | `/api/v1/federal_reserve/ffiec/institution_structure` |
+
+Settings (`credentials.env`): `OPENBQ_SSRM_WIDGETS` (path of that list, default `/workspace/ssrm_widgets.json`), `OPENBQ_SSRM_CACHE_BYTES` (default 3 GiB), `OPENBQ_SSRM_TTL` (seconds, default 900), `OPENBQ_SSRM_DEADLINE` (seconds per first acquisition, default 300). As with widget settings, restart the API after editing them.
+
+The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults to the 23 paths `/api<route>/ssrm`, one per row above, committed as `funnel-gateway/ssrm-routes.json`; leave the setting out unless you mean to narrow it (`[]` turns SSRM through the door off). `funnel-gateway/ssrm-routes.test.mjs` checks that file against `ssrm_widgets.json` (equal as door paths, 23 unique routes, each admitted for POST, a listed route's GET and an unlisted sibling refused), so edit both together. Each SSRM POST spends one daily quote (`quoteDailyLimit`), which caps vendor calls; the door refunds it when od answers `x-openbq-ssrm: hit` (a further page of a view already built, so no provider call and no new sort), and never passes that header to the client.
+
 ## Credentials and restart
 
 ### Demo keys
