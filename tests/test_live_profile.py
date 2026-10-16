@@ -170,3 +170,15 @@ def test_the_default_stack_keeps_its_v9_networks():
     """D1: the default services are untouched; openbq-internal is still a plain bridge."""
     assert COMPOSE['networks']['openbq-internal'] == {'driver': 'bridge'}
     assert SERVICES['tailscale']['networks'] == SERVICES['openbq-api']['networks'] == ['openbq-internal']
+
+
+def test_env_example_sets_nothing_and_names_no_home_directory():
+    """D9 (2026-10-16): `cp .env.example .env` must leave every compose default in force, so
+    the licence mount stays ./kdb-license; the example is commented and generic."""
+    text = (ROOT / '.env.example').read_text()
+    assigned = [line for line in text.splitlines() if line.strip() and not line.lstrip().startswith('#')]
+    assert assigned == []
+    assert '# KDB_LICENSE_DIR=./kdb-license' in text.splitlines()
+    for path in ('.env.example', 'README.md', 'docs/v10/live-grid-kdb-port.md'):
+        body = (ROOT / path).read_text()
+        assert '~/Developer' not in body and "maintainer's licence" not in body, path
