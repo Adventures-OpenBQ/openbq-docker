@@ -52,6 +52,8 @@ key-maint is part of the Episode 3 overlay (`docker-compose.v3.yml`).
    `tailscale` service's `TS_SERVE_CONFIG` at `/config/serve-v3-keys.json`.
    That file is `serve-v3.json` plus the Service; it is tailnet-only and never
    funneled. Until the Service exists, keep `serve-v3.json`.
+   With the Episode 6 overlay (`docker-compose.v6.yml`), use
+   `ts-config/serve-v6-keys.json` instead: `serve-v6.json` plus the same Service.
 
 ## Use
 
