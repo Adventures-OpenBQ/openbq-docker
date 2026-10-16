@@ -1,0 +1,70 @@
+{
+  "TCP": {
+    "443": {
+      "HTTPS": true
+    },
+    "8443": {
+      "HTTPS": true
+    },
+    "10443": {
+      "HTTPS": true
+    },
+    "11443": {
+      "HTTPS": true
+    }
+  },
+  "Web": {
+    "${TS_CERT_DOMAIN}:443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://openbq-api:6900"
+        }
+      }
+    },
+    "${TS_CERT_DOMAIN}:8443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://openbq-reference:17783"
+        }
+      }
+    },
+    "${TS_CERT_DOMAIN}:10443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://127.0.0.1:7777"
+        }
+      }
+    },
+    "${TS_CERT_DOMAIN}:11443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://openbq-mcp:6901"
+        }
+      }
+    }
+  },
+  "AllowFunnel": {
+    "${TS_CERT_DOMAIN}:443": false,
+    "${TS_CERT_DOMAIN}:8443": false,
+    "${TS_CERT_DOMAIN}:10443": false,
+    "${TS_CERT_DOMAIN}:11443": false
+  },
+  "Services": {
+    "svc:openbq-keys": {
+      "TCP": {
+        "443": {
+          "HTTPS": true
+        }
+      },
+      "Web": {
+        "openbq-keys.<your-tailnet>.ts.net:443": {
+          "Handlers": {
+            "/": {
+              "Proxy": "http://key-maint:8447"
+            }
+          }
+        }
+      }
+    }
+  }
+}
