@@ -57,3 +57,17 @@ These are the CI workflow's steps plus the image-level gates. Gates 8 and 9 were
 `ghcr.io/adventures-openbq/openbq-local:8.0.0` = `latest` = `sha256:5cb1bcc311cab236f719fdd7f5ccce56a63b2eb437cecb9c515d69f01047f4cc`. It is built for amd64 and arm64 from `Dockerfile.v3` at `d507ff5`. Later v8.0.0 commits change only docs, which the image does not copy. On the pulled image, in key mode: `verify-settings.py` 8 checks, `verify-dashboards.py` 21 checks, and `/apps.json` 200 after a no-Origin fetch, then `access-control-allow-origin: *` with 46 apps.
 
 Nothing was deployed.
+
+## Re-cut (2026-10-16)
+
+The regression walk re-cut v8.0.0 after the v8 review. Its fixes:
+- the system dashboard PUT now compares revisions after a lost insert race (`9b8a220`, `eb29232`);
+- the pinned example's wording is synced (`41c1dc2`).
+
+GHCR `8.0.0`, all built for amd64 and arm64 from this tree, with image revision `eb29232`:
+- `openbq-local` `sha256:71d2a39888f56858b60487e641998ec877bfe4b9cd9efc3d294972ef4a951940`
+- `openbq-funnel-gateway` `sha256:f19a72ed5d70aea4aa177f9f746738f81dbafe86b75983aac159e0e1ee127cfa`
+- `openbq-table-service` `sha256:a2cd81d3d404699e88b511c637eeb2cd1b6d37afa8bf163c274ccc19f77f88d2`, from BDOBB `727c47e` per `table-service/source.lock.json`
+- `openbq-key-maint` `sha256:ba2d3d252680be8c5c804296f29aea2ebde935ad1294dce65df56295728445b5`, unchanged
+
+`latest` was not moved and still names the 2026-10-14 `openbq-local` above.
