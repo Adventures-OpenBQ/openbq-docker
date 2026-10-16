@@ -140,6 +140,46 @@ def test_the_flush_writes_one_delta_table_per_symbol_and_day_and_reads_back(stor
     assert len(bars(got, "1m")) == 5
 
 
+def test_a_catch_up_never_overwrites_a_complete_day_with_a_partial_one(store_env, monkeypatch):
+    """D3 (2026-10-16): a restart's catch-up re-reads a day kdb has partly pruned. The stored
+    table already holds more rows from an earlier start, so it is kept; a fuller frame still
+    replaces it."""
+    _load("s3_init").main(attempts=1, delay=0)
+    eod = _load("eod_dump")
+    full = _ticks()
+    monkeypatch.setattr(eod, "read_day", lambda day: full)
+    assert eod.dump_day(DAY) == 65
+    from deltalake import DeltaTable
+    from openbb_deltalake import store
+
+    s = store(layer="silver", library="ticks_live")
+    path = s._path("AAPL_2026_10_09")
+    # kdb now holds only the later part of the day (the prune took the start)
+    tail = full.groupby("sym", observed=True).tail(10).reset_index(drop=True)
+    monkeypatch.setattr(eod, "read_day", lambda day: tail)
+    assert eod.dump_day(DAY) == 0
+    table = DeltaTable(path, storage_options=s.storage_options)
+    assert table.version() == 0 and len(table.to_pandas()) == 40
+    # a frame with more ticks (a late print kdb received) does replace the table
+    extra = pd.concat([full, full.tail(1).assign(price=1.0)], ignore_index=True)
+    monkeypatch.setattr(eod, "read_day", lambda day: extra)
+    assert eod.dump_day(DAY) == 66
+    assert DeltaTable(path, storage_options=s.storage_options).version() == 1
+
+
+def test_the_tick_window_outlives_the_flush_and_every_retry():
+    """D3: live-grid prunes kdb to LIVE_TICK_WINDOW_SECONDS. The window must still hold the
+    whole UTC day at 00:05 and at the last hourly retry, or every flush loses the day's start."""
+    import yaml
+
+    eod = _load("eod_dump")
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    window = int(compose["services"]["live-grid"]["environment"]["LIVE_TICK_WINDOW_SECONDS"])
+    prune_lag = 60  # live-grid's prune cadence (feeds.py)
+    last_read = 86400 + eod.FLUSH_UTC_MINUTES * 60 + eod.RETRY_ATTEMPTS * eod.RETRY_SLEEP_S
+    assert window >= last_read + prune_lag
+
+
 def test_the_flush_writes_only_the_durable_copy_by_default(store_env, monkeypatch):
     _load("s3_init").main(attempts=1, delay=0)
     eod = _load("eod_dump")

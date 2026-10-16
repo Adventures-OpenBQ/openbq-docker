@@ -21,7 +21,9 @@ HDB) mapped onto this stack:
                                       the chart's seam needs the trailing day
 
 Idempotent per (symbol, day): the Delta key is `<SYM>_<YYYY_MM_DD>`, and a
-re-run overwrites that table (a new Delta version) instead of duplicating.
+re-run overwrites that table (a new Delta version) instead of duplicating --
+unless the stored table already holds more of the day (D3: a restart's catch-up
+reads a day the rolling window has partly pruned; see `_already_fuller`).
 Runs in the openbq-lake image (Dockerfile.lake on openbq-docker), which carries
 pykx, deltalake, openbb-deltalake and the DELTA_S3_* env every consumer of the
 store reads. The IPC read
@@ -54,6 +56,10 @@ HOT_LIBRARY = os.getenv("EOD_HOT_LIBRARY", "ticks_live_recent")
 # would be a second copy in the same bucket; the donor's default is 10.
 HOT_SESSIONS = int(os.getenv("EOD_HOT_SESSIONS", "0"))
 FLUSH_UTC_MINUTES = 5  # daily at 00:05 UTC, flushing the day that just ended
+# A failed flush retries hourly. live-grid's LIVE_TICK_WINDOW_SECONDS (compose) must outlast the
+# day plus the flush delay plus every retry, or the retries read a day already pruned (D3).
+RETRY_ATTEMPTS = 20
+RETRY_SLEEP_S = 3600
 
 
 def _read_day_ipc(day: date):
@@ -131,6 +137,26 @@ def store_configured(env=None) -> bool:
         "DELTA_S3_ENDPOINT", "DELTA_S3_BUCKET", "DELTA_S3_ACCESS", "DELTA_S3_SECRET"))
 
 
+def _already_fuller(s, key: str, df) -> bool:
+    """True when the stored (sym, day) table holds more rows than `df`, or starts earlier.
+
+    The kdb window is rolling, so re-reading a past day can return only its tail; that frame
+    must not replace a complete flush. A missing table means write; any other read error is
+    raised, so the flush fails and retries instead of guessing.
+    """
+    from deltalake import DeltaTable
+    from deltalake.exceptions import TableNotFoundError
+
+    try:
+        old = DeltaTable(s._path(key), storage_options=s.storage_options).to_pyarrow_table(
+            columns=["date"]).column("date").to_pandas()
+    except TableNotFoundError:
+        return False
+    if old.empty:
+        return False
+    return len(old) > len(df) or old.min() < df["date"].min()
+
+
 def dump_day(day: date, dry_run: bool = False) -> int:
     """Flush one UTC day to the HDB. Returns rows written."""
     frame = read_day(day)
@@ -163,6 +189,10 @@ def dump_day(day: date, dry_run: bool = False) -> int:
         # table -- the idempotency .Q.hdpf gets from rewriting the partition
         key = re.sub(r"[^0-9A-Za-z_]", "_", sym) + "_" + day_suffix
         meta = {"source": "eod-dump", "sym": sym, "day": str(day)}
+        if _already_fuller(s, key, df):
+            log.warning("%s %-8s %6d ticks: the stored table holds more of the day; kept",
+                        day, sym, len(df))
+            continue
         info = s.write(key, df, metadata=meta)
         if hot is not None:
             # A mirror failure must not lose the flush: the durable copy above
@@ -250,7 +280,8 @@ def main() -> None:
         # Catch-up before sleeping: a loop that starts after 00:05 (container
         # recreated, host rebooted) must not skip the day that already ended
         # while nobody was scheduled -- exactly how the first NAS flush was
-        # missed. Idempotent, so re-flushing a covered day is harmless.
+        # missed. Idempotent, and a partial re-read never replaces a fuller
+        # table, so re-flushing a covered day is harmless.
         yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
         try:
             dump_day(yesterday)
@@ -261,7 +292,7 @@ def main() -> None:
             # the RDB holds a rolling day, so a failed flush (the docker host
             # asleep at 00:05) still has its data for hours -- retry hourly
             # rather than surrendering the day to the prune
-            for attempt in range(20):
+            for attempt in range(RETRY_ATTEMPTS):
                 try:
                     dump_day(day)
                     break
@@ -270,7 +301,7 @@ def main() -> None:
                         "EOD flush failed for %s (attempt %d); retrying in 1h",
                         day, attempt + 1,
                     )
-                    time.sleep(3600)
+                    time.sleep(RETRY_SLEEP_S)
         return
 
     day = (

@@ -139,9 +139,10 @@ dropping ~100 s of crypto ticks while kdb was down, then waiting out a fixed
   latch. Calls inside the window still fail fast without dialling.
 
 **Retention is a rolling window**, `LIVE_TICK_WINDOW_SECONDS` (default
-86400 = 1 day). A pruning pass drops ticks older than the window so a busy
-feed's tick storage cannot grow without bound or compete with the historical
-cache under its own LRU.
+86400 = 1 day; openbq-docker's compose sets 172800 = 2 days, so eod-dump's
+00:05 flush and its hourly retries still find the whole UTC day). A pruning
+pass drops ticks older than the window so a busy feed's tick storage cannot
+grow without bound or compete with the historical cache under its own LRU.
 
 **The seam.** A chart request stitches cached history to tick-derived bars at
 the first bar boundary *fully* covered by ticks — not the first tick itself.

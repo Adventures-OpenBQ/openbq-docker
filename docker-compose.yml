@@ -243,7 +243,10 @@ services:
         required: false
     environment:
       LIVE_GRID_CHART: "true"
-      LIVE_TICK_WINDOW_SECONDS: "86400"
+      # 48 h (D3): eod-dump reads a whole UTC day at 00:05 and retries hourly up to 20 times,
+      # so the window must hold the day until 20:05 the next day (24 h + 5 min + 20 h + the
+      # 60 s prune lag). A 24 h window cut every flushed day's first minutes.
+      LIVE_TICK_WINDOW_SECONDS: "172800"
       # kdb is its own service; live-grid never spawns q (exactly one owner of :5000).
       KDB_EMBEDDED: "false"
       KDB_BIND_HOST: openbq-kdb
