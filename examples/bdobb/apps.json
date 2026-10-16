@@ -177,7 +177,7 @@
   },
   {
     "name": "Demo providers",
-    "description": "One card per provider that answers on the openbq-docker v3 stack (Adventures-OpenBQ/openbq-docker v3.0.0) with no sign-up. Keyless: BLS, CFTC, EconDB, Nasdaq (historical EPS for IBM, in place of the Alpha Vantage card of earlier releases) and the Video Library. EIA and Congress.gov run on the public demo keys in openbq-docker's committed credentials.demo.env, which the stack uses when there is no credentials.env; your own keys in credentials.env take their place. Widget ids are openbq-docker's, checked 2026-10-14 against its /widgets.json as captured by BDOBB's v6 regression run; the EconDB and Video Library (openbb-videos) cards are the extensions openbq-docker v3 adds. EconDB answers under openbb-core 2's provider-prefixed id econdb_economy_indicators_econdb_obb (the ODP 4 id economy_indicators_econdb_obb came from a shared economy router openbq-docker does not install), and its Indicators route needs a country as well as a symbol: RGDP for US, since symbol=RGDP alone is a 422. The BLS card uses bls_search (category=cpi, query=CUUR0000SA0), not bls_series: BLS's own HTTP API needs no key for either fetcher, but openbb-bls's BlsSeriesFetcher never overrides the base Fetcher class's require_credentials=True the way BlsSearchFetcher does, so bls_series 400s on a blank BLS_API_KEY -- bls_search answers 200 with real data on first import, which is the point of this dashboard.",
+    "description": "One card per data provider that answers on the openbq-docker v3 stack without a sign-up of your own. BLS, CFTC, EconDB and Nasdaq need no key; EIA and Congress.gov use the providers' public demo keys from credentials.demo.env, and a key of your own in credentials.env takes their place. Demo keys are rate-limited, so answers can vary between runs.",
     "img": "/openbq/bdobb-logo.svg",
     "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
@@ -229,7 +229,9 @@
             "w": 20,
             "h": 12,
             "state": {
-              "params": {}
+              "params": {
+                "code": "067651"
+              }
             }
           },
           {
@@ -277,7 +279,7 @@
   },
   {
     "name": "Video Library",
-    "description": "One card: the Video Library, a YouTube widget served by openbb-api itself, which openbq-docker serves from v3 on (the openbb-videos extension, first written in openbb-docker and adapted from OpenBB's reference backend; MIT, see openbb-docker's THIRD_PARTY_NOTICES.md). Pick one of two sample videos; the endpoint answers the bare watch URL as text/plain and the YouTube card frames it. Widget id confirmed against the extension's own widgets.json build on OpenBB 5.0.0.",
+    "description": "One card: the Video Library, a YouTube card served by openbq-docker v3's openbb-videos extension. Pick one of two sample videos and the card plays it.",
     "img": "/openbq/bdobb-logo.svg",
     "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
