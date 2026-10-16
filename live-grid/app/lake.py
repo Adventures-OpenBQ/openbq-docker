@@ -3,7 +3,7 @@
 """Reading flushed ticks back from the Delta Lake store, for the chart seam.
 
 openbq-docker v10 (user ruling 2026-10-12: the S3 tier moves into v10). The
-nightly eod-dump (scripts/eod_dump.py, donor v11.0.0) writes each UTC day kdb
+nightly eod-dump (scripts/eod_dump.py, from the donor line) writes each UTC day kdb
 held into one Delta table per (symbol, day), `<library>/<SYM>_<YYYY_MM_DD>`.
 kdb itself keeps only a rolling window (LIVE_TICK_WINDOW_SECONDS), so without
 this module a 1m chart over last week is provider history even though the
@@ -21,7 +21,7 @@ evenly use the store (1m, 5m, 15m, 1h, ...). Any failure reading the store
 degrades to the kdb-only answer: a store outage never blanks a chart.
 
 The connection is openbb-deltalake's DELTA_S3_* contract (utils.py,
-`s3_options_from_env`, donor v11.0.6), re-stated here so live-grid does not
+`s3_options_from_env`, from the donor line), re-stated here so live-grid does not
 import openbb-core. A missing part disables the read-back; there is no local
 fallback directory, unlike openbb-deltalake's (a container path would read as
 "no flushed days" forever). DELTA_URI (a local path) is honoured for tests and

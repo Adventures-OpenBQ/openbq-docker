@@ -145,7 +145,7 @@ test("a subscription frame is rebuilt from approved feeds alone, or refused", ()
 
 test("families that arrive with later lines are refused at openbq-docker v10 (donor v10.1.4)", () => {
   for (const later of [
-    // What the v12 family adds and this tag's live-grid genuinely does not serve. Be
+    // What a later line's study family adds and this tag's live-grid genuinely does not serve. Be
     // precise: /ta_chart and /ta_chart_ws ARE served here, so they are routes (below), and
     // /grid/ticks -- which was on this list at v10.0.3 -- is one too, because this line's
     // live-grid has the kdb tick reader. /snapshot is live-grid's own diagnostic, never a

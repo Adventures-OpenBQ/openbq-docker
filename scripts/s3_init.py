@@ -4,7 +4,7 @@
 
 Delta Lake does not create its own bucket, so a fresh store would 404 on the
 first write. The donor did this with `mc mb --ignore-existing` in a
-`minio-init` container (bdobb-dev/openbb-docker v11.0.0, 78c7af9). This line
+`minio-init` container (bdobb-dev/openbb-docker, the donor line, 78c7af9). This line
 uses no MinIO software at all (user ruling 2026-10-12: RustFS instead of
 MinIO), so the bucket is made over the plain S3 API with pyarrow, which the
 openbq-lake image already carries for delta-rs -- no extra client, no extra

@@ -64,8 +64,8 @@ Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v9/eodhd/source/LICE
 live-grid (v10, the `live` compose profile), and openbq-kdb (v10/kdb/source; formerly kdb-store and kdb-ws)
 Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0. Ported from bdobb-dev/openbb-docker v10.1.7 (d606169); the donor commits are recorded in docs/v10/live-grid-kdb-port.md. openbq-kdb is vendored from Adventures-OpenBQ/openbq-kdb v10.0.0 (v10/kdb/source.json; its own NOTICE). Each file keeps its SPDX header. v10/kdb/source/q/startup.q inlines a minimal standalone take on Jonathon McMurray's ws.q `.wsu` namespace (https://github.com/jonathonmcmurray/ws.q, MIT), as its own header records.
 
-openbb-deltalake, scripts/eod_dump.py (v10, the `live` profile's S3 tier; Episode 11 donor items moved into v10 by user ruling)
-Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; openbb-deltalake/ carries its own LICENSE. Ported from bdobb-dev/openbb-docker v11.0.0..v11.0.6 (78c7af9..afda165); the donor commits are recorded in docs/v10/live-grid-kdb-port.md. Each file keeps its SPDX header. scripts/s3_init.py and live-grid/app/lake.py are this repository's own.
+openbb-deltalake, scripts/eod_dump.py (v10, the `live` profile's S3 tier; donor-line items moved into v10 by user ruling)
+Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; openbb-deltalake/ carries its own LICENSE. Ported from the donor line, bdobb-dev/openbb-docker 78c7af9..afda165; the donor commits are recorded in docs/v10/live-grid-kdb-port.md. Each file keeps its SPDX header. scripts/s3_init.py and live-grid/app/lake.py are this repository's own.
 
 Video Library extension (v3/videos/source, openbb-videos 3.0.1)
 Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0, vendored from bdobb-dev/openbb-docker 13816e1 (v3/videos/source.json). The two sample videos, the widget definition and its parameter in openbb_videos/router.py are adapted from OpenBB's reference backend (https://github.com/OpenBB-finance/backends-for-openbb, getting-started/reference-backend/widgets_youtube.py), Copyright (c) 2024 OpenBB, MIT License; that notice is reproduced in the file.

@@ -293,7 +293,7 @@ services:
       - live-grid-data:/data
     # openbq-internal for openbq-api, the gateway and EODHD egress; live-private for q and RustFS.
     networks: [openbq-internal, live-private]
-  # The S3 tier (v10 by user ruling; donor Episode 11, bdobb-dev/openbb-docker v11.0.0):
+  # The S3 tier (v10 by user ruling; from the donor line, bdobb-dev/openbb-docker 78c7af9):
   # the kdb day is flushed nightly into a Delta Lake store on S3, and live-grid's chart seam
   # reads flushed days back. Same opt-in `live` profile; the default stack is unchanged.
   # Needs rustfs.env (cp rustfs.env.example rustfs.env && chmod 600 rustfs.env); without

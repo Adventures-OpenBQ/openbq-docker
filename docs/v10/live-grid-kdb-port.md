@@ -65,7 +65,7 @@ changed or unchanged in the range) is the appendix.
 
 | File | Donor commits | Notes |
 |---|---|---|
-| `policy.mjs` | e8c1239 grammars, `upstreamPath` /grid, `liveGridSubscription`, `socketTarget`; b9545f5 /grid/ticks; dc61be8 /grid/ta_chart and `/grid/ta_chart_ws` in `socketTarget` | Equal to the donor's d606169 file except the removed /ai block and naming. **Changed: BDOBB must re-vendor it.** sha256 `1e6aa6c684e48194098acc8db2cf990db8d8096b45fdb2a661a89a3590ca5083` (v9: `dfa61ddf…0bfd0`) |
+| `policy.mjs` | e8c1239 grammars, `upstreamPath` /grid, `liveGridSubscription`, `socketTarget`; b9545f5 /grid/ticks; dc61be8 /grid/ta_chart and `/grid/ta_chart_ws` in `socketTarget` | Equal to the donor's d606169 file except the removed /ai block and naming. **Changed: BDOBB must re-vendor it.** sha256 `ceadbbe541289bc2517946681c39cb0305475acf213fe51cdccad96f35abe71a` since the 2026-10-16 review fixes (D24: comment-only, forward references removed; earlier `1e6aa6c6…a5083`, v9: `dfa61ddf…0bfd0`) |
 | `server.mjs` | e8c1239 target/connectGrid; 7212a1d back-pressure bound, METERED_GRID, OPTIONAL_DOCS, getJson status, Origin on connectGrid; b9545f5 symbol_meta metered; d32966d per-symbol frame metering, FRAME_CAP; dc61be8 the push-only socket; d7ec9d1 + 04e6089 no free first frame or push | `liveGrid` off → 503 (P4); SOCKS/Rita stay removed |
 | `config.mjs` | e8c1239 `gridOrigin` fixed in code | `http://live-grid:6903` (the compose service), `null` unless `"liveGrid": true` (P4) |
 | `check-upstreams.mjs` | e8c1239 live-grid /health preflight | only when `gridOrigin` is set; the v8 lock probe kept |
@@ -243,8 +243,8 @@ These are **user rulings**, given in this session on 2026-10-12. They are not pr
 1. **Crash recovery.** v10 needs crash recovery: the standard tick-spooling script writes
    ticks to the filesystem, and they are replayed when a service needs a restart.
 2. **The S3 file system.** v10 also needs the S3 file system, to store the ticks for the
-   kdb cache. The donor's S3 tier first appears at v11.0.0 (Episode 11). **These are
-   Episode 11 donor items, moved into v10 by user ruling.**
+   kdb cache. The donor's S3 tier first appears in a later donor release (78c7af9).
+   **These are later donor items, moved into v10 by user ruling.**
 3. **RustFS instead of MinIO.** The S3 store is RustFS (`rustfs/rustfs`, Apache-2.0), not
    MinIO. The user's reason is MinIO's licence change: they do not want people building on
    something that will go stale. RustFS is meant to be a drop-in S3-compatible
@@ -272,7 +272,7 @@ which survives `docker compose down`/`up` and container recreation (`down -v` de
 `.z.exit` closes the log handle. The operator copies nothing by hand any more.
 
 **Reconnection.** kdb-store's `session.py` and `store.py` and live-grid's `recorder.py` are
-byte-identical to the donor's latest (main and v11.5.4; last substantive commits b6ce372,
+byte-identical to the donor's latest (main; last substantive commits b6ce372,
 93fcd88, 2fc9b6b). The behaviour the tests prove: a dead connection fails its `1+1` liveness
 check; the next call walks the chain again to `kdb:5000`; the expiring 60 s latch
 (25ba5f7's fix, in b6ce372's session.py) suppresses retries during an outage and picks up a
@@ -288,15 +288,15 @@ flush that fails while kdb is down (bounded buffer, counted in `/health` `ticks.
 
 | Path | Donor commits (tag) | Disposition |
 |---|---|---|
-| `openbb-deltalake/` (22 files) | 2b02ed7, 0e1b465, c5a06ae, 6dd737b, bf07da0, 9ad866f, 7b40ab1 (v11.0.0 line, 2026-09-01); 3b10505, b6653a7 (2026-09-03/04); d999ebe, ed38326 (v11.0.1); 23f076a (docs); f69689e (openbb-core 2.0.1 floor, v11.0.6); headers 78c7af9/2e5af70/b7045aa | ADD, content = v11.0.6 (`afda165`). Edits: README preface; tests build the example tailnet suffix at run time and use `EXAMPLE_*` secrets so `check-public.py` passes (same assertions). Installed only in the openbq-lake image |
-| `scripts/eod_dump.py` | 4b84311, 7fc889b, a061853 (v11.0.0); 714d43c (v11.0.1) | ADD, from v11.0.6. Edits below |
-| `docker-compose.yml` `eod-dump` | ec5e738 (v11.0.0), 714d43c | ADD, rewritten for this line |
-| `docker-compose.yml` `rustfs`, `rustfs-init`, volume `rustfs-data` | shape from a7d5b3e/ec5e738 (`minio`, `minio-init`, `minio-data`, v11.0.0) | REPLACED by RustFS (ruling 3) |
-| `rustfs.env.example` | minio.env.example (a7d5b3e, b1374ac, d999ebe; v11.0.0..v11.0.6) | REPLACED: RustFS names, empty secrets, the `DELTA_S3_*` contract kept |
-| `eod.env.example` | 714d43c (v11.0.1) | ADD, hot mirror off |
+| `openbb-deltalake/` (22 files) | 2b02ed7, 0e1b465, c5a06ae, 6dd737b, bf07da0, 9ad866f, 7b40ab1 (2026-09-01); 3b10505, b6653a7 (2026-09-03/04); d999ebe, ed38326; 23f076a (docs); f69689e (openbb-core 2.0.1 floor); headers 78c7af9/2e5af70/b7045aa | ADD, content = `afda165`. Edits: README preface; tests build the example tailnet suffix at run time and use `EXAMPLE_*` secrets so `check-public.py` passes (same assertions). Installed only in the openbq-lake image |
+| `scripts/eod_dump.py` | 4b84311, 7fc889b, a061853; 714d43c | ADD, from `afda165`. Edits below |
+| `docker-compose.yml` `eod-dump` | ec5e738, 714d43c | ADD, rewritten for this line |
+| `docker-compose.yml` `rustfs`, `rustfs-init`, volume `rustfs-data` | shape from a7d5b3e/ec5e738 (`minio`, `minio-init`, `minio-data`) | REPLACED by RustFS (ruling 3) |
+| `rustfs.env.example` | minio.env.example (a7d5b3e, b1374ac, d999ebe) | REPLACED: RustFS names, empty secrets, the `DELTA_S3_*` contract kept |
+| `eod.env.example` | 714d43c | ADD, hot mirror off |
 | `Dockerfile.lake` (`openbq-lake:10.0.0`) | the donor's `openbb-local` image as eod-dump's runtime (ec5e738) | NEW: the counterpart, separate from openbq-api |
 | `scripts/s3_init.py` | replaces `minio-init`'s `mc mb --ignore-existing` (a7d5b3e) | NEW, S3 API via pyarrow |
-| `live-grid/app/lake.py`, `live-grid/app/main.py` (`build_series(..., lake=)`), `live-grid/pyproject.toml` (+deltalake, pyarrow) | none at v11 (the donor's v11 live-grid never reads Delta; its later tick vault, d07898b, is Episode 12+) | NEW, the read-back (C4) |
+| `live-grid/app/lake.py`, `live-grid/app/main.py` (`build_series(..., lake=)`), `live-grid/pyproject.toml` (+deltalake, pyarrow) | none on the donor line (its live-grid never reads Delta at those commits; its later tick vault is d07898b) | NEW, the read-back (C4) |
 | `scripts/tests/test_lake_scripts.py`, `live-grid/tests/test_lake_readback.py`, `tests/test_lake_profile.py` | none | NEW |
 | `.gitignore`, `NOTICE`, `README.md`, `kdb-ws/README.md` | none | EDIT |
 
@@ -316,7 +316,7 @@ Not taken from the donor's S3 tier:
 | Donor path or piece | Why |
 |---|---|
 | `minio/` (Dockerfile, entrypoint.sh, cert-sync.sh, tests/) | EXCLUDE, superseded by the RustFS ruling |
-| 785fef8 (v11.0.5), 12cfc20 + d75a48d (v11.3.4), a5e6f4a (v11.2.6): MinIO from release binaries, not withdrawn images | EXCLUDE, superseded by the RustFS ruling |
+| 785fef8, 12cfc20 + d75a48d, a5e6f4a: MinIO from release binaries, not withdrawn images | EXCLUDE, superseded by the RustFS ruling |
 | cert-sync and the `minio-ts-state` volume | MinIO joined the tailnet with its own certificate. RustFS here is on the bridge only, no tailnet node, so nothing needs a certificate (decision under the ruling's "keep cert-sync only if needed") |
 | `minio-hdd`, `minio-hdd-init`, the hot/cold tier variables (`DELTA_S3_HOT_*`/`COLD_*`, `LAKE_*_URI`) | NAS/HDD deployment; the code that reads them is kept (it falls back to the single store) but nothing configures them |
 | eod-dump's `KDB_HTTP_URL` path and kdb's Serve `:5999` | the NAS-only production flush; nothing publishes kdb here (P3) |
@@ -360,9 +360,9 @@ Not taken from the donor's S3 tier:
   (Dockerfile.lake: python:3.12-slim at the same digest as Dockerfile, `--constraint
   requirements.lock`, openbb-core 2.0.1, deltalake 1.6.6, pykx 4.1.0, openbb-deltalake), not
   in openbq-api's image as the donor's eod-dump does, so the default stack is unchanged.
-- **C4** PROVISIONAL: the read-back. The donor's v11 has no live-grid reader for flushed
-  ticks (its eod-dump comment says the chart's seam reads the hot mirror, but no v11 code
-  does). `live-grid/app/lake.py` is this line's own: for an intraday interval that tiles a
+- **C4** PROVISIONAL: the read-back. The donor line has no live-grid reader for flushed
+  ticks (its eod-dump comment says the chart's seam reads the hot mirror, but none of its
+  code does). `live-grid/app/lake.py` is this line's own: for an intraday interval that tiles a
   UTC day (1m, 5m, 15m, 1h, 90m; not 7m, not 1d), each whole past UTC day in the request
   (at most `LIVE_GRID_LAKE_MAX_DAYS`, 10) that `ticks_live/<SYM>_<YYYY_MM_DD>` holds is
   aggregated like kdb's `xbar` and owns its span from its first fully covered bar to the end

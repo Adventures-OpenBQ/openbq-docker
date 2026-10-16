@@ -363,7 +363,7 @@ def test_apps_json_only_names_widgets_this_service_publishes(monkeypatch):
     live-grid had no apps.json test at all until the V10.0.0 dashboard gained
     `live_chart` and `kdb_cache_chart` -- the two Ep. 10 widgets the service
     published but no dashboard ever placed. stores-explorer has carried the
-    equivalent guard since Ep. 11; this is that guard, here.
+    equivalent guard on the donor line; this is that guard, here.
     """
     # `subscriptions` is published only when LIVE_GRID_PUBLIC_URL is set -- it
     # cannot render without an absolute endpoint -- and the shipped dashboard

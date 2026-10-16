@@ -82,11 +82,11 @@ export async function verify(config, base = "http://127.0.0.1:8091") {
   for (const path of ["/", "/tick", "/mcp", "/keys", "/widgets.json",
     // The grid's own shape rules, each refused before live-grid is dialled. First the paths
     // that are not in the contract at all: live-grid's admin and page surfaces, its lease
-    // route, and the v12 study routes this tag's live-grid genuinely does NOT serve. Its
+    // route, and the study routes a later line adds, which this tag's live-grid genuinely does NOT serve. Its
     // watchlist API IS a route since V10-P5 (server.mjs subscriptionRoute), so only its
     // out-of-grammar shapes appear: a query, a nested path, and a GET on one symbol. Be precise about which those are: /ta_chart and /ta_chart_ws ARE served here
     // (live-grid/app/main.py), so they are routes, not refusals -- what remains absent is
-    // the rest of the v12 family, /ta_registry, /live_grid_studies and /ta_series_ws.
+    // the rest of that study family, /ta_registry, /live_grid_studies and /ta_series_ws.
     // /grid/ticks is a route here too (this line's kdb tick reader), so for all three only
     // their out-of-grammar shapes appear below. The kdb+ tick cache ITSELF is not here at
     // all and never will be: q IPC executes arbitrary code with no auth.

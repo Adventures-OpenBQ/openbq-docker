@@ -41,7 +41,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 /**
  * The openbq-api side, since the owner's 2026-09-20 decision to "make all
  * widgets available in vercel". openbq-api's real /widgets.json IS the whole
- * OpenBB catalogue -- 331 widgets over 181 distinct endpoints at v12.4 -- and
+ * OpenBB catalogue -- 331 widgets over 181 distinct endpoints on 2026-09-20 -- and
  * the GitHub allowlist, not a curated manifest, is what gates the preview. So
  * the /api side forwards the catalogue unfiltered, and the widgets' data calls
  * are admitted by ONE structurally-bounded rule instead of 181 per-route
@@ -63,7 +63,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
  * The query that leaves is RE-SERIALISED from the parsed pairs, never the raw
  * string a caller wrote.
  *
- * Verified against the live v12.4 catalogue on 2026-09-20: all 181 widget
+ * Verified against the live catalogue on 2026-09-20: all 181 widget
  * endpoints and all 11 parameter optionsEndpoints match OPENBB_ROUTE_RE, and
  * no declared paramName fails PARAM_NAME_RE. What stays refused is everything
  * OUTSIDE /api/api/v1/: openbq-api's /docs, /openapi.json and /redoc are not
@@ -169,7 +169,7 @@ export function upstreamPath(url, config) {
 
   // The EODHD v2 trading-calendar envelope the client consults for bd
   // resolution. A 404 from an older backend is the designed "no calendar"
-  // answer, so this route against a v10.1.2/12.4.0 upstream without the
+  // answer, so this route against an older upstream without the
   // endpoint degrades exactly like a client with no calendar at all.
   //
   // This is the one /api route that KEEPS its own narrow grammar after the
@@ -229,10 +229,11 @@ export function upstreamPath(url, config) {
   // --- the live-grid family (Ep. 10). Every parameter set mirrors what THIS
   // line's live-grid actually serves (live-grid/app/main.py) and what the
   // client actually sends; unknown keys are a refusal, never a passthrough.
-  // Routes a later line adds (/grid/ta_chart, /grid/ta_registry and the rest of
-  // the v12 study family) are absent here because this stack's live-grid does
-  // not serve them. /grid/ticks IS here: the v10.1 line's live-grid has the kdb
-  // tick reader that the v10.0 line's does not.
+  // The study routes a later line adds (/grid/ta_registry, /grid/live_grid_studies
+  // and the rest of that family) are absent here because this stack's live-grid
+  // does not serve them. /grid/ta_chart IS here (below): this line's live-grid
+  // serves the tick chart. So is /grid/ticks: the v10.1 line's live-grid has the
+  // kdb tick reader that the v10.0 line's does not.
 
   // The same two root documents as the /api side, for the grid backend: exact
   // path, no query. On THIS line live-grid really serves /grid/apps.json -- it

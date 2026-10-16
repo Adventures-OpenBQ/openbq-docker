@@ -1,7 +1,7 @@
 <!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-> **openbq-docker v10.** Ported from bdobb-dev/openbb-docker v11.0.6 (`afda165`), content
+> **openbq-docker v10.** Ported from the donor line, bdobb-dev/openbb-docker `afda165`, content
 > unchanged, as the `live` profile's Delta Lake writer: `scripts/eod_dump.py` uses its
 > `store(layer=..., library="ticks_live")`. It is installed only in the `openbq-lake` image
 > (`Dockerfile.lake`), not in openbq-api, so `provider="deltalake"` is not served on this

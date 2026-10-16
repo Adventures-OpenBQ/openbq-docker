@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openbb-deltalake"
-version = "11.0.0"
+version = "10.0.0"
 description = "Delta Lake integration for OpenBB: read stored bars as a provider, and persist any OBBject result to a Delta table."
 readme = "README.md"
 requires-python = ">=3.10"
