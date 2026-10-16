@@ -347,7 +347,7 @@ FAIL boundaries, exclusion of failed migration revisions from a later ordinary
 refresh, immutable prior Gold, and archived replay. Retained native imports
 and `/proc/self/maps` libpython loading were also verified from the archive.
 
-Supported Linux Node22 gateway tests passed 91/91. H gateway implementation is
+Supported Linux Node 22 gateway tests passed 91/91. H gateway implementation is
 still `8104edd50c57c602278baaf1b7189fa204d45074`, matching C's separate v11 vendoring
 receipt. Canonical v10 policy and its C receipt remain unchanged. The final
 profile-enabled fixture Compose configuration validates four API/worker service
@@ -391,34 +391,41 @@ coordination or durable acknowledgement prevents fresh provider data from return
 
 ## Current candidate qualification
 
-The pinned TemporalDB 0.3.2 runtime was built from clean P source
-`d66e6b965558c5fa0b1718c5a801a1fb536254c8`, exported, hash/layer checked and loaded
-locally. Its exact image, artifact SHA256 and provenance are in `temporaldb.lock.json`.
-The final provider host uses the exact clean E/Y commits and verified source archives
-in that lock. Two installed host processes passed the recorded EODHD/Yahoo route:
-one concurrent fetch per provider, a later new retrieval, and rejection of mismatched
-accounts/foreign credentials before upstream work. The configured capture URLs are
-origins; each bridge appends its capture route exactly once.
+The pinned TemporalDB 0.4.0 Linux arm64 image was built from clean executable source
+`75d5389d0b68a7041b84e7e7e1f04d097d8ff9b1`. The exact local image and Docker-save
+SHA256 are in `temporaldb.lock.json`; `temporaldb-task6-qualification.json` records
+current gate status. Later harness/documentation commits are not the image source.
+The archive is unpublished. Load and verify that exact artifact before provisioning.
 
-Both actual P and H compose service mount policies passed with the installed image
-as uid 65532: API writers published concurrent complete evidence and recovered after
-a writer SIGKILL before atomic publication; runtime archives stayed read-only, and
-workers read both namespaces while evidence writes were rejected. Disposable host
-filesystem checks do not establish NAS or power-loss durability.
+The final installed provider topology passed two tests with the requested image
+asserted in rendered API/provision configuration and actual running API image/source.
+The provider host remains the independently verified66a498 artifact with unchanged
+E/Y source pins. Recorded EODHD HTTPS and Yahoo SDK retrievals exercise real capture
+coordination, account policy and durable acknowledgement; no live paid calls occur.
 
-The final installed wheel also passed 15 focused typed-consumer, two-Worker-instance
-recorded acquisition/reference, account, heartbeat/fencing and deadline checks.
-Historical 0.3.1 qualification above does not qualify changed source. Current installed
-API/worker process and archived replay results are recorded separately in
-`temporaldb-final-fix-qualification.json` and P's
-`docs/releases/v11/final-fix-validation.md`.
+The final combined fixture ran two actual API containers and two worker containers
+from the exact image. It exercised default multisource concurrent Gold, shared query
+revision, table/chart/export, protected Arrow publication, actual foreign-workspace
+and foreign-entitlement route denials, and separate-store protected replay through
+the retained Linux query runtime. All94 tables/38 objects matched. Publication
+negative cases left the whole registry and both owned bucket inventories unchanged.
+The separately labeled disabled-publication API only serves the negative phase.
 
-**This candidate is not ready for cutover.** Split-session tick migration with a
-daily reference remains a required missing workflow. Partial sessions stop before
-acquisition/PASS; whole-session all-chunk acceptance and replay closure are not
-implemented. See the current P evidence report for exact qualification failures and
-limits. Registry publication, live providers, public networking and deployment are
-not established by these local checks.
+API evidence mounts were RW, worker evidence mounts RO and all runtime archives RO.
+The fixture uses a byte/mode-verified private Linux volume to qualify Linux filesystem
+semantics. Operators still supply durable shared storage as described above. This
+fixture establishes neither macOS Docker bind/NAS latency nor power-loss durability.
+The targeted ordinary child-process diagnostic uses shared RW evidence and is not
+the evidence for shipped role-specific mounts.
+
+Complete split-session migration now has real worker owner-loss, failed-session and
+100,001-tick acceptance/canonical proof under the original1800s bound. Historical
+partial-session/0.3.2 gaps above do not describe current implementation. The first
+final full runtime run passed its tick phases but later hit a snapshot execution
+deadline; its failed result remains recorded alongside targeted follow-up evidence.
+Consult P's `docs/releases/v11/task6-qualification.md` for the final aggregate,
+remaining baseline failures/skips and review status. Local qualification does not
+authorize registry publication, live acquisition, public networking or deployment.
 
 ### Optional shared OpenBQ settings
 

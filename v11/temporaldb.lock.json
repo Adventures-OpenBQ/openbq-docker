@@ -40,8 +40,8 @@
   },
   "qualification_report": "temporaldb-task6-qualification.json",
   "candidate_qualification": {
-    "status": "in_progress",
-    "reason": "Final optimized 0.4.0 candidate built/exported; installed runtime, combined restore and exact topology gates running/pending."
+    "status": "installed_gates_passed_broad_and_final_review_pending",
+    "reason": "Final optimized runtime phase composite, combined UI/protected restore and exact provider topology passed. Broad P aggregate and final evidence review remain pending; no release approval."
   },
   "provider_host": {
     "version": "11.0.0",
@@ -61,7 +61,7 @@
         "distribution": "verified local clean commit archive; remote availability not asserted"
       }
     },
-    "qualification": "Reviewed Task5.1 fix1 Linux arm64 image: 20 installed source hashes still match; retained settings encoding/TLS/recovery evidence. Final Task6 provider topology gate pending.",
+    "qualification": "Reviewed Task5.1 fix1 Linux arm64 image:20 installed hashes match. Final Task6 exact-image recorded provider topology passed2/253.00s; retained settings encoding/TLS/recovery evidence unchanged.",
     "settings_source_commit": "5b18205a5e0553a071f3644d86815a8c0f79879f",
     "installed_source_hashes": {
       "v3/openbq_settings.py": "a24bc9310fb30282d9fd9c9bf182528402d0d4050738372a0b1123917dfbc30d",
