@@ -8,6 +8,7 @@ ever leak it. `values=None` means the file was unreadable: emit a banner row
 plus one 'unknown' row per registered provider — HTTP 200 always."""
 from __future__ import annotations
 
+from app.probes import WORST_RANK
 from app.registry import (
     IGNORE,
     LOCAL_PROVIDERS,
@@ -18,7 +19,6 @@ from app.registry import (
 )
 
 _CRED_SUFFIXES = ("_API_KEY", "_TOKEN", "_SECRET")
-WORST_RANK = {"no_response": 4, "error": 3, "auth_failed": 2, "skipped": 1, "ok": 0}
 
 _NOT_INSTALLED = {
     "result": "skipped",
@@ -34,18 +34,21 @@ def _status(values: dict[str, str], env_var: str) -> str:
     return "set" if values[env_var] else "empty"
 
 
+def _row(name: str, env_var: str, values: dict[str, str], tier: int, **extra) -> dict:
+    """A credential row; the value itself only at tier 3."""
+    row = {"provider": name, "env_var": env_var, "status": _status(values, env_var),
+           "demo": is_demo(env_var, values.get(env_var, "")), **extra}
+    if tier == 3 and env_var in values:
+        row["value"] = values[env_var]
+    return row
+
+
 def worst_check(checks: list[dict]) -> dict | None:
     """The worst check by result rank: no_response > error > auth_failed >
     skipped > ok. None when there are no checks."""
     if not checks:
         return None
     return max(checks, key=lambda c: WORST_RANK.get(c.get("result", "ok"), 0))
-
-
-def _registry_auth(provider_id: str) -> str:
-    """auth from the registry, used only when the descriptor is unavailable.
-    Registry entries are all credentialed; the optional set is the exception."""
-    return "optional" if provider_id in OPTIONAL_PROVIDERS else "required"
 
 
 def _attach_checks(row: dict, tests, provider_id: str) -> None:
@@ -82,18 +85,10 @@ def build_rows(
         rows = _joined_rows(values, tier, tests, descriptor)
 
     # Credential-shaped vars present in the file but unknown to the registry.
-    for var, value in values.items():
+    for var in values:
         if var in PROVIDERS or var in IGNORE or not var.endswith(_CRED_SUFFIXES):
             continue
-        row = {
-            "provider": var,
-            "env_var": var,
-            "status": "set" if value else "empty",
-            "demo": False,
-        }
-        if tier == 3:
-            row["value"] = value
-        rows.append(row)
+        rows.append(_row(var, var, values, tier))
 
     if malformed:
         rows.extend(
@@ -114,16 +109,9 @@ def _registry_only_rows(values, tier, tests):
     "supported" cannot be answered, not even as `supported: None`."""
     rows = []
     for var, p in PROVIDERS.items():
-        row = {
-            "provider": p.name,
-            "env_var": var,
-            "status": _status(values, var),
-            "demo": is_demo(var, values.get(var, "")),
-            "provider_id": p.provider_id,
-            "auth": _registry_auth(p.provider_id),
-        }
-        if tier == 3 and var in values:
-            row["value"] = values[var]
+        # Registry entries are all credentialed; the optional set is the exception.
+        auth = "optional" if p.provider_id in OPTIONAL_PROVIDERS else "required"
+        row = _row(p.name, var, values, tier, provider_id=p.provider_id, auth=auth)
         _attach_checks(row, tests, p.provider_id)
         rows.append(row)
     return rows
@@ -145,36 +133,16 @@ def _joined_rows(values, tier, tests, descriptor):
         p = idx.get(pid)
         if p is not None:
             # Case A: descriptor provider WITH a registry entry.
-            row = {
-                "provider": p.name,
-                "env_var": p.env_var,
-                "status": _status(values, p.env_var),
-                "demo": is_demo(p.env_var, values.get(p.env_var, "")),
-                "provider_id": pid,
-                "auth": auth,
-                "supported": True,
-            }
-            if tier == 3 and p.env_var in values:
-                row["value"] = values[p.env_var]
+            row = _row(p.name, p.env_var, values, tier, provider_id=pid, auth=auth, supported=True)
         else:
             # Case B: descriptor provider WITHOUT a registry entry
             #         (keyless, or a keyed provider the registry has not learned).
+            #         A keyless provider's row never carries a value.
             env_vars = d.get("env_vars") or []
             env_var = env_vars[0] if env_vars else ""
             keyless = auth == "not_required"
-            has_value = bool(env_var and values.get(env_var))
-            status = _status(values, env_var) if env_var else "missing"
-            row = {
-                "provider": d.get("name") or pid.replace("_", " ").title(),
-                "env_var": env_var,
-                "status": status if has_value or env_var else "missing",
-                "demo": is_demo(env_var, values.get(env_var, "")) if env_var else False,
-                "provider_id": pid,
-                "auth": auth,
-                "supported": True,
-            }
-            if tier == 3 and env_var and env_var in values and not keyless:
-                row["value"] = values[env_var]
+            row = _row(d.get("name") or pid.replace("_", " ").title(), env_var, values,
+                       0 if keyless else tier, provider_id=pid, auth=auth, supported=True)
         _attach_checks(row, tests, pid)
         rows.append(row)
 
@@ -182,19 +150,8 @@ def _joined_rows(values, tier, tests, descriptor):
     for var, p in PROVIDERS.items():
         if p.provider_id in named:
             continue
-        row = {
-            "provider": p.name,
-            "env_var": var,
-            "status": _status(values, var),
-            "demo": is_demo(var, values.get(var, "")),
-            "provider_id": p.provider_id,
-            "auth": "required",
-            "supported": False,
-            "test": dict(_NOT_INSTALLED),
-            "checks": [dict(_NOT_INSTALLED)],
-        }
-        if tier == 3 and var in values:
-            row["value"] = values[var]
+        row = _row(p.name, var, values, tier, provider_id=p.provider_id, auth="required",
+                   supported=False, test=dict(_NOT_INSTALLED), checks=[dict(_NOT_INSTALLED)])
         rows.append(row)  # no probe attempted; fixed skipped test overrides any supplied check
     return rows
 
@@ -208,8 +165,7 @@ def build_summary(rows: list[dict], *, descriptor_available: bool = True) -> str
     """
     lines = []
     if not descriptor_available:
-        lines.append("Provider inventory unavailable; showing configured credentials only.")
-        lines.append("")
+        lines += ["Provider inventory unavailable; showing configured credentials only.", ""]
 
     by_status: dict[str, list[str]] = {}
     for row in rows:
@@ -218,7 +174,7 @@ def build_summary(rows: list[dict], *, descriptor_available: bool = True) -> str
         )
     total = len(rows)
     n_set = len(by_status.get("set", []))
-    existing_lines = [f"**{n_set} of {total} provider keys configured**", ""]
+    lines += [f"**{n_set} of {total} provider keys configured**", ""]
     for status, label in (
         ("missing", "Missing"),
         ("empty", "Present but empty"),
@@ -226,13 +182,13 @@ def build_summary(rows: list[dict], *, descriptor_available: bool = True) -> str
     ):
         names = sorted(by_status.get(status, []))
         if names:
-            existing_lines.append(f"- **{label} ({len(names)}):** {', '.join(names)}")
+            lines.append(f"- **{label} ({len(names)}):** {', '.join(names)}")
     demo = sorted(str(r.get("provider", "?")) for r in rows if r.get("demo"))
     if demo:
-        existing_lines.append(
+        lines.append(
             f"- **Public demo key ({len(demo)}):** {', '.join(demo)}"
             " -- rate-limited and shared; replace before relying on it."
         )
     if n_set == total and not demo:
-        existing_lines.append("- Every provider is configured with a private key.")
-    return "\n".join(lines + existing_lines)
+        lines.append("- Every provider is configured with a private key.")
+    return "\n".join(lines)

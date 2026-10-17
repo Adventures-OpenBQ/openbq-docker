@@ -6,11 +6,13 @@ and exception class names — never from URLs, bodies, or key material."""
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import httpx
 
+from app.catalog import _DETAIL as _CRED_DETAIL
 from app.catalog import EXAMPLES, classify
 from app.registry import LOCAL_PROVIDERS, PROVIDERS, provider_index
 from app.usage import parse_usage
@@ -63,13 +65,6 @@ def code_from_httpx_error(exc: httpx.HTTPError) -> str:
     return "connect_timeout"
 
 
-_CRED_DETAIL = {
-    "http_auth": "the provider rejected the credential",
-    "rate_limited": "the provider rate-limited the request",
-    "upstream_error": "the provider returned an error",
-}
-
-
 async def _probe_credential(client, env_var, values) -> Check:
     provider = PROVIDERS[env_var]
     if provider.probe is None:
@@ -107,12 +102,12 @@ def worst(checks: list[Check]) -> Check:
     return max(checks, key=lambda c: WORST_RANK.get(c.result, 0))
 
 
-async def _probe_connectivity(api_client, example, base_url, auth, sem) -> Check:
+async def _probe_connectivity(api_client, example, base_url, auth, sem=None) -> Check:
     """Fire the provider's one stored example request through the OpenBB API
     itself (not the vendor directly) and classify the response. A transport
     failure never reaches the API, so its detail is the fixed sentence below
     -- never the exception message, which can carry a URL."""
-    async with sem:
+    async with sem or contextlib.nullcontext():
         try:
             resp = await api_client.get(
                 f"{base_url.rstrip('/')}{example.path}",
@@ -126,7 +121,7 @@ async def _probe_connectivity(api_client, example, base_url, auth, sem) -> Check
         body = resp.json()
     except ValueError:
         body = {}
-    result, code, detail = classify(resp.status_code, body, example.expect)
+    result, code, detail = classify(resp.status_code, body)
     return Check("connectivity", result, detail, code, _now())
 
 
@@ -157,24 +152,16 @@ async def run_probes(
     auth_of = {d.get("id"): d.get("auth", "unknown") for d in (descriptor or [])}
     try:
         async def one(pid):
-            checks: list[Check] = []
             p = idx.get(pid)
             has_value = bool(p and values.get(p.env_var))
-            a = auth_of.get(pid, "unknown")
-            if p is not None:  # keyed provider
-                if has_value:
-                    checks.append(await _probe_credential(cred_client, p.env_var, values))
-                    checks.append(await _probe_connectivity(
-                        api_client, EXAMPLES[pid], base_url, auth, sem))
-                elif a == "optional":
-                    checks.append(await _probe_connectivity(
-                        api_client, EXAMPLES[pid], base_url, auth, sem))
-                else:  # required (or unknown), no value
-                    checks.append(Check("credential", "skipped", "key not set", None, _now()))
-                    checks.append(Check("connectivity", "skipped", "key not set", None, _now()))
-            else:  # keyless
-                checks.append(await _probe_connectivity(
-                    api_client, EXAMPLES[pid], base_url, auth, sem))
+            if p is not None and not has_value and auth_of.get(pid, "unknown") != "optional":
+                # keyed, no value, auth required (or unknown)
+                return pid, [Check("credential", "skipped", "key not set", None, _now()),
+                             Check("connectivity", "skipped", "key not set", None, _now())]
+            checks: list[Check] = []
+            if has_value:
+                checks.append(await _probe_credential(cred_client, p.env_var, values))
+            checks.append(await _probe_connectivity(api_client, EXAMPLES[pid], base_url, auth, sem))
             return pid, checks
 
         pids = [pid for pid in installed if pid in EXAMPLES]
@@ -187,11 +174,7 @@ async def run_probes(
             await api_client.aclose()
 
 
-_RUN_CACHE: dict[str, asyncio.Future] = {}
-
-
-def _reset_run_cache() -> None:  # test hook
-    _RUN_CACHE.clear()
+_inflight: asyncio.Future | None = None
 
 
 async def run_probes_joined(runner):
@@ -199,13 +182,12 @@ async def run_probes_joined(runner):
     vendor/API calls. `runner` is a zero-arg coroutine function returning the
     run's result. Two concurrent callers while a run is in flight both await
     the same Future and get the same result object."""
-    key = "all"
-    fut = _RUN_CACHE.get(key)
+    global _inflight
+    fut = _inflight
     if fut is not None and not fut.done():
         return await fut
     loop = asyncio.get_event_loop()
-    fut = loop.create_future()
-    _RUN_CACHE[key] = fut
+    fut = _inflight = loop.create_future()
     try:
         result = await runner()
         fut.set_result(result)
@@ -214,7 +196,7 @@ async def run_probes_joined(runner):
         fut.set_exception(e)
         raise
     finally:
-        _RUN_CACHE.pop(key, None)
+        _inflight = None
 
 
 async def probe_one_provider(
@@ -231,14 +213,11 @@ async def probe_one_provider(
                 httpx.AsyncClient(timeout=CONNECTIVITY_TIMEOUT_S) as ac):
         checks = [await _probe_credential(cc, env_var, values)]
         if installed and p.provider_id in EXAMPLES and values.get(env_var):
-            sem = asyncio.Semaphore(MAX_INFLIGHT)
-            checks.append(await _probe_connectivity(ac, EXAMPLES[p.provider_id],
-                                                    base_url, auth, sem))
+            checks.append(await _probe_connectivity(ac, EXAMPLES[p.provider_id], base_url, auth))
         return checks
 
 
 async def probe_provider_by_id(provider_id: str, base_url: str, auth) -> list[Check]:
     """Probe a single keyless provider by provider_id (no credential leg)."""
     async with httpx.AsyncClient(timeout=CONNECTIVITY_TIMEOUT_S) as ac:
-        sem = asyncio.Semaphore(MAX_INFLIGHT)
-        return [await _probe_connectivity(ac, EXAMPLES[provider_id], base_url, auth, sem)]
+        return [await _probe_connectivity(ac, EXAMPLES[provider_id], base_url, auth)]
