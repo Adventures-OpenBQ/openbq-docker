@@ -47,7 +47,7 @@ v10: at v4 an upgrade from a desktop origin is refused like any other.
 | `rss-ticker` service, `rss-ticker-config/`, its volume, ignores and Serve port 8088 | v8 | Same. |
 | `tls.test.mjs` and the wire's preflight and verifier probes | v8 | They test only the wire. |
 | Settings `rssOrigin`, `rssAddress`, `feeds` | v8 | The wire's configuration; refused as unknown keys at v4. |
-| The socket door in `server.mjs` (ticketed browser upgrades, socket budget, lifetimes), settings `previewOrigin` and `maxSockets`, the `ws` dependency | v8 | Its only route is the wire's socket. At v4 every upgrade is refused (401 without the token, else 404). |
+| The socket door in `server.mjs` (ticketed browser upgrades, socket budget, the dead-peer heartbeat), settings `previewOrigin` and `maxSockets`, the `ws` dependency | v8 | Its only route is the wire's socket. At v4 every upgrade is refused (401 without the token, else 404). |
 | `/grid/**`, the `/grid` sockets and subscriptions, `liveGrid` | v10 | Live grid is a v10 feature. |
 | `/grid/ws_ticket` and desktop-Origin socket upgrades (V10-P1's socket half) | v10 | They serve the `/grid` sockets only. |
 | PR #10's `^` / `%5E` handling in `requestUrl` and `subscriptionRoute` | v10 | It serves `/grid` subscriptions. |

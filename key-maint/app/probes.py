@@ -13,6 +13,7 @@ import httpx
 
 from app.catalog import EXAMPLES, classify
 from app.registry import LOCAL_PROVIDERS, PROVIDERS, provider_index
+from app.usage import parse_usage
 
 TIMEOUT_S = 5.0
 CONNECTIVITY_TIMEOUT_S = 10.0
@@ -34,6 +35,9 @@ class Check:
     detail: str
     code: str | None
     checked_at: str
+    # The vendor's API usage, set only on an ok credential check whose
+    # provider reports it (app.usage). Informational: never ranks or fails.
+    usage: dict | None = None
 
 
 def _now() -> str:
@@ -88,7 +92,8 @@ async def _probe_credential(client, env_var, values) -> Check:
             if marker in body:
                 return Check("credential", "auth_failed",
                              f"{_CRED_DETAIL['http_auth']} (HTTP {status})", "http_auth", _now())
-        return Check("credential", "ok", f"HTTP {status}", None, _now())
+        return Check("credential", "ok", f"HTTP {status}", None, _now(),
+                     usage=parse_usage(provider.provider_id, resp))
     if status == 429:
         return Check("credential", "error",
                      f"{_CRED_DETAIL['rate_limited']} (HTTP {status})", "rate_limited", _now())

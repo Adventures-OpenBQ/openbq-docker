@@ -12,7 +12,7 @@ down and what stayed up.
 - `funnel-gateway/` as brought down for the walk's v4 (itself from openbq-docker v8.0.0), minus
   PR #10's managed-table routes, the table service and `control-admission.test.mjs` (no tables
   at v3), plus v8's socket door: ticketed browser upgrades, `previewOrigin`, `maxSockets`, the
-  240 s socket lifetime, and the `ws` dependency.
+  `ws` dependency. A socket has no lifetime: a 30 s ping closes one whose client stops answering.
 - The compose `funnel-gateway` service (`web` profile, `openbq-funnel-gateway:3.0.0`), the
   `gateway-state` volume, `gateway.env.example`, `ts-config/serve-funnel.json` and
   `serve-v3-funnel.json` (the :10000 door), `tests/test_web_profile.py` and the CI steps.

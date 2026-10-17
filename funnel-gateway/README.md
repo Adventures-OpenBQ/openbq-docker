@@ -48,7 +48,7 @@ Caller headers, cookies and credentials are never relayed.
 | `/state/<digits>/<file>` | PUT, DELETE | one of the app's JSON stores (`policy.mjs` `stateFile`); 256 KiB a file, 2 MiB and 200 files a user; `application/json` only |
 | `/ai/**` | — | not served by openbq-docker: 404 (POST 405) |
 | `/news/**` | — | the wire arrives at v8: 404 |
-| `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, six budget units, 240 s lifetime, 10 s to the first frame |
+| `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, six budget units, no lifetime (a 30 s ping; a missed pong closes it), 10 s to the first frame |
 | any other WebSocket upgrade | — | 401 without the token, else 403 (foreign Origin) or 404 |
 | everything else | — | 404 |
 
