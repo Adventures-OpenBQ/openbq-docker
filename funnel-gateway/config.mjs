@@ -31,7 +31,9 @@ const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir",
 // A settings file that still names them is refused by name, so the operator deletes them knowingly.
 const REMOVED_KEYS = new Set(["quoteDailyLimit", "requestsPerMinute"]);
 
-const DEFAULT_SSRM_ROUTES = JSON.parse(readFileSync(new URL("./ssrm-routes.json", import.meta.url), "utf8"));
+// lanes/ssrm_widgets.json as door paths: the image copies it to /lanes beside /app (Dockerfile).
+const DEFAULT_SSRM_ROUTES = JSON.parse(readFileSync(new URL("../lanes/ssrm_widgets.json", import.meta.url), "utf8"))
+  .map(w => `/api${w.route}/ssrm`);
 
 function bounded(value, label) {
   if (!Number.isInteger(value) || value < 1 || value > 32) throw new Error(`${label} must be between 1 and 32`);
@@ -69,7 +71,7 @@ export function validateConfig(settings, secrets) {
   if (!Number.isInteger(ssrmTimeoutMs) || ssrmTimeoutMs < 1000 || ssrmTimeoutMs > 300000) throw new Error("Invalid SSRM timeout");
   const tableService = settings.tableService ?? false;
   const tableDesktopPrincipal = settings.tableDesktopPrincipal ?? null;
-  // Unset = the 23 routes od serves (ssrm-routes.json, lanes/ssrm_widgets.json as door paths).
+  // Unset = the 23 routes od serves (lanes/ssrm_widgets.json as door paths).
   const ssrmRoutes = settings.ssrmRoutes ?? DEFAULT_SSRM_ROUTES;
   if (typeof tableService !== "boolean" || !validSsrmRoutes(ssrmRoutes)) throw new Error("Invalid table settings");
   if (tableDesktopPrincipal !== null && !/^desktop:[A-Za-z0-9_-]{1,100}$/.test(tableDesktopPrincipal)) throw new Error("Invalid desktop table principal");

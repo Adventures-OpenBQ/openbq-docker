@@ -11,7 +11,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
-import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, TABLE_DEADLINE_MS, refSubscription, socketTarget, socketTicketNonce, upstreamPath, stateFile } from "./policy.mjs";
+import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, refSubscription, socketTarget, socketTicketNonce, upstreamPath, stateFile } from "./policy.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
 // The root manifests are static catalogue documents, not data: openbq-api's widgets.json is
@@ -229,7 +229,7 @@ async function tableExchange(req, res, route, config) {
   const principal = route.managed ? tablePrincipal(req, config) : null;
   if (route.managed && !principal) return reply(res,401);
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),route.managed ? config.tableTimeoutMs ?? TABLE_DEADLINE_MS : config.ssrmTimeoutMs ?? 170000);
+  const timer=setTimeout(()=>controller.abort(),route.managed ? config.tableTimeoutMs : config.ssrmTimeoutMs);
   const disconnect=()=>{if(!res.writableEnded)controller.abort();}; res.once("close",disconnect);
   try {
     const body=await tableBody(req,route,controller.signal);
