@@ -460,7 +460,7 @@ async def _ssrm(request):
     # The API's Basic auth is a route dependency, which this hook runs before:
     # check it here, or a cached frame would be served to anyone.
     if not _authorized(request):
-        return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+        return _unauthorized(request)
     refused = _cors(request, JSONResponse({"detail": _SSRM_REFUSED}, 400))
     raw = b""
     async for chunk in request.stream():
@@ -522,17 +522,21 @@ def _rss_mb(pid: int) -> float:
     return 0.0
 
 
-def _with_extra_apps(body: bytes) -> bytes:
-    """The built apps.json plus EXTRA_APPS, when both are lists; else unchanged."""
+def _apps(body: bytes):
+    """(apps, extended): the built apps.json list, plus EXTRA_APPS when that is a list too.
+    (None, False) when the build is not a JSON list."""
+    try:
+        apps = json.loads(body)
+    except ValueError:
+        return None, False
+    if not isinstance(apps, list):
+        return None, False
     try:
         with open(EXTRA_APPS, encoding="utf-8") as f:
             extra = json.load(f)
-        apps = json.loads(body)
     except (OSError, ValueError):
-        return body
-    if not isinstance(apps, list) or not isinstance(extra, list):
-        return body
-    return json.dumps(apps + extra).encode()
+        return apps, False
+    return (apps + extra, True) if isinstance(extra, list) else (apps, False)
 
 
 def _cards(app) -> set:
@@ -544,13 +548,12 @@ def _cards(app) -> set:
             for card in tab.get("layout") or [] if isinstance(card, dict)}
 
 
-def _servable_apps(body: bytes, widget_ids) -> bytes:
+def _servable_apps(apps: list, widget_ids) -> list:
     """Drop every app with a card that is neither in /widgets.json nor a BDOBB built-in.
 
     A provider that is not installed would otherwise ship its apps as blank
     cards: openbb-api keeps an app when any one of its tabs resolves.
     """
-    apps = json.loads(body)
     kept = []
     for app in apps:
         missing = sorted(map(str, _cards(app) - BUILTIN_CARDS - widget_ids))
@@ -559,7 +562,7 @@ def _servable_apps(body: bytes, widget_ids) -> bytes:
                         app.get("name"), ", ".join(missing))
         else:
             kept.append(app)
-    return body if len(kept) == len(apps) else json.dumps(kept).encode()
+    return kept
 
 
 async def _widget_ids(cache, request):
@@ -590,14 +593,6 @@ def _logo(request):
                                    headers={"Cache-Control": "public, max-age=86400"}))
 
 
-def _json_list(body: bytes):
-    try:
-        value = json.loads(body)
-    except ValueError:
-        return None
-    return value if isinstance(value, list) else None
-
-
 def _is_catalog(request) -> bool:
     return request.method == "GET" and request.url.path in _CATALOGS and not request.url.query
 
@@ -605,7 +600,7 @@ def _is_catalog(request) -> bool:
 async def _catalog(cache, request, call_next):
     """Serve /widgets.json and /apps.json from their first successful build."""
     if not _authorized(request):  # the cache must not outlive the API's own Basic auth
-        return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+        return _unauthorized(request)
     path = request.url.path
     if path not in cache:
         response = await call_next(request)
@@ -615,14 +610,17 @@ async def _catalog(cache, request, call_next):
         if path == "/widgets.json":
             body = _rewrite_widgets(body)
         elif path == "/apps.json":
-            body = _with_extra_apps(body)
-            apps = _json_list(body)
+            apps, extended = _apps(body)
+            if extended:
+                body = json.dumps(apps).encode()
             if apps is not None and any(_cards(app) - BUILTIN_CARDS for app in apps):
                 widget_ids = await _widget_ids(cache, request)
                 if widget_ids is None:  # no widget catalog yet: serve as built, cache nothing
                     log.warning("OpenBQ apps.json: /widgets.json unavailable, apps not checked")
                     return _cors(request, Response(body, 200, media_type="application/json"))
-                body = _servable_apps(body, widget_ids)
+                kept = _servable_apps(apps, widget_ids)
+                if len(kept) < len(apps):
+                    body = json.dumps(kept).encode()
         cache[path] = (body, [
             (k, v) for k, v in response.raw_headers
             if k.lower() not in _HOP | _PER_CALLER and not k.lower().startswith(b"access-control-")
@@ -631,6 +629,10 @@ async def _catalog(cache, request, call_next):
     response = Response(body, 200)
     response.raw_headers = [*headers, (b"content-length", str(len(body)).encode())]
     return _cors(request, response)
+
+
+def _unauthorized(request):
+    return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
 
 
 def _cors(request, response):
@@ -733,7 +735,7 @@ class Lane:
         path = request.url.path
         if path == "/openbq/lanes":
             if not _authorized(request):
-                return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+                return _unauthorized(request)
             return _cors(request, JSONResponse(self.status()))
         if _is_catalog(request):
             return await _catalog(self.catalogs, request, call_next)
@@ -887,8 +889,8 @@ _NAMES = {
 
 def provider_descriptor(credentials: dict) -> list:
     """key-maint's provider inventory (Episode 3): which providers this API has
-    and which credential names each takes. Names only; no value is read. A copy
-    of key-maint/app/providers_route.build_provider_descriptor; keep them in sync."""
+    and which credential names each takes. Names only; no value is read.
+    Unit-tested in key-maint/tests/test_providers_route.py."""
     out = []
     for pid in sorted(credentials):
         names = list(credentials[pid])
@@ -910,7 +912,7 @@ async def middleware(request, call_next):
         return _logo(request)
     if request.method == "GET" and request.url.path == PROVIDERS_PATH:
         if not _authorized(request):
-            return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+            return _unauthorized(request)
         return _cors(request, JSONResponse(provider_descriptor(_provider_credentials())))
     if request.method == "POST" and request.url.path.endswith(SSRM_SUFFIX):
         return await _ssrm(request)  # before the lane, which would forward it to a worker with no such route
