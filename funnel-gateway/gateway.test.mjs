@@ -2214,8 +2214,10 @@ test("/ref/live_grid_ws: a silent client is dropped at the first-frame deadline,
   const a = await refConnect(first.port); await within(a.ws, "close");
   await refSlotReleased(first.port);
   // No lifetime: a subscribed socket whose client answers pings stays open well past many beats.
-  const live = await ref_relayed(t, {}, { firstFrameMs: 1000, pingMs: 20 });
-  await new Promise(resolve => setTimeout(resolve, 200));
+  // 100 ms beats, not 20: the client's pong must cross a loaded host's event loop in time (a
+  // 20 ms beat closed the healthy socket twice at load average 90-160). Still six beats.
+  const live = await ref_relayed(t, {}, { firstFrameMs: 1000, pingMs: 100 });
+  await new Promise(resolve => setTimeout(resolve, 600));
   assert.equal(live.ws.readyState, WebSocket.OPEN);
   live.ws.terminate(); await refSlotReleased(live.port);
   const deaf = await fixture(t, { maxSockets: 1 }, { firstFrameMs: 1000, pingMs: 20, openRef: refused });
