@@ -106,7 +106,7 @@ The list is committed data, `lanes/ssrm_widgets.json`:
 
 Settings (`credentials.env`): `OPENBQ_SSRM_WIDGETS` (path of that list, default `/workspace/ssrm_widgets.json`), `OPENBQ_SSRM_CACHE_BYTES` (default 3 GiB), `OPENBQ_SSRM_TTL` (seconds, default 900), `OPENBQ_SSRM_DEADLINE` (seconds per first acquisition, default 300). As with widget settings, restart the API after editing them.
 
-The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults to the 23 paths `/api<route>/ssrm`, one per row above, committed as `funnel-gateway/ssrm-routes.json`; leave the setting out unless you mean to narrow it (`[]` turns SSRM through the door off). `funnel-gateway/ssrm-routes.test.mjs` checks that file against `ssrm_widgets.json` (equal as door paths, 23 unique routes, each admitted for POST, a listed route's GET and an unlisted sibling refused), so edit both together. The door never passes od's `x-openbq-ssrm` cache marker to the client.
+The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults to the 23 paths `/api<route>/ssrm`, one per row above, derived from `lanes/ssrm_widgets.json` (the gateway image copies that file); leave the setting out unless you mean to narrow it (`[]` turns SSRM through the door off). `funnel-gateway/ssrm-routes.test.mjs` checks the derived list (23 unique routes, each admitted for POST, a listed route's GET and an unlisted sibling refused). The door never passes od's `x-openbq-ssrm` cache marker to the client.
 
 ## Credentials and restart
 

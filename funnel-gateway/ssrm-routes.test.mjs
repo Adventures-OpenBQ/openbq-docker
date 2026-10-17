@@ -33,10 +33,6 @@ test("every committed SSRM route admits a POST and an unlisted sibling does not"
   assert.equal(tableRoute(new URL(doorPaths[0], "https://example.com"), "GET", config), null);
 });
 
-test("the gateway's committed default is exactly the lanes list as door paths", () => {
-  assert.deepEqual(JSON.parse(readFileSync(join(here, "ssrm-routes.json"), "utf8")), doorPaths);
-});
-
 test("a settings file without ssrmRoutes admits the 23 routes; an explicit list still wins", () => {
   const settings = { origin: `https://openbq.${["example-tailnet", "ts", "net"].join(".")}:10000` };
   const secrets = { token: "t".repeat(32), apiUsername: "u", apiPassword: "p" };
