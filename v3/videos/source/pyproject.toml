@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [build-system]
-# openbq-docker: hatchling, as the image's pinned wheel builder (Dockerfile.v3); upstream used setuptools.
+# openbq-docker: hatchling, as the image's pinned wheel builder (Dockerfile); upstream used setuptools.
 requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 

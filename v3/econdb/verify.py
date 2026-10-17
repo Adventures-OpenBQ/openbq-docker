@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Build gate: the ported EconDB provider on the locked ODP, EconDB's HTTP stubbed.
 
-The Dockerfiles copy this file next to v3/econdb/tests and run it after openbb-build.
+The Dockerfile copies this file next to v3/econdb/tests and run it after openbb-build.
 """
 import importlib.metadata as metadata
 import sys
