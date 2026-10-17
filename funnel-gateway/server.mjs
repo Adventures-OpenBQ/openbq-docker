@@ -47,13 +47,19 @@ const COMMON = {
   "X-Robots-Tag": "noindex, nofollow, noarchive",
 };
 const LOGO = "/ref/assets/bdobb-logo.svg", MAX_SVG = 262144;
-/** The reference logo's bytes: the one non-JSON body the door relays. */
+/** The reference logo's bytes, relayed as SVG. */
 class SvgBody { constructor(text) { this.text = text; } }
+/** A text/plain answer (the video routes return a bare URL), relayed as text. */
+class TextBody { constructor(text) { this.text = text; } }
 function reply(res, code, value = { error: "Request refused" }) {
   if (value instanceof SvgBody) {
     // The logo: same common headers, its own type, and a sandbox CSP so a directly opened SVG runs nothing.
     res.writeHead(code, { ...COMMON, "Content-Type": "image/svg+xml",
       "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'" });
+    return res.end(value.text);
+  }
+  if (value instanceof TextBody) {
+    res.writeHead(code, { ...COMMON, "Content-Type": "text/plain; charset=utf-8" });
     return res.end(value.text);
   }
   res.writeHead(code, { ...COMMON, "Content-Type": "application/json" });
@@ -90,14 +96,15 @@ export function connectRef(config) {
     handshakeTimeout: 10000, followRedirects: false, maxPayload: MAX_SOCKET, perMessageDeflate: false });
 }
 
-/** Bounded JSON-only request (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
+/** Bounded JSON or text/plain request (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
 export async function getJson(path, config, signal) {
   const { url, headers } = target(path, config);
   const svg = path === LOGO, limit = svg ? MAX_SVG : MANIFESTS.has(path) ? MANIFEST_MAX : MAX_BODY;
   return new Promise((resolve, rejectPromise) => {
     const request = httpRequest(url, { method: "GET", headers, signal }, response => {
+      const type = response.headers["content-type"] ?? "", plain = !svg && /^text\/plain(?:\s*;|$)/i.test(type);
       if (response.statusCode !== 200 ||
-          !(svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(response.headers["content-type"] ?? "")) {
+          !(plain || (svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(type))) {
         response.destroy(); return rejectPromise(new Error("Invalid upstream response"));
       }
       let size = 0; const parts = [];
@@ -110,6 +117,7 @@ export async function getJson(path, config, signal) {
       response.on("end", () => {
         const text = Buffer.concat(parts).toString("utf8");
         if (svg) return resolve(new SvgBody(text));
+        if (plain) return resolve(new TextBody(text));
         try { resolve(JSON.parse(text)); }
         catch { rejectPromise(new Error("Invalid JSON")); }
       });

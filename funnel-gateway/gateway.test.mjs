@@ -367,6 +367,20 @@ test("upstream redirects, error text, invalid JSON and oversized responses never
   }
 });
 
+test("a text/plain answer (the video routes) is relayed as text under the same cap", async t => {
+  const upstream = createServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" }); res.end("https://www.youtube.com/embed/abc");
+  });
+  upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
+  t.after(() => new Promise(resolve => upstream.close(resolve)));
+  const { port } = await fixture(t, { apiOrigin: `http://127.0.0.1:${upstream.address().port}` }, { requestJson: getJson });
+  const response = await http(port, quote);
+  assert.equal(response.status, 200);
+  assert.equal(response.text, "https://www.youtube.com/embed/abc");
+  assert.equal(response.headers["content-type"], "text/plain; charset=utf-8");
+  assert.equal(response.headers["x-content-type-options"], "nosniff");
+});
+
 test("root manifests get MANIFEST_MAX (16 MiB); every other path keeps 2 MiB", async t => {
   // openbq-api's widgets.json measured 5.0 MB (998 widgets) on 2026-10-15, past the 2 MiB
   // every other body is held to. Over either cap, getJson destroys the response and the
