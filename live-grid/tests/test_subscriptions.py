@@ -281,3 +281,32 @@ def test_get_subscriptions_ignores_origin(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     r = client.get("/api/subscriptions", headers={"Origin": "https://evil.example.com"})
     assert r.status_code == 200
+
+
+def test_an_exchange_qualified_symbol_is_stored_bare_and_a_foreign_one_refused(tmp_path, monkeypatch):
+    """L1 (NAS, 2026-10-16): AAPL.US reached the feed as-is and the SDK refused the whole set."""
+    client = _client(tmp_path, monkeypatch)
+    r = client.post("/api/subscriptions", json={"symbol": "aapl.us"})
+    assert r.status_code == 201 and r.json()["pinned"] == ["AAPL"]
+    assert client.post("/api/subscriptions", json={"symbol": "AAPL"}).status_code == 409
+    for bad in ("AAPL.LSE", "BRK.B", "A B"):
+        assert client.post("/api/subscriptions", json={"symbol": bad}).status_code == 422, bad
+    assert client.delete("/api/subscriptions/AAPL.US").status_code == 200
+
+
+def test_subscribe_normalises_qualified_symbols_and_refuses_invalid_ones(tmp_path, monkeypatch):
+    """L1: the observed request, {"symbols": ["BTC-USD.CC", "AAPL.US"]}, now leases the bare
+    symbols; a symbol the feed cannot take is a 422 before any lease is made."""
+    client = _client(tmp_path, monkeypatch)
+    r = client.post("/subscribe", json={"symbols": ["BTC-USD.CC", "AAPL.US"]})
+    assert r.status_code == 200 and sorted(r.json()["leases"]) == ["AAPL", "BTC-USD"]
+    r = client.post("/subscribe", json={"symbols": ["MSFT", "AAPL.LSE"]})
+    assert r.status_code == 422 and "AAPL.LSE" in r.json()["detail"]
+    assert "MSFT" not in client.get("/api/subscriptions").json()["leased"]
+
+
+def test_grid_params_keep_only_symbols_the_feed_can_take():
+    """L1: /live_grid, /symbol_meta and live_grid_ws params all read symbols through this."""
+    from app.main import _parse_symbols
+
+    assert _parse_symbols("AAPL.US, btc-usd.cc,BRK.B,,^GSPC") == ["AAPL", "BTC-USD", "^GSPC"]

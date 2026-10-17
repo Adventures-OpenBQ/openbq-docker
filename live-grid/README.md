@@ -57,6 +57,17 @@ a chart that joins cached history to bars built from the live feed.
 - `GET /demo` — a standalone scroll page for the chart, moved here from the
   now-removed `cache-chart` service.
 
+### Symbols
+
+Symbols are bare, as the feeds take them: `AAPL`, `BTC-USD`, `EURUSD`, `^GSPC`.
+An exchange suffix naming the symbol's own feed is dropped (`AAPL.US` → `AAPL`,
+`BTC-USD.CC` → `BTC-USD`, `EURUSD.FOREX` → `EURUSD`); anything else the EODHD
+websocket SDK refuses (another suffix such as `AAPL.LSE`, `BRK.B`, a space) is a
+`422` on `/subscribe` and `/api/subscriptions`, and is dropped from `/live_grid`,
+`/symbol_meta` and `live_grid_ws` params. If a refused symbol still reaches a
+feed (an old watchlist file), it alone is left out with one warning and the
+rest of that feed starts.
+
 ### `POST /subscribe`
 
 Leases a live feed for symbols, keyed by symbol and renewable:

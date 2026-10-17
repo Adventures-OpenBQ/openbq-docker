@@ -48,3 +48,16 @@ class TestSnapshotTicker:
 
     def test_forex(self):
         assert snapshot_ticker("EURUSD") == "EURUSD.FOREX"
+
+
+def test_normalize_strips_the_feeds_own_exchange_suffix_and_refuses_what_the_sdk_would():
+    """L1 (NAS, 2026-10-16): the app's symbols are bare (snapshot_ticker adds the suffix), and
+    the EODHD websocket SDK refuses any '.' (^[A-z0-9-$]{1,48}$)."""
+    from app.classify import normalize
+
+    assert normalize(" aapl.us ") == "AAPL"
+    assert normalize("BTC-USD.CC") == "BTC-USD"
+    assert normalize("EURUSD.FOREX") == "EURUSD"
+    assert normalize("^GSPC") == "^GSPC" and normalize("BTC-USD") == "BTC-USD"
+    for bad in ("AAPL.LSE", "BRK.B", "AAPL.CC", "BTC-USD.US", "A B", "", "X" * 49, "AAPL/US"):
+        assert normalize(bad) is None, bad

@@ -3,6 +3,8 @@
 
 """Route watchlist symbols to EODHD websocket feeds and REST tickers."""
 
+import re
+
 FEEDS = ("us", "crypto", "forex")
 
 # Currency codes recognized on EODHD's forex feed (both halves of a pair).
@@ -23,6 +25,27 @@ def classify(symbol: str) -> str:
     if len(s) == 6 and s[:3] in _CCY and s[3:] in _CCY:
         return "forex"
     return "us"
+
+
+# What the EODHD websocket SDK accepts, as this app writes symbols (upper case): its own check
+# is ^[A-z0-9-$]{1,48}$, whose A-z range also spans ^ and _. No '.', so never an
+# exchange-qualified ticker -- one of those in a feed's set made the SDK refuse the whole set.
+_FEED_SYMBOL_RE = re.compile(r"[A-Z0-9^_$-]{1,48}")
+
+
+def normalize(symbol) -> str | None:
+    """The bare feed symbol, or None when the websocket feed cannot take it (L1).
+
+    Symbols here are bare (snapshot_ticker adds the exchange), so a suffix naming the
+    symbol's own feed is dropped (AAPL.US -> AAPL, BTC-USD.CC -> BTC-USD, EURUSD.FOREX ->
+    EURUSD). Any other '.' (AAPL.LSE, BRK.B) or character the SDK refuses gives None.
+    """
+    s = str(symbol).strip().upper()
+    for feed, suffix in _SNAPSHOT_SUFFIX.items():
+        if s.endswith(suffix) and classify(s[: -len(suffix)]) == feed:
+            s = s[: -len(suffix)]
+            break
+    return s if _FEED_SYMBOL_RE.fullmatch(s) else None
 
 
 def split_by_feed(symbols: list[str]) -> dict[str, set[str]]:

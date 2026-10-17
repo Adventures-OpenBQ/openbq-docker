@@ -11,7 +11,9 @@ import signal
 import time
 from datetime import datetime, timezone
 
-from app.classify import FEEDS, split_by_feed
+import re
+
+from app.classify import FEEDS, normalize, split_by_feed
 from app.quotes import QuoteTable
 
 log = logging.getLogger("live-grid")
@@ -62,6 +64,10 @@ def _build_client(api_key: str, feed: str, symbols: list[str]):
         signal.signal(signal.SIGTERM, prev_term)
 
 
+# The SDK's refusal of one symbol (eodhd/websocketclient.py), which fails the whole client.
+_INVALID_SYMBOL = re.compile(r"Symbol is invalid: (\S+)")
+
+
 def _stop_quietly(client) -> None:
     try:
         client.stop()
@@ -92,7 +98,9 @@ class FeedManager:
         self._conns: dict[str, dict[str, set[str]]] = {}  # conn_id -> feed -> symbols
         self._dirty: dict[str, set[str]] = {}  # conn_id -> symbols with fresh ticks
         self._clients: dict[str, object] = {}  # feed -> SDK WebSocketClient
-        self._active: dict[str, frozenset[str]] = {}  # feed -> subscribed set
+        self._active: dict[str, frozenset[str]] = {}  # feed -> wanted set last synced
+        # feed -> wanted symbols the feed cannot take (L1): left out of the client, warned once
+        self._rejected: dict[str, set[str]] = {feed: set() for feed in FEEDS}
         self._rebuild_pending = False
         self._last_rebuild = float("-inf")
         # -inf, not 0.0, and for the same reason as _last_rebuild above:
@@ -135,7 +143,7 @@ class FeedManager:
         now = self._clock()
         return {
             feed: {
-                "symbols": sorted(self._active.get(feed, frozenset())),
+                "symbols": sorted(self._active.get(feed, frozenset()) - self._rejected[feed]),
                 "running": bool(getattr(self._clients.get(feed), "running", False)),
                 # Age of the last buffer activity -- the honest liveness
                 # signal; `running` is only the SDK's connection flag.
@@ -164,20 +172,38 @@ class FeedManager:
             if client is not None:
                 # stop() joins reader threads -- do it off the event loop.
                 await asyncio.to_thread(_stop_quietly, client)
-            if want:
+            # L1: a symbol the SDK refuses ("Symbol is invalid: X") made it refuse the whole
+            # set, so the feed stayed down for every symbol of its class and every sync
+            # retried. Each such symbol is left out, with one warning; the rest start.
+            rejected = self._rejected[feed]
+            rejected &= want  # a symbol no longer wanted may be warned about again
+            for sym in sorted(want - rejected):
+                if normalize(sym) != sym:
+                    self._reject(feed, sym, "not a feed symbol")
+            while want - rejected:
                 try:
                     # Construct on the event-loop (main) thread: see _build_client.
-                    new = self._client_factory(self._api_key, feed, sorted(want))
+                    new = self._client_factory(self._api_key, feed, sorted(want - rejected))
                     new.start()
                     self._clients[feed] = new
                     # Fresh client, fresh grace period for the liveness check.
                     self._last_tick[feed] = self._clock()
+                    break
                 except Exception as exc:  # noqa: BLE001 -- feed stays down, app stays up
+                    bad = _INVALID_SYMBOL.fullmatch(str(exc))
+                    if bad and bad.group(1) in want - rejected:
+                        self._reject(feed, bad.group(1), str(exc))
+                        continue
                     log.warning(
                         "failed to start EODHD %s feed for %s: %s", feed, sorted(want), exc
                     )
                     want = frozenset()
+                    break
             self._active[feed] = want
+
+    def _reject(self, feed: str, sym: str, why: str) -> None:
+        self._rejected[feed].add(sym)
+        log.warning("EODHD %s feed: leaving out %s (%s); the rest of the feed starts", feed, sym, why)
 
     def _drain_all(self) -> None:
         """Parse new SDK buffer entries, apply to quotes, mark subscribers dirty."""

@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware import Middleware
 
 from app.auth import BasicAuthMiddleware, auth_enabled
-from app.classify import FEEDS, classify
+from app.classify import FEEDS, classify, normalize
 from app.feeds import FeedManager
 from app.figure import build_figure
 from app.leases import DEFAULT_TTL, MAX_LEASE_TTL_S, LeaseRegistry
@@ -63,7 +63,14 @@ def _rest_client(api_key: str):
 
 
 def _parse_symbols(raw: str) -> list[str]:
-    return [s.strip().upper() for s in raw.split(",") if s.strip()]
+    """Comma list -> bare feed symbols, in order, de-duplicated. A symbol the feed cannot take
+    is dropped here (L1): one in a feed's set kept that whole feed down."""
+    out: list[str] = []
+    for part in raw.split(","):
+        sym = normalize(part) if part.strip() else None
+        if sym and sym not in out:
+            out.append(sym)
+    return out
 
 
 async def build_series(symbol, interval, start, end, recorder, window, provider="kdb",
@@ -561,9 +568,15 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                     status_code=422, detail="ttl must be a finite positive number"
                 ) from None
             ttl = min(ttl, MAX_LEASE_TTL_S)  # D20: renewable, never permanent
+        # L1: bare feed symbols only; one the feed cannot take is refused before any lease,
+        # since in the feed's set it kept that whole feed down.
+        bad = [str(s) for s in symbols if normalize(s) is None]
+        if bad:
+            raise HTTPException(status_code=422, detail=f"not a feed symbol: {', '.join(bad)}")
+        symbols = sorted({normalize(s) for s in symbols})
         # D20: the cap /api/subscriptions enforces, on the same union of what is subscribed;
         # renewing a symbol already leased costs no new slot.
-        if len(_subscribed() | {str(s).strip().upper() for s in symbols}) > max_symbols:
+        if len(_subscribed() | set(symbols)) > max_symbols:
             raise HTTPException(
                 status_code=507,
                 detail=f"cap of {max_symbols} reached for EODHD; remove a symbol first",
@@ -671,9 +684,12 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     @app.post("/api/subscriptions", status_code=201)
     async def add_subscription(body: dict, request: Request):
         _reject_foreign_origin(request)
-        sym = str(body.get("symbol") or "").strip().upper()
-        if not sym:
+        raw = str(body.get("symbol") or "").strip()
+        if not raw:
             raise HTTPException(status_code=422, detail="symbol must be a non-empty string")
+        sym = normalize(raw)  # L1: stored bare; refused when the feed cannot take it
+        if sym is None:
+            raise HTTPException(status_code=422, detail=f"{raw.upper()} is not a feed symbol")
         if sym in set(watchlist.symbols()):
             raise HTTPException(status_code=409, detail=f"{sym} is already subscribed")
         # Union again: adding a symbol that is ALREADY subscribed (pinned,
@@ -691,7 +707,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     @app.delete("/api/subscriptions/{symbol}")
     async def remove_subscription(symbol: str, request: Request):
         _reject_foreign_origin(request)
-        sym = symbol.strip().upper()
+        sym = normalize(symbol) or symbol.strip().upper()
         if not watchlist.remove(sym):
             raise HTTPException(status_code=404, detail=f"{sym} is not subscribed")
         _apply_watchlist()

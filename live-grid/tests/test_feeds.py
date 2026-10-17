@@ -368,3 +368,49 @@ class TestLiveness:
         t["now"] += feeds_mod.STALE_AFTER + 1
         asyncio.run(m._check_liveness(when=self.MARKET_SATURDAY))
         assert not m._rebuild_pending
+
+
+class TestInvalidSymbols:
+    """L1 (NAS, 2026-10-16): one symbol the EODHD SDK refuses ("Symbol is invalid: AAPL.US")
+    kept the whole `us` feed down, and every sync retried the same poisoned set."""
+
+    def test_one_invalid_symbol_drops_only_itself_with_one_warning(self, fake_ws_client_factory, caplog):
+        m = make_manager(fake_ws_client_factory)
+        m.register("c1", ["AAPL", "AAPL.US", "BTC-USD"])
+        with caplog.at_level("WARNING"):
+            asyncio.run(m._sync_feeds())
+            m.register("c2", ["MSFT"])  # a later rebuild of the same feed
+            asyncio.run(m._sync_feeds())
+            asyncio.run(m._sync_feeds())
+        us = [c.symbols for c in fake_ws_client_factory.built if c.feed == "us"]
+        assert us == [["AAPL"], ["AAPL", "MSFT"]]
+        assert m.status()["us"]["symbols"] == ["AAPL", "MSFT"]
+        warned = [r for r in caplog.records if "AAPL.US" in r.getMessage()]
+        assert len(warned) == 1
+
+    def test_a_symbol_the_sdk_refuses_is_dropped_and_the_rest_start(self, fake_ws_client_factory):
+        def picky(api_key, feed, symbols):
+            if "ODD$" in symbols:
+                raise ValueError("Symbol is invalid: ODD$")
+            return fake_ws_client_factory(api_key, feed, symbols)
+
+        m = make_manager(picky)
+        m.register("c1", ["AAPL", "ODD$"])
+        asyncio.run(m._sync_feeds())
+        assert [c.symbols for c in fake_ws_client_factory.built] == [["AAPL"]]
+        assert m.status()["us"]["symbols"] == ["AAPL"]
+        asyncio.run(m._sync_feeds())
+        assert len(fake_ws_client_factory.built) == 1  # not retried every sync
+
+    def test_any_other_factory_failure_still_keeps_the_feed_down_and_retries(self, fake_ws_client_factory):
+        calls = []
+
+        def broken(api_key, feed, symbols):
+            calls.append(symbols)
+            raise RuntimeError("bad key")
+
+        m = make_manager(broken)
+        m.register("c1", ["AAPL"])
+        asyncio.run(m._sync_feeds())
+        asyncio.run(m._sync_feeds())
+        assert calls == [["AAPL"], ["AAPL"]]
