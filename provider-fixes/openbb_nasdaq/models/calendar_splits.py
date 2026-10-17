@@ -130,7 +130,7 @@ class NasdaqCalendarSplitsFetcher(
                             if numerator and denominator
                             # "5%" is a stock dividend: 1.05, not 5.
                             else 1 + to_number(ratio) / 100
-                            if str(ratio).strip().endswith("%")
+                            if str(ratio).strip().endswith("%") and to_number(ratio) is not None
                             else to_number(ratio)
                         ),
                     }
