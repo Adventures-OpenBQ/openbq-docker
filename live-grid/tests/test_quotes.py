@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.quotes import QuoteTable
+from app.quotes import QuoteTable, _blank_row
 
 
 class _client:
@@ -111,6 +111,18 @@ class TestApplyTick:
         q.apply_tick("us", {"s": "AAPL", "p": 90.0, "v": 40, "t": 1700000000000})
         assert q.rows["AAPL"]["last_size"] == 40.0
         assert recorded == [("AAPL", 90.0, 40.0)]
+
+    def test_trades_add_their_size_to_the_day_volume(self):
+        """The seed gives the day's volume so far; each trade after it adds its
+        size, so a Live Chart's bar volume (the change in day volume) is real."""
+        q = QuoteTable()
+        q.rows["AAPL"] = {**_blank_row("AAPL"), "volume": 1000.0}
+        q.apply_tick("us", {"s": "AAPL", "p": 90.0, "v": 40, "t": 1700000000000})
+        q.apply_tick("us", {"s": "AAPL", "p": 90.1, "v": 10, "t": 1700000001000})
+        assert q.rows["AAPL"]["volume"] == 1050.0
+        # A symbol with no seeded day volume does not invent one.
+        q.apply_tick("crypto", {"s": "BTC-USD", "p": 1.0, "q": 0.5, "t": 1700000000000})
+        assert q.rows["BTC-USD"]["volume"] is None
 
     def test_forex_tick_uses_mid(self):
         q = QuoteTable()

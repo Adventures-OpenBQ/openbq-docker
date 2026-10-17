@@ -159,6 +159,11 @@ class QuoteTable:
                 size = _f(msg.get("v"))
             if size is not None:
                 row["last_size"] = size
+                # The seed's day volume grows with every trade after it, so a
+                # Live Chart's per-bar volume (the change in day volume) is real.
+                # No seeded volume (null) stays null rather than starting at 0.
+                if row.get("volume") is not None:
+                    row["volume"] += size
         row["price"] = price
         # The seeded high/low is a snapshot taken minutes ago; live trades
         # routinely print outside it. Widening here is what keeps the day bar
