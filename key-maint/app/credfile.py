@@ -10,6 +10,7 @@ leaks the comment text in as the value).
 """
 from __future__ import annotations
 
+import errno
 import os
 import re
 import stat
@@ -146,7 +147,21 @@ def set_value(path: str, env_var: str, value: str) -> None:
         # for a brand-new credentials file.
         if original_mode is not None:
             os.chmod(tmp, original_mode)
-        os.replace(tmp, path)
+        try:
+            os.replace(tmp, path)
+        except OSError as e:
+            # docker-compose mounts credentials.env as a single file, and a
+            # rename onto a mount point fails (EBUSY; EXDEV across devices).
+            # Write that inode in place instead: a new inode would never
+            # reach the host's file anyway.
+            if e.errno not in (errno.EBUSY, errno.EXDEV):
+                raise
+            with open(path, "r+", encoding="utf-8") as f:
+                f.write("\n".join(out) + "\n")
+                f.truncate()
+                f.flush()
+                os.fsync(f.fileno())
+            os.unlink(tmp)
     except BaseException:
         # Never leave a temp file holding a credential behind.
         if os.path.exists(tmp):

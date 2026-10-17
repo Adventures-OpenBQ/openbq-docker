@@ -183,3 +183,20 @@ class TestSetValue:
         p = tmp_path / "credentials.env"
         set_value(str(p), "FMP_API_KEY", "new")
         assert stat.S_IMODE(os.stat(p).st_mode) == 0o600
+
+
+def test_set_value_writes_in_place_when_the_file_is_a_bind_mount(tmp_path, monkeypatch):
+    # docker-compose mounts credentials.env as a single file: renaming a temp
+    # file onto that mount point fails with EBUSY, so every PUT returned 500.
+    import errno
+
+    path = tmp_path / "credentials.env"
+    path.write_text("A=1\nFRED_API_KEY=old\n")
+
+    def busy(src, dst):
+        raise OSError(errno.EBUSY, "Device or resource busy")
+
+    monkeypatch.setattr(os, "replace", busy)
+    set_value(str(path), "FRED_API_KEY", "new")
+    assert path.read_text() == "A=1\nFRED_API_KEY=new\n"
+    assert [p.name for p in tmp_path.iterdir()] == ["credentials.env"]

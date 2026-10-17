@@ -47,13 +47,19 @@ const COMMON = {
   "X-Robots-Tag": "noindex, nofollow, noarchive",
 };
 const LOGO = "/ref/assets/bdobb-logo.svg", MAX_SVG = 262144;
-/** The reference logo's bytes: the one non-JSON body the door relays. */
+/** The reference logo's bytes, relayed as SVG. */
 class SvgBody { constructor(text) { this.text = text; } }
+/** A text/plain answer (the video routes return a bare URL), relayed as text. */
+class TextBody { constructor(text) { this.text = text; } }
 function reply(res, code, value = { error: "Request refused" }) {
   if (value instanceof SvgBody) {
     // The logo: same common headers, its own type, and a sandbox CSP so a directly opened SVG runs nothing.
     res.writeHead(code, { ...COMMON, "Content-Type": "image/svg+xml",
       "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'" });
+    return res.end(value.text);
+  }
+  if (value instanceof TextBody) {
+    res.writeHead(code, { ...COMMON, "Content-Type": "text/plain; charset=utf-8" });
     return res.end(value.text);
   }
   res.writeHead(code, { ...COMMON, "Content-Type": "application/json" });
@@ -90,14 +96,15 @@ export function connectRef(config) {
     handshakeTimeout: 10000, followRedirects: false, maxPayload: MAX_SOCKET, perMessageDeflate: false });
 }
 
-/** Bounded JSON-only request (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
+/** Bounded JSON or text/plain request (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
 export async function getJson(path, config, signal) {
   const { url, headers } = target(path, config);
   const svg = path === LOGO, limit = svg ? MAX_SVG : MANIFESTS.has(path) ? MANIFEST_MAX : MAX_BODY;
   return new Promise((resolve, rejectPromise) => {
     const request = httpRequest(url, { method: "GET", headers, signal }, response => {
+      const type = response.headers["content-type"] ?? "", plain = !svg && /^text\/plain(?:\s*;|$)/i.test(type);
       if (response.statusCode !== 200 ||
-          !(svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(response.headers["content-type"] ?? "")) {
+          !(plain || (svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(type))) {
         response.destroy(); return rejectPromise(new Error("Invalid upstream response"));
       }
       let size = 0; const parts = [];
@@ -110,6 +117,7 @@ export async function getJson(path, config, signal) {
       response.on("end", () => {
         const text = Buffer.concat(parts).toString("utf8");
         if (svg) return resolve(new SvgBody(text));
+        if (plain) return resolve(new TextBody(text));
         try { resolve(JSON.parse(text)); }
         catch { rejectPromise(new Error("Invalid JSON")); }
       });
@@ -242,36 +250,17 @@ async function tableExchange(req, res, route, config) {
       const status=[400,401,404,409,410,413,429,503].includes(response.status)?response.status:502;
       return reply(res,status,{error:{code:"upstream_refused",message:"Table request refused"}});
     }
+    // reply() writes its own headers, so od's x-openbq-ssrm cache marker never reaches the client.
     reply(res,response.status,json);
-    // od marks an SSRM page it served from its cache: no vendor call, so the caller refunds the quote.
-    // reply() writes its own headers, so the marker never reaches the client.
-    return !route.managed && response.headers.get("x-openbq-ssrm")==="hit";
   } finally {clearTimeout(timer);res.off("close",disconnect);}
 }
 
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openRef = connectRef,
   now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
-  const budgets = {
-    ordinary: {left: config.requestsPerMinute, resetAt: now() + 60000},
-    control: {left: config.requestsPerMinute, resetAt: now() + 60000},
-  };
-  let quoteCount = 0, day = Math.floor(now() / 86400000);
   let inflight = 0, controlInflight = 0, sockets = 0;
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
   const admitted = new Map();
-  function spend(cost, lane = "ordinary") {
-    const budget = budgets[lane];
-    if (now() >= budget.resetAt) { budget.left = config.requestsPerMinute; budget.resetAt = now() + 60000; }
-    if (budget.left < cost) return false;
-    budget.left -= cost; return true;
-  }
-  function quoteAllowed() {
-    const currentDay = Math.floor(now() / 86400000);
-    if (day !== currentDay) { day = currentDay; quoteCount = 0; }
-    if (quoteCount >= config.quoteDailyLimit) return false;
-    quoteCount++; return true;
-  }
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_SOCKET, perMessageDeflate: false });
   const server = createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000,
     keepAliveTimeout: 5000 }, async (req, res) => {
@@ -283,29 +272,23 @@ export function createGateway(config, { requestJson = getJson, openRef = connect
       const origin = req.headers.origin;
       if (origin && origin !== config.origin && !DESKTOP_ORIGINS.has(origin)) return reply(res, 403);
       if (url.pathname.startsWith("/state/")) {
-        if (!spend(1)) return reply(res, 429);
         return await handleState(req, res, url, config);
       }
       const table = tableRoute(url, req.method, config);
       if (table || url.pathname.startsWith("/table/")) {
         if (!table) return reply(res,404);
         const control = tableControlRoute(table, req.method);
-        if (!spend(1, control ? "control" : "ordinary") ||
-            (control ? controlInflight >= TABLE_CONTROL_CONCURRENCY : inflight >= config.maxConcurrent) ||
-            (!table.managed && !quoteAllowed())) return reply(res,429);
+        if (control ? controlInflight >= TABLE_CONTROL_CONCURRENCY : inflight >= config.maxConcurrent) return reply(res,429);
         if (control) controlInflight++; else inflight++;
-        try { if ((await tableExchange(req,res,table,config)) === true) quoteCount = Math.max(0, quoteCount - 1); return; }
+        try { return await tableExchange(req,res,table,config); }
         finally { if (control) controlInflight--; else inflight--; }
       }
       if (req.method !== "GET" || req.headers["transfer-encoding"] ||
           (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
-      if (!spend(1)) return reply(res, 429);
       if (url.pathname === "/_gateway/health" && !url.search) return reply(res, 200, { ok: true });
       const path = upstreamPath(url, config);
       if (!path) return reply(res, 404);
-      // The daily budget is a cap on VENDOR calls. The two manifests under /api/ are
-      // openbq-api's own static documents -- no provider is called -- so they are not metered.
-      if (inflight >= config.maxConcurrent || (path.startsWith("/api/api/v1/") && !quoteAllowed())) return reply(res, 429);
+      if (inflight >= config.maxConcurrent) return reply(res, 429);
       inflight++;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), requestMs);
@@ -349,9 +332,8 @@ export function createGateway(config, { requestJson = getJson, openRef = connect
     // function the web layer's ticket signer consults. No subprotocol: the reference speaks none.
     if (req.method !== "GET" || !socketTarget(want, config.origin) ||
         req.headers["sec-websocket-protocol"] !== undefined) return reject(socket, 404);
-    // Both caps are charged BEFORE handleUpgrade: a refusal costs the same whether the
-    // handshake would have succeeded or not. Six units, since a socket occupies the door.
-    if (sockets >= config.maxSockets || !spend(6)) return reject(socket, 429);
+    // The socket cap is checked BEFORE handleUpgrade: a refused upgrade never allocates a client.
+    if (sockets >= config.maxSockets) return reject(socket, 429);
     wss.handleUpgrade(req, socket, head, client => {
       sockets++;
       // The 10 s handshake deadline set above must not go on applying to an open socket.
@@ -373,7 +355,7 @@ export function createGateway(config, { requestJson = getJson, openRef = connect
       client.on("message", (data, binary) => {
         // A params frame on open AND on every symbol change over the same socket, re-validated
         // each time. The reference is a keyless local fixture, so there is no vendor meter here;
-        // the upgrade's six units and maxSockets are the whole budget.
+        // maxSockets is the whole budget.
         if (binary) return close();
         const frame = refSubscription(data);
         if (!frame) return close();
