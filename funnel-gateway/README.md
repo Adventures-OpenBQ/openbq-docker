@@ -43,39 +43,39 @@ Caller headers, cookies and credentials are never relayed.
 | `/ref/widgets.json`, `/ref/apps.json` | GET | the reference backend's root documents, keyless (no credential is injected); no query; bodies up to 16 MiB |
 | `/ref/agents.json`, `/ref/bundle.apps.json`, `/ref/market-examples.apps.json`, `/ref/assets/bdobb-logo.svg` | GET | the four other exact documents the reference serves with a dot in the path; no query; nothing else dotted passes |
 | `GET /ref/<path>` | GET | the reference's other routes, keyless, under the same structural bounds as `/api/api/v1` (lowercase segments, no dot, no `%`, bounded query, re-serialised); any `omni*` segment at any depth is refused |
-| `/api/api/v1/**` | GET | under the shape bounds (lowercase route ≤ 200 chars, ≤ 40 query pairs, name grammar, ≤ 1024-char values, no control characters, ≤ 4096 chars leaving), query re-serialised; one unit of `quoteDailyLimit` |
+| `/api/api/v1/**` | GET | under the shape bounds (lowercase route ≤ 200 chars, ≤ 40 query pairs, name grammar, ≤ 1024-char values, no control characters, ≤ 4096 chars leaving), query re-serialised |
 | `/api/api/v1/calendar/trading` | GET | only `exchange=<MIC>&year=1990..2040` |
 | `/news/api/news?feed_id=<id>&limit=<1-50>` | GET | rss-ticker's history page for **one approved feed id**; no credential |
 | `/news/ws/news` | GET + Upgrade | the wire's socket (below); `503` until `feeds` names a feed |
 | `/state/<digits>` | GET | the user's saved files `{files: {name: text}}` |
 | `/state/<digits>/<file>` | PUT, DELETE | one of the app's JSON stores (`policy.mjs` `stateFile`); 256 KiB a file, 2 MiB and 200 files a user; `application/json` only |
-| `/grid/widgets.json`, `/grid/apps.json` | GET | live-grid's root documents with the Basic pair; no query; not metered. A `404` from an older live-grid is relayed as a bare `404` (optional documents) |
-| `/grid/live_grid`, `/grid/symbol_meta` | GET | the quote grid's REST seed and its per-symbol metadata; `symbol` only, a comma list; **one unit of `quoteDailyLimit` each** |
-| `/grid/series`, `/grid/chart` | GET | the bars, raw and as a figure; `symbol` (one), `interval`, `start`, `end`, `provider` (`kdb`/`eodhd`), plus `theme` (`light`/`dark`) on `chart` alone; one unit of `quoteDailyLimit` |
-| `/grid/ticks` | GET | the kdb tick cache's newest ticks for one symbol; `symbol` (one), `limit` (1–1000); not metered (no vendor) |
-| `/grid/ta_chart` | GET | the tick chart; `symbol` (one), `interval`, `source` (`local`/`eodhd`), `macro`, `indicators`, `anchor`, `start`, `end`, `theme`; `provider` is **not** mapped; one unit of `quoteDailyLimit` |
+| `/grid/widgets.json`, `/grid/apps.json` | GET | live-grid's root documents with the Basic pair; no query. A `404` from an older live-grid is relayed as a bare `404` (optional documents) |
+| `/grid/live_grid`, `/grid/symbol_meta` | GET | the quote grid's REST seed and its per-symbol metadata; `symbol` only, a comma list |
+| `/grid/series`, `/grid/chart` | GET | the bars, raw and as a figure; `symbol` (one), `interval`, `start`, `end`, `provider` (`kdb`/`eodhd`), plus `theme` (`light`/`dark`) on `chart` alone |
+| `/grid/ticks` | GET | the kdb tick cache's newest ticks for one symbol; `symbol` (one), `limit` (1–1000) |
+| `/grid/ta_chart` | GET | the tick chart; `symbol` (one), `interval`, `source` (`local`/`eodhd`), `macro`, `indicators`, `anchor`, `start`, `end`, `theme`; `provider` is **not** mapped |
 | `/grid/ws_ticket?target=<socket>` | GET | the desktop app's socket ticket (below): `Origin` must be a desktop origin (else `403`), `target` one `/grid` socket `socketTarget()` accepts (else `404`); answers `{"ticket": …}`, `no-store`; `503` while `liveGrid` is off. A ticket refused at the upgrade for load (`429`, `503`) is not spent |
-| `/grid/live_grid_ws` | GET + Upgrade | the quote grid's socket, no query; every params frame re-validated and metered per symbol (below) |
-| `/grid/ta_chart_ws` | GET + Upgrade | the tick chart's push-only socket; its **query is its subscription** (the `/grid/ta_chart` grammar); every push metered, the first included |
+| `/grid/live_grid_ws` | GET + Upgrade | the quote grid's socket, no query; every params frame re-validated (below) |
+| `/grid/ta_chart_ws` | GET + Upgrade | the tick chart's push-only socket; its **query is its subscription** (the `/grid/ta_chart` grammar) |
 | `/grid/subscriptions` | GET | live-grid's Subscriptions page, **the one route served without the token** (a frame cannot send one): exact path, no query, no body, this Host; HTML from memory after one fetch, with its own CSP; a failed fetch is held 5 s before the next dial. Only while `liveGrid` is on: off, the page is behind the lock like every path (`401` without the token, `503` with it). The page then asks BDOBB for the credential (`openbb-connect` → `openbb-auth`) |
-| `/grid/api/subscriptions` | GET, POST | the watchlist behind the lock; POST takes `{"symbol": …}` (JSON, ≤ 1 KiB, one-symbol grammar), the body rebuilt from the validated symbol, **one unit of `quoteDailyLimit`** |
+| `/grid/api/subscriptions` | GET, POST | the watchlist behind the lock; POST takes `{"symbol": …}` (JSON, ≤ 1 KiB, one-symbol grammar), the body rebuilt from the validated symbol |
 | `/grid/api/subscriptions/<symbol>` | DELETE | remove one symbol (one-symbol grammar, `^` literal) |
 | `/grid/**` with `liveGrid` off | — | `503` (REST and sockets) after the route rules pass; an unmatched `/grid` path is still `404` |
 | `/ai/**` | — | not served by openbq-docker: 404 (POST 405) |
-| `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, six budget units, no lifetime (a 30 s ping; a missed pong closes it), 10 s to the first frame |
+| `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, no lifetime (a 30 s ping; a missed pong closes it), 10 s to the first frame |
 | any other WebSocket upgrade | — | 401 without the token, else 403 (foreign Origin) or 404 |
 | everything else | — | 404 |
 
-Budgets (settings): `requestsPerMinute` (default 60, ≤ 600), `maxConcurrent` (8, ≤ 32),
-`maxSockets` (4, ≤ 32), `quoteDailyLimit` (100, ≤ 10000, UTC day). A socket costs six units,
-charged before the upgrade. Counters are in memory and reset on restart; keep one instance.
+Caps (settings): `maxConcurrent` (8, ≤ 32) and `maxSockets` (4, ≤ 32). There is no daily vendor
+cap and no per-minute request budget (removed 2026-10-17; `quoteDailyLimit` and `requestsPerMinute`
+are refused at startup by name, so delete them from an older settings file). Counters are in
+memory and reset on restart; keep one instance.
 
 Managed table cancellation and cleanup reserve **two concurrent requests** outside
 `maxConcurrent`. Only exact, query-free `POST /table/sessions/:id/cancel`,
 `DELETE /table/sessions/:id` and `DELETE /table/exports/:id` qualify, after route
-validation and bearer authentication. Their independent per-minute bucket uses
-`requestsPerMinute` too; ordinary requests cannot spend it. A full control lane or
-spent control bucket returns 429, with no borrowing from the ordinary lane.
+validation and bearer authentication. A full control lane returns 429, with no borrowing
+from the ordinary lane.
 Body limits, identity assertions, deadlines and disconnect cleanup still apply.
 Source deletion, derive/commands/export creation and standard LIVE requests use
 the ordinary concurrency and rate budgets. See [managed tables](../table-service/README.md).
@@ -130,28 +130,12 @@ live-grid runs only under the opt-in `live` compose profile, so the door is told
 included. Admission from the outside is unchanged: the Bearer machine token (or, for a browser
 socket, a ticket) plus this route contract.
 
-**Metering.** `/grid/live_grid`, `/grid/symbol_meta`, `/grid/series`, `/grid/chart` and
-`/grid/ta_chart` reach a paid vendor (EODHD per symbol, or openbq-api's historical route), so each
-spends one unit of the same `quoteDailyLimit` counter as `/api/api/v1/**`. The two manifests and
-`/grid/ticks` are free. **Every** validated params frame on `/grid/live_grid_ws` charges one daily
-unit **per symbol** in the rebuilt frame, the first frame included (the upgrade's six units buy
-the slot and the per-minute budget for that first frame only; later frames cost one more
-per-minute unit). **Every** upstream push on `/grid/ta_chart_ws` charges one daily unit, the first
-included, and pushes after the first one per-minute unit. A charge that cannot be paid closes the
-relay and hands the slot back; a frame is charged for all its symbols or for none.
+**Nothing is metered.** No route, frame or push spends a budget: there is no daily vendor cap and
+no per-minute budget. EODHD's own limits (the plan's daily calls, 50 streamed symbols per key)
+still apply, and a request EODHD refuses surfaces as the upstream's error.
 
-**Sizing `quoteDailyLimit` with `"liveGrid": true`.** The example's 100 suits `/api` alone; the
-tick chart spends it in minutes. A socket has no lifetime, so one open `live_grid` card of 7
-symbols (the example dashboard's) pays 7 units when it connects and again on each symbol edit or
-reconnect after a drop, plus one each for its snapshot and symbol metadata. One open tick chart
-pays one unit per push, every push, for as long as it is open: about 3,600 an hour at live-grid's
-default `TA_PUSH_INTERVAL_MS=1000`. Every unit comes out of the same counter as `/api/api/v1/**`,
-so when it is spent every widget answers 429 until 00:00 UTC. Set it to what the vendor plan
-allows (the ceiling is 10000).
-
-**Frame cap.** `FRAME_CAP = 60` client frames per `live_grid_ws` socket, hard-coded and checked
-before either budget. `ta_chart_ws` pushes are not capped: a tick chart streams for as long as the
-per-minute and daily budgets pay for its pushes. Both directions are bounded at
+**Frame cap.** `FRAME_CAP = 60` client frames per `live_grid_ws` socket, hard-coded. `ta_chart_ws`
+pushes are not capped: a tick chart streams while it is open. Both directions are bounded at
 64 KiB a frame and 256 KiB of back-pressure; while live-grid's handshake is in flight only the
 newest pending params frame is held.
 

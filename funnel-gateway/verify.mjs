@@ -25,8 +25,7 @@ import { readConfig } from "./config.mjs";
  * /grid/ta_chart_ws dials live-grid AT UPGRADE (its query is its subscription, so there is no
  * frame to wait for) and live-grid's handler runs build_series immediately -- an openbb-api
  * historical call that can reach a paid vendor. A 101 probe would therefore make the upstream
- * call this whole gate promises not to make, and spend six units of the per-minute budget
- * doing it. So that route is probed with REFUSALS only: no parameters, an unknown key, and an
+ * call this whole gate promises not to make. So that route is probed with REFUSALS only: no parameters, an unknown key, and an
  * out-of-grammar subscription -- each rejected by the route rules before anything is dialled.
  * Its 101 is covered by the door's own suite (gateway.test.mjs), where the upstream is a
  * fixture rather than live-grid. THE GUARANTEE HOLDS: this gate makes no upstream call at all.

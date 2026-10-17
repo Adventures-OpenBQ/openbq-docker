@@ -34,7 +34,7 @@ Summary (after the user's rulings of 2026-10-11 on the first survey):
   project's `BACKEND_GATEWAY_TOKEN`.
 - `api-auth.env`: the Basic pair the gateway injects toward openbb-api.
 - `gateway-config/settings.json` (`funnel-gateway/config.mjs` `SETTINGS_KEYS`): `origin`,
-  `previewOrigin`, `stateDir`, `quoteDailyLimit`, `requestsPerMinute`, `maxConcurrent`, `maxSockets`,
+  `previewOrigin`, `stateDir`, `maxConcurrent`, `maxSockets`,
   `ritaOrigin`/`ritaAddress`, `socksProxy`, `rssOrigin`/`rssAddress` and `feeds`.
   - `rssOrigin` + `rssAddress` (`config.mjs` ~L100–110) give rss-ticker's tailnet HTTPS name (default
     port 8088) and its pinned tailnet IPv4. Set both or neither. With neither, the `/news` family is off.
@@ -49,13 +49,13 @@ Summary (after the user's rulings of 2026-10-11 on the first survey):
 
 Every HTTP request must carry exactly one `Authorization: Bearer <GATEWAY_TOKEN>` header, compared in
 timing-safe form. `Host` must equal `origin`, and an `Origin` header, if present, must equal `origin`
-too. The gateway meters requests per minute (`requestsPerMinute`) and caps concurrency
-(`maxConcurrent`).
+too. The gateway caps concurrency (`maxConcurrent`); it has no per-minute or daily budget
+(removed 2026-10-17).
 
 | Route | Rule | Upstream |
 |---|---|---|
 | `GET /news/api/news?feed_id=<id>&limit=<n>` | Only those two keys. `feed_id` is a positive integer that must be one of `feeds`' values. `limit` is 1–50, and an out-of-range value is refused rather than clamped (`policy.mjs` `upstreamPath`). | `GET <rssOrigin>/api/news?...`, without the caller's headers. The response must be JSON, up to 2 MB, and is answered with a 12 s timeout. |
-| `GET /news/ws/news` (WebSocket upgrade, no query) | `socketTarget()` accepts it. Admission is by Bearer + Origin = `origin`, **or** by a socket ticket + Origin = `previewOrigin` (below). `maxSockets` (default 4) applies, and an admission costs 6 budget units. 503 if `feeds` is empty. | `wss://<rssOrigin>/ws/news` (`server.mjs` `connectNews`), opened only after the client's single frame passes `newsSubscription`. 64 KiB frames, no compression, no redirects. No lifetime (a 30 s ping closes a socket whose client stops answering), and the first frame must arrive within 10 s. |
+| `GET /news/ws/news` (WebSocket upgrade, no query) | `socketTarget()` accepts it. Admission is by Bearer + Origin = `origin`, **or** by a socket ticket + Origin = `previewOrigin` (below). `maxSockets` (default 4) applies. 503 if `feeds` is empty. | `wss://<rssOrigin>/ws/news` (`server.mjs` `connectNews`), opened only after the client's single frame passes `newsSubscription`. 64 KiB frames, no compression, no redirects. No lifetime (a 30 s ping closes a socket whose client stops answering), and the first frame must arrive within 10 s. |
 | Others at v8.0.3 (not `/news`) | `/api/widgets.json`, `/api/apps.json`, `/api/api/v1/**` (structural bounds), `/api/api/v1/calendar/trading`, `/ai/agents.json`, `POST /ai/v1/query`, `/state/<id>[/<file>]`, `/_gateway/health` | openbb-api, Rita, the state volume |
 
 `newsSubscription(data, config)` applies these rules to the client's frame:
@@ -266,7 +266,7 @@ The default `ts-config/serve.json` publishes the same ports minus `:10000`, and 
   - The request carries no `Authorization` header, and `Origin` must equal `previewOrigin`.
 - Config keys in `gateway-config/settings.json`:
   - `origin`, `previewOrigin` and `stateDir`;
-  - the budgets `quoteDailyLimit`, `requestsPerMinute`, `maxConcurrent` and `maxSockets`;
+  - the caps `maxConcurrent` and `maxSockets`;
   - `rssOrigin`, `rssAddress` and `feeds`.
 - `gateway.env` holds `GATEWAY_TOKEN`, `OPENBB_API_USERNAME` and `OPENBB_API_PASSWORD`.
 
