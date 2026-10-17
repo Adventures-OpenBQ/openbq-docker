@@ -121,8 +121,11 @@ def _restart_required(cred_file: str, started_at: float) -> bool:
 
 
 def _check_dict(c: Check) -> dict:
-    return {"result": c.result, "detail": c.detail, "kind": c.kind,
-            "code": c.code, "checked_at": c.checked_at}
+    d = {"result": c.result, "detail": c.detail, "kind": c.kind,
+         "code": c.code, "checked_at": c.checked_at}
+    if c.usage is not None:
+        d["usage"] = c.usage
+    return d
 
 
 def _tier(role: str, request: Request) -> int:
