@@ -182,7 +182,7 @@ examples for an 80-card BDOBB file import. The two Episode 3 app entries carry
 the BDOBB logo in standard image fields. Workspace is an optional Episode 2
 comparison, not a prerequisite for this setup.
 
-Released as `v3.0.0` with BDOBB v3.0.0: `ghcr.io/adventures-openbq/openbq-local:3.0.0`
-and `openbq-key-maint:3.0.0` are the images the 2026-10-15 regression ran on a NAS.
+Released as `v3.0.0` with BDOBB v3.0.0: `openbq-local:3.0.0` and
+`openbq-key-maint:3.0.0`, both built from this checkout, are the images the 2026-10-15 regression ran on a NAS.
 
 The reference recipe carries forward the previously qualified PDF repair from `bdobb-dev/backends-for-openbb` commit `32615f789f9423ea14d3f95003da250f4ef5bcfc`. Sample and Bitcoin PDFs use immutable GitHub raw URLs because the original S3 bucket returns AllAccessDisabled. Downloaded bytes match the pinned upstream fixtures; this changes asset transport, not PDF content.
