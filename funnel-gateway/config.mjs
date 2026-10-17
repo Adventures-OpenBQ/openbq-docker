@@ -24,27 +24,22 @@ function httpsOrigin(value, tailnet = true, allowedPort = "10000") {
 // rssOrigin/rssAddress/feeds at v8, liveGrid at v10) is refused rather than ignored: a stack at this tag has no such upstream, and a
 // silently ignored setting is how an operator believes a door is configured when it is not.
 // openbq-docker serves no /ai (Rita), so ritaOrigin, ritaAddress and socksProxy are refused too.
-const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "quoteDailyLimit",
-  "requestsPerMinute", "maxConcurrent", "maxSockets"]);
+const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "maxConcurrent", "maxSockets"]);
+// The daily vendor cap and the per-minute request budget were removed (user ruling 2026-10-17).
+// A settings file that still names them is refused by name, so the operator deletes them knowingly.
+const REMOVED_KEYS = new Set(["quoteDailyLimit", "requestsPerMinute"]);
 
 export function validateConfig(settings, secrets) {
-  for (const key of Object.keys(settings)) if (!SETTINGS_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`);
+  for (const key of Object.keys(settings)) {
+    if (REMOVED_KEYS.has(key)) throw new Error(`Removed setting: ${key} (the gateway no longer has this budget; delete it)`);
+    if (!SETTINGS_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`);
+  }
   const origin = httpsOrigin(settings.origin);
   if (!/^[A-Za-z0-9_-]{32,256}$/.test(secrets.token ?? "") ||
       typeof secrets.apiUsername !== "string" || !/^[A-Za-z0-9_.@-]{1,128}$/.test(secrets.apiUsername) ||
       typeof secrets.apiPassword !== "string" || !secrets.apiPassword.length ||
       /[\r\n\0]/.test(secrets.apiPassword) || secrets.apiPassword.length > 1024) {
     throw new Error("Invalid machine or API credential");
-  }
-  const quoteDailyLimit = settings.quoteDailyLimit ?? 100;
-  if (!Number.isInteger(quoteDailyLimit) || quoteDailyLimit < 1 || quoteDailyLimit > 10000) {
-    throw new Error("Quote daily limit must be between 1 and 10000");
-  }
-  // The per-minute budget and the concurrency cap were hard-coded (60 and 8) while the
-  // preview served one quote card. They stay bounded: the gateway sits on a public Funnel.
-  const requestsPerMinute = settings.requestsPerMinute ?? 60;
-  if (!Number.isInteger(requestsPerMinute) || requestsPerMinute < 1 || requestsPerMinute > 600) {
-    throw new Error("Requests per minute must be between 1 and 600");
   }
   const maxConcurrent = settings.maxConcurrent ?? 8;
   if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1 || maxConcurrent > 32) {
@@ -64,7 +59,7 @@ export function validateConfig(settings, secrets) {
     throw new Error("State directory must be a normalized absolute path");
   }
   return {
-    origin, previewOrigin, quoteDailyLimit, requestsPerMinute, maxConcurrent, maxSockets, stateDir,
+    origin, previewOrigin, maxConcurrent, maxSockets, stateDir,
     token: secrets.token,
     apiAuthorization: "Basic " + Buffer.from(`${secrets.apiUsername}:${secrets.apiPassword}`).toString("base64"),
     // Never accept a caller-supplied upstream or a configurable generic proxy.

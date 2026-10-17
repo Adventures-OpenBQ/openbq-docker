@@ -23,7 +23,7 @@ const TOKEN = "synthetic_test_credential_not_for_deployment";
 const ORIGIN = `https://openbq.${TAILNET}:10000`;
 // openbq-docker serves no /ai (Rita), and the wire (/news) arrives at v8: their settings are
 // unknown keys and their routes unmatched (tests below).
-const settings = { origin: ORIGIN, quoteDailyLimit: 100 };
+const settings = { origin: ORIGIN };
 const secrets = { token: TOKEN, apiUsername: "testuser", apiPassword: "synthetic-password" };
 const config = () => validateConfig(settings, secrets);
 const HEADERS = { Host: new URL(ORIGIN).host, Authorization: `Bearer ${TOKEN}` };
@@ -59,8 +59,6 @@ test("configuration fails closed; secrets come from the environment", () => {
     { origin: "http://example.com" }, { origin: "https://arbitrary.example.com" },
     { origin: `https://openbq.${TAILNET}:8443` },   // the episode 3 reference's tailnet port, never the door
     { origin: `https://openbq.${TAILNET}:10000/x` },
-    { quoteDailyLimit: 0 }, { quoteDailyLimit: 10001 }, { quoteDailyLimit: 1.5 },
-    { requestsPerMinute: 0 }, { requestsPerMinute: 601 }, { requestsPerMinute: "60" },
     { maxConcurrent: 0 }, { maxConcurrent: 33 },
     { maxSockets: 0 }, { maxSockets: 33 }, { maxSockets: 1.5 }, { maxSockets: "4" },
     // The preview origin is any HTTPS origin (a Vercel name is not on the tailnet), but only an origin.
@@ -86,16 +84,20 @@ test("configuration fails closed; secrets come from the environment", () => {
   assert.equal(validateConfig({ ...settings, origin: `https://openbq.${TAILNET}:443` }, secrets).origin,
     `https://openbq.${TAILNET}`);
   const defaults = validateConfig(settings, secrets);
-  assert.deepEqual([defaults.requestsPerMinute, defaults.maxConcurrent, defaults.stateDir, defaults.maxSockets, defaults.previewOrigin],
-    [60, 8, null, 4, null]);
+  assert.deepEqual([defaults.maxConcurrent, defaults.stateDir, defaults.maxSockets, defaults.previewOrigin],
+    [8, null, 4, null]);
   assert.equal(validateConfig({ ...settings, previewOrigin: "https://BDOBB.example.vercel.app" }, secrets).previewOrigin,
     "https://bdobb.example.vercel.app");
   assert.deepEqual([1, 32].map(maxSockets => validateConfig({ ...settings, maxSockets }, secrets).maxSockets), [1, 32]);
   for (const key of ["ritaOrigin", "ritaAddress", "socksProxy", "rssOrigin", "rssAddress", "feeds"]) {
     assert.equal(key in defaults, false, key);
   }
-  const roomy = validateConfig({ ...settings, quoteDailyLimit: 10000, requestsPerMinute: 600, maxConcurrent: 32 }, secrets);
-  assert.deepEqual([roomy.quoteDailyLimit, roomy.requestsPerMinute, roomy.maxConcurrent], [10000, 600, 32]);
+  assert.equal(validateConfig({ ...settings, maxConcurrent: 32 }, secrets).maxConcurrent, 32);
+  // The removed budgets are refused by name, whatever their value, so a stale settings file fails loudly.
+  for (const key of ["quoteDailyLimit", "requestsPerMinute"]) {
+    assert.throws(() => validateConfig({ ...settings, [key]: 100 }, secrets), new RegExp(`Removed setting: ${key}`));
+    assert.equal(key in defaults, false, key);
+  }
   assert.throws(() => validateConfig({ origin: ORIGIN, ritaOrigin: `https://rita.${TAILNET}` }, secrets),
     /Unknown setting: ritaOrigin/);
   const directory = mkdtempSync(join(tmpdir(), "gateway-config-"));
@@ -179,7 +181,7 @@ test("the OpenBB root documents and every api/v1 route forward; the rest of /api
   upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
   t.after(() => new Promise(resolve => upstream.close(resolve)));
   const { port } = await fixture(t,
-    { apiOrigin: `http://127.0.0.1:${upstream.address().port}`, quoteDailyLimit: 1000 },
+    { apiOrigin: `http://127.0.0.1:${upstream.address().port}` },
     { requestJson: getJson });
   // The two root documents the client fetches, plus one route from each of the
   // families the 331-widget catalogue spans. All carry the stack's Basic pair,
@@ -228,33 +230,15 @@ test("the OpenBB root documents and every api/v1 route forward; the rest of /api
   assert.equal((await http(port, "/api/widgets.json", HEADERS, "POST")).status, 405);
 });
 
-test("single-instance aggregate and daily quote budgets reject before forwarding", async t => {
-  const { port, calls } = await fixture(t, { quoteDailyLimit: 1 });
-  assert.equal((await http(port, quote)).status, 200);
-  assert.equal((await http(port, quote)).status, 429);
-  assert.equal(calls.length, 1);
-  for (let i = 0; i < 58; i++) assert.equal((await http(port, "/_gateway/health")).status, 200);
-  assert.equal((await http(port, "/_gateway/health")).status, 429);
+test("no daily or per-minute budget: hundreds of vendor calls in a minute all pass", async t => {
+  // The daily vendor cap (100) and the per-minute budget (60) were removed (user ruling
+  // 2026-10-17); the concurrency cap and EODHD's own limits remain.
+  const { port, calls } = await fixture(t);
+  for (let i = 0; i < 150; i++) assert.equal((await http(port, quote)).status, 200);
+  assert.equal(calls.length, 150);
 });
 
-test("the daily budget meters vendor calls, not the two manifests", async t => {
-  // widgets.json and apps.json are openbb-api's own static documents: no provider is
-  // called, so no quota is spent. Metering them made a dashboard open cost N+1 units
-  // and ten opens exhaust a default day (review of the all-widgets change, 2026-09-20).
-  const { port } = await fixture(t, { quoteDailyLimit: 1 });
-  for (const manifest of ["/api/widgets.json", "/api/apps.json", "/api/widgets.json"]) {
-    assert.equal((await http(port, manifest)).status, 200, manifest);
-  }
-  assert.equal((await http(port, quote)).status, 200);
-  assert.equal((await http(port, quote)).status, 429);
-  assert.equal((await http(port, "/api/apps.json")).status, 200);
-});
-
-test("the per-minute budget and the concurrency cap come from settings", async t => {
-  const { port } = await fixture(t, { requestsPerMinute: 3 });
-  for (let i = 0; i < 3; i++) assert.equal((await http(port, "/_gateway/health")).status, 200);
-  assert.equal((await http(port, "/_gateway/health")).status, 429);
-
+test("the concurrency cap comes from settings", async t => {
   // maxConcurrent: hold one upstream call open, and the next REST request is refused.
   let release;
   const held = await fixture(t, { maxConcurrent: 1 }, { requestJson: () => new Promise(resolve => { release = resolve; }) });
@@ -702,17 +686,11 @@ test("a silent client is dropped at the first-frame deadline, a peer that stops 
   await slotReleased(gw.port);
 });
 
-test("the socket cap and the six-unit socket price come from settings, charged before the upgrade", async t => {
+test("the socket cap comes from settings, checked before the upgrade", async t => {
   const capped = await fixture(t, { maxSockets: 1 }, { openRef: refused });
   const first = await wsConnect(capped.port); assert.equal(first.status, 101);
   assert.equal((await wsConnect(capped.port)).status, 429);
   first.ws.terminate();
-  // Six left: exactly one socket is admitted, and the REST side is out of budget too.
-  const metered = await fixture(t, { requestsPerMinute: 6 }, { openRef: refused });
-  const only = await wsConnect(metered.port); assert.equal(only.status, 101);
-  assert.equal((await http(metered.port, "/_gateway/health")).status, 429);
-  assert.equal((await wsConnect(metered.port)).status, 429);
-  only.ws.terminate();
 });
 
 test("a refused upgrade never allocates a socket slot, so the cap is not consumed by 404s", async t => {
@@ -790,7 +768,7 @@ test("state refuses everything outside its contract", async t => {
 });
 
 test("state is bounded per user, and off until the operator gives it a directory", async t => {
-  const { port } = await stateFixture(t, { requestsPerMinute: 600 });
+  const { port } = await stateFixture(t);
   const big = JSON.stringify("x".repeat(262000));
   for (let i = 0; i < 8; i++) assert.equal((await send(port, `/state/42/dashboards/d${i}.json`, "PUT", big)).status, 204);
   assert.equal((await send(port, "/state/42/dashboards/d8.json", "PUT", big)).status, 413); // > 2 MiB for this user
