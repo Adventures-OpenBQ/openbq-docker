@@ -12,8 +12,8 @@ async function makeServer(backend,overrides) {
   // Built at run time so the public-content scan never sees a literal tailnet name.
   const origin=`https://openbq.${["example-tailnet","ts","net"].join(".")}:10000`;
   const token="test-only-gateway-token-not-a-real-credential";
-  const cfg={...validateConfig({origin,quoteDailyLimit:100,maxConcurrent:4,requestsPerMinute:60},{token,apiUsername:"test",apiPassword:"test"}),tableOrigin:backend,apiOrigin:backend,tableGatewayToken:"private-service-credential-1234567890",tableRelayToken:"private-relay-credential-1234567890",tableDesktopPrincipal:"desktop:owner",ssrmRoutes:["/api/api/v1/test/rows"],...overrides};
-  return {server:createGateway(cfg),headers:{host:new URL(origin).host,Authorization:`Bearer ${token}`},rate:60};
+  const cfg={...validateConfig({origin,maxConcurrent:4},{token,apiUsername:"test",apiPassword:"test"}),tableOrigin:backend,apiOrigin:backend,tableGatewayToken:"private-service-credential-1234567890",tableRelayToken:"private-relay-credential-1234567890",tableDesktopPrincipal:"desktop:owner",ssrmRoutes:["/api/api/v1/test/rows"],...overrides};
+  return {server:createGateway(cfg),headers:{host:new URL(origin).host,Authorization:`Bearer ${token}`}};
 }
 
 // These requests cross real loopback HTTP servers. Holding upstream responses
@@ -40,7 +40,7 @@ async function fixture(t, overrides = {}) {
     res.end(JSON.stringify({path, principal:req.headers["x-table-principal"]}));
   });
   upstream.listen(0,"127.0.0.1"); await once(upstream,"listening");
-  const {server, headers, rate} = await makeServer(`http://127.0.0.1:${upstream.address().port}`, overrides);
+  const {server, headers} = await makeServer(`http://127.0.0.1:${upstream.address().port}`, overrides);
   server.listen(0,"127.0.0.1"); await once(server,"listening");
   t.after(async () => {
     server.closeAllConnections(); upstream.closeAllConnections();
@@ -62,7 +62,7 @@ async function fixture(t, overrides = {}) {
     return {done, abort:()=>req.destroy()};
   };
   const finish = path => { const res=held.get(path);assert.ok(res,path);res.writeHead(200,{"Content-Type":"application/json"});res.end('{}'); };
-  return {held,call,finish,rate};
+  return {held,call,finish};
 }
 test("saturation reserves exactly two authenticated control slots and reclaims success and disconnect",async t=>{
   const {held,call,finish}=await fixture(t);
@@ -99,17 +99,6 @@ test("saturation reserves exactly two authenticated control slots and reclaims s
   for(let i=0;i<4;i++) finish(`/sessions/hold-${i}/commands`);
   assert.ok((await Promise.all(normal.map(p=>p.done))).every(r=>r.status===200));
   assert.equal((await call("/table/sessions/s/commands").done).status,200);
-});
-test("control rate allowance is independent in both directions and finite",async t=>{
-  const {call,rate}=await fixture(t);
-  for(let i=0;i<rate;i++)assert.equal((await call("/table/healthz","GET").done).status,200);
-  assert.equal((await call("/table/healthz","GET").done).status,429);
-  for(let i=0;i<rate;i++)assert.equal((await call("/table/exports/e","DELETE").done).status,200);
-  assert.equal((await call("/table/sessions/s/cancel").done).status,429);
-  const other=await fixture(t);
-  for(let i=0;i<other.rate;i++)assert.equal((await other.call("/table/sessions/s/cancel").done).status,200);
-  assert.equal((await other.call("/table/exports/e","DELETE").done).status,429);
-  assert.equal((await other.call("/table/healthz","GET").done).status,200);
 });
 test("control errors and deadlines return both slots",async t=>{
   const {held,call}=await fixture(t,{tableTimeoutMs:100});

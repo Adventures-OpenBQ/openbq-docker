@@ -107,23 +107,23 @@ All behind `Authorization: Bearer <GATEWAY_TOKEN>`, `Host` = `origin`, `Origin` 
 or, since V10-P1 (2026-10-15), one of the packaged desktop origins `tauri://localhost` and
 `http://tauri.localhost`.
 
-| Route | Method | Parameters | Metered (daily `quoteDailyLimit`) |
-|---|---|---|---|
-| `/grid/widgets.json` | GET | none | no |
-| `/grid/apps.json` | GET | none; an upstream 404 is relayed as a bare 404 | no |
-| `/grid/live_grid` | GET | `symbol` (comma list) | 1 |
-| `/grid/symbol_meta` | GET | `symbol` (comma list); upstream 404 relayed | 1 |
-| `/grid/series` | GET | `symbol` (one), `interval`, `start`, `end`, `provider` (`kdb`/`eodhd`) | 1 |
-| `/grid/chart` | GET | as `/grid/series`, plus `theme` (`light`/`dark`) | 1 |
-| `/grid/ticks` | GET | `symbol` (one), `limit` (1–1000) | no |
-| `/grid/ta_chart` | GET | `symbol`, `interval`, `source` (`local`/`eodhd`), `macro`, `indicators`, `anchor`, `start`, `end`, `theme`; no `provider` | 1 |
-| `/grid/ws_ticket` | GET | `target` (one `/grid` socket); desktop `Origin` only | no |
-| `/grid/live_grid_ws` | GET + Upgrade | no query; frames `{"params":{"symbol":"A,B"}}`, each re-validated | 1 per symbol per frame, the first included |
-| `/grid/ta_chart_ws` | GET + Upgrade | the `/grid/ta_chart` query is the subscription; no client frames | 1 per push, the first included |
+| Route | Method | Parameters |
+|---|---|---|
+| `/grid/widgets.json` | GET | none |
+| `/grid/apps.json` | GET | none; an upstream 404 is relayed as a bare 404 |
+| `/grid/live_grid` | GET | `symbol` (comma list) |
+| `/grid/symbol_meta` | GET | `symbol` (comma list); upstream 404 relayed |
+| `/grid/series` | GET | `symbol` (one), `interval`, `start`, `end`, `provider` (`kdb`/`eodhd`) |
+| `/grid/chart` | GET | as `/grid/series`, plus `theme` (`light`/`dark`) |
+| `/grid/ticks` | GET | `symbol` (one), `limit` (1–1000) |
+| `/grid/ta_chart` | GET | `symbol`, `interval`, `source` (`local`/`eodhd`), `macro`, `indicators`, `anchor`, `start`, `end`, `theme`; no `provider` |
+| `/grid/ws_ticket` | GET | `target` (one `/grid` socket); desktop `Origin` only |
+| `/grid/live_grid_ws` | GET + Upgrade | no query; frames `{"params":{"symbol":"A,B"}}`, each re-validated |
+| `/grid/ta_chart_ws` | GET + Upgrade | the `/grid/ta_chart` query is the subscription; no client frames |
 
 `interval` ∈ 1s 5s 15s 30s 1m 5m 15m 30m 1h 4h 1d; on this line history is EODHD's, so only
-1m, 5m, 1h and 1d return bars (P2). Each socket costs six per-minute units at upgrade; later
-frames or pushes one more each; `FRAME_CAP` = 60 client frames per `live_grid_ws` socket
+1m, 5m, 1h and 1d return bars (P2). No route, frame or push is metered (the daily and per-minute budgets were removed
+2026-10-17); `FRAME_CAP` = 60 client frames per `live_grid_ws` socket
 (tick-chart pushes are not capped); no socket lifetime, a 30 s ping; `maxSockets` applies. With
 `liveGrid` off every one of these answers 503 after its route rules pass.
 
@@ -1057,12 +1057,12 @@ through the gateway, the option V10-P5 named. live-grid still has no host port (
   exception to "the lock precedes everything". A frame is a navigation and cannot carry a
   header; BDOBB has no ticket for frames. The exception is narrow: exact path, GET, no query,
   no body, this door's Host. The page is fetched from live-grid once and served from memory,
-  so an anonymous caller costs no upstream dial and no per-minute budget. It holds no data;
+  so an anonymous caller costs no upstream dial. It holds no data;
   every watchlist call is behind the lock. The page gets the Bearer header from BDOBB's
   `openbb-connect` → `openbb-auth` handshake, which BDOBB sends only to a frame on the
   backend's own origin. Alternative if this is not acceptable: a frame ticket, which would
   need a BDOBB change.
-- POST charges one unit of `quoteDailyLimit` (a new EODHD subscription). The body is rebuilt
+- POST is not metered. The body is rebuilt
   from the validated one-symbol grammar. live-grid's 404/409/422/507 come back as the door's
   own messages.
 - Not in `policy.mjs`, which BDOBB's web layer vendors under a hash test. The web preview

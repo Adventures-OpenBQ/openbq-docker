@@ -28,7 +28,7 @@ const FEED = "https://feeds.example.com/news.xml";
 // /ai (Rita), so her settings are unknown keys and her routes unmatched (tests below).
 // live-grid (the `live` profile, v10) is ON in the default fixture too, so the /grid tests
 // ported from the donor run as written; the off state (503) has its own tests.
-const settings = { origin: ORIGIN, quoteDailyLimit: 100,
+const settings = { origin: ORIGIN,
   rssOrigin: RSS_ORIGIN, rssAddress: RSS_ADDRESS, feeds: { [FEED]: 7 }, liveGrid: true };
 const secrets = { token: TOKEN, apiUsername: "testuser", apiPassword: "synthetic-password" };
 const config = () => validateConfig(settings, secrets);
@@ -89,8 +89,6 @@ test("configuration fails closed; secrets come from the environment", () => {
     { origin: "http://example.com" }, { origin: "https://arbitrary.example.com" },
     { origin: `https://openbq.${TAILNET}:8443` },   // the episode 3 reference's tailnet port, never the door
     { origin: `https://openbq.${TAILNET}:10000/x` },
-    { quoteDailyLimit: 0 }, { quoteDailyLimit: 10001 }, { quoteDailyLimit: 1.5 },
-    { requestsPerMinute: 0 }, { requestsPerMinute: 601 }, { requestsPerMinute: "60" },
     { maxConcurrent: 0 }, { maxConcurrent: 33 },
     { maxSockets: 0 }, { maxSockets: 33 }, { maxSockets: 1.5 }, { maxSockets: "4" },
     // The preview origin is any HTTPS origin (a Vercel name is not on the tailnet), but only an origin.
@@ -133,8 +131,8 @@ test("configuration fails closed; secrets come from the environment", () => {
   assert.equal(validateConfig({ ...settings, origin: `https://openbq.${TAILNET}:443` }, secrets).origin,
     `https://openbq.${TAILNET}`);
   const defaults = validateConfig(settings, secrets);
-  assert.deepEqual([defaults.requestsPerMinute, defaults.maxConcurrent, defaults.maxSockets, defaults.previewOrigin, defaults.stateDir],
-    [60, 8, 4, null, null]);
+  assert.deepEqual([defaults.maxConcurrent, defaults.maxSockets, defaults.previewOrigin, defaults.stateDir],
+    [8, 4, null, null]);
   assert.equal(validateConfig({ ...settings, previewOrigin: "https://BDOBB.example.vercel.app" }, secrets).previewOrigin,
     "https://bdobb.example.vercel.app");
   assert.deepEqual([1, 32].map(maxSockets => validateConfig({ ...settings, maxSockets }, secrets).maxSockets), [1, 32]);
@@ -155,8 +153,12 @@ test("configuration fails closed; secrets come from the environment", () => {
   // A portless rss origin stays valid for a reader who fronts the pool on a node's own :443.
   assert.equal(validateConfig({ ...settings, rssOrigin: `https://rss.${TAILNET}` }, secrets).rssOrigin,
     `https://rss.${TAILNET}`);
-  const roomy = validateConfig({ ...settings, quoteDailyLimit: 10000, requestsPerMinute: 600, maxConcurrent: 32 }, secrets);
-  assert.deepEqual([roomy.quoteDailyLimit, roomy.requestsPerMinute, roomy.maxConcurrent], [10000, 600, 32]);
+  assert.equal(validateConfig({ ...settings, maxConcurrent: 32 }, secrets).maxConcurrent, 32);
+  // The removed budgets are refused by name, whatever their value, so a stale settings file fails loudly.
+  for (const key of ["quoteDailyLimit", "requestsPerMinute"]) {
+    assert.throws(() => validateConfig({ ...settings, [key]: 100 }, secrets), new RegExp(`Removed setting: ${key}`));
+    assert.equal(key in defaults, false, key);
+  }
   assert.throws(() => validateConfig({ origin: ORIGIN, ritaOrigin: `https://rita.${TAILNET}` }, secrets),
     /Unknown setting: ritaOrigin/);
   const directory = mkdtempSync(join(tmpdir(), "gateway-config-"));
@@ -247,7 +249,7 @@ test("the OpenBB root documents and every api/v1 route forward; the rest of /api
   upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
   t.after(() => new Promise(resolve => upstream.close(resolve)));
   const { port } = await fixture(t,
-    { apiOrigin: `http://127.0.0.1:${upstream.address().port}`, quoteDailyLimit: 1000 },
+    { apiOrigin: `http://127.0.0.1:${upstream.address().port}` },
     { requestJson: getJson });
   // The two root documents the client fetches, plus one route from each of the
   // families the 331-widget catalogue spans. All carry the stack's Basic pair,
@@ -296,33 +298,17 @@ test("the OpenBB root documents and every api/v1 route forward; the rest of /api
   assert.equal((await http(port, "/api/widgets.json", HEADERS, "POST")).status, 405);
 });
 
-test("single-instance aggregate and daily quote budgets reject before forwarding", async t => {
-  const { port, calls } = await fixture(t, { quoteDailyLimit: 1 });
-  assert.equal((await http(port, quote)).status, 200);
-  assert.equal((await http(port, quote)).status, 429);
-  assert.equal(calls.length, 1);
-  for (let i = 0; i < 58; i++) assert.equal((await http(port, "/_gateway/health")).status, 200);
-  assert.equal((await http(port, "/_gateway/health")).status, 429);
+test("no daily or per-minute budget: hundreds of vendor calls in a minute all pass", async t => {
+  // The daily vendor cap (100) and the per-minute budget (60) were removed (user ruling
+  // 2026-10-17); the concurrency and socket caps and EODHD's own limits remain.
+  const { port, calls } = await fixture(t);
+  for (let i = 0; i < 150; i++) assert.equal((await http(port, quote)).status, 200);
+  for (const grid of ["/grid/live_grid?symbol=AAPL", "/grid/series?symbol=AAPL"])
+    for (let i = 0; i < 70; i++) assert.equal((await http(port, grid)).status, 200, grid);
+  assert.equal(calls.length, 290);
 });
 
-test("the daily budget meters vendor calls, not the two manifests", async t => {
-  // widgets.json and apps.json are openbb-api's own static documents: no provider is
-  // called, so no quota is spent. Metering them made a dashboard open cost N+1 units
-  // and ten opens exhaust a default day (review of the all-widgets change, 2026-09-20).
-  const { port } = await fixture(t, { quoteDailyLimit: 1 });
-  for (const manifest of ["/api/widgets.json", "/api/apps.json", "/api/widgets.json"]) {
-    assert.equal((await http(port, manifest)).status, 200, manifest);
-  }
-  assert.equal((await http(port, quote)).status, 200);
-  assert.equal((await http(port, quote)).status, 429);
-  assert.equal((await http(port, "/api/apps.json")).status, 200);
-});
-
-test("the per-minute budget and the concurrency cap come from settings", async t => {
-  const { port } = await fixture(t, { requestsPerMinute: 3 });
-  for (let i = 0; i < 3; i++) assert.equal((await http(port, "/_gateway/health")).status, 200);
-  assert.equal((await http(port, "/_gateway/health")).status, 429);
-
+test("the concurrency cap comes from settings", async t => {
   // maxConcurrent: hold one upstream call open, and the next REST request is refused.
   let release;
   const held = await fixture(t, { maxConcurrent: 1 }, { requestJson: () => new Promise(resolve => { release = resolve; }) });
@@ -748,19 +734,6 @@ test("a ticket refused for load is not used up; it opens the socket once the slo
   assert.equal((await wsConnect(port, desk, ticketed(path, ticket))).status, 401);
 });
 
-test("a grid frame the day's budget cannot fully pay for spends none of it", async t => {
-  // D14 (review 2026-10-16): units were charged a symbol at a time, so a three-symbol frame
-  // against two units left spent both and was then refused anyway.
-  const { port } = await fixture(t, { quoteDailyLimit: 2 });
-  const { ws } = await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/grid/live_grid_ws");
-  const closed = once(ws, "close");
-  ws.send(JSON.stringify({ params: { symbol: "AAPL,MSFT,NVDA" } }));
-  await closed;
-  assert.equal((await http(port, "/grid/live_grid?symbol=AAPL")).status, 200);
-  assert.equal((await http(port, "/grid/live_grid?symbol=AAPL")).status, 200);
-  assert.equal((await http(port, "/grid/live_grid?symbol=AAPL")).status, 429);
-});
-
 // ---- The wire's socket: the first route this door serves over a socket (Ep. 8).
 
 test("the WS gate wants the credential, the Origin, the exact path and a configured wire", async t => {
@@ -912,19 +885,11 @@ test("WS initial frame deadline and the dead-peer heartbeat are bounded", async 
   const b = await deafConnect(second.port, "/news/ws/news"); await within(b, "close");
 });
 
-test("the socket cap and the six-unit socket price come from settings, charged before the upgrade", async t => {
+test("the socket cap comes from settings, checked before the upgrade", async t => {
   const capped = await fixture(t, { maxSockets: 1 }, { openNews: () => new WebSocket("ws://127.0.0.1:9") });
   const first = await wsConnect(capped.port); assert.equal(first.status, 101);
   assert.equal((await wsConnect(capped.port)).status, 429);
   first.ws.terminate();
-  // A socket costs six of the per-minute budget, and it is charged BEFORE handleUpgrade: with
-  // six left exactly one socket is admitted, and the seventh unit is gone -- so the REST side
-  // is out of budget too, which is what proves the charge happened and not a refund.
-  const metered = await fixture(t, { requestsPerMinute: 6 }, { openNews: () => new WebSocket("ws://127.0.0.1:9") });
-  const only = await wsConnect(metered.port); assert.equal(only.status, 101);
-  assert.equal((await http(metered.port, "/_gateway/health")).status, 429);
-  assert.equal((await wsConnect(metered.port)).status, 429);
-  only.ws.terminate();
 });
 
 test("a refused upgrade never allocates a socket slot, so the cap is not consumed by 404s", async t => {
@@ -981,39 +946,6 @@ test("the grid's REST routes reach live-grid with the prefix stripped and the st
   assert.equal(seen[5].url, "/ta_chart?symbol=NVDA&indicators=rsi%3Aperiod%3D14&theme=dark");
   assert.equal(seen[5].headers.authorization, config().apiAuthorization);
   assert.equal(seen.length, 6);
-});
-
-test("the daily vendor cap covers the grid's data routes, out of the SAME counter as /api", async t => {
-  // /grid/live_grid calls the EODHD SDK once per symbol in the watchlist
-  // (live-grid/app/quotes.py), and /grid/series and /grid/chart both run build_series ->
-  // fetch_series -> openbb-api /api/v1/equity/price/historical with provider=kdb|eodhd
-  // (live-grid/app/openbb_client.py) -- the same paid upstream /api/api/v1/** is metered for
-  // reaching. A DELIBERATE deviation from main, which meters none of them (review ruling
-  // 2026-09-26): otherwise the door's daily vendor cap is bypassable through /grid at the
-  // full per-minute rate, and EODHD quota exhaustion surfaces as stack-wide 502s.
-  for (const metered of ["/grid/live_grid?symbol=AAPL", "/grid/symbol_meta?symbol=AAPL",
-    "/grid/series?symbol=AAPL", "/grid/chart?symbol=AAPL", "/grid/ta_chart?symbol=AAPL"]) {
-    const { port } = await fixture(t, { quoteDailyLimit: 1 });
-    assert.equal((await http(port, metered)).status, 200, metered);
-    assert.equal((await http(port, metered)).status, 429, metered);
-    // ONE counter, not a second grid-only budget: the /api quote is refused by the unit the
-    // grid call just spent.
-    assert.equal((await http(port, quote)).status, 429, metered);
-  }
-  // And the other direction: an /api quote spends the unit a grid call then cannot have.
-  const shared = await fixture(t, { quoteDailyLimit: 1 });
-  assert.equal((await http(shared.port, quote)).status, 200);
-  assert.equal((await http(shared.port, "/grid/series?symbol=AAPL")).status, 429);
-  // Unmetered, for the same reason /api's two manifests are: no provider is called for a
-  // document, and /grid/ticks reads the in-memory kdb cache. Four of them do not exhaust a
-  // budget of one. (/grid/symbol_meta is NOT on this list on this line -- its route exists
-  // here and calls get_fundamentals_data per uncached symbol.)
-  const { port } = await fixture(t, { quoteDailyLimit: 1 });
-  for (const free of ["/grid/widgets.json", "/grid/apps.json", "/grid/ticks?symbol=AAPL",
-    "/grid/ticks?symbol=AAPL&limit=1000", "/grid/widgets.json"])
-    assert.equal((await http(port, free)).status, 200, free);
-  assert.equal((await http(port, "/grid/chart?symbol=AAPL")).status, 200);
-  assert.equal((await http(port, "/grid/live_grid?symbol=AAPL")).status, 429);
 });
 
 test("the grid's optional documents relay a bare 404; every other non-200 is the door's 502", async t => {
@@ -1216,79 +1148,14 @@ test("an oversized or binary frame from live-grid closes the relay, and hands th
   }
 });
 
-test("EVERY grid params frame charges the daily counter once per symbol, the FIRST included", async t => {
-  // No exemption (2026-09-26 ruling). Exempting the first frame left the hole one level up:
-  // an upgrade costs six units, so at the shipped 60 rpm a client could open ten sockets a
-  // minute and carry ten free ~40-symbol seeds. So the first frame is charged like any other.
-  const f = await gridFixture(t, { quoteDailyLimit: 5 });
-  const { ws, up } = await gridRelayed(f, "MSFT,TSLA,NVDA");
-  await within(up, "message");
-  // Three symbols on the FIRST frame, three units of the SAME counter /api spends: two left.
-  assert.equal((await http(f.port, quote)).status, 200);
-  assert.equal((await http(f.port, quote)).status, 200);
-  assert.equal((await http(f.port, quote)).status, 429);
-  ws.terminate();
-});
-
-test("a grid frame the daily cap cannot pay for closes the relay, and hands the slot back", async t => {
-  const f = await gridFixture(t, { quoteDailyLimit: 3 });
-  const { ws, up } = await gridRelayed(f);          // one symbol on the first frame: one unit
-  await within(up, "message");
-  const second = within(up, "message");
-  ws.send(JSON.stringify({ params: { symbol: "MSFT,TSLA" } }));   // two more: three of three
-  await second;
-  assert.equal((await http(f.port, quote)).status, 429, "the counter should be spent");
-  const closed = within(ws, "close");
-  const upClosed = within(up, "close");
-  // Nothing left, so the next frame cannot be paid for at all and the relay closes rather
-  // than forwarding a list the door has not paid for.
-  ws.send(JSON.stringify({ params: { symbol: "AAPL" } }));
-  await closed;
-  await upClosed;
-  await gridSlotReleased(f);
-});
-
-test("the upgrade's six units pay the per-minute budget for the FIRST frame, and nothing more", async t => {
-  // The other half of the ruling, and the half a symbol-counting test cannot see: the six
-  // units buy the door's slot and the PER-MINUTE budget for that first frame. With
-  // requestsPerMinute at exactly six the upgrade spends the whole minute, so a first frame
-  // that charged spend(1) as well would close the relay instead of seeding the grid.
-  const f = await gridFixture(t, { requestsPerMinute: 6 });
-  const { ws, up } = await gridRelayed(f);
-  assert.equal((await within(up, "message"))[0].toString(),
-    JSON.stringify({ params: { symbol: "AAPL" } }));
-  // And a LATER frame does cost a per-minute unit, of which there is now none: it closes.
-  // (No gridSlotReleased here -- a second upgrade would need six units this fixture has
-  // deliberately spent. Three other tests prove the slot comes back.)
-  const closed = within(ws, "close");
-  const upClosed = within(up, "close");
-  ws.send(JSON.stringify({ params: { symbol: "MSFT" } }));
-  await closed;
-  await upClosed;
-});
-
-test("a grid socket whose FIRST frame the daily cap cannot pay for never relays it", async t => {
-  // The churn case directly: the counter is already spent, so an upgrade buys a slot and a
-  // per-minute unit and nothing else -- the first frame is refused like any other.
-  const f = await gridFixture(t, { quoteDailyLimit: 1 });
-  assert.equal((await http(f.port, quote)).status, 200);          // the only unit, spent
-  const { ws } = await gridConnect(f);
-  const closed = within(ws, "close");
-  ws.send(JSON.stringify({ params: { symbol: "AAPL,MSFT" } }));
-  await closed;
-  await gridSlotReleased(f);
-});
-
-test("a grid socket's frames are capped over its lifetime whatever the budgets allow", async t => {
-  // The backstop on its own: budgets wide enough that neither is what refuses, single
-  // symbols so the daily charge is one a frame, and 60 more frames after the first.
-  const f = await gridFixture(t, { quoteDailyLimit: 10000, requestsPerMinute: 600 });
+test("a grid socket's client frames are capped at 60 while it is open", async t => {
+  // The one per-socket bound left on the grid: 60 more frames after the first.
+  const f = await gridFixture(t);
   const { ws, up } = await gridRelayed(f);
   await within(up, "message");
   const closed = within(ws, "close", 4000);
   const upClosed = within(up, "close", 4000);
-  // 60 validated frames a socket, all charged: the first plus 59 more are accepted, the 61st
-  // closes it. Single symbols, and both budgets wide enough that neither is what refuses.
+  // 60 validated frames a socket: the first plus 59 more are accepted, the 61st closes it.
   for (let i = 0; i < 60; i++) ws.send(JSON.stringify({ params: { symbol: "AAPL" } }));
   await closed;
   await upClosed;
@@ -1362,66 +1229,8 @@ test("the tick chart's socket dials live-grid at upgrade, with the validated que
   await taSlotReleased(f);
 });
 
-test("EVERY tick-chart push charges the daily counter, the FIRST included, and the cap closes the stream", async t => {
-  const f = await taFixture(t, { quoteDailyLimit: 3 });
-  const { ws } = await wsConnect(f.port, undefined, TA_WS);
-  const up = await dialled(f);
-  // The paid unit on THIS socket is the upstream push -- each one re-runs build_series
-  // through openbb-api's historical route -- and there is NO exemption (2026-09-26 ruling):
-  // the build_series the upgrade itself triggers is paid work like every later one, and
-  // exempting it would let socket churn buy one free fetch per upgrade.
-  for (const push of ['{"rev":0}', '{"rev":1}', '{"rev":2}']) {
-    const seen = within(ws, "message");
-    up.send(push);
-    await seen;
-  }
-  // Three pushes, THREE units of the same counter /api spends: nothing left at all.
-  assert.equal((await http(f.port, quote)).status, 429);
-  // The next push cannot be paid for, so the stream closes rather than going quietly stale.
-  const closed = within(ws, "close");
-  const upClosed = within(up, "close");
-  up.send('{"rev":3}');
-  await closed;
-  await upClosed;
-  await taSlotReleased(f);
-});
-
-test("a tick-chart socket whose FIRST push the daily cap cannot pay for relays nothing", async t => {
-  // The churn case on this leg: the counter is spent before the upgrade, so the socket opens,
-  // live-grid is dialled, and its very first push is refused like any other.
-  const f = await taFixture(t, { quoteDailyLimit: 1 });
-  assert.equal((await http(f.port, quote)).status, 200);          // the only unit, spent
-  const { ws } = await wsConnect(f.port, undefined, TA_WS);
-  const up = await dialled(f);
-  const closed = within(ws, "close");
-  const upClosed = within(up, "close");
-  up.send('{"rev":0}');
-  await closed;
-  await upClosed;
-  await taSlotReleased(f);
-});
-
-test("the upgrade's six units pay the per-minute budget for the FIRST push, and nothing more", async t => {
-  // The other half of the ruling on this leg. With requestsPerMinute at exactly six the
-  // upgrade spends the whole minute, so a first push that ALSO charged spend(1) would close
-  // the stream instead of relaying the figure. (No taSlotReleased -- a second upgrade would
-  // need six units this fixture has deliberately spent.)
-  const f = await taFixture(t, { requestsPerMinute: 6 });
-  const { ws } = await wsConnect(f.port, undefined, TA_WS);
-  const up = await dialled(f);
-  const seen = within(ws, "message");
-  up.send('{"type":"figure","rev":0}');
-  assert.equal((await seen)[0].toString(), '{"type":"figure","rev":0}');
-  // And a LATER push does cost a per-minute unit, of which there is now none: it closes.
-  const closed = within(ws, "close");
-  const upClosed = within(up, "close");
-  up.send('{"rev":1}');
-  await closed;
-  await upClosed;
-});
-
-test("a tick chart's pushes are not capped: it streams for as long as the budgets pay", async t => {
-  const f = await taFixture(t, { quoteDailyLimit: 10000, requestsPerMinute: 600 });
+test("a tick chart's pushes are neither capped nor metered: it streams while it is open", async t => {
+  const f = await taFixture(t);
   const { ws } = await wsConnect(f.port, undefined, TA_WS);
   const up = await dialled(f);
   // Well past the old 60-push ceiling, every push relayed and the socket still open.
@@ -1516,11 +1325,6 @@ test("liveGrid off: gridOrigin is null, /grid answers 503 after the route rules,
   assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/grid/ta_chart_ws")).status, 404);
   assert.equal(calls.length, 0);
   assert.equal(dialled, 0);
-  // Off is not "free": a 503 never touched the daily vendor counter. With a cap of one,
-  // the /api quote after eight refused grid calls still answers.
-  const capped = await fixture(t, { gridOrigin: null, quoteDailyLimit: 1 });
-  for (let i = 0; i < 3; i++) assert.equal((await http(capped.port, "/grid/live_grid?symbol=AAPL")).status, 503);
-  assert.equal((await http(capped.port, quote)).status, 200);
 });
 
 test("liveGrid off: the preflight does not dial live-grid; on, it does", async t => {
@@ -1537,18 +1341,11 @@ test("liveGrid off: the preflight does not dial live-grid; on, it does", async t
   assert.deepEqual(grid.seen.map(r => r.path), ["/health"]);
 });
 
-test("the grid socket's own first-frame deadline and dead-peer heartbeat are bounded, and it costs six", async t => {
+test("the grid socket's own first-frame deadline and dead-peer heartbeat are bounded", async t => {
   const first = await fixture(t, {}, { firstFrameMs: 30, openGrid: () => new WebSocket("ws://127.0.0.1:9") });
   const a = await gridConnect(first); await once(a.ws, "close");
   const second = await fixture(t, {}, { firstFrameMs: 1000, pingMs: 20, openGrid: () => new WebSocket("ws://127.0.0.1:9") });
   const b = await deafConnect(second.port, GRID_WS); await within(b, "close");
-  // Charged before handleUpgrade, out of the same per-minute budget the REST side spends
-  // from: with six units left one grid socket is admitted and /_gateway/health is then 429.
-  const metered = await fixture(t, { requestsPerMinute: 6 }, { openGrid: () => new WebSocket("ws://127.0.0.1:9") });
-  const only = await gridConnect(metered); assert.equal(only.status, 101);
-  assert.equal((await http(metered.port, "/_gateway/health")).status, 429);
-  assert.equal((await gridConnect(metered)).status, 429);
-  only.ws.terminate();
 });
 
 // ---- Per-user state: the web preview's saved configuration, on the NAS (user ruling
@@ -1618,7 +1415,7 @@ test("state refuses everything outside its contract", async t => {
 });
 
 test("state is bounded per user, and off until the operator gives it a directory", async t => {
-  const { port } = await stateFixture(t, { requestsPerMinute: 600 });
+  const { port } = await stateFixture(t);
   const big = JSON.stringify("x".repeat(262000));
   for (let i = 0; i < 8; i++) assert.equal((await send(port, `/state/42/dashboards/d${i}.json`, "PUT", big)).status, 204);
   assert.equal((await send(port, "/state/42/dashboards/d8.json", "PUT", big)).status, 413); // > 2 MiB for this user
@@ -1771,16 +1568,13 @@ test("the watchlist API is behind the lock, and live-grid's payload is relayed",
   assert.deepEqual(sent, [{ method: "GET", path: "/api/subscriptions", body: undefined }]);
 });
 
-test("POST rebuilds the body from a validated symbol and charges one vendor unit", async t => {
-  const { port, sent } = await subscriptionsFixture(t, { quoteDailyLimit: 1 },
+test("POST rebuilds the body from a validated symbol", async t => {
+  const { port, sent } = await subscriptionsFixture(t, {},
     (method) => (method === "POST" ? { status: 201, json: { used: 2, cap: 50 } } : { status: 200, json: {} }));
   const r = await sendBody(port, "/grid/api/subscriptions", { body: JSON.stringify({ symbol: " BTC-USD ", extra: "dropped" }) });
   assert.equal(r.status, 201);
   assert.deepEqual(JSON.parse(r.text), { used: 2, cap: 50 });
   assert.deepEqual(sent, [{ method: "POST", path: "/api/subscriptions", body: JSON.stringify({ symbol: "BTC-USD" }) }]);
-  // The daily vendor cap of one is spent.
-  assert.equal((await sendBody(port, "/grid/api/subscriptions", { body: JSON.stringify({ symbol: "ETH-USD" }) })).status, 429);
-  assert.equal(sent.length, 1);
 });
 
 test("POST refuses a bad symbol, a non-JSON body and an oversized one before any upstream call", async t => {
@@ -1942,7 +1736,7 @@ test("table credential configuration fails closed and service origins are fixed"
   for(const patch of [{tableGatewayToken:TOKEN},{tableRelayToken:TOKEN},{tableRelayToken:TABLE_PRIVATE},{tableGatewayToken:""},{tableRelayToken:"short"}])assert.throws(()=>validateConfig(enabled,{...privateSecrets,...patch}));
   for(const patch of [{tableDesktopPrincipal:"github:42"},{tableService:"true"},{ssrmRoutes:["https://evil.example.com"]},{ssrmRoutes:["/api/api/v1/a/../b"]},{tableOrigin:"http://evil.example.com"},{tableTimeoutMs:0}])assert.throws(()=>validateConfig({...enabled,...patch},privateSecrets));
 });
-test("table batches fail atomically on truncation, oversize or deadline; standard POST is exact and metered",async t=>{
+test("table batches fail atomically on truncation, oversize or deadline; standard POST is exact",async t=>{
   const {call,calls,cfg}=await tableFixture(t,{tableTimeoutMs:40});
   for(const name of ["stalled","truncated","oversized"]){const result=await call(`/table/sessions/${name}/commands`,"POST",'{}').catch(error=>{throw new Error(name,{cause:error});});assert.equal(result.status,502);assert.doesNotMatch(result.body,/partial|xxxxxxxx/);}
   cfg.tableTimeoutMs=65000;
@@ -1951,7 +1745,6 @@ test("table batches fail atomically on truncation, oversize or deadline; standar
   assert.equal(calls.at(-1).headers.authorization,config().apiAuthorization);assert.equal(calls.at(-1).headers["x-table-principal"],undefined);
   assert.equal((await call("/table/sessions/../healthz").catch(error=>{throw new Error("traversal",{cause:error});})).status,421);
   assert.equal((await call("/table/sessions/%2e%2e/healthz").catch(error=>{throw new Error("encoded",{cause:error});})).status,421);
-  const capped=await tableFixture(t,{quoteDailyLimit:1});assert.equal((await capped.call("/api/api/v1/test/rows","POST",'{}')).status,200);assert.equal((await capped.call("/api/api/v1/test/rows","POST",'{}')).status,429);
 });
 test("SSRM exchanges have their own deadline, longer than managed table routes", async t => {
   assert.equal(validateConfig(settings, secrets).ssrmTimeoutMs, 170000);
@@ -2225,17 +2018,11 @@ test("/ref/live_grid_ws: a silent client is dropped at the first-frame deadline,
   await refSlotReleased(deaf.port);
 });
 
-test("/ref/live_grid_ws: the socket cap and the six-unit socket price come from settings, charged before the upgrade", async t => {
+test("/ref/live_grid_ws: the socket cap comes from settings, checked before the upgrade", async t => {
   const capped = await fixture(t, { maxSockets: 1 }, { openRef: refused });
   const first = await refConnect(capped.port); assert.equal(first.status, 101);
   assert.equal((await refConnect(capped.port)).status, 429);
   first.ws.terminate();
-  // Six left: exactly one socket is admitted, and the REST side is out of budget too.
-  const metered = await fixture(t, { requestsPerMinute: 6 }, { openRef: refused });
-  const only = await refConnect(metered.port); assert.equal(only.status, 101);
-  assert.equal((await http(metered.port, "/_gateway/health")).status, 429);
-  assert.equal((await refConnect(metered.port)).status, 429);
-  only.ws.terminate();
 });
 
 test("/ref/live_grid_ws: a refused upgrade never allocates a socket slot, so the cap is not consumed by 404s", async t => {
@@ -2246,14 +2033,12 @@ test("/ref/live_grid_ws: a refused upgrade never allocates a socket slot, so the
   const admitted = await refConnect(port); assert.equal(admitted.status, 101); admitted.ws.terminate();
 });
 
-test("an SSRM page served from od's cache refunds the daily quote; a miss spends it; a client header cannot", async t => {
-  const {call,calls}=await tableFixture(t,{quoteDailyLimit:1});
+test("od's SSRM cache marker never reaches the client, and a client's never reaches od", async t => {
+  const {call,calls}=await tableFixture(t);
   for (let i=0;i<3;i++) {
     const hit=await call("/api/api/v1/test/rows?cached=1","POST",'{}');
     assert.equal(hit.status,200); assert.equal(hit.headers["x-openbq-ssrm"],undefined);
   }
   const spoof=await call("/api/api/v1/test/rows","POST",'{}',{"x-openbq-ssrm":"hit"});
   assert.equal(spoof.status,200); assert.equal(calls.at(-1).headers["x-openbq-ssrm"],undefined);
-  assert.equal((await call("/api/api/v1/test/rows","POST",'{}')).status,429);  // the miss spent the one quote
-  assert.equal((await call("/api/api/v1/test/rows?cached=1","POST",'{}')).status,429);
 });
