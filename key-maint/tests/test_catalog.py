@@ -15,10 +15,9 @@ class TestShape:
         }
         assert set(EXAMPLES) == expected
 
-    def test_paths_and_expect_and_doc_and_demo_ok(self):
+    def test_paths_and_doc_and_demo_ok(self):
         for pid, ex in EXAMPLES.items():
             assert ex.path.startswith("/api/v1/")
-            assert ex.expect in {"results_nonempty", "results_object"} or "." in ex.expect
             assert ex.doc.startswith("https://")
             assert ex.params.get("provider") == pid
         for pid in ("yfinance", "sec", "federal_reserve", "imf", "oecd", "government_us",
@@ -37,25 +36,25 @@ class TestShape:
 
 class TestClassify:
     def test_2xx_with_results_is_ok(self):
-        assert classify(200, {"results": [{"x": 1}]}, "results_nonempty")[0] == "ok"
+        assert classify(200, {"results": [{"x": 1}]})[0] == "ok"
 
     def test_2xx_empty_results_is_unexpected_response(self):
-        result, code, _ = classify(200, {"results": []}, "results_nonempty")
+        result, code, _ = classify(200, {"results": []})
         assert result == "error" and code == "unexpected_response"
 
     def test_2xx_missing_results_is_unexpected_response(self):
-        assert classify(200, {"nope": 1}, "results_nonempty")[1] == "unexpected_response"
+        assert classify(200, {"nope": 1})[1] == "unexpected_response"
 
     def test_api_401_is_backend_refused_not_provider_auth(self):
-        result, code, detail = classify(401, {"detail": "Unauthorized"}, "results_nonempty")
+        result, code, detail = classify(401, {"detail": "Unauthorized"})
         assert result == "error" and code == "http_auth"
         assert detail == "the backend refused key-maint's own credentials"
 
     def test_api_403_is_backend_refused(self):
-        assert classify(403, {"detail": "x"}, "results_nonempty")[1] == "http_auth"
+        assert classify(403, {"detail": "x"})[1] == "http_auth"
 
     def test_provider_auth_marker_is_auth_failed(self):
-        result, code, _ = classify(400, {"detail": "Invalid API key for provider"}, "results_nonempty")
+        result, code, _ = classify(400, {"detail": "Invalid API key for provider"})
         assert result == "auth_failed" and code == "http_auth"
 
     def test_missing_credential_marker_is_auth_failed(self):
@@ -68,33 +67,32 @@ class TestClassify:
         result, code, _ = classify(
             400,
             {"detail": "Missing credential 'fmp_api_key'. Check https://x to get it."},
-            "results_nonempty",
         )
         assert result == "auth_failed" and code == "http_auth"
 
     def test_timeout_marker_is_no_response_connect_timeout(self):
-        result, code, _ = classify(500, {"detail": "request timed out"}, "results_nonempty")
+        result, code, _ = classify(500, {"detail": "request timed out"})
         assert result == "no_response" and code == "connect_timeout"
 
     def test_dns_marker_is_no_response_dns_failure(self):
-        assert classify(500, {"detail": "Name or service not known"}, "results_nonempty")[1] == "dns_failure"
+        assert classify(500, {"detail": "Name or service not known"})[1] == "dns_failure"
 
     def test_refused_marker_is_connect_refused(self):
-        assert classify(500, {"detail": "Connection refused"}, "results_nonempty")[1] == "connect_refused"
+        assert classify(500, {"detail": "Connection refused"})[1] == "connect_refused"
 
     def test_tls_marker_is_tls_error(self):
-        assert classify(500, {"detail": "SSL certificate problem"}, "results_nonempty")[1] == "tls_error"
+        assert classify(500, {"detail": "SSL certificate problem"})[1] == "tls_error"
 
     def test_429_marker_is_rate_limited(self):
-        assert classify(429, {"detail": "rate limit exceeded"}, "results_nonempty")[1] == "rate_limited"
+        assert classify(429, {"detail": "rate limit exceeded"})[1] == "rate_limited"
 
     def test_other_non_2xx_is_upstream_error(self):
-        result, code, _ = classify(502, {"detail": "bad gateway"}, "results_nonempty")
+        result, code, _ = classify(502, {"detail": "bad gateway"})
         assert result == "error" and code == "upstream_error"
 
     def test_raw_api_detail_never_appears_in_detail(self):
         for status in (401, 400, 500, 502, 200):
-            _, _, detail = classify(status, {"detail": RAW}, "results_nonempty")
+            _, _, detail = classify(status, {"detail": RAW})
             assert "SECRET123" not in detail and "eodhd.com" not in detail
 
 
