@@ -2,7 +2,7 @@
 
 # Episode 1 verification
 
-Passed on October 5, 2026, on the x86-64 QNAP NAS. Release source is identified by tag `v1.0.0`; this is a local NAS image, not a published registry image.
+Passed on October 5, 2026, on the x86-64 NAS. Release source is identified by tag `v1.0.0`; this is a local NAS image, not a published registry image.
 
 - Docker `27.1.2-qnap8`; Compose `v2.29.1-qnap2`.
 - Final locked image: `sha256:4b6bbfc98174821d97c3b33cd5c7eaa908f6e6cd91a3939ab6437a6bc420d96f`.
@@ -23,7 +23,7 @@ Verified on October 7, 2026. Candidate images (private GHCR, recipe `Adventures-
 - Rita: `ghcr.io/adventures-openbq/openbq-rita:6.0.0-candidate@sha256:ff90afeeea6c9da4e27e5d5719afaf4ab275e67b9a1c171c14698d63af0f1a99`
 - MCP: `ghcr.io/adventures-openbq/openbq-mcp:6.0.0-candidate@sha256:d76fbbac7392e58c71572195f1208c1ba03d4b959260c49e07a817c69851c8d2`
 
-Deployed on the x86-64 QNAP NAS into the running stack, merged with its existing services; only the two new services were started and no existing container was recreated. Smoke was unchanged before and after: 995 widgets, 68 yfinance widgets, and the reference backend at 71 widgets / 73 cards / 0 missing references. Rita `/status` and MCP `initialize` (10 tools) answered through private Tailscale HTTPS on 10443 and 11443, and Rita's SSE stream arrived incrementally. Rita shares the Tailscale sidecar's network namespace, so it reaches the tailnet model endpoint through MagicDNS (model list returned 200 from inside the container). A restart of both services came back through Serve. Funnel is off on every port.
+Deployed on the x86-64 NAS into the running stack, merged with its existing services; only the two new services were started and no existing container was recreated. Smoke was unchanged before and after: 995 widgets, 68 yfinance widgets, and the reference backend at 71 widgets / 73 cards / 0 missing references. Rita `/status` and MCP `initialize` (10 tools) answered through private Tailscale HTTPS on 10443 and 11443, and Rita's SSE stream arrived incrementally. Rita shares the Tailscale sidecar's network namespace, so it reaches the tailnet model endpoint through MagicDNS (model list returned 200 from inside the container). A restart of both services came back through Serve. Funnel is off on every port.
 
 Rita was rebuilt on October 10, 2026 with agent-rita patches 0010 (a non-JSON body
 answers 400, not 500), 0011 (follow-up suggestions only on the final answer) and
