@@ -70,15 +70,14 @@ const MAX_SOCKET = 65536;
 const METERED_GRID = new Set(["/grid/live_grid", "/grid/symbol_meta", "/grid/series",
   "/grid/chart", "/grid/ta_chart"]);
 /**
- * A hard ceiling per grid socket, for the whole 240s lifetime: validated CLIENT frames on
- * /grid/live_grid_ws, upstream PUSHES on /grid/ta_chart_ws -- whichever leg that socket's
- * paid work arrives on. It is NOT configurable and it is evaluated BEFORE either budget, so
- * it is what bounds a single socket first: no value of quoteDailyLimit can lengthen one, and
- * a tick-chart stream is therefore at most 60 pushes (~60 x TA_PUSH_INTERVAL_MS) before the
- * client must reconnect. The per-frame charges below
- * are the real accounting; this is the backstop, so that no accounting bug can turn one
- * admitted socket into an unbounded stream of upstream work.
+ * A hard ceiling per grid socket on validated CLIENT frames on /grid/live_grid_ws, for as
+ * long as the socket is open. It is NOT configurable and it is evaluated BEFORE either budget,
+ * so it is what bounds a single socket first. The per-frame charges below are the real
+ * accounting; this is the backstop, so that no accounting bug can turn one admitted socket
+ * into an unbounded stream of paid seeds.
  * 60 is generous for a human changing a watchlist and far below what a script can send.
+ * /grid/ta_chart_ws's upstream pushes are not capped: a tick chart streams for as long as the
+ * per-minute and daily budgets pay for its pushes.
  * The wire's socket can never reach it -- its second frame is fatal by contract.
  */
 const FRAME_CAP = 60;
@@ -538,7 +537,7 @@ async function tableExchange(req, res, route, config) {
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openNews = connectNews,
   openGrid = connectGrid, openRef = connectRef, sendSubscription = sendGrid, fetchPage = getGridPage,
-  now = Date.now, socketMs = 240000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
+  now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
   const budgets = {
     ordinary: {left: config.requestsPerMinute, resetAt: now() + 60000},
     control: {left: config.requestsPerMinute, resetAt: now() + 60000},
@@ -769,12 +768,16 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       socket.setTimeout(0);
       let upstream, subscribed = false, pending = null, frames = 0, pushes = 0;
       const close = () => { client.terminate(); upstream?.terminate(); };
-      // An absolute lifetime (a socket is not a lease on the door), and a shorter deadline
-      // for the first frame -- a client that opens and says nothing holds a slot for free.
-      const lifetime = setTimeout(close, socketMs);
+      // No lifetime: a socket stays open while its client answers. A ping every pingMs that
+      // goes unanswered by the next one closes it, so a peer that vanished without closing (a
+      // sleeping tablet, a dropped link) hands its slot back. A shorter deadline applies to the
+      // first frame -- a client that opens and says nothing holds a slot for free.
+      let alive = true;
+      client.on("pong", () => { alive = true; });
+      const heartbeat = setInterval(() => { if (!alive) return close(); alive = false; client.ping(); }, pingMs);
       const initial = setTimeout(close, firstFrameMs);
       client.once("close", () => {
-        sockets--; clearTimeout(lifetime); clearTimeout(initial); upstream?.terminate();
+        sockets--; clearInterval(heartbeat); clearTimeout(initial); upstream?.terminate();
       });
       client.on("error", close);
       /**
@@ -800,12 +803,12 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
           // exempting it would let socket churn buy one free fetch per upgrade -- ten a
           // minute fit inside the shipped 60 rpm. The upgrade's six units buy the door's slot
           // and the per-minute budget for that first push, nothing from the vendor counter;
-          // pushes after it cost one per-minute unit as well. FRAME_CAP bounds the stream
-          // whatever the budgets allow, and is checked first. When anything refuses the relay
+          // pushes after it cost one per-minute unit as well, and the budgets alone bound the
+          // stream: it runs for as long as they pay. When anything refuses the relay
           // closes and the slot comes back -- there is no way to answer 429 on an open
           // socket, and a chart that silently stops updating is the blank-and-say-nothing
           // failure live-grid's own handler was fixed for.
-          if (ta && (++pushes > FRAME_CAP || (pushes > 1 && !spend(1)) || !quoteAllowed())) {
+          if (ta && ((++pushes > 1 && !spend(1)) || !quoteAllowed())) {
             return close();
           }
           client.send(message, { binary: false });
@@ -831,7 +834,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         // The tick chart takes no frame at all (see above); the wire takes exactly one. The
         // reference's socket (v3) speaks the grid's protocol -- a params frame on open and on
         // every symbol change, re-validated each time -- but it is a keyless local fixture, so
-        // no vendor meter applies: the upgrade's six units, FRAME_CAP and the lifetime bound it.
+        // no vendor meter applies: the upgrade's six units and FRAME_CAP bound it.
         if (binary || ta || (!grid && !ref && subscribed)) return close();
         const frame = grid ? liveGridSubscription(data) : ref ? refSubscription(data) : newsSubscription(data, config);
         if (!frame) return close();
@@ -885,8 +888,8 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         }
         // The mirror of the upstream->client check above, on the direction THIS row
         // introduced. The wire's socket forwards one frame ever, so it needed no such bound;
-        // a grid client legitimately sends a params frame per parameter change for the
-        // socket's whole 240s lifetime, and a live-grid that is not draining would otherwise
+        // a grid client legitimately sends a params frame per parameter change for as long as
+        // the socket is open, and a live-grid that is not draining would otherwise
         // let `upstream.bufferedAmount` grow without limit inside a read_only container. 256
         // KiB behind is closed rather than queued behind -- the same bound, in the same
         // units, as the other direction.

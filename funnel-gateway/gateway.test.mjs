@@ -67,6 +67,13 @@ function wsConnect(port, headers = { ...HEADERS, Origin: ORIGIN }, path = "/news
   });
 }
 
+// A client that never answers a ping (autoPong off): the stand-in for a peer that vanished.
+function deafConnect(port, path, headers = { ...HEADERS, Origin: ORIGIN }) {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`, { headers, autoPong: false });
+  ws.on("error", () => {});
+  return once(ws, "open").then(() => ws);
+}
+
 test("configuration fails closed; secrets come from the environment", () => {
   assert.equal(config().origin, ORIGIN);
   assert.equal(config().apiOrigin, "http://openbq-api:6900");
@@ -898,11 +905,11 @@ test("bad, binary, oversized, duplicate or unapproved WS frames never open the w
   assert.equal(opened, 0);
 });
 
-test("WS initial frame and absolute lifetimes are bounded", async t => {
+test("WS initial frame deadline and the dead-peer heartbeat are bounded", async t => {
   const first = await fixture(t, {}, { firstFrameMs: 30, openNews: () => new WebSocket("ws://127.0.0.1:9") });
   const a = await wsConnect(first.port); await once(a.ws, "close");
-  const second = await fixture(t, {}, { firstFrameMs: 1000, socketMs: 30, openNews: () => new WebSocket("ws://127.0.0.1:9") });
-  const b = await wsConnect(second.port); await once(b.ws, "close");
+  const second = await fixture(t, {}, { firstFrameMs: 1000, pingMs: 20, openNews: () => new WebSocket("ws://127.0.0.1:9") });
+  const b = await deafConnect(second.port, "/news/ws/news"); await within(b, "close");
 });
 
 test("the socket cap and the six-unit socket price come from settings, charged before the upgrade", async t => {
@@ -1413,17 +1420,16 @@ test("the upgrade's six units pay the per-minute budget for the FIRST push, and 
   await upClosed;
 });
 
-test("a tick chart's pushes are capped over its lifetime whatever the budgets allow", async t => {
+test("a tick chart's pushes are not capped: it streams for as long as the budgets pay", async t => {
   const f = await taFixture(t, { quoteDailyLimit: 10000, requestsPerMinute: 600 });
   const { ws } = await wsConnect(f.port, undefined, TA_WS);
   const up = await dialled(f);
-  const closed = within(ws, "close", 4000);
-  const upClosed = within(up, "close", 4000);
-  // 60 pushes a socket, all charged: the first plus 59 more relay, the 61st closes it on the
-  // cap alone. This is what bounds a stream -- no quoteDailyLimit lengthens it.
-  for (let i = 0; i <= 60; i++) up.send(`{"rev":${i}}`);
-  await closed;
-  await upClosed;
+  // Well past the old 60-push ceiling, every push relayed and the socket still open.
+  let got = 0; ws.on("message", () => got++);
+  for (let i = 0; i < 100; i++) up.send(`{"rev":${i}}`);
+  while (got < 100) await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(ws.readyState, WebSocket.OPEN);
+  ws.terminate();
   await taSlotReleased(f);
 });
 
@@ -1531,11 +1537,11 @@ test("liveGrid off: the preflight does not dial live-grid; on, it does", async t
   assert.deepEqual(grid.seen.map(r => r.path), ["/health"]);
 });
 
-test("the grid socket's own first-frame and lifetime deadlines are bounded, and it costs six", async t => {
+test("the grid socket's own first-frame deadline and dead-peer heartbeat are bounded, and it costs six", async t => {
   const first = await fixture(t, {}, { firstFrameMs: 30, openGrid: () => new WebSocket("ws://127.0.0.1:9") });
   const a = await gridConnect(first); await once(a.ws, "close");
-  const second = await fixture(t, {}, { firstFrameMs: 1000, socketMs: 30, openGrid: () => new WebSocket("ws://127.0.0.1:9") });
-  const b = await gridConnect(second); await once(b.ws, "close");
+  const second = await fixture(t, {}, { firstFrameMs: 1000, pingMs: 20, openGrid: () => new WebSocket("ws://127.0.0.1:9") });
+  const b = await deafConnect(second.port, GRID_WS); await within(b, "close");
   // Charged before handleUpgrade, out of the same per-minute budget the REST side spends
   // from: with six units left one grid socket is admitted and /_gateway/health is then 429.
   const metered = await fixture(t, { requestsPerMinute: 6 }, { openGrid: () => new WebSocket("ws://127.0.0.1:9") });
@@ -2203,15 +2209,18 @@ test("/ref/live_grid_ws: a client too far behind is closed rather than queued be
   await refSlotReleased(port);
 });
 
-test("/ref/live_grid_ws: a silent client is dropped at the first-frame deadline, and every socket at its lifetime", async t => {
+test("/ref/live_grid_ws: a silent client is dropped at the first-frame deadline, a peer that stops answering pings at the heartbeat", async t => {
   const first = await fixture(t, { maxSockets: 1 }, { firstFrameMs: 30, openRef: refused });
   const a = await refConnect(first.port); await within(a.ws, "close");
   await refSlotReleased(first.port);
-  // The lifetime holds even for a socket that is subscribed and relaying.
-  const { ws, up, port } = await ref_relayed(t, {}, { firstFrameMs: 1000, socketMs: 150 });
-  const closed = within(ws, "close"), upClosed = within(up, "close");
-  await closed; await upClosed;
-  await refSlotReleased(port);
+  // No lifetime: a subscribed socket whose client answers pings stays open well past many beats.
+  const live = await ref_relayed(t, {}, { firstFrameMs: 1000, pingMs: 20 });
+  await new Promise(resolve => setTimeout(resolve, 200));
+  assert.equal(live.ws.readyState, WebSocket.OPEN);
+  live.ws.terminate(); await refSlotReleased(live.port);
+  const deaf = await fixture(t, { maxSockets: 1 }, { firstFrameMs: 1000, pingMs: 20, openRef: refused });
+  await within(await deafConnect(deaf.port, LIVE), "close");
+  await refSlotReleased(deaf.port);
 });
 
 test("/ref/live_grid_ws: the socket cap and the six-unit socket price come from settings, charged before the upgrade", async t => {

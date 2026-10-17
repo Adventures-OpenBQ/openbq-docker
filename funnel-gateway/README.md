@@ -62,7 +62,7 @@ Caller headers, cookies and credentials are never relayed.
 | `/grid/api/subscriptions/<symbol>` | DELETE | remove one symbol (one-symbol grammar, `^` literal) |
 | `/grid/**` with `liveGrid` off | — | `503` (REST and sockets) after the route rules pass; an unmatched `/grid` path is still `404` |
 | `/ai/**` | — | not served by openbq-docker: 404 (POST 405) |
-| `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, six budget units, 240 s lifetime, 10 s to the first frame |
+| `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, six budget units, no lifetime (a 30 s ping; a missed pong closes it), 10 s to the first frame |
 | any other WebSocket upgrade | — | 401 without the token, else 403 (foreign Origin) or 404 |
 | everything else | — | 404 |
 
@@ -87,8 +87,8 @@ access control: rss-ticker has no authentication, and the door takes no feed URL
 `/news/api/news` names a feed only by an approved id; the socket's single subscription frame
 `{"subscribe":[{"url":…}]}` (1–50 unique urls, no other key) is rebuilt from the approved urls
 alone, unapproved ones dropped, and closed if none is left. A second frame, a binary or oversized
-frame closes it. The upstream opens only after a valid frame; a socket lives at most 240 s and
-must send its frame within 10 s; frames are capped at 64 KiB.
+frame closes it. The upstream opens only after a valid frame; a socket has no lifetime (a 30 s ping closes one
+whose client stops answering) and must send its frame within 10 s; frames are capped at 64 KiB.
 
 ```json
 {
@@ -141,17 +141,17 @@ included, and pushes after the first one per-minute unit. A charge that cannot b
 relay and hands the slot back; a frame is charged for all its symbols or for none.
 
 **Sizing `quoteDailyLimit` with `"liveGrid": true`.** The example's 100 suits `/api` alone; the
-grid spends it in minutes. One open `live_grid` card of 7 symbols (the example dashboard's) pays 7
-units per params frame; with a 240 s socket lifetime and reconnects that is about 105 units an
-hour, ~2,500 a day. One open tick chart pays one unit per push, up to 60 per stream. Every unit
-comes out of the same counter as `/api/api/v1/**`, so when it is spent every widget answers 429
-until 00:00 UTC. Set it to what the vendor plan allows (the ceiling is 10000): roughly 2,500 per
-always-open grid card, plus 60 for each tick-chart stream opened, plus the `/api` traffic.
+tick chart spends it in minutes. A socket has no lifetime, so one open `live_grid` card of 7
+symbols (the example dashboard's) pays 7 units when it connects and again on each symbol edit or
+reconnect after a drop, plus one each for its snapshot and symbol metadata. One open tick chart
+pays one unit per push, every push, for as long as it is open: about 3,600 an hour at live-grid's
+default `TA_PUSH_INTERVAL_MS=1000`. Every unit comes out of the same counter as `/api/api/v1/**`,
+so when it is spent every widget answers 429 until 00:00 UTC. Set it to what the vendor plan
+allows (the ceiling is 10000).
 
-**Frame cap.** `FRAME_CAP = 60` per socket lifetime (client frames on `live_grid_ws`, upstream
-pushes on `ta_chart_ws`), hard-coded and checked before either budget. One tick-chart stream is
-therefore at most 60 pushes (about 60 s at live-grid's default `TA_PUSH_INTERVAL_MS=1000`); a
-larger `quoteDailyLimit` buys more streams, not longer ones. Both directions are bounded at
+**Frame cap.** `FRAME_CAP = 60` client frames per `live_grid_ws` socket, hard-coded and checked
+before either budget. `ta_chart_ws` pushes are not capped: a tick chart streams for as long as the
+per-minute and daily budgets pay for its pushes. Both directions are bounded at
 64 KiB a frame and 256 KiB of back-pressure; while live-grid's handshake is in flight only the
 newest pending params frame is held.
 

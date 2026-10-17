@@ -123,7 +123,8 @@ or, since V10-P1 (2026-10-15), one of the packaged desktop origins `tauri://loca
 
 `interval` ∈ 1s 5s 15s 30s 1m 5m 15m 30m 1h 4h 1d; on this line history is EODHD's, so only
 1m, 5m, 1h and 1d return bars (P2). Each socket costs six per-minute units at upgrade; later
-frames or pushes one more each; `FRAME_CAP` = 60 per socket; `maxSockets` applies. With
+frames or pushes one more each; `FRAME_CAP` = 60 client frames per `live_grid_ws` socket
+(tick-chart pushes are not capped); no socket lifetime, a 30 s ping; `maxSockets` applies. With
 `liveGrid` off every one of these answers 503 after its route rules pass.
 
 **How a browser authenticates the /grid socket.** It cannot send the Bearer token. BDOBB's
