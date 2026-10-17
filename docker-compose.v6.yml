@@ -35,15 +35,10 @@ services:
     image: openbq-mcp:6.0.0
     pull_policy: never
     restart: unless-stopped
-    command: [openbb-mcp, --host, 0.0.0.0, --port, "6901", --default-categories, equity, --tool-discovery]
     environment:
       OPENBB_MCP_DEFAULT_SKILLS_DIR: ""
     volumes:
       - openbq-mcp-data:/root/.openbb_platform
     networks: [openbq-internal]
-networks:
-  openbq-internal:
-    driver_opts:
-      com.docker.network.driver.mtu: "1500"
 volumes:
   openbq-mcp-data:

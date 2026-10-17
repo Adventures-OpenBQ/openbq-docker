@@ -15,5 +15,4 @@ RUN python -m pip install --no-deps --only-binary=:all: --require-hashes -r /tmp
     && python -c "from openbb import obb; assert hasattr(obb, 'calendar'); print('obb.calendar OK')"
 # The base image's healthcheck probes the REST API on 6900, which this image does not serve.
 HEALTHCHECK NONE
-WORKDIR /workspace
 CMD ["openbb-mcp", "--host", "0.0.0.0", "--port", "6901", "--default-categories", "equity", "--tool-discovery"]
