@@ -96,3 +96,12 @@ class TestProviderId:
         idx = provider_index()
         assert idx["fmp"].env_var == "FMP_API_KEY"
         assert idx["congress_gov"].env_var == "CONGRESS_GOV_API_KEY"
+
+
+def test_eodhd_and_intrinio_probe_their_usage_endpoints():
+    from app.registry import PROVIDERS
+
+    e = PROVIDERS["EODHD_API_KEY"].probe.build({"EODHD_API_KEY": "YOUR_KEY"})
+    assert str(e.url).startswith("https://eodhd.com/api/user?")
+    i = PROVIDERS["INTRINIO_API_KEY"].probe.build({"INTRINIO_API_KEY": "YOUR_KEY"})
+    assert str(i.url).startswith("https://api-v2.intrinio.com/account/current_usage?")

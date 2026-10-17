@@ -40,10 +40,10 @@ def _eodhd(values: dict[str, str]) -> httpx.Request | None:
     k = _get(values, "EODHD_API_KEY")
     if not k:
         return None
+    # /api/user validates the key (401 on a bad one) without spending an API
+    # call, and its body carries the day's usage (app.usage).
     return httpx.Request(
-        "GET",
-        "https://eodhd.com/api/eod/AAPL.US",
-        params={"api_token": k, "fmt": "json", "period": "d", "order": "d", "limit": 1},
+        "GET", "https://eodhd.com/api/user", params={"api_token": k, "fmt": "json"}
     )
 
 
@@ -98,8 +98,9 @@ def _intrinio(values: dict[str, str]) -> httpx.Request | None:
     k = _get(values, "INTRINIO_API_KEY")
     if not k:
         return None
+    # current_usage validates the key (401 on a bad one) and reports usage.
     return httpx.Request(
-        "GET", "https://api-v2.intrinio.com/companies/AAPL", params={"api_key": k}
+        "GET", "https://api-v2.intrinio.com/account/current_usage", params={"api_key": k}
     )
 
 
