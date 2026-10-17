@@ -65,9 +65,7 @@ BUILTIN_CARDS = frozenset({
 # without credentials, so this one path answers without Basic auth.
 LOGO_PATH = "/openbq/bdobb-logo.svg"
 LOGO_FILE = os.environ.get("OPENBQ_BDOBB_LOGO", "/workspace/bdobb-logo.svg")
-# Fixture widgets this backend serves itself (v5/fixtures): widgets.json joins
-# /widgets.json, and GET /api/v1/openbq/fixtures/<id> answers <id>.json as is
-# (under /api/v1/ so the v8 Funnel door's route rule admits it like any widget call).
+# v5/fixtures (see its README)
 FIXTURES = os.environ.get("OPENBQ_FIXTURES", "/workspace/openbq-fixtures")
 FIXTURE_PREFIX = "/api/v1/openbq/fixtures/"
 # The OpenBQ API's largest table widgets (default response > ~10 MB) served as
@@ -107,7 +105,9 @@ def _rewrite_widgets(body: bytes) -> bytes:
         return body
     if not isinstance(widgets, dict):
         return body
-    changed = False
+    fixtures = _fixture_widgets()
+    widgets = {**fixtures, **widgets}
+    changed = bool(fixtures)
     for route, wid in SSRM_ROUTES.items():
         entry = widgets.get(wid)
         if isinstance(entry, dict):
@@ -578,36 +578,20 @@ async def _widget_ids(cache, request):
 def _fixture_widgets() -> dict:
     try:
         with open(os.path.join(FIXTURES, "widgets.json"), encoding="utf-8") as f:
-            widgets = json.load(f)
-    except (OSError, ValueError):
+            return json.load(f)
+    except OSError:  # off-image runs have no /workspace
         return {}
-    return widgets if isinstance(widgets, dict) else {}
-
-
-def _with_fixture_widgets(body: bytes) -> bytes:
-    """The built widgets.json plus the fixture widgets it does not already have."""
-    extra = _fixture_widgets()
-    try:
-        widgets = json.loads(body)
-    except ValueError:
-        return body
-    if not extra or not isinstance(widgets, dict):
-        return body
-    return json.dumps({**extra, **widgets}).encode()
 
 
 def _fixture(request):
     """A fixture widget's data, behind the API's Basic auth like any data route."""
     if not _authorized(request):
-        return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+        return _unauthorized(request)
     widget_id = request.url.path[len(FIXTURE_PREFIX):]
-    if widget_id not in _fixture_widgets():
+    if widget_id not in _fixture_widgets():  # the path-traversal guard: only listed ids are opened
         return _cors(request, JSONResponse({"detail": "Not Found"}, 404))
-    try:
-        with open(os.path.join(FIXTURES, widget_id + ".json"), "rb") as f:
-            data = f.read()
-    except OSError:
-        return _cors(request, JSONResponse({"detail": "Not Found"}, 404))
+    with open(os.path.join(FIXTURES, widget_id + ".json"), "rb") as f:
+        data = f.read()
     return _cors(request, Response(data, 200, media_type="application/json"))
 
 
@@ -637,7 +621,7 @@ async def _catalog(cache, request, call_next):
             return response
         body = b"".join([chunk async for chunk in response.body_iterator])
         if path == "/widgets.json":
-            body = _rewrite_widgets(_with_fixture_widgets(body))
+            body = _rewrite_widgets(body)
         elif path == "/apps.json":
             apps, extended = _apps(body)
             if extended:
