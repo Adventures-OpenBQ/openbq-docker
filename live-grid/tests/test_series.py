@@ -109,3 +109,14 @@ def test_stitch_parses_string_history_dates():
     ticks = [{"date": datetime(2026, 8, 28, 18, 0), "close": 3.0}]
     out = stitch(history, ticks, datetime(2026, 8, 28, 18, 0))
     assert [r["close"] for r in out] == [1.0, 3.0]
+
+
+def test_stitch_accepts_offset_history_dates():
+    """EODHD intraday history ends in `Z`; tick bars are naive UTC. Without
+    normalising, the seam comparison raised and /series answered 502."""
+    history = [{"date": "2026-08-28T17:00:00Z", "close": 1.0},
+               {"date": "2026-08-28T14:00:00-04:00", "close": 2.0}]
+    ticks = [{"date": datetime(2026, 8, 28, 18, 0), "close": 3.0}]
+    out = stitch(history, ticks, datetime(2026, 8, 28, 18, 0))
+    assert [r["close"] for r in out] == [1.0, 3.0]
+    assert out[0]["date"] == "2026-08-28T17:00:00Z"  # wire value untouched

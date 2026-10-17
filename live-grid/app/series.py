@@ -9,7 +9,7 @@ trades -- a wrong candle that looks entirely plausible on a chart -- so the
 straddling bar comes from history and ticks own only what they cover whole.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 EPOCH = datetime(1970, 1, 1)
 
@@ -78,8 +78,12 @@ def tick_capable(interval: str, window: timedelta) -> bool:
 def _row_dt(value) -> datetime:
     """History rows carry the provider's ISO strings (passed through the
     response untouched, on purpose); tick rows carry datetimes. Compare as
-    datetimes without rewriting either on the wire."""
-    return value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+    naive UTC datetimes without rewriting either on the wire: EODHD intraday
+    strings end in `Z`, ticks never carry an offset."""
+    dt = value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 
 def stitch(history: list[dict], ticks: list[dict], boundary: datetime) -> list[dict]:

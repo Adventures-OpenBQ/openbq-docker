@@ -216,18 +216,6 @@ def bars(ticks, interval: str) -> list[dict]:
     return rows
 
 
-def _row_dt(value) -> datetime:
-    """A row's time as naive UTC (history may carry an offset; ticks never do)."""
-    from datetime import timezone
-
-    from app.series import _row_dt as row_dt
-
-    dt = row_dt(value)
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-    return dt
-
-
 def join(history: list[dict], lake_rows: list[dict], lake_spans: list[tuple],
          tick_rows: list[dict], tick_boundary: datetime | None) -> list[dict]:
     """History, flushed-day bars and kdb tick bars, each owning its own span.
@@ -238,6 +226,8 @@ def join(history: list[dict], lake_rows: list[dict], lake_spans: list[tuple],
     spans = list(lake_spans)
     if tick_rows and tick_boundary is not None:
         spans.append((tick_boundary, datetime.max))
+    from app.series import _row_dt
+
     kept = [row for row in history
             if not any(lo <= _row_dt(row["date"]) < hi for lo, hi in spans)]
     return sorted(kept + list(lake_rows) + list(tick_rows), key=lambda r: _row_dt(r["date"]))
