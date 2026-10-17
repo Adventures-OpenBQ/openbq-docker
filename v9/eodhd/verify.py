@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Build gate: openbq-eodhd on the locked ODP, with the SDK boundary stubbed.
 
-Dockerfile.v3 copies this file next to v9/eodhd/tests and runs it after
+The Dockerfile's api stage copies this file next to v9/eodhd/tests and runs it after
 openbb-build. No EODHD key and no network are used.
 """
 import importlib.metadata as metadata

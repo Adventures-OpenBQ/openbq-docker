@@ -2,7 +2,7 @@
 
 # Original OpenBQ yfinance extension in ODP v3
 
-`Dockerfile.v3` installs the source pinned in `source.json` as an Apache-2.0
+The `Dockerfile` stage `v3` installs the source pinned in `source.json` as an Apache-2.0
 wheel on the existing locked ODP recipe. No legacy `openbb-yfinance` adapter
 is installed. The source's original LICENSE and NOTICE travel with the wheel.
 

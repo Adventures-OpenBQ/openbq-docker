@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-API_DOCKERFILES = ["Dockerfile", "Dockerfile.v3"]  # both build openbq-api (docker-compose.yml, docker-compose.v3.yml)
+API_DOCKERFILES = ["Dockerfile"]  # openbq-api: target api (docker-compose.yml), target v3 (docker-compose.v3.yml)
 
 
 def dockerfile(name):
@@ -55,7 +55,7 @@ class ApiImages(unittest.TestCase):
                 self.assertTrue(re.search(r"(?m)^WORKDIR /workspace$", text))
 
     def test_every_api_image_builds_installs_and_gates_openbq_eodhd(self):
-        # v9: the base image installs openbq-eodhd from v9/eodhd/source, as Dockerfile.v3 does.
+        # v9: the api stage installs openbq-eodhd from v9/eodhd/source; the v3 stage builds FROM api.
         for name in API_DOCKERFILES:
             text = dockerfile(name)
             with self.subTest(name):

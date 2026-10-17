@@ -16,6 +16,6 @@ Copyright (c) 2024 OpenBB); the MIT notice is reproduced in `source/openbb_video
 is Apache-2.0. The only local change is the build backend (hatchling, as the image's pinned wheel
 builder, instead of setuptools).
 
-Both `Dockerfile` and `Dockerfile.v3` build the wheel in a pinned builder stage and install it with
+`Dockerfile` builds the wheel in a pinned builder stage and install it with
 `--no-deps` (its only dependency, openbb-core, is in `requirements.lock`, which is unchanged); `verify.py`
 is the build gate. `source/tests` run against an installed openbb-core 2.0.1 (5 tests).

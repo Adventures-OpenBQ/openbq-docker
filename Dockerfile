@@ -5,8 +5,9 @@ RUN python -m pip install hatchling==1.32.4 packaging==26.3 pathspec==1.1.1 plug
 COPY v3/videos/source /videos
 COPY v3/econdb/source /econdb
 RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /videos /econdb
-# v9: openbq-eodhd 9.0.1, with the official EODHD SDK vendored inside it, built exactly as
-# Dockerfile.v3 builds it (v9/eodhd/source.json), so the base image serves obb.eodhd.* too.
+# v9: openbq-eodhd 9.0.1 (Adventures-OpenBQ/openbq-eodhd v9.0.1: bdobb-dev/openbb-docker's openbb-eodhd v9.6.3,
+# fixes through v9.6.6, renamed, plus the v9 review fixes; v9/eodhd/source.json), with the official
+# EODHD SDK vendored at openbq_eodhd/_vendor/eodhd.
 RUN python -m pip install setuptools==84.0.0
 COPY v9/eodhd/source /eodhd
 RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /eodhd
@@ -18,7 +19,7 @@ COPY requirements.lock /tmp/requirements.lock
 RUN python -m pip install -r /tmp/requirements.lock && python -m pip check
 
 # Pristine pinned packages end here; scripts/test-provider-fixes.sh tests the overlay on this stage.
-FROM odp
+FROM odp AS api
 COPY provider-fixes /tmp/provider-fixes
 RUN python /tmp/provider-fixes/apply.py && rm -rf /tmp/provider-fixes
 # v3: the Video Library (openbb-videos 3.0.1, v3/videos) and EconDB (openbb-econdb, OpenBB's MIT-era
@@ -30,8 +31,8 @@ COPY v3/videos/verify.py /tmp/ext-verify/videos.py
 COPY v3/econdb/verify.py /tmp/ext-verify/econdb/verify.py
 COPY v3/econdb/tests /tmp/ext-verify/econdb/tests
 RUN python /tmp/ext-verify/videos.py && python /tmp/ext-verify/econdb/verify.py && rm -rf /tmp/ext-verify
-# v9: EODHD provider extension, served as obb.eodhd.* (/api/v1/eodhd/*) with its "EODHD" app, installed
-# as in Dockerfile.v3. Its dependencies (numpy, pandas, requests, rich) are all in requirements.lock, so --no-deps.
+# v9: EODHD provider extension, served as obb.eodhd.* (/api/v1/eodhd/*) with its "EODHD" app (the v3
+# stage builds FROM api, so it has it too). Its dependencies (numpy, pandas, requests, rich) are all in requirements.lock, so --no-deps.
 COPY --from=extensions-build /wheels/openbq_eodhd-9.0.1-py3-none-any.whl /tmp/eodhd/
 RUN python -m pip install --no-deps /tmp/eodhd/openbq_eodhd-9.0.1-py3-none-any.whl \
     && python -m pip check && openbb-build && rm -rf /tmp/eodhd
@@ -49,3 +50,27 @@ COPY v5/fixtures /workspace/openbq-fixtures
 COPY lanes/openbb.toml /workspace/openbb.toml
 HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=5 CMD curl -fsS http://127.0.0.1:6900/widgets.json > /dev/null || exit 1
 CMD ["openbb-api", "--host", "0.0.0.0", "--port", "6900"]
+
+# Episode 3 (docker-compose.v3.yml, target v3): the original Apache-2.0 yfinance extension on the API image.
+FROM extensions-build AS yfinance-build
+COPY v3/yfinance/source /source
+RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /source
+COPY v4/routes /routes
+RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /routes
+
+FROM api AS v3
+COPY v3/yfinance/requirements.extra.lock /tmp/yfinance-extra.lock
+COPY --from=yfinance-build /wheels/openbq_yfinance-3.0.0-py3-none-any.whl /tmp/openbq_yfinance-3.0.0-py3-none-any.whl
+RUN python -m pip install --no-deps -r /tmp/yfinance-extra.lock \
+    && python -m pip install --no-deps /tmp/openbq_yfinance-3.0.0-py3-none-any.whl \
+    && python -m pip check && cd / && openbb-build
+COPY v3/yfinance/verify.py /tmp/verify-yfinance.py
+RUN python /tmp/verify-yfinance.py && rm /tmp/verify-yfinance.py /tmp/openbq_yfinance-3.0.0-py3-none-any.whl
+COPY v3/openbq_settings.py /usr/local/lib/python3.12/site-packages/openbq_settings.py
+# v4: BDOBB trading-calendar and fiscal-year-end routes (exchange_calendars is pinned in requirements.lock).
+COPY --from=yfinance-build /wheels/openbq_routes-4.0.0-py3-none-any.whl /tmp/openbq_routes-4.0.0-py3-none-any.whl
+COPY v4/routes/verify.py /tmp/verify-routes.py
+RUN python -m pip install --no-deps /tmp/openbq_routes-4.0.0-py3-none-any.whl && python -m pip check && cd / && openbb-build \
+    && python /tmp/verify-routes.py && rm /tmp/verify-routes.py /tmp/openbq_routes-4.0.0-py3-none-any.whl
+COPY lanes/ssrm_widgets.json /workspace/ssrm_widgets.json
+COPY v3/openbb.toml /workspace/openbb.toml
