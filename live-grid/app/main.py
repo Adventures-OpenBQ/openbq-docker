@@ -113,6 +113,30 @@ def _parse_symbols(raw: str) -> list[str]:
     return out
 
 
+async def fetch_history(symbol, interval, start, end, provider="kdb"):
+    """History for a chart width, fetched only at an interval that divides it
+    (app.series.history_source) and resampled up to it. A width with no history
+    source (under a minute) gets none: ticks alone build it. 1m is fetched in
+    pieces EODHD accepts (120 days each)."""
+    from app.openbb_client import _UNKNOWN
+    from app.series import history_source, one_minute_spans, resample
+
+    source = history_source(interval)
+    if source is None:
+        return [], dict(_UNKNOWN)
+    spans = one_minute_spans(start, end) if source == "1m" else [(start, end)]
+    rows, meta = [], None
+    for lo, hi in spans:
+        part, part_meta = await fetch_series(symbol, source, lo, hi, provider)
+        rows.extend(part)
+        meta = meta or part_meta
+    if len(spans) > 1:  # adjacent pieces may both hold the boundary day's bars
+        rows = list({str(r["date"]): r for r in rows}.values())
+    if source != interval:
+        rows = resample(rows, interval)
+    return rows, meta
+
+
 async def build_series(symbol, interval, start, end, recorder, window, provider="kdb",
                        lake=None):
     """History joined to tick-derived bars at the first fully-covered bar.
@@ -124,7 +148,7 @@ async def build_series(symbol, interval, start, end, recorder, window, provider=
     """
     from app.series import seam_boundary, stitch, tick_capable, window_end
 
-    history, meta = await fetch_series(symbol, interval, start, end, provider)
+    history, meta = await fetch_history(symbol, interval, start, end, provider)
     meta = dict(meta)
     meta["rows_from_ticks"] = 0
     meta["seam"] = None
@@ -325,9 +349,9 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     _STATIC = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
-    def _window(start: str | None, end: str | None) -> tuple[str, str]:
+    def _window(start: str | None, end: str | None, days: int = 365) -> tuple[str, str]:
         today = date.today()
-        return (start or str(today - timedelta(days=365)), end or str(today))
+        return (start or str(today - timedelta(days=days)), end or str(today))
 
     def _tick_window() -> timedelta:
         return recorder.window if recorder is not None else timedelta(0)
@@ -382,7 +406,11 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     async def series(symbol: str = "AAPL", interval: str = "1d",
                      start: str | None = None, end: str | None = None,
                      provider: str = "kdb"):
-        s, e = _window(start, end)
+        # The Live Chart (user ruling 2026-10-17): five days by default for an
+        # intraday width -- a year of 1m bars is ~100k candles -- a year for daily.
+        from app.series import intraday
+
+        s, e = _window(start, end, 5 if intraday(interval) else 365)
         try:
             bars, meta = await build_series(
                 symbol, interval, s, e, recorder, _tick_window(), provider, lake=lake

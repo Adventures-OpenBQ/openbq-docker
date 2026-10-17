@@ -94,3 +94,91 @@ def stitch(history: list[dict], ticks: list[dict], boundary: datetime) -> list[d
     if not kept:
         return sorted(ticks, key=lambda r: _row_dt(r["date"]))
     return sorted(kept + list(ticks), key=lambda r: _row_dt(r["date"]))
+
+
+_MINUTE_NS = 60 * 10**9
+_DAY_NS = 86_400 * 10**9
+# EODHD intraday: one 1m request spans at most 120 days (5m: 600, ample for a chart).
+ONE_MINUTE_SPAN_DAYS = 120
+
+
+def history_source(interval: str) -> str | None:
+    """The EODHD interval to fetch history at for this chart width, or None
+    when only ticks can build it.
+
+    A width is built only from a source that divides it evenly (user ruling
+    "bar widths must divide evenly"): 15m, 30m and 1h come from 5m; 2m or 7m
+    from 1m; anything under a minute from ticks alone. EODHD's own 1h is never
+    used: it is stamped on the half hour, so it never meets the tick buckets
+    at the seam. A day or more, or an interval that is not a fixed width
+    (1w, 1mo), goes to the provider as it is, unchanged from before.
+    """
+    from openbq_kdb.aggregate import bucket_ns
+
+    try:
+        width = bucket_ns(interval)
+    except ValueError:
+        return interval
+    if width % _DAY_NS == 0:
+        return interval
+    if width % (5 * _MINUTE_NS) == 0:
+        return "5m"
+    if width % _MINUTE_NS == 0:
+        return "1m"
+    return None
+
+
+def one_minute_spans(start: str, end: str) -> list[tuple[str, str]]:
+    """Date pieces of [start, end] that one 1m request each can cover (both
+    ends inclusive). A bound that is not a date is passed through whole."""
+    from datetime import date
+
+    try:
+        lo, hi = date.fromisoformat(str(start)[:10]), date.fromisoformat(str(end)[:10])
+    except ValueError:
+        return [(start, end)]
+    step = timedelta(days=ONE_MINUTE_SPAN_DAYS - 1)
+    spans = []
+    while lo <= hi:
+        top = min(hi, lo + step)
+        spans.append((str(lo), str(top)))
+        lo = top + timedelta(days=1)
+    spans[0] = (start, spans[0][1])
+    spans[-1] = (spans[-1][0], end)
+    return spans
+
+
+def resample(rows: list[dict], interval: str) -> list[dict]:
+    """OHLCV bars of `interval` from finer history rows on the epoch clock grid
+    (the tick buckets' grid). The caller guarantees the source width divides
+    `interval`, so every source bar falls wholly inside one bucket. Fields
+    other than OHLCV (adjusted_close) are not carried."""
+    from openbq_kdb.aggregate import bucket_ns
+
+    width = timedelta(microseconds=bucket_ns(interval) / 1000)
+    buckets: dict[datetime, dict] = {}
+    for row in sorted(rows, key=lambda r: _row_dt(r["date"])):
+        t = _row_dt(row["date"])
+        start = EPOCH + ((t - EPOCH) // width) * width
+        bar = buckets.get(start)
+        if bar is None:
+            buckets[start] = {"date": start.isoformat() + "Z", "open": row["open"],
+                              "high": row["high"], "low": row["low"], "close": row["close"],
+                              "volume": row.get("volume")}
+            continue
+        bar["high"] = max(bar["high"], row["high"])
+        bar["low"] = min(bar["low"], row["low"])
+        bar["close"] = row["close"]
+        if row.get("volume") is not None:
+            bar["volume"] = (bar["volume"] or 0) + row["volume"]
+    return list(buckets.values())
+
+
+def intraday(interval: str) -> bool:
+    """True for a fixed width under a day."""
+    from openbq_kdb.aggregate import bucket_ns
+
+    try:
+        return bucket_ns(interval) < _DAY_NS
+    except ValueError:
+        return False
