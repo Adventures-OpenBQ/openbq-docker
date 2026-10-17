@@ -38,6 +38,12 @@ REPLAY_BUDGET_S = 1.0
 COLUMNS = ["time", "sym", "price", "size"]
 
 
+def _refused(exc) -> bool:
+    """kdb refused the write and applied nothing: persist.q's torn-log signals start "tlog: "
+    (T1). Its disk is the problem, not the batch, so this is an outage, never quarantine."""
+    return str(exc).startswith("tlog: ")
+
+
 def _unavailable_type():
     try:
         from openbq_kdb.session import KdbUnavailable
@@ -134,6 +140,13 @@ class TickRecorder:
             self.spool.append(batch)
             return 0
         except Exception as exc:  # noqa: BLE001 - a cache write must not kill the feed
+            if _refused(exc):
+                # T1: q signalled before applying anything, so certainly not in kdb.
+                log.info("kdb refused the write (its tick log), spooling %d ticks: %s",
+                         len(batch), exc)
+                self.spool.append(batch)
+                self.spool.defer()
+                return 0
             log.warning("tick flush failed after sending, spooling %d ticks as in doubt: %s",
                         len(batch), exc)
             self.spool.append(batch, doubt=True)
@@ -212,6 +225,14 @@ class TickRecorder:
                 log.info("tick spool: kdb unavailable, %d ticks wait: %s", spool.count, exc)
                 return total
             except Exception as exc:  # noqa: BLE001 - stays staged: in doubt next time
+                if _refused(exc):
+                    # T1: a kdb outage (its disk), not a poison batch: back off, count nothing.
+                    if not seg.doubt:
+                        spool.unstage()  # q applied nothing: not in doubt
+                    spool.defer()
+                    log.info("tick spool: kdb refused the write, %d ticks wait: %s",
+                             spool.count, exc)
+                    return total
                 if spool.fail():
                     # D5/Q3: the same error on every resend, for over a minute of backoff;
                     # set it aside rather than block.

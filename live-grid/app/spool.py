@@ -89,6 +89,9 @@ QUARANTINE = "quarantine"
 MAX_FAILURES = 8
 QUARANTINE_MIN_S = 60
 BACKOFF_MAX_S = 60.0
+# kdb refused a write without applying it (its tick log is torn, T1): the backoff a
+# connection failure gets (openbq-kdb's KDB_RETRY_MAX_S), never counted toward quarantine.
+DEFER_MAX_S = 15.0
 
 
 @dataclass
@@ -146,6 +149,7 @@ class TickSpool:
         self.fails = 0  # raised sends of the head segment (D5)
         self.first_fail = None  # wall-clock seconds of the first of them (Q3)
         self.retry_at = 0.0  # `clock` time before which the head is not resent (Q3; in memory)
+        self._defers = 0  # consecutive refusals of the head (T1; in memory)
         self.quarantined = 0  # ticks moved to quarantine/
         self._load()
 
@@ -454,7 +458,13 @@ class TickSpool:
 
     def backing_off(self) -> bool:
         """True while a failed head segment waits for its next try."""
-        return self.fails > 0 and self._clock() < self.retry_at
+        return self._clock() < self.retry_at
+
+    def defer(self) -> None:
+        """kdb refused the head without applying it (T1): back off 1 s doubling to
+        DEFER_MAX_S, like a connection failure. No failure is counted."""
+        self._defers += 1
+        self.retry_at = self._clock() + min(DEFER_MAX_S, 2.0 ** (self._defers - 1))
 
     def quarantine(self, seg: Segment) -> None:
         """Move `seg` to quarantine/ (fsynced) and acknowledge it, so replay moves on."""
@@ -468,7 +478,7 @@ class TickSpool:
         self.ack(seg)
 
     def _advance(self, name: str, end: int) -> None:
-        self.fails, self.first_fail, self.retry_at = 0, None, 0.0
+        self.fails, self.first_fail, self.retry_at, self._defers = 0, None, 0.0, 0
         self._state = {"file": name, "offset": end, "inflight": None}
         path = self.dir / name
         size = path.stat().st_size if path.exists() else end

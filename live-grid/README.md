@@ -154,8 +154,11 @@ dropping ~100 s of crypto ticks while kdb was down, then waiting out a fixed
   segment whose send raises (an error from q, not kdb being down) is resent
   with exponential backoff (1 s doubling to 60 s), and only after 8 failed
   sends spanning at least 60 s of wall clock is it moved there, so newer
-  ticks can flow; an error that clears sooner (a full `kdb-data` disk freed)
-  loses nothing. The count, the failures and the first failure's time
+  ticks can flow; an error that clears sooner loses nothing. A refusal from
+  kdb's tick log (`tlog: …`, persist.q, while its disk is full) is not such
+  an error: q applied nothing, so it is backed off like a connection failure
+  (1 s doubling to 15 s) and never counts toward quarantine, however long the
+  disk stays full. The count, the failures and the first failure's time
   survive restarts. A quarantined segment is up to 5,000 rows and may hold
   good ticks spooled behind the bad one. To re-send a file: stop live-grid,
   move it into `spool/` as `ticks_9999-12-31_<six digits>.jsonl` (sorts

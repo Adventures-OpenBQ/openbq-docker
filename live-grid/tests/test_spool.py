@@ -815,3 +815,33 @@ def test_a_quarantined_file_moved_back_is_replayed_after_the_backlog_once(tmp_pa
         sent += [r[2] for r in seg.rows]
         s.ack(seg)
     assert sent == [2.0, 3.0, 4.0, 5.0, -1.0] and s.count == 0
+
+
+def test_a_torn_kdb_log_backs_off_and_never_quarantines(tmp_path):
+    """T1 (re-review 2026-10-17): while kdb's disk is full, persist.q refuses every upd with a
+    `tlog:` error, applying nothing. That is a kdb outage, not a poison batch: the spool backs
+    off as for a connection failure (1 s doubling to 15 s), counts no failure, and the batch
+    lands first once the disk is back -- even after ten minutes."""
+    wall = _Wall()
+    healed = {"at": wall.t + timedelta(minutes=10)}
+    attempts = []
+
+    class Torn(_Poison):
+        def write_ticks(self, frame):
+            if wall.t < healed["at"]:
+                attempts.append(wall.t)
+                raise RuntimeError("tlog: torn; cut-back retried at most every 0D00:00:05")
+            self.frames.append(frame)
+            return len(frame)
+
+    store = Torn()
+    rec = TickRecorder(store, spool=TickSpool(tmp_path / "spool", utcnow=wall, clock=wall.mono))
+    for i in range(1, 700):
+        rec.record("BTC-USD", float(i), 0.0, T0 + timedelta(seconds=i))
+        rec.flush()
+        wall.tick(1)
+    assert rec.stats()["quarantined"] == 0 and rec.spool.fails == 0 and rec.spooled == 0
+    written = [p for f in store.frames for p in f["price"]]
+    assert written == [float(i) for i in range(1, 700)]
+    gaps = [(b - a).total_seconds() for a, b in zip(attempts, attempts[1:])]
+    assert max(gaps) <= 16 and len(attempts) < 80  # backed off, capped like the session's
