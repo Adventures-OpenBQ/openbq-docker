@@ -16,6 +16,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 os.environ["OPENBQ_ROLE"] = "worker"  # importing the module must not spawn the production lane
 os.environ["OPENBQ_EXTRA_APPS"] = "/nonexistent/bdobb_apps.json"  # tests set their own extras
+os.environ.setdefault("OPENBQ_FIXTURES", "/nonexistent-openbq-fixtures")  # FixtureTest sets its own
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import openbq_lanes  # noqa: E402
 from collections import OrderedDict
@@ -1094,10 +1095,6 @@ class SsrmWarningsTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("warnings", r.json())
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ExtraAppsTest(unittest.TestCase):
     """BDOBB's example apps are appended to a built apps.json list, and nothing else is touched."""
 
@@ -1346,3 +1343,7 @@ class FixtureTest(unittest.IsolatedAsyncioTestCase):
         finally:
             for k, v in old.items():
                 os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -145,7 +145,7 @@ Before any local bring-up, validate operator env/settings and run:
 
 ```sh
 node --test funnel-gateway/*.test.mjs
-docker compose --env-file /absolute/new-table-context.env --profile web --profile table config --quiet
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --env-file /absolute/new-table-context.env --profile web --profile table config --quiet
 ```
 
 The image build must succeed before recording image qualification. Then, on an isolated
