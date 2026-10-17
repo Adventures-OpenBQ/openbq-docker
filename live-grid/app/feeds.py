@@ -101,6 +101,7 @@ class FeedManager:
         self._active: dict[str, frozenset[str]] = {}  # feed -> wanted set last synced
         # feed -> wanted symbols the feed cannot take (L1): left out of the client, warned once
         self._rejected: dict[str, set[str]] = {feed: set() for feed in FEEDS}
+        self.bad_messages = 0  # feed messages apply_tick raised on, skipped (L4)
         self._rebuild_pending = False
         self._last_rebuild = float("-inf")
         # -inf, not 0.0, and for the same reason as _last_rebuild above:
@@ -224,7 +225,14 @@ class FeedManager:
                     continue
                 if not isinstance(msg, dict):
                     continue
-                sym = self.quotes.apply_tick(feed, msg)
+                try:
+                    sym = self.quotes.apply_tick(feed, msg)
+                except Exception:  # noqa: BLE001 -- L4: one bad message must not kill run()
+                    self.bad_messages += 1
+                    if self.bad_messages == 1:
+                        log.warning("could not apply a %s feed message; skipping (counted in "
+                                    "/health feeds_bad_messages): %.200r", feed, msg, exc_info=True)
+                    continue
                 if not sym:
                     continue
                 for conn_id, by_feed in self._conns.items():

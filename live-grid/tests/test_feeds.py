@@ -414,3 +414,28 @@ class TestInvalidSymbols:
         asyncio.run(m._sync_feeds())
         asyncio.run(m._sync_feeds())
         assert calls == [["AAPL"], ["AAPL"]]
+
+
+class TestBadMessages:
+    def test_a_message_that_cannot_be_applied_is_skipped_and_counted(self, fake_ws_client_factory, caplog):
+        """L4 (NAS, 2026-10-16): one message apply_tick raised on propagated out of _drain_all
+        and killed manager.run(). It is now skipped, counted, and warned about once."""
+        m = make_manager(fake_ws_client_factory)
+        m.register("c1", ["AAPL", "MSFT"])
+        asyncio.run(m._sync_feeds())
+        real = m.quotes.apply_tick
+
+        def picky(feed, msg):
+            if msg.get("s") == "MSFT":
+                raise ValueError("year 56794849 is out of range")
+            return real(feed, msg)
+
+        m.quotes.apply_tick = picky
+        us = next(c for c in fake_ws_client_factory.built if c.feed == "us")
+        for sym in ("MSFT", "AAPL", "MSFT"):
+            us.data_list.append(json.dumps({"s": sym, "p": 1.0, "q": 1, "t": 1700000000000}))
+        with caplog.at_level("WARNING"):
+            m._drain_all()
+        assert m.bad_messages == 2
+        assert m.quotes.rows["AAPL"]["price"] == 1.0
+        assert len([r for r in caplog.records if "could not apply" in r.getMessage()]) == 1

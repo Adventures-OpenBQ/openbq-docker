@@ -12,6 +12,7 @@ import json
 import logging
 import math
 import os
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -48,6 +49,8 @@ log = logging.getLogger("live-grid")
 WIDGETS_PATH = Path(__file__).resolve().parent.parent / "widgets.json"
 APPS_PATH = Path(__file__).resolve().parent.parent / "apps.json"
 FLUSH_INTERVAL = 0.25  # seconds between coalesced row flushes per connection
+# /health says "degraded" while a background task's last crash is younger than this (L4).
+TASK_DEGRADED_S = 300.0
 
 
 def _api_key() -> str | None:
@@ -60,6 +63,34 @@ def _rest_client(api_key: str):
     from eodhd import APIClient  # pylint: disable=import-outside-toplevel
 
     return APIClient(api_key)
+
+
+async def supervise(name: str, factory, tasks: dict, *, sleep=asyncio.sleep,
+                    initial: float = 1.0, cap: float = 60.0) -> None:
+    """Run `factory()` for the app's life, restarting it when it raises (L4).
+
+    manager.run() and the lease sweeper were bare create_task()s: an exception ended the
+    task silently, /health still said ok, and the traceback surfaced only at shutdown (the
+    NAS v10 stack streamed nothing for that reason). Each crash is logged at ERROR with its
+    traceback and recorded in `tasks[name]` for /health, and the task restarts after a
+    backoff of `initial` doubling to `cap` seconds. Cancellation (shutdown) ends it.
+    """
+    delay = initial
+    while True:
+        try:
+            await factory()
+            return
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 -- restarted, never swallowed silently
+            entry = tasks.setdefault(name, {"restarts": 0})
+            entry["restarts"] += 1
+            entry["last_error"] = f"{type(exc).__name__}: {exc}"
+            entry["at"] = time.monotonic()
+            log.error("%s crashed (restart %d in %.0f s)", name, entry["restarts"], delay,
+                      exc_info=True)
+            await sleep(delay)
+            delay = min(delay * 2, cap)
 
 
 def _parse_symbols(raw: str) -> list[str]:
@@ -176,6 +207,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     manager_kwargs = {} if client_factory is None else {"client_factory": client_factory}
     manager = FeedManager(key or "", quotes, recorder=recorder, **manager_kwargs)
     leases = LeaseRegistry(manager, ttl=float(os.getenv("LIVE_GRID_LEASE_TTL_S", DEFAULT_TTL)))
+    tasks: dict = {}  # background task -> its crashes (L4, supervise)
 
     from app.watchlist import DEFAULT_PATH as WATCHLIST_DEFAULT, Watchlist
 
@@ -219,8 +251,8 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         # Restore the pinned subscriptions before the drain loop starts, so the
         # first _sync_feeds already has them and a restart does not drop the feed.
         _apply_watchlist()
-        task = asyncio.create_task(manager.run())
-        sweep_task = asyncio.create_task(_sweep_leases())
+        task = asyncio.create_task(supervise("feed manager", manager.run, tasks))
+        sweep_task = asyncio.create_task(supervise("lease sweeper", _sweep_leases, tasks))
         try:
             yield
         finally:
@@ -510,6 +542,15 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     @app.get("/health")
     def health():
         body = {"status": "ok", "feeds": manager.status(), "leases": len(leases)}
+        body["feeds_bad_messages"] = manager.bad_messages
+        if tasks:
+            # L4: a background task that crashed is restarted; it shows here, and the
+            # status is degraded while the last crash is under TASK_DEGRADED_S old.
+            now = time.monotonic()
+            body["tasks"] = {k: {"restarts": v["restarts"], "last_error": v["last_error"],
+                                 "seconds_ago": round(now - v["at"], 1)} for k, v in tasks.items()}
+            if any(now - v["at"] < TASK_DEGRADED_S for v in tasks.values()):
+                body["status"] = "degraded"
         if recorder is not None:
             body["ticks"] = recorder.stats()
             body["ticks"]["endpoint"] = getattr(recorder.store.session, "endpoint", None)

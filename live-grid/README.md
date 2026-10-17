@@ -40,7 +40,11 @@ a chart that joins cached history to bars built from the live feed.
   update, coalesced to ~4 flushes/second per connection.
 - `GET /snapshot?symbol=AAPL` — one symbol's delayed REST snapshot (EODHD,
   15-20 minutes behind), for callers that want a quote without the live feed.
-- `GET /health` — per-feed connection state, plus a `ticks` block
+- `GET /health` — per-feed connection state and `feeds_bad_messages` (feed
+  messages that could not be applied, skipped). `status` is `degraded`, with a
+  `tasks` block naming the error, while the feed manager or the lease sweeper
+  crashed in the last 5 minutes; both are restarted with backoff and logged at
+  ERROR. Plus a `ticks` block
   (`buffered`, `written`, `dropped`, `spooled`, `replayed`, `deduped`,
   `quarantined`, `endpoint`) when the chart is enabled; see "The tick spool" below.
 - `GET /chart?symbol=AAPL&interval=1d` — Plotly figure JSON, the Workspace

@@ -422,3 +422,56 @@ def test_health_reports_the_subscriptions_widget_as_published_when_configured(mo
     monkeypatch.setenv("LIVE_GRID_PUBLIC_URL", f"https://live-grid.{EXAMPLE_TAILNET}")
     body = make_client().get("/health").json()
     assert body["subscriptions"] == {"published": True}
+
+
+# -- L4 (NAS, 2026-10-16): a crashed background task was invisible until shutdown ---------
+
+
+def test_supervise_logs_restarts_with_backoff_and_records_the_error(caplog):
+    import asyncio
+
+    from app.main import supervise
+
+    calls, sleeps, tasks = [], [], {}
+
+    async def flaky():
+        calls.append(1)
+        if len(calls) <= 3:
+            raise ValueError(f"boom {len(calls)}")
+        raise asyncio.CancelledError
+
+    async def fake_sleep(s):
+        sleeps.append(s)
+
+    with caplog.at_level("ERROR"):
+        try:
+            asyncio.run(supervise("feed manager", flaky, tasks, sleep=fake_sleep))
+        except asyncio.CancelledError:
+            pass
+    assert len(calls) == 4 and sleeps == [1.0, 2.0, 4.0]
+    assert tasks["feed manager"]["restarts"] == 3
+    assert tasks["feed manager"]["last_error"] == "ValueError: boom 3"
+    errors = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert len(errors) == 3 and errors[0].exc_info is not None
+
+
+def test_health_reports_degraded_when_the_feed_manager_crashed(monkeypatch):
+    """The NAS symptom: /health said ok while nothing drained. A crash now shows."""
+    import time
+
+    from app.feeds import FeedManager
+
+    async def crash(self):
+        raise ValueError("year 56794849 is out of range")
+
+    monkeypatch.setattr(FeedManager, "run", crash)
+    with make_client() as client:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            body = client.get("/health").json()
+            if body["status"] != "ok":
+                break
+            time.sleep(0.05)
+    assert body["status"] == "degraded"
+    assert body["tasks"]["feed manager"]["last_error"] == "ValueError: year 56794849 is out of range"
+    assert body["tasks"]["feed manager"]["restarts"] >= 1
