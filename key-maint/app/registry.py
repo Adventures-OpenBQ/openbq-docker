@@ -36,72 +36,14 @@ def _get(values: dict[str, str], var: str) -> str | None:
     return v or None
 
 
-def _eodhd(values: dict[str, str]) -> httpx.Request | None:
-    k = _get(values, "EODHD_API_KEY")
-    if not k:
-        return None
-    # /api/user validates the key (401 on a bad one) without spending an API
-    # call, and its body carries the day's usage (app.usage).
-    return httpx.Request(
-        "GET", "https://eodhd.com/api/user", params={"api_token": k, "fmt": "json"}
-    )
-
-
-def _fmp(values: dict[str, str]) -> httpx.Request | None:
-    k = _get(values, "FMP_API_KEY")
-    if not k:
-        return None
-    return httpx.Request(
-        "GET", "https://financialmodelingprep.com/api/v3/profile/AAPL", params={"apikey": k}
-    )
-
-
-def _fred(values: dict[str, str]) -> httpx.Request | None:
-    k = _get(values, "FRED_API_KEY")
-    if not k:
-        return None
-    return httpx.Request(
-        "GET",
-        "https://api.stlouisfed.org/fred/series",
-        params={"series_id": "GNPCA", "api_key": k, "file_type": "json"},
-    )
-
-
-def _tiingo(values: dict[str, str]) -> httpx.Request | None:
-    k = _get(values, "TIINGO_TOKEN")
-    if not k:
-        return None
-    return httpx.Request("GET", "https://api.tiingo.com/api/test", params={"token": k})
-
-
-def _bls(values: dict[str, str]) -> httpx.Request | None:
-    k = _get(values, "BLS_API_KEY")
-    if not k:
-        return None
-    return httpx.Request(
-        "GET",
-        "https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0",
-        params={"registrationkey": k, "latest": "true"},
-    )
-
-
-def _eia(values: dict[str, str]) -> httpx.Request | None:
-    k = _get(values, "EIA_API_KEY")
-    if not k:
-        return None
-    return httpx.Request(
-        "GET", "https://api.eia.gov/v2/seriesid/STEO.WTIPUUS.M", params={"api_key": k}
-    )
-
-
-def _intrinio(values: dict[str, str]) -> httpx.Request | None:
-    k = _get(values, "INTRINIO_API_KEY")
-    if not k:
-        return None
-    # current_usage validates the key (401 on a bad one) and reports usage.
-    return httpx.Request(
-        "GET", "https://api-v2.intrinio.com/account/current_usage", params={"api_key": k}
-    )
+def _keyed(var: str, url: str, **params: str | None) -> Callable[[dict[str, str]], httpx.Request | None]:
+    """GET url with var's value as the param given as None; no request (None) when var is empty."""
+    def build(values: dict[str, str]) -> httpx.Request | None:
+        k = _get(values, var)
+        if not k:
+            return None
+        return httpx.Request("GET", url, params={n: k if v is None else v for n, v in params.items()})
+    return build
 
 
 def _alpaca(values: dict[str, str]) -> httpx.Request | None:
@@ -115,75 +57,58 @@ def _alpaca(values: dict[str, str]) -> httpx.Request | None:
     )
 
 
-def _congress(values: dict[str, str]) -> httpx.Request | None:
-    k = _get(values, "CONGRESS_GOV_API_KEY")
-    if not k:
-        return None
-    return httpx.Request(
-        "GET",
-        "https://api.congress.gov/v3/bill",
-        params={"limit": "1", "format": "json", "api_key": k},
-    )
-
-
-def _alpha_vantage(values: dict[str, str]) -> httpx.Request | None:
-    k = _get(values, "ALPHA_VANTAGE_API_KEY")
-    if not k:
-        return None
-    # Symbol IBM, not AAPL: the demo key answers only Alpha Vantage's own
-    # documented example calls. With AAPL it returns a 200 "demo purposes
-    # only" notice that matches no invalid_markers -- a false green.
-    return httpx.Request(
-        "GET",
-        "https://www.alphavantage.co/query",
-        params={"function": "GLOBAL_QUOTE", "symbol": "IBM", "apikey": k},
-    )
-
-
-def _p(name, env_var, provider_id, demo=(), probe=None):
-    return Provider(name=name, env_var=env_var, provider_id=provider_id,
-                    demo_values=demo, probe=probe)
-
-
 PROVIDERS: dict[str, Provider] = {
     p.env_var: p
     for p in [
-        _p("FMP", "FMP_API_KEY", "fmp", (), ProbeSpec(_fmp, ("Invalid API KEY",))),
-        _p("FRED", "FRED_API_KEY", "fred", (), ProbeSpec(_fred, ("api_key",))),
-        _p("Tiingo", "TIINGO_TOKEN", "tiingo", (), ProbeSpec(_tiingo)),
-        _p(
-            "Alpha Vantage",
-            "ALPHA_VANTAGE_API_KEY",
-            "alpha_vantage",
-            ("demo",),
-            ProbeSpec(_alpha_vantage, ("Invalid API call", "apikey")),
-        ),
-        _p("Nasdaq Data Link", "NASDAQ_API_KEY", "nasdaq"),
-        _p("EIA", "EIA_API_KEY", "eia", ("DEMO_KEY",), ProbeSpec(_eia, ("API_KEY_MISSING", "invalid api_key"))),
-        _p("BLS", "BLS_API_KEY", "bls", (), ProbeSpec(_bls, ("REQUEST_NOT_PROCESSED",))),
-        _p("CFTC", "CFTC_APP_TOKEN", "cftc"),
-        _p(
-            "Congress.gov",
-            "CONGRESS_GOV_API_KEY",
-            "congress_gov",
-            ("DEMO_KEY",),
-            ProbeSpec(_congress, ("API_KEY_INVALID",)),
-        ),
-        _p("EconDB", "ECONDB_API_KEY", "econdb"),
-        _p("BizToc", "BIZTOC_API_KEY", "biztoc"),
-        _p("Intrinio", "INTRINIO_API_KEY", "intrinio", (), ProbeSpec(_intrinio)),
-        _p("Benzinga", "BENZINGA_API_KEY", "benzinga"),
-        _p("TradingEconomics", "TRADINGECONOMICS_API_KEY", "tradingeconomics"),
-        _p("Tradier", "TRADIER_API_KEY", "tradier"),
-        _p("Alpaca", "ALPACA_API_KEY", "alpaca", (), ProbeSpec(_alpaca)),
-        _p("Alpaca (secret)", "ALPACA_API_SECRET", "alpaca"),
-        _p("EODHD", "EODHD_API_KEY", "eodhd", ("demo",), ProbeSpec(_eodhd)),
+        Provider("FMP", "FMP_API_KEY", "fmp", (), ProbeSpec(
+            _keyed("FMP_API_KEY", "https://financialmodelingprep.com/api/v3/profile/AAPL", apikey=None),
+            ("Invalid API KEY",))),
+        Provider("FRED", "FRED_API_KEY", "fred", (), ProbeSpec(
+            _keyed("FRED_API_KEY", "https://api.stlouisfed.org/fred/series",
+                   series_id="GNPCA", api_key=None, file_type="json"),
+            ("api_key",))),
+        Provider("Tiingo", "TIINGO_TOKEN", "tiingo", (), ProbeSpec(
+            _keyed("TIINGO_TOKEN", "https://api.tiingo.com/api/test", token=None))),
+        # Symbol IBM, not AAPL: the demo key answers only Alpha Vantage's own
+        # documented example calls. With AAPL it returns a 200 "demo purposes
+        # only" notice that matches no invalid_markers -- a false green.
+        Provider("Alpha Vantage", "ALPHA_VANTAGE_API_KEY", "alpha_vantage", ("demo",), ProbeSpec(
+            _keyed("ALPHA_VANTAGE_API_KEY", "https://www.alphavantage.co/query",
+                   function="GLOBAL_QUOTE", symbol="IBM", apikey=None),
+            ("Invalid API call", "apikey"))),
+        Provider("Nasdaq Data Link", "NASDAQ_API_KEY", "nasdaq"),
+        Provider("EIA", "EIA_API_KEY", "eia", ("DEMO_KEY",), ProbeSpec(
+            _keyed("EIA_API_KEY", "https://api.eia.gov/v2/seriesid/STEO.WTIPUUS.M", api_key=None),
+            ("API_KEY_MISSING", "invalid api_key"))),
+        Provider("BLS", "BLS_API_KEY", "bls", (), ProbeSpec(
+            _keyed("BLS_API_KEY", "https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0",
+                   registrationkey=None, latest="true"),
+            ("REQUEST_NOT_PROCESSED",))),
+        Provider("CFTC", "CFTC_APP_TOKEN", "cftc"),
+        Provider("Congress.gov", "CONGRESS_GOV_API_KEY", "congress_gov", ("DEMO_KEY",), ProbeSpec(
+            _keyed("CONGRESS_GOV_API_KEY", "https://api.congress.gov/v3/bill",
+                   limit="1", format="json", api_key=None),
+            ("API_KEY_INVALID",))),
+        Provider("EconDB", "ECONDB_API_KEY", "econdb"),
+        Provider("BizToc", "BIZTOC_API_KEY", "biztoc"),
+        # current_usage validates the key (401 on a bad one) and reports usage.
+        Provider("Intrinio", "INTRINIO_API_KEY", "intrinio", (), ProbeSpec(
+            _keyed("INTRINIO_API_KEY", "https://api-v2.intrinio.com/account/current_usage", api_key=None))),
+        Provider("Benzinga", "BENZINGA_API_KEY", "benzinga"),
+        Provider("TradingEconomics", "TRADINGECONOMICS_API_KEY", "tradingeconomics"),
+        Provider("Tradier", "TRADIER_API_KEY", "tradier"),
+        Provider("Alpaca", "ALPACA_API_KEY", "alpaca", (), ProbeSpec(_alpaca)),
+        Provider("Alpaca (secret)", "ALPACA_API_SECRET", "alpaca"),
+        # /api/user validates the key (401 on a bad one) without spending an API
+        # call, and its body carries the day's usage (app.usage).
+        Provider("EODHD", "EODHD_API_KEY", "eodhd", ("demo",), ProbeSpec(
+            _keyed("EODHD_API_KEY", "https://eodhd.com/api/user", api_token=None, fmt="json"))),
     ]
 }
 
-# The Dockerfile-inlined /providers.json route (key-maint/app/providers_route.py
-# is its unit-tested twin) defines its own _OPTIONAL/_LOCAL mirrors independently --
-# that route runs in the API process and cannot import this package.
+# The API's /providers.json route (lanes/openbq_lanes.py provider_descriptor)
+# defines its own _OPTIONAL/_LOCAL mirrors independently -- that route runs in
+# the API process and cannot import this package.
 #
 # bls is NOT here: an isolated stack run showed the real platform 400s
 # "Missing credential" for bls without a key, while cftc/econdb answer keyless

@@ -301,7 +301,6 @@ class TestJoinedRun:
 
         # Two concurrent run_probes_joined calls share one underlying run.
         async def go():
-            probes._reset_run_cache()  # test hook
             return await asyncio.gather(
                 probes.run_probes_joined(slow), probes.run_probes_joined(slow))
         a, b = asyncio.run(go())

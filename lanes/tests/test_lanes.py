@@ -321,11 +321,11 @@ class ExtraAppsTest(unittest.TestCase):
         old = openbq_lanes.EXTRA_APPS
         openbq_lanes.EXTRA_APPS = f.name
         try:
-            merged = json.loads(openbq_lanes._with_extra_apps(b'[{"name": "BLS"}]'))
-            self.assertEqual([a["name"] for a in merged], ["BLS", "Example"])
-            self.assertEqual(openbq_lanes._with_extra_apps(b'{"build": 1}'), b'{"build": 1}')
+            merged, extended = openbq_lanes._apps(b'[{"name": "BLS"}]')
+            self.assertEqual(([a["name"] for a in merged], extended), (["BLS", "Example"], True))
+            self.assertEqual(openbq_lanes._apps(b'{"build": 1}'), (None, False))
             openbq_lanes.EXTRA_APPS = f.name + ".absent"
-            self.assertEqual(openbq_lanes._with_extra_apps(b"[]"), b"[]")
+            self.assertEqual(openbq_lanes._apps(b"[]"), ([], False))
         finally:
             openbq_lanes.EXTRA_APPS = old
 

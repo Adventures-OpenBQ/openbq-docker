@@ -1,8 +1,14 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
-"""Unit tests for the byte-identical builder the Dockerfile inlines into
-openbb_core's rest_api.py -- see app.providers_route's module docstring."""
-from app.providers_route import build_provider_descriptor
+"""Unit tests for the API's /providers.json builder (lanes/openbq_lanes.py), the
+inventory key-maint joins its rows against."""
+import os
+import sys
+from pathlib import Path
+
+os.environ["OPENBQ_ROLE"] = "worker"  # importing the module must not spawn the production lane
+sys.path.insert(0, str(Path(__file__).parents[2] / "lanes"))
+from openbq_lanes import provider_descriptor as build_provider_descriptor
 
 
 def test_provider_with_credentials_is_required():
