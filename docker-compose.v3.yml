@@ -5,7 +5,7 @@ services:
   openbq-api:
     build:
       context: .
-      dockerfile: Dockerfile.v3
+      target: v3
     image: openbq-local:4.0.0
   tailscale:
     environment:
