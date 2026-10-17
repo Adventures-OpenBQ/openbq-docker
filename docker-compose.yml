@@ -83,13 +83,16 @@ services:
   # docs/v10/live-grid-kdb-port.md.
   #
   # rss-ticker: a shared feed pool with NO authentication, so reachability is its
-  # whole access control. The image is built from ./rss-ticker (rss-feedhandler v8.0.1).
+  # whole access control. Build it from ./rss-ticker (rss-feedhandler v8.0.1); the GHCR
+  # package is private, so readers never pull it:
+  #   docker compose --profile web build rss-ticker
   # On the bridge only; both ts-config/serve*.json publish it on tailnet port 8088
   # (a 502 there until the web profile runs), never funneled.
   #   cp rss-ticker-config/config.yaml.example rss-ticker-config/config.yaml
   rss-ticker:
     profiles: [web]
-    image: ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0@sha256:e47d0912b0e21aa2b0fa1ed8898fbabf22e19d65234222d13c83efe54bc11b15
+    build: ./rss-ticker
+    image: ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0
     restart: unless-stopped
     volumes:
       - ./rss-ticker-config:/config:ro

@@ -25,7 +25,7 @@ Summary (after the user's rulings of 2026-10-11 on the first survey):
 | Service | Image | Role for `/news` |
 |---|---|---|
 | `funnel-gateway` | `openbb-funnel-gateway:8.0.3`, built from `./funnel-gateway` (Node, `ws`) | The public door. It runs under `profiles: ["web"]`, is published only on Funnel port **10000** through `ts-config/serve-funnel.json` (or `serve-v3-funnel.json` with the v3 overlay), and is `read_only` with `cap_drop: [ALL]`, 256 MB and 64 pids. It reads the bind mount `./gateway-config/settings.json` and writes only the `gateway-state` volume. |
-| `rss-ticker` | `ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0` (built from `rss-ticker/`, the vendored rss-feedhandler v8.0.1 source; digest-pinned) | A shared feed pool that is not tied to any user. It polls the union of the subscribed feed URLs, streams new articles tagged by `feed_id` over `/ws/news`, and pages history at `/api/news`. It has **no authentication**, so the only access control is who can reach it. Serve publishes it on tailnet port `:8088`, and it is never funneled. Its config is `rss-ticker-config/config.yaml` (`retention_days`, `default_poll_interval_s`, `max_concurrent_polls`, `bind_host`), and it keeps its data in the `rss-ticker-data` volume. |
+| `rss-ticker` | `ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0` (built locally from `rss-ticker/`, the vendored rss-feedhandler v8.0.1 source: `docker compose --profile web build rss-ticker`) | A shared feed pool that is not tied to any user. It polls the union of the subscribed feed URLs, streams new articles tagged by `feed_id` over `/ws/news`, and pages history at `/api/news`. It has **no authentication**, so the only access control is who can reach it. Serve publishes it on tailnet port `:8088`, and it is never funneled. Its config is `rss-ticker-config/config.yaml` (`retention_days`, `default_poll_interval_s`, `max_concurrent_polls`, `bind_host`), and it keeps its data in the `rss-ticker-data` volume. |
 | `openbb-api` | `openbb-local:8.0.3` | The `/api` upstream. Not part of `/news`. |
 
 ### Env and settings
@@ -232,7 +232,7 @@ Compose (`docker-compose.yml`) puts both services under `profiles: [web]`:
 
 | Service | Image | Notes |
 |---|---|---|
-| `rss-ticker` | `ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0@sha256:e47d0912…` (amd64 + arm64) | Config from `rss-ticker-config/config.yaml`; data in the `rss-ticker-data` volume. |
+| `rss-ticker` | built from `rss-ticker/`, tagged `ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0` | Config from `rss-ticker-config/config.yaml`; data in the `rss-ticker-data` volume. |
 | `funnel-gateway` | built, `openbq-funnel-gateway:8.0.0` | `read_only`, uid 1000, `cap_drop: ALL`, 256 MB, `gateway-state` volume, `gateway-config/` bind mounted read-only. |
 
 Neither service publishes a host port. Serve (`ts-config/serve-funnel.json`):
