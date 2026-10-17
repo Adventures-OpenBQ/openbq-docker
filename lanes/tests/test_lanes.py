@@ -219,6 +219,7 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
         small = await self.client.get("/api/v1/cftc/big?n=500")
         self.assertEqual((small.status_code, len(small.content)), (200, 500))
 
+    @unittest.skipUnless(os.path.exists("/proc/self/status"), "worker RSS is read from /proc (Linux only)")
     async def test_the_lane_is_recycled_when_its_memory_passes_the_cap(self):
         self.make(rss_mb=300)
         pid = (await self.client.get("/api/v1/cftc/hog?mb=400")).json()["pid"]

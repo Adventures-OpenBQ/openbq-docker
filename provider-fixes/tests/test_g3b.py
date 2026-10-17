@@ -69,11 +69,12 @@ class NasdaqCalendarSplitsTest(unittest.TestCase):
             {"symbol": "AAA", "name": "A", "ratio": "1 : 10", "executionDate": "7/1/2026"},
             {"symbol": "BBB", "name": "B", "ratio": "1-for-10", "executionDate": "7/2/2026"},
             {"symbol": "SNFCA", "name": "C", "ratio": "5%", "executionDate": "7/10/2026"},
+            {"symbol": "DDD", "name": "D", "ratio": "N/A%", "executionDate": "7/11/2026"},
         ]
         result = NasdaqCalendarSplitsFetcher.transform_data(query, rows)
         self.assertEqual(
-            [(r.symbol, r.numerator, r.denominator, r.ratio_display) for r in result],
-            [("AAA", 1.0, 10.0, "1 : 10"), ("BBB", None, None, "1-for-10"), ("SNFCA", None, None, "5%")],
+            [(r.symbol, r.numerator, r.denominator, r.ratio_display, r.split_ratio) for r in result],
+            [("AAA", 1.0, 10.0, "1 : 10", 0.1), ("BBB", None, None, "1-for-10", None), ("SNFCA", None, None, "5%", 1.05), ("DDD", None, None, "N/A%", None)],
         )
 
 

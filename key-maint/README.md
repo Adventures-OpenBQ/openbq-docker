@@ -36,8 +36,8 @@ key-maint is part of the Episode 3 overlay (`docker-compose.v3.yml`).
 1. One-time, beside the compose files:
    `mkdir -p key-maint-admin && chmod 700 key-maint-admin`
 2. `docker compose -f docker-compose.yml -f docker-compose.v3.yml up -d key-maint`
-   (pulls `ghcr.io/adventures-openbq/openbq-key-maint:6.0.0`; add `--build`
-   to build it from this directory instead).
+   (builds `openbq-key-maint:6.0.0` from this directory the first time; add
+   `--build` to rebuild it after a change).
 3. On the host it answers on `http://127.0.0.1:8447` only. That port is
    loopback-only, so the compose file sets `KEYMAINT_DIRECT_TIER=2`: a direct,
    un-forwarded caller (the host itself) gets live tests. Without it a direct

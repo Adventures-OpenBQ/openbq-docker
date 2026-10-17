@@ -6,6 +6,7 @@
 
 import json
 import logging
+import re
 from collections.abc import Iterable
 from typing import Any
 
@@ -20,6 +21,13 @@ from openbb_core.env import Env
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 
 logger = logging.getLogger("uvicorn.error")
+
+# Providers put keys in the URL (FRED api_key, EconDB token, ...); aiohttp errors quote the URL.
+_SECRET = re.compile(r"(?i)((?:api_?key|apikey|token|registrationkey)=)[^&\s'\"\\]+")
+
+
+def _redact(text: str) -> str:
+    return _SECRET.sub(r"\1***", text)
 
 
 def _is_query_model(title: str) -> bool:
@@ -43,11 +51,11 @@ class ExceptionHandlers:
         """Exception handler."""
         if Env().DEBUG_MODE:
             raise exception
-        logger.error(exception)
+        logger.error(_redact(str(exception)))
         return JSONResponse(
             status_code=status_code,
             content={
-                "detail": detail,
+                "detail": json.loads(_redact(json.dumps(jsonable_encoder(detail)))),
             },
         )
 
