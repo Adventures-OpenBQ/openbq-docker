@@ -16,8 +16,8 @@
 >   reads `EODHD_DEMO_WS_KEY` from the environment).
 > - The image runs as uid 10001 with a read-only root (`/data` and `/tmp` are the only
 >   writable paths). A `live-grid-data` volume created by an earlier root-run build is owned
->   by root; give it to the new user once:
->   `docker compose --profile live run --rm --user 0 live-grid chown -R 10001:10001 /data`.
+>   by root; the one-shot `live-grid-perms` service gives it to uid 10001 before live-grid
+>   starts, on every `up`, so no manual step is needed.
 > - History comes from openbq-api's EODHD namespace (`OPENBB_HISTORY_NAMESPACE=eodhd`, so
 >   `/api/v1/eodhd/<class>/price/historical`, provider `eodhd`), because openbq-api has no
 >   standard routers and no openbb-kdb read-through provider. There is no kdb history cache:

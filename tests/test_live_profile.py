@@ -209,3 +209,21 @@ def test_live_grid_is_pinned_and_runs_unprivileged():
     assert any(t.startswith('/tmp:') for t in lg['tmpfs'])
     assert 'version = "10.0.0"' in (ROOT / 'live-grid/pyproject.toml').read_text()
     assert re.search(r'^FROM debian:bookworm-slim@sha256:[0-9a-f]{64}$', (ROOT / 'kdb-x/Dockerfile').read_text(), re.M)
+
+
+def test_a_one_shot_job_gives_live_grid_data_to_its_uid_before_live_grid_starts():
+    """Q1 (re-review 2026-10-16): a live-grid-data volume made by the earlier root-run image is
+    owned by root, and live-grid (uid 10001, cap_drop ALL) can neither write nor chown it.
+    live-grid-perms, like rustfs-perms, fixes ownership as root with no network first."""
+    perms, lg = SERVICES['live-grid-perms'], SERVICES['live-grid']
+    assert perms['profiles'] == ['live'] and perms['restart'] == 'no'
+    assert perms['user'] == '0:0' and perms['network_mode'] == 'none'
+    assert perms['image'] == lg['image'] and perms['build'] == lg['build']
+    assert perms['volumes'] == ['live-grid-data:/data']
+    script = perms['command'][0]
+    assert perms['entrypoint'] == ['/bin/sh', '-ec']
+    assert 'chown 10001:10001' in script and '! -user 10001' in script
+    assert 'cap_drop' not in perms  # chown needs CAP_CHOWN
+    assert lg['depends_on'] == {'live-grid-perms': {'condition': 'service_completed_successfully'}}
+    readme = (ROOT / 'live-grid/README.md').read_text()
+    assert 'live-grid-perms' in readme and 'run --rm --user 0 live-grid chown' not in readme
