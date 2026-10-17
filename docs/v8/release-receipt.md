@@ -13,7 +13,7 @@ Gated tree: `2a4d087`. This receipt commit changes only this file. `release/v8` 
   - It is built from `rss-ticker/`, the rss-feedhandler v8.0.1 source (`96dbe26`, MIT) vendored into this repo, for amd64 and arm64.
   - It replaces `ghcr.io/artcashin/rss-feedhandler:8.0.1` (`sha256:bbe5e391…`), which was built from the same commit in a personal namespace (re-cut 2026-10-16).
   - The application reports `"version":"8.0.1"`, its upstream version. It started healthy on `rss-ticker-config/config.yaml.example`.
-  - The GHCR package is private, like the org's other images, so pulls need the org read token.
+  - Compose builds it from `rss-ticker/` (`docker compose --profile web build rss-ticker`), so no registry login is needed. The GHCR package is private, like the org's other images, and only the maintainer's NAS pulls it with the org read token.
 - **Serve/Funnel: the door is on Funnel port 10000**, so the episode 3 reference keeps 8443 and both run on one node (user ruling, option B). Funnel offers only 443, 8443 and 10000, and 443 stays ODP's. One sidecar applies exactly one serve file; each tailnet file has a Funnel variant that adds only the door:
 
   | Serve file | Applied by | 443 | 8443 | 8088 | 10000 |
