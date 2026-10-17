@@ -4,6 +4,7 @@
 """In-memory latest-quote table shared by REST seeding and websocket ticks."""
 
 import logging
+import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -39,6 +40,29 @@ def _blank_row(symbol: str) -> dict[str, Any]:
         "day_open": None,
         "updated_at": None,
     }
+
+
+def tick_time(ts) -> datetime:
+    """A feed message's `t` as an aware UTC datetime, whatever its unit (L3).
+
+    EODHD documents milliseconds, but the NAS's v10 stack received t ~ 1.8e18, i.e.
+    nanoseconds: `ts / 1000` gave year 56794849, and the ValueError killed the feed manager.
+    The unit is read from the magnitude -- a present-day instant is ~1.8e9 s, 1.8e12 ms,
+    1.8e15 us or 1.8e18 ns, so each step down by 1000 until it is below 1e11 (year 5138) lands
+    on seconds. Anything unusable (not a number, not positive, not finite, out of range) is
+    stamped now rather than raising.
+    """
+    if isinstance(ts, bool) or not isinstance(ts, (int, float)) or not math.isfinite(ts) or ts <= 0:
+        return datetime.now(tz=timezone.utc)
+    seconds = float(ts)
+    for _ in range(3):  # ms, us, ns
+        if seconds < 1e11:
+            break
+        seconds /= 1000
+    try:
+        return datetime.fromtimestamp(seconds, tz=timezone.utc)
+    except (ValueError, OverflowError, OSError):
+        return datetime.now(tz=timezone.utc)
 
 
 class QuoteTable:
@@ -147,12 +171,7 @@ class QuoteTable:
         if prev:
             row["change"] = price - prev
             row["change_percent"] = (price - prev) / prev
-        ts = msg.get("t")
-        stamp = (
-            datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
-            if isinstance(ts, (int, float))
-            else datetime.now(tz=timezone.utc)
-        )
+        stamp = tick_time(msg.get("t"))
         row["updated_at"] = stamp.strftime("%H:%M:%S")
         if self._on_tick is not None:
             try:

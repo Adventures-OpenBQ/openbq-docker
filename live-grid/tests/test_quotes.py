@@ -3,6 +3,7 @@
 
 """Tests for app.quotes.QuoteTable."""
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -335,3 +336,38 @@ def test_forex_mid_widens_the_range():
     table.apply_tick("forex", {"s": "EURUSD", "b": 1.10, "a": 1.12})
     assert table.rows["EURUSD"]["day_high"] == pytest.approx(1.11)
     assert table.rows["EURUSD"]["day_low"] == pytest.approx(1.11)
+
+
+# -- L3 (NAS, 2026-10-16): a nanosecond `t` crashed the feed manager --------------------
+
+from app.quotes import tick_time  # noqa: E402
+
+_AT = datetime(2026, 10, 16, 14, 30, 5, 123000, tzinfo=timezone.utc)
+_S = _AT.timestamp()
+
+
+@pytest.mark.parametrize("ts", [_S, int(_S * 1e3), int(_S * 1e6), int(_S * 1e9)],
+                         ids=["s", "ms", "us", "ns"])
+def test_tick_time_reads_s_ms_us_and_ns(ts):
+    """EODHD documents ms, but the NAS saw t ~ 1.8e18 (ns): `ts / 1000` gave year 56794849 and a
+    ValueError that killed manager.run(). The unit is read from the magnitude."""
+    assert abs(tick_time(ts) - _AT).total_seconds() < 1e-3
+
+
+@pytest.mark.parametrize("ts", [None, "1760625005123", -5, 0, float("nan"), float("inf"), 10 ** 30, True])
+def test_tick_time_falls_back_to_now_for_anything_unusable(ts):
+    before = datetime.now(timezone.utc)
+    assert before <= tick_time(ts) <= datetime.now(timezone.utc)
+
+
+@pytest.mark.parametrize("feed,msg", [
+    ("crypto", {"s": "BTC-USD", "p": 108000.5, "q": "0.0012", "dc": "-0.4", "dd": "-430", "t": int(_S * 1e9)}),
+    ("us", {"s": "AAPL", "p": 245.1, "v": 100, "c": [14, 37], "dp": False, "ms": "open", "t": int(_S * 1e9)}),
+    ("forex", {"s": "EURUSD", "a": 1.1652, "b": 1.1651, "dc": "0.01", "dd": "0.0001", "ppms": False, "t": int(_S * 1e9)}),
+])
+def test_a_nanosecond_tick_on_every_feed_is_applied_and_recorded_at_its_own_time(feed, msg):
+    seen = []
+    q = QuoteTable(on_tick=lambda sym, price, size, stamp: seen.append(stamp))
+    assert q.apply_tick(feed, msg) == msg["s"]
+    assert q.rows[msg["s"]]["updated_at"] == "14:30:05"
+    assert abs(seen[0] - _AT).total_seconds() < 1e-3
