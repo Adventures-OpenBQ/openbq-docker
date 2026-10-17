@@ -98,13 +98,13 @@ Funnel offers only 443, 8443 and 10000; 10000 is the only port any file funnels
 ## Verification
 
 ```sh
-docker compose --profile web up -d
-docker compose --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked
-docker compose --profile web exec funnel-gateway node verify.mjs           # the door's own lock, on the bridge
-cp ts-config/serve-funnel.json ts-config/serve.json.new && jq empty ts-config/serve.json.new && mv ts-config/serve.json.new ts-config/serve.json   # the door opens; the sidecar live-applies it, and a malformed file would kill it
-# with the v3 overlay running, swap its file instead:
-# cp ts-config/serve-v3-funnel.json ts-config/serve-v3.json.new && jq empty ts-config/serve-v3.json.new && mv ts-config/serve-v3.json.new ts-config/serve-v3.json
-docker compose --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net:10000 funnel-gateway node verify.mjs
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web up -d
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web exec funnel-gateway node verify.mjs           # the door's own lock, on the bridge
+cp ts-config/serve-v3-funnel.json ts-config/serve-v3.json.new && jq empty ts-config/serve-v3.json.new && mv ts-config/serve-v3.json.new ts-config/serve-v3.json   # the door opens; the sidecar live-applies it, and a malformed file would kill it
+# a base stack without the v3 overlay swaps its own file instead:
+# cp ts-config/serve-funnel.json ts-config/serve.json.new && jq empty ts-config/serve.json.new && mv ts-config/serve.json.new ts-config/serve.json
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net:10000 funnel-gateway node verify.mjs
 ```
 
 `git checkout ts-config/serve.json` and a sidecar restart close the door again. Then test from a
