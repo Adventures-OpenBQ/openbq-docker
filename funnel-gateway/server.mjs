@@ -188,21 +188,9 @@ async function handleState(req, res, url, config) {
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openRef = connectRef,
   now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
-  let budget = config.requestsPerMinute, resetAt = now() + 60000, quoteCount = 0, day = Math.floor(now() / 86400000);
   let inflight = 0, sockets = 0;
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
   const admitted = new Map();
-  function spend(cost) {
-    if (now() >= resetAt) { budget = config.requestsPerMinute; resetAt = now() + 60000; }
-    if (budget < cost) return false;
-    budget -= cost; return true;
-  }
-  function quoteAllowed() {
-    const currentDay = Math.floor(now() / 86400000);
-    if (day !== currentDay) { day = currentDay; quoteCount = 0; }
-    if (quoteCount >= config.quoteDailyLimit) return false;
-    quoteCount++; return true;
-  }
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_SOCKET, perMessageDeflate: false });
   const server = createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000,
     keepAliveTimeout: 5000 }, async (req, res) => {
@@ -214,18 +202,14 @@ export function createGateway(config, { requestJson = getJson, openRef = connect
       const origin = req.headers.origin;
       if (origin && origin !== config.origin && !DESKTOP_ORIGINS.has(origin)) return reply(res, 403);
       if (url.pathname.startsWith("/state/")) {
-        if (!spend(1)) return reply(res, 429);
         return await handleState(req, res, url, config);
       }
       if (req.method !== "GET" || req.headers["transfer-encoding"] ||
           (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
-      if (!spend(1)) return reply(res, 429);
       if (url.pathname === "/_gateway/health" && !url.search) return reply(res, 200, { ok: true });
       const path = upstreamPath(url, config);
       if (!path) return reply(res, 404);
-      // The daily budget is a cap on VENDOR calls. The two manifests under /api/ are
-      // openbq-api's own static documents -- no provider is called -- so they are not metered.
-      if (inflight >= config.maxConcurrent || (path.startsWith("/api/api/v1/") && !quoteAllowed())) return reply(res, 429);
+      if (inflight >= config.maxConcurrent) return reply(res, 429);
       inflight++;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), requestMs);
@@ -269,9 +253,8 @@ export function createGateway(config, { requestJson = getJson, openRef = connect
     // function the web layer's ticket signer consults. No subprotocol: the reference speaks none.
     if (req.method !== "GET" || !socketTarget(want, config.origin) ||
         req.headers["sec-websocket-protocol"] !== undefined) return reject(socket, 404);
-    // Both caps are charged BEFORE handleUpgrade: a refusal costs the same whether the
-    // handshake would have succeeded or not. Six units, since a socket occupies the door.
-    if (sockets >= config.maxSockets || !spend(6)) return reject(socket, 429);
+    // The socket cap is checked BEFORE handleUpgrade: a refused upgrade never allocates a client.
+    if (sockets >= config.maxSockets) return reject(socket, 429);
     wss.handleUpgrade(req, socket, head, client => {
       sockets++;
       // The 10 s handshake deadline set above must not go on applying to an open socket.
@@ -293,7 +276,7 @@ export function createGateway(config, { requestJson = getJson, openRef = connect
       client.on("message", (data, binary) => {
         // A params frame on open AND on every symbol change over the same socket, re-validated
         // each time. The reference is a keyless local fixture, so there is no vendor meter here;
-        // the upgrade's six units and maxSockets are the whole budget.
+        // maxSockets is the whole budget.
         if (binary) return close();
         const frame = refSubscription(data);
         if (!frame) return close();
