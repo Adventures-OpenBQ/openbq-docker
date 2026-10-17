@@ -22,6 +22,6 @@ does not install. No key: with no `ECONDB_API_KEY` the provider asks EconDB for 
 (`/user/create_token/`), cached for 12 hours. Checked live on 2026-10-14: RGDP/US, CPI/US,DE, main/JP,
 the indicator list (4,516) and the US profile all answered 200.
 
-Both Dockerfiles build the wheel in their pinned builder stage and install it with `--no-deps`; its
+`Dockerfile` builds the wheel in its pinned builder stage and install it with `--no-deps`; its
 dependencies (openbb-core, aiohttp-client-cache, aiosqlite) are already pinned in `requirements.lock`,
 which is unchanged. `verify.py` runs `tests/` (unittest, EconDB's HTTP stubbed) as the build gate.

@@ -13,7 +13,7 @@ COPY requirements.lock /tmp/requirements.lock
 RUN python -m pip install -r /tmp/requirements.lock && python -m pip check
 
 # Pristine pinned packages end here; scripts/test-provider-fixes.sh tests the overlay on this stage.
-FROM odp
+FROM odp AS api
 COPY provider-fixes /tmp/provider-fixes
 RUN python /tmp/provider-fixes/apply.py && rm -rf /tmp/provider-fixes
 # v3: the Video Library (openbb-videos 3.0.1, v3/videos) and EconDB (openbb-econdb, OpenBB's MIT-era
@@ -36,3 +36,27 @@ COPY v5/fixtures /workspace/openbq-fixtures
 COPY lanes/openbb.toml /workspace/openbb.toml
 HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=5 CMD curl -fsS http://127.0.0.1:6900/widgets.json > /dev/null || exit 1
 CMD ["openbb-api", "--host", "0.0.0.0", "--port", "6900"]
+
+# Episode 3 (docker-compose.v3.yml, target v3): the original Apache-2.0 yfinance extension on the API image.
+FROM extensions-build AS yfinance-build
+COPY v3/yfinance/source /source
+RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /source
+COPY v4/routes /routes
+RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /routes
+
+FROM api AS v3
+COPY v3/yfinance/requirements.extra.lock /tmp/yfinance-extra.lock
+COPY --from=yfinance-build /wheels/openbq_yfinance-3.0.0-py3-none-any.whl /tmp/openbq_yfinance-3.0.0-py3-none-any.whl
+RUN python -m pip install --no-deps -r /tmp/yfinance-extra.lock \
+    && python -m pip install --no-deps /tmp/openbq_yfinance-3.0.0-py3-none-any.whl \
+    && python -m pip check && cd / && openbb-build
+COPY v3/yfinance/verify.py /tmp/verify-yfinance.py
+RUN python /tmp/verify-yfinance.py && rm /tmp/verify-yfinance.py /tmp/openbq_yfinance-3.0.0-py3-none-any.whl
+COPY v3/openbq_settings.py /usr/local/lib/python3.12/site-packages/openbq_settings.py
+# v4: BDOBB trading-calendar and fiscal-year-end routes (exchange_calendars is pinned in requirements.lock).
+COPY --from=yfinance-build /wheels/openbq_routes-4.0.0-py3-none-any.whl /tmp/openbq_routes-4.0.0-py3-none-any.whl
+COPY v4/routes/verify.py /tmp/verify-routes.py
+RUN python -m pip install --no-deps /tmp/openbq_routes-4.0.0-py3-none-any.whl && python -m pip check && cd / && openbb-build \
+    && python /tmp/verify-routes.py && rm /tmp/verify-routes.py /tmp/openbq_routes-4.0.0-py3-none-any.whl
+COPY lanes/ssrm_widgets.json /workspace/ssrm_widgets.json
+COPY v3/openbb.toml /workspace/openbb.toml
