@@ -74,9 +74,10 @@ def test_the_episode_6_configs_are_the_episode_3_config_plus_rita_and_mcp_tailne
         assert {k: v for k, v in serve['Web'].items() if not k.endswith((':10443', ':11443'))} == v3, name
         assert not any(serve['AllowFunnel'].values()), name
 
-def test_the_feed_pool_is_openbq_rss_ticker_8_0_0_pinned_by_digest():
-    image = SERVICES['rss-ticker']['image']
-    assert image.startswith('ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0@sha256:'), image
+def test_the_feed_pool_builds_openbq_rss_ticker_8_0_0_from_source():
+    service = SERVICES['rss-ticker']
+    assert service['image'] == 'ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0', service['image']
+    assert service['build'] == './rss-ticker', service['build']
 
 
 def test_the_gateway_examples_hold_placeholders_only():
