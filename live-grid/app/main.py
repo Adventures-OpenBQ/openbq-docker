@@ -65,18 +65,25 @@ def _rest_client(api_key: str):
     return APIClient(api_key)
 
 
+# A run that stayed up this long before it crashed restarts from the initial backoff (S3).
+HEALTHY_RUN_S = 300.0
+
+
 async def supervise(name: str, factory, tasks: dict, *, sleep=asyncio.sleep,
-                    initial: float = 1.0, cap: float = 60.0) -> None:
+                    initial: float = 1.0, cap: float = 60.0, clock=time.monotonic) -> None:
     """Run `factory()` for the app's life, restarting it when it raises (L4).
 
     manager.run() and the lease sweeper were bare create_task()s: an exception ended the
     task silently, /health still said ok, and the traceback surfaced only at shutdown (the
     NAS v10 stack streamed nothing for that reason). Each crash is logged at ERROR with its
     traceback and recorded in `tasks[name]` for /health, and the task restarts after a
-    backoff of `initial` doubling to `cap` seconds. Cancellation (shutdown) ends it.
+    backoff of `initial` doubling to `cap` seconds; a run that stayed up HEALTHY_RUN_S before
+    crashing starts again from `initial` (S3), so crashes days apart each cost a second, not a
+    minute. Cancellation (shutdown) ends it.
     """
     delay = initial
     while True:
+        started = clock()
         try:
             await factory()
             return
@@ -87,6 +94,8 @@ async def supervise(name: str, factory, tasks: dict, *, sleep=asyncio.sleep,
             entry["restarts"] += 1
             entry["last_error"] = f"{type(exc).__name__}: {exc}"
             entry["at"] = time.monotonic()
+            if clock() - started >= HEALTHY_RUN_S:
+                delay = initial
             log.error("%s crashed (restart %d in %.0f s)", name, entry["restarts"], delay,
                       exc_info=True)
             await sleep(delay)

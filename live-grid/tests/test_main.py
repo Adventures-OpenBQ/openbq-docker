@@ -475,3 +475,32 @@ def test_health_reports_degraded_when_the_feed_manager_crashed(monkeypatch):
     assert body["status"] == "degraded"
     assert body["tasks"]["feed manager"]["last_error"] == "ValueError: year 56794849 is out of range"
     assert body["tasks"]["feed manager"]["restarts"] >= 1
+
+
+def test_supervise_resets_its_backoff_after_a_healthy_run():
+    """S3 (re-review 2026-10-17): the delay only grew, so after a few crashes days apart every
+    later crash cost the full 60 s. A run that stayed up HEALTHY_RUN_S starts again from 1 s."""
+    import asyncio
+
+    from app.main import supervise
+
+    now = {"t": 0.0}
+    sleeps, tasks = [], {}
+    # how long each run stays up before it raises; the last one is cancelled
+    ups = [0.0, 0.0, 0.0, 400.0, 0.0]
+
+    async def flaky():
+        if not ups:
+            raise asyncio.CancelledError
+        now["t"] += ups.pop(0)
+        raise ValueError("boom")
+
+    async def fake_sleep(s):
+        sleeps.append(s)
+        now["t"] += s
+
+    try:
+        asyncio.run(supervise("feed manager", flaky, tasks, sleep=fake_sleep, clock=lambda: now["t"]))
+    except asyncio.CancelledError:
+        pass
+    assert sleeps == [1.0, 2.0, 4.0, 1.0, 2.0]
