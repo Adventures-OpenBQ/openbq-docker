@@ -93,7 +93,7 @@ registering it. Unset, it defaults to the 23 routes od serves
 (`funnel-gateway/ssrm-routes.json`, `lanes/ssrm_widgets.json` as door paths); set it
 only to narrow that list, and `[]` turns SSRM through the door off. The web `SSRM_ROUTES_JSON` must contain the same paths. Query rules
 remain the existing bounded API policy; these POSTs use the existing injected Basic
-credential and daily vendor/concurrency budget. No broad POST prefix or generic proxy
+credential and concurrency cap. No broad POST prefix or generic proxy
 is introduced. Existing GET API/news/grid and state routes retain their policies.
 
 ## Private runtime and verification

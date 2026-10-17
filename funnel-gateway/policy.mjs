@@ -254,7 +254,7 @@ export function upstreamPath(url, config) {
   // own TTL cache over EODHD's /fundamentals; it stays in OPTIONAL_DOCS for the
   // older-upstream case, where the bare 404 is what the renderer reads as
   // "those columns are blank".
-  // BOTH are METERED routes here (server.mjs' METERED_GRID): live_grid calls
+  // Both reach the vendor (nothing is metered at the door): live_grid calls
   // the vendor once per symbol in the list, and symbol_meta's get_meta calls
   // get_fundamentals_data once per symbol that is not in its cache -- on the
   // v10.0 line symbol_meta had no route at all, which is why it was exempt
@@ -271,8 +271,8 @@ export function upstreamPath(url, config) {
   // upstream, plus `theme` on the chart: it is declared `type: chart`, and the
   // client appends the resolved theme to every chart-typed widget's query
   // (dataClient's THEMED_TYPES), so refusing it would refuse every real call.
-  // Both are METERED routes (server.mjs' METERED_GRID): build_series reaches
-  // openbb-api's paid historical route, the same upstream /api is metered for.
+  // Both reach the vendor: build_series reaches openbb-api's paid historical
+  // route, the same upstream /api uses.
   if (url.pathname === "/grid/series" || url.pathname === "/grid/chart") {
     const allowed = ["symbol", "interval", "start", "end", "provider"];
     if (!onlyKeys(params, url.pathname === "/grid/chart" ? [...allowed, "theme"] : allowed)) return null;
@@ -288,7 +288,7 @@ export function upstreamPath(url, config) {
 
   // The kdb tick reader, this line's own route (live-grid/app/main.py's /ticks,
   // absent on the v10.0 line). One symbol, newest-first, `limit` bounded above.
-  // NOT metered: it reads the in-memory kdb cache and reaches no vendor -- an
+  // It reads the in-memory kdb cache and reaches no vendor -- an
   // empty answer is a cold store, which live-grid returns as a 200 with no
   // ticks rather than an error, and the widget reads as "no ticks".
   if (url.pathname === "/grid/ticks") {

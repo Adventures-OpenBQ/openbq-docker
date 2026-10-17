@@ -39,7 +39,7 @@ Caller headers, cookies and credentials are never relayed.
 | Route | Method | What happens |
 |---|---|---|
 | `/_gateway/health` | GET | `200 {"ok":true}` behind the lock |
-| `/api/widgets.json`, `/api/apps.json` | GET | openbq-api's root documents with the Basic pair injected; no query; not metered daily; bodies up to 16 MiB (every other route: 2 MiB) |
+| `/api/widgets.json`, `/api/apps.json` | GET | openbq-api's root documents with the Basic pair injected; no query; bodies up to 16 MiB (every other route: 2 MiB) |
 | `/ref/widgets.json`, `/ref/apps.json` | GET | the reference backend's root documents, keyless (no credential is injected); no query; bodies up to 16 MiB |
 | `/ref/agents.json`, `/ref/bundle.apps.json`, `/ref/market-examples.apps.json`, `/ref/assets/bdobb-logo.svg` | GET | the four other exact documents the reference serves with a dot in the path; no query; nothing else dotted passes |
 | `GET /ref/<path>` | GET | the reference's other routes, keyless, under the same structural bounds as `/api/api/v1` (lowercase segments, no dot, no `%`, bounded query, re-serialised); any `omni*` segment at any depth is refused |
@@ -78,7 +78,7 @@ validation and bearer authentication. A full control lane returns 429, with no b
 from the ordinary lane.
 Body limits, identity assertions, deadlines and disconnect cleanup still apply.
 Source deletion, derive/commands/export creation and standard LIVE requests use
-the ordinary concurrency and rate budgets. See [managed tables](../table-service/README.md).
+the ordinary concurrency cap. See [managed tables](../table-service/README.md).
 
 ## The wire (`/news`)
 
@@ -187,7 +187,7 @@ GitHub session) signs a ticket and the browser opens
   the same pair as in `credentials.env` (repeated so the gateway never loads provider keys).
 - `gateway-config/settings.json` (from `funnel-gateway/settings.example.json`, read-only bind):
   `origin` (`https://openbq.<tailnet>.ts.net:10000`), `previewOrigin` (the web preview's portless HTTPS origin, to turn socket tickets on; unset leaves them off), `stateDir`
-  (`/var/lib/bdobb/state` to turn `/state` on), the budgets, `rssOrigin`/`rssAddress`/`feeds`
+  (`/var/lib/bdobb/state` to turn `/state` on), the caps (`maxConcurrent`, `maxSockets`), `rssOrigin`/`rssAddress`/`feeds`
   (both-or-neither; feeds need them), the table keys (`tableService`, `tableDesktopPrincipal`,
   `ssrmRoutes`, `tableTimeoutMs`, `ssrmTimeoutMs`; see [managed tables](../table-service/README.md)) and `liveGrid`
   (`true` when the `live` profile runs). An unknown key, including Rita's `ritaOrigin`,

@@ -1075,6 +1075,9 @@ through the gateway, the option V10-P5 named. live-grid still has no host port (
   Superseded in the v10 carry (2026-10-17): the default is empty and live-grid names the page
   by the request's own scheme and host, so a direct connection is not handed the internal
   hostname; the gateway rewrite is unchanged.
+- A direct HTTPS tailnet Serve to live-grid must set `LIVE_GRID_PUBLIC_URL` to its `https://` address.
+  TLS ends before live-grid, so without it the iframe URL comes out `http://` and the page's
+  POST/DELETE writes get 403 on the Origin check.
 - REVIEW `verify.mjs`: `/grid/api/subscriptions` with the token moves from "refused 404" (it
   is a route now) to the without-token 401 list. New refusals prove the exception narrow:
   `/grid/subscriptions?x=1` and `/grid/subscriptions/` without the token are 401; the watchlist

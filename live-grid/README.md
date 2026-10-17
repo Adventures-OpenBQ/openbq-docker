@@ -321,7 +321,10 @@ An `iframe` widget's endpoint must be an absolute URL. `/widgets.json` uses
 `https://openbb.<your-tailnet>.ts.net:6903`); unset or empty, it uses the
 scheme and host the request came in on, so any address a client reaches
 live-grid at works without configuration. `X-Forwarded-*` headers are not
-consulted. `/health` reports `"subscriptions": {"published": true}`.
+consulted. Behind a direct HTTPS tailnet Serve (TLS ends before live-grid, so it sees plain
+HTTP) you must set `LIVE_GRID_PUBLIC_URL` to the `https://` address: otherwise the iframe URL
+comes out `http://` and the page's POST/DELETE writes get 403 on the Origin check.
+`/health` reports `"subscriptions": {"published": true}`.
 
 Why a variable at all, when every other widget just uses the Connections base:
 bdobb hands an `iframe` endpoint to `new URL(raw)` with no base, so a relative
