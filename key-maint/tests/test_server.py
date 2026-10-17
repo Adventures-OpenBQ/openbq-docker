@@ -522,3 +522,13 @@ class TestMarkdownSummaryWidget:
         body = client(files, "admin").get("/keys", headers=AUTH).json()
         assert isinstance(body["summary"], str) and body["summary"]
         assert "provider keys configured" in body["summary"]
+
+
+def test_check_dict_includes_usage_only_when_present():
+    from app.probes import Check
+    from app.server import _check_dict
+
+    plain = _check_dict(Check("credential", "ok", "HTTP 200", None, "t"))
+    assert "usage" not in plain
+    u = {"used": 1, "limit": 10, "window": "day"}
+    assert _check_dict(Check("credential", "ok", "HTTP 200", None, "t", usage=u))["usage"] == u

@@ -55,7 +55,7 @@ too. The gateway meters requests per minute (`requestsPerMinute`) and caps concu
 | Route | Rule | Upstream |
 |---|---|---|
 | `GET /news/api/news?feed_id=<id>&limit=<n>` | Only those two keys. `feed_id` is a positive integer that must be one of `feeds`' values. `limit` is 1–50, and an out-of-range value is refused rather than clamped (`policy.mjs` `upstreamPath`). | `GET <rssOrigin>/api/news?...`, without the caller's headers. The response must be JSON, up to 2 MB, and is answered with a 12 s timeout. |
-| `GET /news/ws/news` (WebSocket upgrade, no query) | `socketTarget()` accepts it. Admission is by Bearer + Origin = `origin`, **or** by a socket ticket + Origin = `previewOrigin` (below). `maxSockets` (default 4) applies, and an admission costs 6 budget units. 503 if `feeds` is empty. | `wss://<rssOrigin>/ws/news` (`server.mjs` `connectNews`), opened only after the client's single frame passes `newsSubscription`. 64 KiB frames, no compression, no redirects. Lifetime 240 s, and the first frame must arrive within 10 s. |
+| `GET /news/ws/news` (WebSocket upgrade, no query) | `socketTarget()` accepts it. Admission is by Bearer + Origin = `origin`, **or** by a socket ticket + Origin = `previewOrigin` (below). `maxSockets` (default 4) applies, and an admission costs 6 budget units. 503 if `feeds` is empty. | `wss://<rssOrigin>/ws/news` (`server.mjs` `connectNews`), opened only after the client's single frame passes `newsSubscription`. 64 KiB frames, no compression, no redirects. No lifetime (a 30 s ping closes a socket whose client stops answering), and the first frame must arrive within 10 s. |
 | Others at v8.0.3 (not `/news`) | `/api/widgets.json`, `/api/apps.json`, `/api/api/v1/**` (structural bounds), `/api/api/v1/calendar/trading`, `/ai/agents.json`, `POST /ai/v1/query`, `/state/<id>[/<file>]`, `/_gateway/health` | openbb-api, Rita, the state volume |
 
 `newsSubscription(data, config)` applies these rules to the client's frame:
@@ -257,7 +257,7 @@ The default `ts-config/serve.json` publishes the same ports minus `:10000`, and 
   - `GET /_gateway/health`.
 - Anything else answers 404, including all of `/ai`.
 - The socket accepts one text frame, `{"subscribe":[{"url":"https://…"}, …]}`, with 1–50 unique
-  urls. It is rebuilt from the approved urls, and the socket lives at most 240 s.
+  urls. It is rebuilt from the approved urls; the socket has no lifetime, and a 30 s ping closes it once the client stops answering.
 - Ticket: `<13-digit expiry ms>.<22-char base64url nonce>.<43-char base64url HMAC-SHA256>`.
   - Key: `K = HMAC-SHA256(GATEWAY_TOKEN, "bdobb socket ticket v1")`.
   - Signed message: `"<expiry>.<nonce>.<target>"`, where `target` is `/news/ws/news`.

@@ -306,3 +306,65 @@ class TestJoinedRun:
                 probes.run_probes_joined(slow), probes.run_probes_joined(slow))
         a, b = asyncio.run(go())
         assert a is b and calls["n"] == 1
+
+
+class TestUsage:
+    """Usage rides on an ok credential check and never changes its verdict."""
+
+    def _eodhd_user(self, **over):
+        from datetime import UTC, datetime
+        body = {"apiRequests": 1234, "apiRequestsDate": datetime.now(UTC).date().isoformat(),
+                "dailyRateLimit": 100000, "extraLimit": 0}
+        body.update(over)
+        return body
+
+    def test_ok_eodhd_check_carries_usage(self):
+        seen = {}
+
+        def handler(request):
+            seen["path"] = request.url.path
+            seen["params"] = dict(request.url.params)
+            return httpx.Response(200, json=self._eodhd_user())
+
+        c = run({"EODHD_API_KEY": REAL_KEY}, handler)["EODHD_API_KEY"]
+        assert (c.result, c.detail, c.code) == ("ok", "HTTP 200", None)
+        assert c.usage["used"] == 1234 and c.usage["window"] == "day"
+        assert seen["path"] == "/api/user"
+        assert seen["params"] == {"api_token": REAL_KEY, "fmt": "json"}
+
+    def test_ok_with_unparseable_body_keeps_result_and_has_no_usage(self):
+        c = _probe_with(status=200, body="<html>maintenance</html>")
+        assert (c.result, c.detail) == ("ok", "HTTP 200")
+        assert c.usage is None
+
+    def test_failed_checks_never_carry_usage(self):
+        for status in (401, 429, 500):
+            c = _probe_with(status=status, body='{"apiRequests": 1}')
+            assert c.usage is None, status
+
+    def test_intrinio_probe_hits_current_usage(self):
+        seen = {}
+
+        def handler(request):
+            seen["path"] = request.url.path
+            seen["params"] = dict(request.url.params)
+            return httpx.Response(200, json=[{"count": 5, "limit": 50}])
+
+        c = run({"INTRINIO_API_KEY": REAL_KEY}, handler, env_var="INTRINIO_API_KEY")[
+            "INTRINIO_API_KEY"]
+        assert seen["path"] == "/account/current_usage"
+        assert seen["params"] == {"api_key": REAL_KEY}
+        assert c.usage == {"used": 5, "limit": 50, "window": "period"}
+
+    def test_eia_usage_from_headers(self):
+        def handler(request):
+            return httpx.Response(200, json={"response": {}},
+                                  headers={"x-ratelimit-limit": "1000",
+                                           "x-ratelimit-remaining": "999"})
+
+        c = run({"EIA_API_KEY": REAL_KEY}, handler, env_var="EIA_API_KEY")["EIA_API_KEY"]
+        assert c.result == "ok"
+        assert c.usage == {"used": 1, "limit": 1000, "window": "hour"}
+
+    def test_check_without_usage_still_builds_positionally(self):
+        assert Check("credential", "ok", "HTTP 200", None, "t").usage is None
