@@ -173,6 +173,12 @@
       "hide": true
      },
      {
+      "field": "stream_volume",
+      "width": 120,
+      "headerName": "Stream volume",
+      "hide": true
+     },
+     {
       "field": "day_open",
       "width": 88,
       "headerName": "Open",

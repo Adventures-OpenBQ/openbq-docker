@@ -124,6 +124,14 @@ class TestApplyTick:
         q.apply_tick("crypto", {"s": "BTC-USD", "p": 1.0, "q": 0.5, "t": 1700000000000})
         assert q.rows["BTC-USD"]["volume"] is None
 
+    def test_stream_volume_counts_the_stream_and_survives_a_reseed(self):
+        q = QuoteTable()
+        q.rows["AAPL"] = {**_blank_row("AAPL"), "volume": 1000.0}
+        q.apply_tick("us", {"s": "AAPL", "p": 90.0, "v": 40, "t": 1700000000000})
+        q.rows["AAPL"]["volume"] = 999999.0  # a re-seed from the consolidated REST snapshot
+        q.apply_tick("us", {"s": "AAPL", "p": 90.1, "v": 10, "t": 1700000001000})
+        assert q.rows["AAPL"]["stream_volume"] == 50.0
+
     def test_forex_tick_uses_mid(self):
         q = QuoteTable()
         sym = q.apply_tick("forex", {"s": "EURUSD", "a": 1.10, "b": 1.08, "t": 1700000000000})

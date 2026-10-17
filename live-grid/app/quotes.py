@@ -40,6 +40,7 @@ def _blank_row(symbol: str) -> dict[str, Any]:
         "day_open": None,
         "updated_at": None,
         "updated_ts": None,
+        "stream_volume": None,
     }
 
 
@@ -164,6 +165,12 @@ class QuoteTable:
                 # No seeded volume (null) stays null rather than starting at 0.
                 if row.get("volume") is not None:
                     row["volume"] += size
+                # stream_volume counts only what this stream has seen since the
+                # row was created; a re-seed (GET /live_grid) never resets it. The
+                # REST day volume is consolidated and the websocket is one venue,
+                # so a chart that differenced `volume` across a re-seed would
+                # print the gap between two sources as one bar.
+                row["stream_volume"] = (row.get("stream_volume") or 0.0) + size
         row["price"] = price
         # The seeded high/low is a snapshot taken minutes ago; live trades
         # routinely print outside it. Widening here is what keeps the day bar
