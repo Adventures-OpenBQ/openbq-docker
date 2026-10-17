@@ -690,12 +690,11 @@ class SsrmFixRound1Test(unittest.IsolatedAsyncioTestCase):
     client = SsrmRowsTest.client
 
     async def asyncSetUp(self):
-        for name in ("SSRM_ROUTES", "SSRM_CACHE", "_SSRM_DECLARED", "_SSRM_COLUMNS", "_CATALOG_CACHE"):
+        for name in ("SSRM_ROUTES", "SSRM_CACHE", "_SSRM_WIDGET", "_CATALOG_CACHE"):
             self.addCleanup(setattr, openbq_lanes, name, getattr(openbq_lanes, name))
         openbq_lanes.SSRM_ROUTES = {"/api/v1/listed/data": "listed_obb"}
         openbq_lanes.SSRM_CACHE = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900)
-        openbq_lanes._SSRM_DECLARED = {}
-        openbq_lanes._SSRM_COLUMNS = {}
+        openbq_lanes._SSRM_WIDGET = {}
         openbq_lanes._CATALOG_CACHE = {}
 
     def app(self, rows, widgets=None, raises=False):
@@ -799,7 +798,7 @@ class SsrmFixRound1Test(unittest.IsolatedAsyncioTestCase):
         async with self.client(app) as c:
             await c.post("/api/v1/listed/data/ssrm?a=1", json=self.req())
         self.assertEqual(self.queries, [[("a", "1")]])
-        self.assertIsNone(openbq_lanes._SSRM_DECLARED["listed_obb"])
+        self.assertIsNone(openbq_lanes._SSRM_WIDGET["listed_obb"][0])
 
     # M2 -----------------------------------------------------------------
     async def test_an_inner_exception_is_an_ordinary_500_without_its_text(self):
