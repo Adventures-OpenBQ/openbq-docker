@@ -372,10 +372,8 @@ def test_apps_json_only_names_widgets_this_service_publishes(monkeypatch):
     published but no dashboard ever placed. stores-explorer has carried the
     equivalent guard on the donor line; this is that guard, here.
     """
-    # `subscriptions` is published only when LIVE_GRID_PUBLIC_URL is set -- it
-    # cannot render without an absolute endpoint -- and the shipped dashboard
-    # assumes a configured deployment. Model that, or this asserts against a
-    # widget set no real install has.
+    # `subscriptions` is always published (unset, its endpoint is the request's
+    # own address); a configured deployment is modelled here.
     monkeypatch.setenv("LIVE_GRID_PUBLIC_URL", f"https://live-grid.{EXAMPLE_TAILNET}")
     client = make_client()
     published = set(client.get("/widgets.json").json())
@@ -410,19 +408,10 @@ def test_the_v10_dashboard_shows_every_episode_10_widget():
     assert {"live_grid", "subscriptions", "kdb_ticks", "live_chart", "kdb_cache_chart"} <= shown
 
 
-def test_health_says_why_the_subscriptions_widget_is_missing(monkeypatch):
-    """A widget omitted for configuration should say so somewhere a human looks.
-
-    `subscriptions` is `type: iframe`, and bdobb passes an iframe endpoint to
-    `new URL(raw)` with no base -- so a relative path is refused and the widget
-    needs an absolute URL from LIVE_GRID_PUBLIC_URL. Unset, it is omitted from
-    /widgets.json, and until now the only trace was a log line: the card simply
-    never appeared on the Ep. 10 dashboard, with no signal in the app.
-    """
+def test_health_reports_the_subscriptions_widget_as_published_without_a_public_url(monkeypatch):
+    """Unset, live-grid names the page by the request's own address, so it is always published."""
     monkeypatch.delenv("LIVE_GRID_PUBLIC_URL", raising=False)
-    body = make_client().get("/health").json()
-    assert body["subscriptions"]["published"] is False
-    assert "LIVE_GRID_PUBLIC_URL" in body["subscriptions"]["reason"]
+    assert make_client().get("/health").json()["subscriptions"] == {"published": True}
 
 
 def test_health_reports_the_subscriptions_widget_as_published_when_configured(monkeypatch):

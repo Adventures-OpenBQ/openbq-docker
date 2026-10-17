@@ -290,14 +290,13 @@ services:
       LIVE_GRID_LAKE_READBACK: "true"
       LIVE_GRID_LAKE_LIBRARY: ticks_live
       LIVE_GRID_LAKE_MAX_DAYS: "10"
-      # The Subscriptions iframe widget needs an absolute URL, or live-grid omits it. On this
-      # stack live-grid has no host port (P3) and BDOBB reaches it through the gateway, which
-      # serves the page at /grid/subscriptions and rewrites this widget's endpoint to its own
-      # origin (funnel-gateway server.mjs, V10-P5). So the default is live-grid's internal
-      # address: it only has to be present. Set LIVE_GRID_PUBLIC_URL in .env (compose
-      # interpolation; credentials.env's value is overridden here) only to frame live-grid
-      # directly at another address.
-      LIVE_GRID_PUBLIC_URL: ${LIVE_GRID_PUBLIC_URL:-http://live-grid:6903}
+      # The Subscriptions iframe widget needs an absolute URL. Empty (the default), live-grid
+      # names it by the scheme and host each request came in on, so a direct connection
+      # (tailnet Serve, a local relay) gets an address it can load; through the gateway the
+      # endpoint is rewritten to the gateway's own /grid/subscriptions (funnel-gateway
+      # server.mjs, V10-P5). Set LIVE_GRID_PUBLIC_URL in .env (compose interpolation;
+      # credentials.env's value is overridden here) only to pin one address for every client.
+      LIVE_GRID_PUBLIC_URL: ${LIVE_GRID_PUBLIC_URL:-}
       # The tick spool (user ruling 2026-10-12, docs/v10/live-grid-kdb-port.md "Tick spool
       # and fast reconnect"): ticks kdb does not acknowledge are appended here, on the
       # live-grid-data volume, and replayed into kdb in order, before newer ticks, once it

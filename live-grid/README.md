@@ -236,8 +236,7 @@ auth enabled the widget's initial page load receives a 401 that the client
 cannot satisfy. Resolving that is a design question, not a configuration one:
 the options are exempting the page (its API stays guarded), moving the widget
 off `type: iframe`, or adding a credential the iframe can carry. Until one is
-chosen, the subscriptions widget (only present when `LIVE_GRID_PUBLIC_URL` is
-set) does not work through the guard — and since auth is on by default in
+chosen, the subscriptions widget does not work through the guard — and since auth is on by default in
 this stack, that is the widget's default state, not an opt-in one.
 
 ## Test
@@ -317,20 +316,12 @@ the widget but cannot be removed there — they lapse on their own TTL. A
 watchlist file with more symbols than the cap only has the first `cap` of
 them (sorted) registered at startup; the rest are logged as dropped.
 
-The widget itself needs `LIVE_GRID_PUBLIC_URL` set (e.g.
-`https://openbb.<your-tailnet>.ts.net:6903`) — an `iframe` widget's endpoint
-must be an absolute URL, so without it the subscriptions widget is left out
-of `/widgets.json` entirely rather than shipping a broken one.
-
-**Check it from `/health`**, which reports the widget's state and why:
-
-```json
-"subscriptions": {"published": false,
-                  "reason": "LIVE_GRID_PUBLIC_URL is not set; ..."}
-```
-
-Without that key the omission is invisible from the app: the card simply never
-appears on the Ep. 10 dashboard and the only trace is a log line.
+An `iframe` widget's endpoint must be an absolute URL. `/widgets.json` uses
+`LIVE_GRID_PUBLIC_URL` when it is set (e.g.
+`https://openbb.<your-tailnet>.ts.net:6903`); unset or empty, it uses the
+scheme and host the request came in on, so any address a client reaches
+live-grid at works without configuration. `X-Forwarded-*` headers are not
+consulted. `/health` reports `"subscriptions": {"published": true}`.
 
 Why a variable at all, when every other widget just uses the Connections base:
 bdobb hands an `iframe` endpoint to `new URL(raw)` with no base, so a relative
@@ -362,7 +353,8 @@ the resulting `Origin: null` is refused by the origin check on `POST`/`DELETE
 
 Tailnet-only, like every route here. Never funnel it. `POST`/`DELETE
 /api/subscriptions` additionally reject a request whose browser `Origin`
-header does not match `LIVE_GRID_PUBLIC_URL` (a request with no `Origin`,
+header does not match `LIVE_GRID_PUBLIC_URL` (unset: the request's own scheme and
+host, the origin the page was framed from; a request with no `Origin`,
 e.g. curl, is unaffected) — CORS here is wide open for the Workspace origin's
 reads, and this keeps some other page an operator has open from silently
 mutating the durable watchlist.

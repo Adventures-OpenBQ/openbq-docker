@@ -109,13 +109,14 @@ def test_the_tick_spool_is_on_the_persistent_live_grid_volume_and_bounded():
     assert (float(env['KDB_RETRY_INITIAL_S']), float(env['KDB_RETRY_MAX_S'])) == (1.0, 15.0)
 
 
-def test_the_subscriptions_widget_is_published_for_the_gateway_to_reframe():
-    """V10-P5 (user, 2026-10-13): live-grid publishes its Subscriptions widget only with an
-    absolute LIVE_GRID_PUBLIC_URL. The gateway rewrites the endpoint to its own
-    /grid/subscriptions, so the compose default is live-grid's internal address -- present,
-    overridable from .env, and never a host port (P3 still holds; see the test above)."""
+def test_live_grid_does_not_advertise_its_internal_hostname():
+    """V10-P5 (user, 2026-10-13) made the default http://live-grid:6903, which no client can
+    load: a direct connection (tailnet Serve, a local relay) framed a blank page. Empty now,
+    live-grid names the page by the address the request used; the gateway still rewrites the
+    endpoint to its own /grid/subscriptions. Overridable from .env, never a host port (P3)."""
     env = SERVICES['live-grid']['environment']
-    assert env['LIVE_GRID_PUBLIC_URL'] == '${LIVE_GRID_PUBLIC_URL:-http://live-grid:6903}'
+    assert env['LIVE_GRID_PUBLIC_URL'] == '${LIVE_GRID_PUBLIC_URL:-}'
+    assert 'live-grid:6903' not in json.dumps(env)
 
 
 def test_no_licence_or_key_is_tracked_and_the_examples_are_empty():

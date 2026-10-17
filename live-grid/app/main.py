@@ -234,15 +234,15 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     # The desktop client passes an iframe widget's `endpoint` straight to
     # `new URL(raw)` with no base -- a relative path is refused outright, so
     # the subscriptions widget needs an absolute URL rewritten in at request
-    # time (GET /widgets.json below). Without this set there is no way to
-    # advertise a working iframe endpoint, so the widget is omitted instead
-    # of shipping one that always errors.
+    # time (GET /widgets.json below). LIVE_GRID_PUBLIC_URL names it when set;
+    # unset or empty, the request's own scheme and host do (Starlette
+    # request.base_url), so a direct connection gets an address it can load.
+    # Forwarded headers are not consulted: uvicorn trusts them only from
+    # loopback, and nothing else here reads them.
     public_url = (os.getenv("LIVE_GRID_PUBLIC_URL") or "").strip().rstrip("/") or None
-    if public_url is None:
-        log.warning(
-            "LIVE_GRID_PUBLIC_URL is not set; the subscriptions widget will be "
-            "omitted from /widgets.json (it cannot render without an absolute endpoint)"
-        )
+
+    def _own_url(request: Request) -> str:
+        return public_url or str(request.base_url).rstrip("/")
 
     async def _sweep_leases() -> None:
         interval = float(os.getenv("LIVE_GRID_LEASE_SWEEP_S", "30"))
@@ -345,7 +345,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         return JSONResponse(json.loads(APPS_PATH.read_text()))
 
     @app.get("/widgets.json")
-    def widgets() -> JSONResponse:
+    def widgets(request: Request) -> JSONResponse:
         spec = json.loads(WIDGETS_PATH.read_text())
         try:
             macros = load_macros_all()
@@ -357,11 +357,8 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                 param["options"] = [{"label": "None", "value": "none"}] + [
                     {"label": m.label, "value": name} for name, m in sorted(macros.items())
                 ]
-        if public_url is not None:
-            if "subscriptions" in spec:
-                spec["subscriptions"]["endpoint"] = f"{public_url}/subscriptions"
-        else:
-            spec.pop("subscriptions", None)
+        if "subscriptions" in spec:
+            spec["subscriptions"]["endpoint"] = f"{_own_url(request)}/subscriptions"
         return JSONResponse(spec)
 
     @app.get("/live_grid")
@@ -568,23 +565,9 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             "calls_per_indicator": 5,
             "min_refetch_s": float(os.getenv("TA_EODHD_MIN_REFETCH_S", "60")),
         }
-        # Why the subscriptions card may be absent from a dashboard. Omitting
-        # the widget is correct -- an iframe endpoint must be absolute, and
-        # without LIVE_GRID_PUBLIC_URL there is no working one to advertise --
-        # but until this key the only trace was a log line, so the Ep. 10
-        # dashboard just showed one card fewer with nothing to explain it.
-        body["subscriptions"] = (
-            {"published": True}
-            if public_url is not None
-            else {
-                "published": False,
-                "reason": (
-                    "LIVE_GRID_PUBLIC_URL is not set; an iframe widget's endpoint "
-                    "must be absolute, so the widget is omitted rather than "
-                    "advertised as one that always errors"
-                ),
-            }
-        )
+        # Kept for clients that read it: the widget is always published now
+        # (unset, its endpoint is the request's own address).
+        body["subscriptions"] = {"published": True}
         return body
 
     @app.post("/subscribe")
@@ -713,7 +696,8 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
 
     def _reject_foreign_origin(request: Request) -> None:
         """403 a mutating request whose browser-supplied Origin is not this
-        widget's own public URL.
+        widget's own public URL (unset: the address the request came in on,
+        the origin the page was framed from).
 
         CORS here is wide open (`allow_origins=["*"]`, needed for the
         Workspace origin's read-only fetches), so with no check any page an
@@ -724,7 +708,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         origin = request.headers.get("origin")
         if origin is None:
             return
-        if public_url is None or origin.rstrip("/") != public_url:
+        if origin.rstrip("/") != _own_url(request):
             raise HTTPException(status_code=403, detail="origin not allowed")
 
     @app.get("/api/subscriptions")

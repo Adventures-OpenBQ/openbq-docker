@@ -3,6 +3,8 @@
 
 """The subscription API: grouping, and a cap that counts the vendor's view."""
 
+import pytest
+
 from tests.test_main import make_client
 
 # openbq-docker: built at run time so scripts/check-public.py never sees a literal tailnet name.
@@ -187,13 +189,25 @@ def test_a_trailing_slash_on_the_public_url_does_not_double_up(tmp_path, monkeyp
     assert widgets["subscriptions"]["endpoint"] == f"https://openbb.{EXAMPLE_TAILNET}:6903/subscriptions"
 
 
-def test_the_widget_is_omitted_when_no_public_url_is_configured(tmp_path, monkeypatch):
-    """Advertising a widget that will always render an error is worse than not
-    advertising it -- live_grid and everything else must be untouched."""
-    monkeypatch.delenv("LIVE_GRID_PUBLIC_URL", raising=False)
-    widgets = _client(tmp_path, monkeypatch).get("/widgets.json").json()
-    assert "subscriptions" not in widgets
+@pytest.mark.parametrize("unset", [None, "", "  "])
+def test_without_a_public_url_the_widget_points_at_the_address_the_client_used(tmp_path, monkeypatch, unset):
+    """A direct connection (tailnet Serve, a local relay) must get a URL it can load: the
+    scheme and host the request came in on, not an internal compose hostname."""
+    if unset is None:
+        monkeypatch.delenv("LIVE_GRID_PUBLIC_URL", raising=False)
+    else:
+        monkeypatch.setenv("LIVE_GRID_PUBLIC_URL", unset)
+    client = _client(tmp_path, monkeypatch)
+    widgets = client.get("http://localhost:26906/widgets.json").json()
+    assert widgets["subscriptions"]["endpoint"] == "http://localhost:26906/subscriptions"
     assert "live_grid" in widgets
+    # The page it frames posts back to the same origin; that must not be refused.
+    r = client.post("http://localhost:26906/api/subscriptions", json={"symbol": "AAPL"},
+                    headers={"Origin": "http://localhost:26906"})
+    assert r.status_code == 201
+    r = client.post("http://localhost:26906/api/subscriptions", json={"symbol": "MSFT"},
+                    headers={"Origin": "https://evil.example.com"})
+    assert r.status_code == 403
 
 
 def test_a_websocket_registered_symbol_counts_toward_used(tmp_path, monkeypatch):

@@ -391,8 +391,8 @@ function replyPage(res, html) {
 }
 /**
  * The one widget whose endpoint the door rewrites: live-grid names its Subscriptions page by
- * its own LIVE_GRID_PUBLIC_URL, which on this stack is the internal compose address
- * (docker-compose.yml). Relayed through /grid, the frame must open THIS door's page --
+ * LIVE_GRID_PUBLIC_URL or, unset (the compose default), by the address the request came in on
+ * -- here the internal compose address. Relayed through /grid, the frame must open THIS door's page --
  * an absolute URL on this origin, which is also what lets BDOBB hand it the credential
  * (WidgetCard.tsx messagingFor: frame origin === backend origin).
  */
