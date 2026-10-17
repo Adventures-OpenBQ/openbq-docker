@@ -69,15 +69,18 @@ class ApiImages(unittest.TestCase):
             with self.subTest(name):
                 self.assertIn(f"image: {name}:{release}\n", overlay)
 
-    def test_the_v6_overlay_pins_the_release_by_digest(self):
-        # Rita and MCP are published images: the release tag plus the digest it was verified at.
-        # Later lines ship the Episode 6 builds unchanged (GHCR has 6.0.0 only), so the tag stays
-        # 6.0.0 while key-maint follows the line's version.
-        release = "6.0.0"
+    def test_the_v6_overlay_builds_rita_and_mcp_locally(self):
+        # The GHCR images are private: Rita comes from agent-rita-bdobb's build.sh and MCP
+        # builds from ./mcp on this release's API image. Compose must never pull either.
+        release = re.search(r"image: ghcr.io/adventures-openbq/openbq-key-maint:(\S+)",
+                            dockerfile("docker-compose.v3.yml")).group(1)
         overlay = dockerfile("docker-compose.v6.yml")
-        for name in ("openbq-rita", "openbq-mcp"):
-            with self.subTest(name):
-                self.assertRegex(overlay, rf"image: ghcr.io/adventures-openbq/{name}:{re.escape(release)}@sha256:[0-9a-f]{{64}}\n")
+        self.assertNotIn("ghcr.io", overlay)
+        self.assertIn("image: openbq-rita:6.0.0\n    pull_policy: never\n", overlay)
+        self.assertIn(f"image: openbq-mcp:{release}\n    pull_policy: never\n", overlay)
+        self.assertIn("context: ./mcp", overlay)
+        self.assertIn("base: service:openbq-api", overlay)
+        self.assertIn(f"ARG BASE=openbq-local:{release}\n", dockerfile("mcp/Dockerfile"))
 
 
 if __name__ == "__main__":

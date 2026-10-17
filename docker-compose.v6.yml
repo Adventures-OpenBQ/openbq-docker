@@ -3,13 +3,17 @@
 # endpoint lives in the private rita.env (copy rita.env.example). Rita runs in the
 # tailscale service's network namespace; MCP is on openbq-internal. Neither service
 # publishes a host port; the Tailscale sidecar serves Rita on 10443 and MCP on
-# 11443 (ts-config/serve-v6.json). Image recipe: Adventures-OpenBQ/agent-rita.
+# 11443 (ts-config/serve-v6.json). Both images are built locally and never pulled:
+# Rita by Adventures-OpenBQ/agent-rita-bdobb v6.0.0 (scripts/build.sh), MCP from ./mcp
+# on top of the openbq-api image that docker-compose.v3.yml builds.
 services:
   tailscale:
     environment:
       TS_SERVE_CONFIG: /config/serve-v6.json
   openbq-rita:
-    image: ghcr.io/adventures-openbq/openbq-rita:6.0.0@sha256:6e4224846448ce26b908b76edbc180ffc77ad8509564e2317126825113c4e520
+    # Built beforehand by agent-rita-bdobb's scripts/build.sh; compose never pulls it.
+    image: openbq-rita:6.0.0
+    pull_policy: never
     restart: unless-stopped
     # Rita shares the Tailscale sidecar's network namespace (like a Rita on a tailnet
     # machine's host networking) so it can resolve and reach a tailnet model endpoint through
@@ -21,7 +25,15 @@ services:
     volumes:
       - ./rita-resolv.conf:/etc/resolv.conf:ro
   openbq-mcp:
-    image: ghcr.io/adventures-openbq/openbq-mcp:6.0.0@sha256:d76fbbac7392e58c71572195f1208c1ba03d4b959260c49e07a817c69851c8d2
+    build:
+      context: ./mcp
+      args:
+        BASE: base
+      # Builds openbq-api first and hands its image to mcp/Dockerfile as BASE.
+      additional_contexts:
+        base: service:openbq-api
+    image: openbq-mcp:8.0.0
+    pull_policy: never
     restart: unless-stopped
     command: [openbb-mcp, --host, 0.0.0.0, --port, "6901", --default-categories, equity, --tool-discovery]
     environment:
