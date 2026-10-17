@@ -26,8 +26,6 @@ import time
 from collections import deque
 from datetime import datetime, timedelta
 
-from app.spool import MAX_FAILURES
-
 log = logging.getLogger(__name__)
 
 # Ticks per replayed kdb write: one IPC round trip, a few hundred KB.
@@ -173,7 +171,7 @@ class TickRecorder:
         (acknowledged, counted `deduped`) when kdb already holds every row.
         """
         spool = self.spool
-        if spool is None or not spool.pending or self._backing_off():
+        if spool is None or not spool.pending or self._backing_off() or spool.backing_off():
             return 0
         try:
             return self._replay(spool)
@@ -215,10 +213,12 @@ class TickRecorder:
                 return total
             except Exception as exc:  # noqa: BLE001 - stays staged: in doubt next time
                 if spool.fail():
-                    # D5: the same error on every resend; set it aside rather than block.
+                    # D5/Q3: the same error on every resend, for over a minute of backoff;
+                    # set it aside rather than block.
+                    sends = spool.fails
                     spool.quarantine(seg)
                     log.warning("tick spool: quarantined %d ticks after %d failed sends: %s",
-                                len(seg.rows), MAX_FAILURES, exc)
+                                len(seg.rows), sends, exc)
                     continue
                 # Warn once per segment; the retries every 0.2 s would flood the log.
                 (log.warning if spool.fails == 1 else log.debug)(

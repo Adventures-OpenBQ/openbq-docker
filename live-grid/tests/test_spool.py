@@ -627,41 +627,101 @@ class _Poison:
         return 0
 
 
-def test_a_batch_that_always_fails_is_quarantined_and_the_spool_moves_on(tmp_path, caplog):
-    """D5: an error that recurs on every resend (a 'type after a schema change) used to block
-    the spool for good. After MAX_FAILURES sends the segment goes to quarantine/, /health counts
-    it, newer ticks flow, and only the first failure and the quarantine log a warning."""
-    store = _Poison()
-    rec = TickRecorder(store, spool=TickSpool(tmp_path / "spool"))
-    rec.record("BTC-USD", -1, 0.0, T0)
-    rec.flush()  # sent, raised: spooled in doubt
-    for i in range(1, 51):
+class _Wall:
+    """An injectable UTC clock for the spool's backoff and quarantine floor."""
+
+    def __init__(self):
+        self.t = datetime(2026, 10, 16, 12, 0, tzinfo=timezone.utc)
+
+    def __call__(self):
+        return self.t
+
+    def tick(self, seconds):
+        self.t += timedelta(seconds=seconds)
+
+    def mono(self):
+        return self.t.timestamp()
+
+
+def _poison_run(tmp_path, wall, seconds, store=None, rec=None, poison=True):
+    """Record one poison tick (unless poison=False), then a good tick and a flush every
+    simulated second. Good prices keep rising across calls."""
+    store = store or _Poison()
+    rec = rec or TickRecorder(store, spool=TickSpool(tmp_path / "spool", utcnow=wall, clock=wall.mono))
+    if poison:
+        rec.record("BTC-USD", -1, 0.0, T0)
+        rec.flush()  # sent, raised: spooled in doubt
+    base = getattr(rec, "_test_ticks", 0)
+    rec._test_ticks = base + seconds
+    for i in range(base + 1, base + seconds + 1):
+        wall.tick(1)
         rec.record("BTC-USD", float(i), 0.0, T0 + timedelta(seconds=i))
         rec.flush()
+    return store, rec
+
+
+def test_a_batch_that_always_fails_is_quarantined_only_after_backoff_and_a_minute(tmp_path, caplog):
+    """D5, then Q3 (re-review 2026-10-16): an error that recurs on every resend used to block the
+    spool for good; then 5 sends in ~1 s quarantined it, so a q error lasting a second (a full
+    kdb-data disk) lost the batch for good. Now resends back off exponentially and the segment
+    is quarantined only after MAX_FAILURES sends AND QUARANTINE_MIN_S of wall clock."""
+    wall = _Wall()
+    attempts = []
+
+    class Counting(_Poison):
+        def write_ticks(self, frame):
+            if (frame["price"] == -1).any():
+                attempts.append(wall.t)
+            return super().write_ticks(frame)
+
+    store, rec = _poison_run(tmp_path, wall, spool_mod.QUARANTINE_MIN_S - 1, store=Counting())
+    assert rec.stats()["quarantined"] == 0 and rec.spooled > 0, "quarantined before the floor"
+    # backed off: far fewer sends than flushes, with growing gaps
+    gaps = [(b - a).total_seconds() for a, b in zip(attempts[1:], attempts[2:])]
+    assert gaps == sorted(gaps) and gaps[-1] >= 16
+    _poison_run(tmp_path, wall, 200, store=store, rec=rec, poison=False)
     assert rec.stats()["quarantined"] == 1 and rec.spooled == 0
+    assert len(attempts) == 1 + spool_mod.MAX_FAILURES
     written = [p for f in store.frames for p in f["price"]]
-    assert written == [float(i) for i in range(1, 51)]
+    assert written == sorted(written) and -1.0 not in written and len(written) > 200
     (qfile,) = (tmp_path / "spool" / spool_mod.QUARANTINE).iterdir()
     assert [decode(line)[0][2] for line in qfile.read_bytes().splitlines(keepends=True)] == [-1.0]
     warnings = [r for r in caplog.records if r.levelname == "WARNING" and r.name == "app.recorder"]
     assert len(warnings) <= 3, [r.getMessage() for r in warnings]
-    # a restart still reports it
-    assert TickSpool(tmp_path / "spool").quarantined == 1
+    assert TickSpool(tmp_path / "spool").quarantined == 1  # a restart still reports it
 
 
-def test_the_failure_count_survives_a_restart(tmp_path):
-    """D5: a restart does not reset the count, so a poison segment cannot block forever."""
-    rec = TickRecorder(_Poison(), spool=TickSpool(tmp_path / "spool"))
-    rec.record("BTC-USD", -1, 0.0, T0)
-    rec.flush()
-    for _ in range(spool_mod.MAX_FAILURES - 2):
-        rec.flush()
+def test_an_error_that_clears_within_the_backoff_loses_nothing(tmp_path):
+    """Q3: the full-disk case. The q error lasts ~30 s, then q accepts again: the batch lands,
+    in order before every newer tick, and nothing is quarantined."""
+    wall = _Wall()
+    healed = {"at": wall.t + timedelta(seconds=30)}
+
+    class Healing(_Poison):
+        def write_ticks(self, frame):
+            if wall.t >= healed["at"]:
+                self.frames.append(frame)
+                return len(frame)
+            return super().write_ticks(frame)
+
+    store, rec = _poison_run(tmp_path, wall, 120, store=Healing())
+    written = [p for f in store.frames for p in f["price"]]
+    assert written[0] == -1.0 and written[1:] == sorted(written[1:]) and len(written) == 121
+    assert rec.stats()["quarantined"] == 0 and rec.spooled == 0
+
+
+def test_the_failure_count_and_its_start_survive_a_restart(tmp_path):
+    """D5/Q3: a restart resets neither the count nor the wall-clock start, so a poison segment
+    cannot block forever, and a restart cannot make it quarantine early either."""
+    wall = _Wall()
+    _, rec = _poison_run(tmp_path, wall, 10)
+    fails = rec.spool.fails
+    assert 0 < fails < spool_mod.MAX_FAILURES
     rec.close()
-    rec = TickRecorder(_Poison(), spool=TickSpool(tmp_path / "spool"))
-    rec.flush()
-    assert rec.spooled == 1
-    rec.flush()
-    assert rec.spooled == 0 and rec.stats()["quarantined"] == 1
+    s = TickSpool(tmp_path / "spool", utcnow=wall, clock=wall.mono)
+    assert s.fails == fails and s.first_fail == wall.t.timestamp() - 9  # the first resend, at +1 s
+    _, rec = _poison_run(tmp_path, wall, 300, rec=TickRecorder(_Poison(), spool=s), poison=False)
+    assert rec.stats()["quarantined"] == 1
 
 
 def test_a_graceful_stop_waits_for_the_flush_in_flight(tmp_path):
@@ -736,3 +796,22 @@ def test_a_spool_file_name_is_never_reused(tmp_path, monkeypatch):
     assert names and first not in names
     s.close()
     assert TickSpool(tmp_path / "spool").count == 7
+
+
+def test_a_quarantined_file_moved_back_is_replayed_after_the_backlog_once(tmp_path):
+    """Q3: the documented re-send. With a part-acknowledged backlog on disk, a quarantined file
+    moved in as ticks_9999-12-31_000000.jsonl leaves the cursor where it was: nothing is sent
+    twice, and the moved file comes last."""
+    d = tmp_path / "spool"
+    s = TickSpool(d)
+    s.append([(T0, "BTC-USD", float(i), 0.0) for i in range(6)])
+    seg = s.head(2)
+    s.ack(seg)  # 0 and 1 are in kdb
+    s.close()
+    (d / "ticks_9999-12-31_000000.jsonl").write_bytes(encode((T0, "BTC-USD", -1.0, 0.0)))
+    s = TickSpool(d)
+    sent = []
+    while (seg := s.head(100)) is not None:
+        sent += [r[2] for r in seg.rows]
+        s.ack(seg)
+    assert sent == [2.0, 3.0, 4.0, 5.0, -1.0] and s.count == 0

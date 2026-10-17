@@ -26,13 +26,20 @@ Layout, all under one directory on live-grid's persistent volume
   confirmed. Replaced atomically (temp file, fsync, rename, fsync dir). It also
   keeps `seq`, `[UTC date, n]` for the last file opened, so a deleted file's
   name is never reused that day (D16: a cursor left naming a deleted file
-  would otherwise skip the first bytes of its namesake), and `fails`, how many
-  sends of the head segment have raised (D5).
-- `quarantine/` -- segments that failed MAX_FAILURES sends in a row (a q error
-  that recurs on every resend, such as a `'type` after a schema change). They
-  are moved here, acknowledged, and counted in `/health` (`ticks.quarantined`),
-  so one poison batch cannot block every newer tick until the cap drops them.
-  Same line format, kept for an operator to inspect or re-send.
+  would otherwise skip the first bytes of its namesake), `fails`, how many
+  sends of the head segment have raised (D5), and `first_fail`, the wall-clock
+  time of the first of them (Q3).
+- `quarantine/` -- segments whose send kept raising (a q error that recurs on
+  every resend, such as a `'type` after a schema change). Resends back off
+  exponentially (1 s doubling to 60 s), and a segment is moved here only after
+  MAX_FAILURES sends spanning at least QUARANTINE_MIN_S of wall clock, so an
+  error that clears (a full kdb-data disk freed) loses nothing. Moved, it is
+  acknowledged and counted in `/health` (`ticks.quarantined`), so one poison
+  batch cannot block every newer tick until the cap drops them. Same line
+  format. To re-send one: stop live-grid, move the file into the spool
+  directory as `ticks_9999-12-31_<six digits>.jsonl` (a name that sorts after
+  every live file, so the replay cursor is undisturbed), start live-grid; it is
+  replayed after the backlog, out of time order.
 
 Durability. Appends are written through to the OS on every call, so a hard
 kill of live-grid (SIGKILL, OOM) loses nothing that was appended. fsync runs
@@ -76,10 +83,12 @@ SUFFIX = ".jsonl"
 DEFAULT_MAX_MB = 256
 DEFAULT_FSYNC_S = 1.0
 QUARANTINE = "quarantine"
-# Sends of one segment that may raise before it is quarantined (D5). At the 0.2 s flush that is
-# about a second of retries for an error that never clears; a q that is merely down raises
-# KdbUnavailable instead, which never counts.
-MAX_FAILURES = 5
+# Raised sends of one segment before it is quarantined (D5), and the wall clock they must span
+# (Q3): with the 1, 2, 4 .. 60 s backoff, 8 sends take about two minutes. A q that is merely
+# down raises KdbUnavailable instead, which never counts.
+MAX_FAILURES = 8
+QUARANTINE_MIN_S = 60
+BACKOFF_MAX_S = 60.0
 
 
 @dataclass
@@ -135,6 +144,8 @@ class TickSpool:
         self._state = {"file": None, "offset": 0, "inflight": None}
         self._seq = None  # [day, n] of the last file opened; n only rises within a day (D16)
         self.fails = 0  # raised sends of the head segment (D5)
+        self.first_fail = None  # wall-clock seconds of the first of them (Q3)
+        self.retry_at = 0.0  # `clock` time before which the head is not resent (Q3; in memory)
         self.quarantined = 0  # ticks moved to quarantine/
         self._load()
 
@@ -156,13 +167,14 @@ class TickSpool:
                 self._state.update({k: saved.get(k) for k in ("file", "offset", "inflight")})
                 self._seq = saved.get("seq")
                 self.fails = int(saved.get("fails") or 0)
+                self.first_fail = saved.get("first_fail")
         except FileNotFoundError:
             pass
         except (OSError, ValueError) as exc:
             log.warning("tick spool: unreadable cursor %s (%s); replaying from the start", state_path, exc)
         if not files or self._state.get("file") != files[0]:
             self._state = {"file": files[0] if files else None, "offset": 0, "inflight": None}
-            self.fails = 0
+            self.fails, self.first_fail = 0, None
         quarantine = self.dir / QUARANTINE
         if quarantine.is_dir():
             self.quarantined = sum(_count_lines(p, 0) for p in quarantine.iterdir() if p.is_file())
@@ -182,7 +194,7 @@ class TickSpool:
         files = self._files()
         if files and self._state["file"] != files[0]:
             self._state = {"file": files[0], "offset": 0, "inflight": None}
-            self.fails = 0
+            self.fails, self.first_fail = 0, None
         if self.count:
             log.warning("tick spool: %d ticks left by a previous run in %s; replaying them first",
                         self.count, self.dir)
@@ -430,10 +442,19 @@ class TickSpool:
         self._advance(seg.file, seg.end)
 
     def fail(self) -> bool:
-        """A send of the head segment raised. True once it has failed MAX_FAILURES times."""
+        """A send of the head segment raised: back off. True once it has failed MAX_FAILURES
+        times over at least QUARANTINE_MIN_S of wall clock (Q3)."""
+        now = self._utcnow().timestamp()
+        if not self.fails or self.first_fail is None:
+            self.first_fail = now
         self.fails += 1
+        self.retry_at = self._clock() + min(BACKOFF_MAX_S, 2.0 ** (self.fails - 1))
         self._save_state()
-        return self.fails >= MAX_FAILURES
+        return self.fails >= MAX_FAILURES and now - self.first_fail >= QUARANTINE_MIN_S
+
+    def backing_off(self) -> bool:
+        """True while a failed head segment waits for its next try."""
+        return self.fails > 0 and self._clock() < self.retry_at
 
     def quarantine(self, seg: Segment) -> None:
         """Move `seg` to quarantine/ (fsynced) and acknowledge it, so replay moves on."""
@@ -447,7 +468,7 @@ class TickSpool:
         self.ack(seg)
 
     def _advance(self, name: str, end: int) -> None:
-        self.fails = 0
+        self.fails, self.first_fail, self.retry_at = 0, None, 0.0
         self._state = {"file": name, "offset": end, "inflight": None}
         path = self.dir / name
         size = path.stat().st_size if path.exists() else end
@@ -476,7 +497,7 @@ class TickSpool:
         self.dir.mkdir(parents=True, exist_ok=True)
         tmp = self.dir / (STATE_NAME + ".tmp")
         with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(dict(self._state, seq=self._seq, fails=self.fails), fh)
+            json.dump(dict(self._state, seq=self._seq, fails=self.fails, first_fail=self.first_fail), fh)
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp, self.dir / STATE_NAME)
