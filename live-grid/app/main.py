@@ -137,8 +137,58 @@ async def fetch_history(symbol, interval, start, end, provider="kdb"):
     return rows, meta
 
 
+async def fill_gaps(symbol, interval, ticks, lo, hi, store, key, meta, provider="kdb"):
+    """Tick bars with the minutes no tick covers filled from EODHD (app/gapfill.py).
+
+    A restarted live-grid hears nothing while it is down; the spool and kdb's
+    tick log cover every tick it did hear. US equities fill from the real-time
+    service's recent minute bars, crypto from intraday 1m (a different source,
+    so a filled minute may step in price or volume at its edges); forex is left
+    as it is. Ticks win wherever they exist. A width that is not a whole number
+    of minutes cannot be built from minute bars, and any failure serves the
+    ticks unfilled.
+    """
+    from openbq_kdb.aggregate import aggregate_ticks, bucket_ns
+
+    from app import gapfill
+    from app.classify import classify
+    from app.series import _row_dt, resample
+
+    try:
+        if bucket_ns(interval) % (60 * 10**9):
+            return ticks
+    except ValueError:
+        return ticks
+    kind = classify(symbol)
+    try:
+        if kind == "us":
+            fill = await gapfill.recent_minutes(symbol, key)
+        elif kind == "crypto":
+            fill, _ = await fetch_series(symbol, "1m", str(lo.date()), str(hi.date()), provider)
+        else:
+            return ticks
+        minutes = ticks if interval == "1m" else await asyncio.to_thread(
+            aggregate_ticks, store, symbol, "1m", lo, hi)
+    except Exception as exc:  # noqa: BLE001 - the chart still works unfilled
+        log.warning("gap fill unavailable for %s: %s", symbol, exc)
+        return ticks
+    have = {_row_dt(r["date"]) for r in minutes}
+    extra = []
+    for row in fill:
+        t = _row_dt(row["date"])
+        if lo <= t < hi and t not in have:
+            extra.append({**row, "date": t})
+    if not extra:
+        return ticks
+    meta["rows_from_gapfill"] = len(extra)
+    merged = list(minutes) + extra
+    if interval == "1m":
+        return sorted(merged, key=lambda r: _row_dt(r["date"]))
+    return resample(merged, interval)
+
+
 async def build_series(symbol, interval, start, end, recorder, window, provider="kdb",
-                       lake=None):
+                       lake=None, gap_key=None):
     """History joined to tick-derived bars at the first fully-covered bar.
 
     openbq-docker v10: with `lake` (app.lake.LakeTicks, the Delta store eod-dump
@@ -183,6 +233,9 @@ async def build_series(symbol, interval, start, end, recorder, window, provider=
         ticks = await asyncio.to_thread(
             aggregate_ticks, recorder.store, symbol, interval, boundary, hi
         )
+        if gap_key:
+            ticks = await fill_gaps(symbol, interval, ticks, boundary, hi, recorder.store,
+                                    gap_key, meta, provider)
     except Exception as exc:  # noqa: BLE001 - the chart still works without ticks
         log.warning("tick aggregation unavailable for %s: %s", symbol, exc)
         return history, meta
@@ -413,7 +466,8 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         s, e = _window(start, end, 5 if intraday(interval) else 365)
         try:
             bars, meta = await build_series(
-                symbol, interval, s, e, recorder, _tick_window(), provider, lake=lake
+                symbol, interval, s, e, recorder, _tick_window(), provider, lake=lake,
+                gap_key=key,
             )
         except Exception as exc:  # noqa: BLE001
             log.warning("series failed for %s: %s", symbol, exc)

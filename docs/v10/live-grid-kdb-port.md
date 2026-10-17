@@ -284,6 +284,10 @@ restart recovery.
 
 What a restart loses, by design: ticks EODHD sends while live-grid is down (no feed), and a
 flush that fails while kdb is down (bounded buffer, counted in `/health` `ticks.dropped`).
+The Live Chart's `/series` fills those down minutes at query time (user ruling 2026-10-17,
+`app/gapfill.py`): US equities from EODHD's recent closed minute bars (the same EDGX stream,
+about the last two traded hours), crypto from intraday 1m; forex stays unfilled. A filled
+minute serves 1m and wider widths only, and the ticks themselves (Tick History) keep the hole.
 
 ### The S3 tier (724739e)
 
