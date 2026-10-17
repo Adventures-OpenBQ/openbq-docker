@@ -15,14 +15,18 @@ import os
 import tempfile
 from pathlib import Path
 
+from app.classify import normalize
+
 log = logging.getLogger(__name__)
 
 DEFAULT_PATH = "/data/watchlist.json"
 
 
 def _normalise(symbol: str) -> str:
-    """Same rule as LeaseRegistry.renew and classify(), so one symbol has one form."""
-    return str(symbol).strip().upper()
+    """The bare feed form (classify.normalize, L1), so one symbol has one form and a pre-L1
+    AAPL.US entry is AAPL (S1). A symbol with no feed form (BRK.B) is kept upper-cased, so it
+    can still be listed and deleted; the feed leaves it out."""
+    return normalize(symbol) or str(symbol).strip().upper()
 
 
 class Watchlist:
@@ -51,6 +55,14 @@ class Watchlist:
             self._symbols = set()
             return
         self._symbols = {_normalise(s) for s in raw if _normalise(s)}
+        if sorted(self._symbols) != raw:
+            # S1: a one-time rewrite in the normalised form (a pre-L1 AAPL.US, duplicates).
+            # Best-effort: a failed write leaves the file for the next start to try again.
+            try:
+                self._save()
+                log.info("watchlist at %s rewritten in normalised form", self._path)
+            except OSError as exc:
+                log.warning("watchlist at %s could not be rewritten: %s", self._path, exc)
 
     def symbols(self) -> list[str]:
         return sorted(self._symbols)

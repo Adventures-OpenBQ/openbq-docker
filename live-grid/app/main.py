@@ -748,8 +748,10 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     @app.delete("/api/subscriptions/{symbol}")
     async def remove_subscription(symbol: str, request: Request):
         _reject_foreign_origin(request)
+        # S1: the watchlist normalises, so AAPL.US and AAPL name one entry; a symbol with no
+        # feed form (a legacy BRK.B) is matched as written.
         sym = normalize(symbol) or symbol.strip().upper()
-        if not watchlist.remove(sym):
+        if not watchlist.remove(symbol):
             raise HTTPException(status_code=404, detail=f"{sym} is not subscribed")
         _apply_watchlist()
         return _subscription_payload()

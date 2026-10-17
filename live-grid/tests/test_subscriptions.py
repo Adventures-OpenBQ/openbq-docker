@@ -310,3 +310,17 @@ def test_grid_params_keep_only_symbols_the_feed_can_take():
     from app.main import _parse_symbols
 
     assert _parse_symbols("AAPL.US, btc-usd.cc,BRK.B,,^GSPC") == ["AAPL", "BTC-USD", "^GSPC"]
+
+
+def test_a_legacy_qualified_watchlist_entry_counts_once_and_deletes_by_either_spelling(tmp_path, monkeypatch):
+    """S1: a pre-L1 watchlist holding AAPL.US took a cap slot the feed never used and answered
+    404 to DELETE /api/subscriptions/AAPL.US."""
+    import json
+
+    (tmp_path / "w.json").write_text(json.dumps(["AAPL.US", "BRK.B"]))
+    client = _client(tmp_path, monkeypatch)
+    body = client.get("/api/subscriptions").json()
+    assert body["pinned"] == ["AAPL", "BRK.B"]
+    assert client.delete("/api/subscriptions/AAPL.US").status_code == 200
+    assert client.delete("/api/subscriptions/BRK.B").status_code == 200
+    assert client.get("/api/subscriptions").json()["pinned"] == []

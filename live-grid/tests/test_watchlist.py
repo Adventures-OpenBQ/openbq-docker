@@ -130,3 +130,19 @@ def test_the_write_is_durable_the_file_and_its_directory_are_fsynced(tmp_path, m
     w = Watchlist(str(tmp_path / "watchlist.json"))
     w.add("AAPL")
     assert kinds == [False, True]
+
+
+def test_a_legacy_exchange_qualified_entry_is_read_bare_and_rewritten_once(tmp_path):
+    """S1 (re-review 2026-10-17): before L1, POST /api/subscriptions stored AAPL.US as sent.
+    On load it is read as AAPL -- one cap slot, deletable by either spelling -- and the file is
+    rewritten once. A symbol with no feed form (BRK.B) stays as it was, so it can be deleted."""
+    path = tmp_path / "watchlist.json"
+    path.write_text(json.dumps(["AAPL.US", "aapl", "BTC-USD.CC", "MSFT", "BRK.B"]))
+    w = Watchlist(str(path))
+    assert w.symbols() == ["AAPL", "BRK.B", "BTC-USD", "MSFT"]
+    assert json.loads(path.read_text()) == ["AAPL", "BRK.B", "BTC-USD", "MSFT"]
+    before = path.stat().st_mtime_ns
+    Watchlist(str(path))
+    assert path.stat().st_mtime_ns == before  # nothing to rewrite the second time
+    assert w.remove("AAPL.US") and w.remove("brk.b")
+    assert w.symbols() == ["BTC-USD", "MSFT"]
