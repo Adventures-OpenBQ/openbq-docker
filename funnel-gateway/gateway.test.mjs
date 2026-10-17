@@ -687,8 +687,10 @@ test("a silent client is dropped at the first-frame deadline, a peer that stops 
   const a = await wsConnect(first.port); await within(a.ws, "close");
   await slotReleased(first.port);
   // No lifetime: a subscribed socket whose client answers pings stays open well past many beats.
-  const live = await relayed(t, {}, { firstFrameMs: 1000, pingMs: 20 });
-  await new Promise(resolve => setTimeout(resolve, 200));
+  // 100 ms beats, not 20: the client's pong must cross a loaded host's event loop in time (a
+  // 20 ms beat closed the healthy socket twice at load average 90-160). Still six beats.
+  const live = await relayed(t, {}, { firstFrameMs: 1000, pingMs: 100 });
+  await new Promise(resolve => setTimeout(resolve, 600));
   assert.equal(live.ws.readyState, WebSocket.OPEN);
   live.ws.terminate(); await slotReleased(live.port);
   // A client that never pongs (autoPong off stands in for a vanished peer) is closed, slot returned.
