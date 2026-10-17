@@ -679,15 +679,25 @@ test("a client too far behind is closed rather than queued behind, and hands the
   await slotReleased(port);
 });
 
-test("a silent client is dropped at the first-frame deadline, and every socket at its lifetime", async t => {
+test("a silent client is dropped at the first-frame deadline, a peer that stops answering pings at the heartbeat", async t => {
   const first = await fixture(t, { maxSockets: 1 }, { firstFrameMs: 30, openRef: refused });
   const a = await wsConnect(first.port); await within(a.ws, "close");
   await slotReleased(first.port);
-  // The lifetime holds even for a socket that is subscribed and relaying.
-  const { ws, up, port } = await relayed(t, {}, { firstFrameMs: 1000, socketMs: 150 });
-  const closed = within(ws, "close"), upClosed = within(up, "close");
-  await closed; await upClosed;
-  await slotReleased(port);
+  // No lifetime: a subscribed socket whose client answers pings stays open well past many beats.
+  const live = await relayed(t, {}, { firstFrameMs: 1000, pingMs: 20 });
+  await new Promise(resolve => setTimeout(resolve, 200));
+  assert.equal(live.ws.readyState, WebSocket.OPEN);
+  live.ws.terminate(); await slotReleased(live.port);
+  // A client that never pongs (autoPong off stands in for a vanished peer) is closed, slot returned.
+  const ref = await reference(t);
+  const gw = await fixture(t, { maxSockets: 1, refOrigin: ref.origin }, { firstFrameMs: 1000, pingMs: 20 });
+  const dead = new WebSocket(`ws://127.0.0.1:${gw.port}${LIVE}`, { headers: { ...HEADERS, Origin: ORIGIN }, autoPong: false });
+  dead.on("error", () => {});
+  await within(dead, "open");
+  const closed = within(dead, "close");
+  dead.send(SUB);
+  await closed;
+  await slotReleased(gw.port);
 });
 
 test("the socket cap and the six-unit socket price come from settings, charged before the upgrade", async t => {

@@ -4,7 +4,7 @@
 // openbq-docker v3.0.0. Brought down from openbq-docker v8.0.0 (itself ported from
 // bdobb-dev/openbb-docker v8.0.3, 775354f, without /ai) minus the /news wire, which stays
 // at v8, and without PR #10's managed-table routes. The socket door (tickets, previewOrigin,
-// maxSockets, the 240 s lifetime) comes down from v8 too, serving one route: /ref/live_grid_ws.
+// maxSockets, the dead-peer heartbeat) comes down from v8 too, serving one route: /ref/live_grid_ws.
 
 import { createServer, request as httpRequest } from "node:http";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
@@ -187,7 +187,7 @@ async function handleState(req, res, url, config) {
 
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openRef = connectRef,
-  now = Date.now, socketMs = 240000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
+  now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
   let budget = config.requestsPerMinute, resetAt = now() + 60000, quoteCount = 0, day = Math.floor(now() / 86400000);
   let inflight = 0, sockets = 0;
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
@@ -278,18 +278,22 @@ export function createGateway(config, { requestJson = getJson, openRef = connect
       socket.setTimeout(0);
       let upstream = null, pending = null;
       const close = () => { client.terminate(); upstream?.terminate(); };
-      // An absolute lifetime (a socket is not a lease on the door), and a shorter deadline
-      // for the first frame -- a client that opens and says nothing holds a slot for free.
-      const lifetime = setTimeout(close, socketMs);
+      // No lifetime: a socket stays open while its client answers. A ping every pingMs that
+      // goes unanswered by the next one closes it, so a peer that vanished without closing (a
+      // sleeping tablet, a dropped link) hands its slot back. A shorter deadline applies to the
+      // first frame -- a client that opens and says nothing holds a slot for free.
+      let alive = true;
+      client.on("pong", () => { alive = true; });
+      const heartbeat = setInterval(() => { if (!alive) return close(); alive = false; client.ping(); }, pingMs);
       const initial = setTimeout(close, firstFrameMs);
       client.once("close", () => {
-        sockets--; clearTimeout(lifetime); clearTimeout(initial); upstream?.terminate();
+        sockets--; clearInterval(heartbeat); clearTimeout(initial); upstream?.terminate();
       });
       client.on("error", close);
       client.on("message", (data, binary) => {
         // A params frame on open AND on every symbol change over the same socket, re-validated
         // each time. The reference is a keyless local fixture, so there is no vendor meter here;
-        // the upgrade's six units, maxSockets and the lifetime are the whole budget.
+        // the upgrade's six units and maxSockets are the whole budget.
         if (binary) return close();
         const frame = refSubscription(data);
         if (!frame) return close();
