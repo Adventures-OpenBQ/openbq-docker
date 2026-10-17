@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-API_DOCKERFILES = ["Dockerfile", "Dockerfile.v3"]  # both build openbq-api (docker-compose.yml, docker-compose.v3.yml)
+API_DOCKERFILES = ["Dockerfile"]  # openbq-api: target api (docker-compose.yml), target v3 (docker-compose.v3.yml)
 
 
 def dockerfile(name):
