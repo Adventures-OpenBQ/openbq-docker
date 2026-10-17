@@ -78,10 +78,8 @@ Cancellation and cleanup remain reachable during ordinary HTTP saturation. Each
 of the web relay, gateway and service reserves **two concurrent control requests**
 for exact, query-free POST session cancel and DELETE session/export routes only.
 No other route borrows this capacity. The web relay retains four ordinary table
-slots and a separate control allowance of 240 requests/minute per signed-in user;
-the gateway retains `maxConcurrent` ordinary slots and has no per-minute allowance
-(removed 2026-10-17). The relay's control allowance is finite and resets on its
-one-minute policy, independently of ordinary consumption.
+slots and the gateway `maxConcurrent`; neither has a per-minute allowance (both
+removed 2026-10-17).
 The service retains `max_http_requests` ordinary slots, plus two authenticated
 control slots; it retains its body/job deadlines and owner checks. Control limits
 return 429 at relays and the existing 413 resource-limit response at the service.
