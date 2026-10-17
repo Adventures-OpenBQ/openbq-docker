@@ -99,6 +99,8 @@ class TestApplyTick:
         assert abs(row["change_percent"] - 0.125) < 1e-9
         assert row["last_size"] == 25.0
         assert row["updated_at"] == "22:13:20"  # 1700000000000 ms = 2023-11-14T22:13:20Z
+        # The full instant, for a chart that must bucket ticks by date and time.
+        assert row["updated_ts"] == "2023-11-14T22:13:20+00:00"
 
     def test_us_trade_size_arrives_as_v_not_q(self):
         """EODHD's US-equity trade messages carry the share count as `v`

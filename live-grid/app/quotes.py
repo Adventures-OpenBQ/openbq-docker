@@ -39,6 +39,7 @@ def _blank_row(symbol: str) -> dict[str, Any]:
         "day_low": None,
         "day_open": None,
         "updated_at": None,
+        "updated_ts": None,
     }
 
 
@@ -173,6 +174,9 @@ class QuoteTable:
             row["change_percent"] = (price - prev) / prev
         stamp = tick_time(msg.get("t"))
         row["updated_at"] = stamp.strftime("%H:%M:%S")
+        # updated_at is the grid's display (time only); updated_ts is the full UTC
+        # instant, so a Live Chart can tell a weekend replay from a tick today.
+        row["updated_ts"] = stamp.isoformat(timespec="seconds")
         if self._on_tick is not None:
             try:
                 self._on_tick(sym, price, size if feed != "forex" else None, stamp)

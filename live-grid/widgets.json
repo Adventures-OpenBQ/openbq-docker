@@ -166,6 +166,13 @@
       "hide": true
      },
      {
+      "field": "updated_ts",
+      "width": 180,
+      "headerName": "Updated (UTC)",
+      "formatterFn": "none",
+      "hide": true
+     },
+     {
       "field": "day_open",
       "width": 88,
       "headerName": "Open",
