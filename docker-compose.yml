@@ -177,7 +177,7 @@ services:
   # openbq-kdb: the kdb+ tick cache live-grid records into and reads back (/ticks, the tick seam of
   # /series, /chart and /ta_chart). This repository ships NO KX software and NO licence:
   # the image is the operator's own KDB-X build, and kc.lic goes in ./kdb-license/ by default.
-  # KDB_LICENSE_DIR (shell or .env) points kdb, live-grid and eod-dump at another directory
+  # KDB_LICENSE_DIR (shell or .env) points kdb and live-grid at another directory
   # instead, e.g. a private checkout kept beside this one (KDB_LICENSE_DIR=../openbb-kdb/<dir>),
   # so the licence never has to be copied into this repository.
   # (git-ignored, mounted read-only). Without a licence q exits and live-grid runs without
@@ -437,9 +437,10 @@ services:
     environment:
       KDB_HOST: openbq-kdb
       KDB_PORT: "5000"
-      QLIC: /opt/kx-license
-    volumes:
-      - ${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro
+      # PyKX unlicensed (Q2): the flush only speaks q IPC and converts the result, which PyKX
+      # does without a licence. eod-dump is on live-private with no egress, so a kc.lic that
+      # calls KX's licence daemon would fail every flush; it gets no licence at all.
+      PYKX_UNLICENSED: "true"
     networks: [live-private]
 networks:
   table-private:

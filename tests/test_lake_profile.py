@@ -111,7 +111,11 @@ def test_the_bucket_is_made_over_the_s3_api_before_the_flush_starts():
     assert eod['entrypoint'] == ['python', '/opt/eod_dump.py', '--loop']
     # REVIEW (2026-10-14): the kdb service is openbq-kdb, so eod-dump dials that host.
     assert eod['environment']['KDB_HOST'] == 'openbq-kdb' and eod['restart'] == 'unless-stopped'
-    assert '${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro' in eod['volumes']
+    # Q2 (re-review 2026-10-16): eod-dump is on live-private with no egress, so a kc.lic that calls
+    # KX's licence daemon would fail every flush. It needs IPC and conversions only, which PyKX
+    # does unlicensed, so it carries no licence at all.
+    assert eod['environment']['PYKX_UNLICENSED'] == 'true'
+    assert 'QLIC' not in eod['environment'] and 'volumes' not in eod
 
 
 def test_the_lake_image_keeps_openbb_platform_5():

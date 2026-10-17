@@ -10,8 +10,8 @@
 # OpenBB Platform 5.0: openbb-core and every shared dependency come from this
 # repository's requirements.lock (openbb-core 2.0.1); openbb-deltalake is the
 # donor line's package at afda165 (openbb-deltalake/). No MinIO software, no KX
-# software, no licence and no key is in this image; kdb's licence is mounted
-# read-only at run time for PyKX.
+# software, no licence and no key is in this image; eod-dump runs PyKX
+# unlicensed (PYKX_UNLICENSED=true in compose), which covers its q IPC read.
 FROM python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 COPY requirements.lock /tmp/requirements.lock

@@ -139,7 +139,8 @@ def test_one_licence_directory_reaches_every_service_that_needs_it():
     # source is overridable as KDB_LICENSE_DIR, default ./kdb-license; still read-only.
     mount = '${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro'
     users = sorted(k for k, v in SERVICES.items() if any('kx-license' in str(m) for m in v.get('volumes', [])))
-    assert users == ['eod-dump', 'live-grid', 'openbq-kdb']  # REVIEW (2026-10-14): kdb renamed openbq-kdb; sorted
+    # Q2 (re-review 2026-10-16): eod-dump left the list -- it only speaks IPC, with PyKX unlicensed.
+    assert users == ['live-grid', 'openbq-kdb']  # REVIEW (2026-10-14): kdb renamed openbq-kdb; sorted
     assert all(mount in SERVICES[k]['volumes'] for k in users)
 
 
