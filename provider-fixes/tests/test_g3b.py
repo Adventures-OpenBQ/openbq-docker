@@ -72,8 +72,8 @@ class NasdaqCalendarSplitsTest(unittest.TestCase):
         ]
         result = NasdaqCalendarSplitsFetcher.transform_data(query, rows)
         self.assertEqual(
-            [(r.symbol, r.numerator, r.denominator, r.ratio_display) for r in result],
-            [("AAA", 1.0, 10.0, "1 : 10"), ("BBB", None, None, "1-for-10"), ("SNFCA", None, None, "5%")],
+            [(r.symbol, r.numerator, r.denominator, r.ratio_display, r.split_ratio) for r in result],
+            [("AAA", 1.0, 10.0, "1 : 10", 0.1), ("BBB", None, None, "1-for-10", None), ("SNFCA", None, None, "5%", 1.05)],
         )
 
 
