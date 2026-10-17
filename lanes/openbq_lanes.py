@@ -88,12 +88,8 @@ def _load_ssrm_widgets(path=SSRM_FILE) -> dict:
             entries = json.load(f)
     except (OSError, ValueError):
         return {}
-    routes = {}
-    if isinstance(entries, list):
-        for e in entries:
-            if isinstance(e, dict) and isinstance(e.get("id"), str) and isinstance(e.get("route"), str):
-                routes[e["route"]] = e["id"]
-    return routes
+    return {e["route"]: e["id"] for e in entries if isinstance(e, dict) and isinstance(e.get("id"), str)
+            and isinstance(e.get("route"), str)} if isinstance(entries, list) else {}
 
 
 SSRM_ROUTES = _load_ssrm_widgets()
@@ -424,37 +420,28 @@ def _ssrm_json_safe(page) -> list:
     return cells.where(cells.notna() & ~cells.isin([math.inf, -math.inf]), None).to_dict("records")
 
 
-def _json_default(value):
-    """A value json cannot write natively (a timestamp, should one appear): its ISO text."""
-    return value.isoformat() if hasattr(value, "isoformat") else str(value)
-
-
-_SSRM_DECLARED = {}  # widget id -> its declared param names, from the fixed /widgets.json
-_SSRM_COLUMNS = {}  # widget id -> its declared columnsDefs fields (None: undeclared), same source
+# widget id -> (its declared param names, its declared columnsDefs fields), None where
+# undeclared; from the fixed /widgets.json, so never re-parsed.
+_SSRM_WIDGET = {}
 
 
 async def _declared_params(request, wid):
     """The widget's declared param names, or None when the catalogue does not say."""
-    if wid not in _SSRM_DECLARED:
+    if wid not in _SSRM_WIDGET:
         cache = LANE.catalogs if LANE is not None else _CATALOG_CACHE
         if await _widget_ids(cache, request) is None:
             return None
         entry = json.loads(cache["/widgets.json"][0]).get(wid)
         defs = (((entry.get("data") or {}).get("table") or {}).get("columnsDefs") if isinstance(entry, dict) else None) or []
         fields = [d["field"] for d in defs if isinstance(d, dict) and isinstance(d.get("field"), str)]
-        _SSRM_COLUMNS[wid] = list(dict.fromkeys(fields)) or None
         params = entry.get("params") if isinstance(entry, dict) else None
-        if not isinstance(params, list):  # kept as None: the catalogue is fixed, so never re-parse it
-            _SSRM_DECLARED[wid] = None
-            return None
-        rows = [p for row in params for p in (row if isinstance(row, list) else [row])]  # grouped rows too
-        _SSRM_DECLARED[wid] = frozenset(
-            p["paramName"] for p in rows if isinstance(p, dict) and isinstance(p.get("paramName"), str))
-    return _SSRM_DECLARED[wid]
-
-
-def _page(df, order, body):
-    return _ssrm_json_safe(df.iloc[order[body["startRow"]:body["endRow"]]])
+        declared = None
+        if isinstance(params, list):
+            rows = [p for row in params for p in (row if isinstance(row, list) else [row])]  # grouped rows too
+            declared = frozenset(
+                p["paramName"] for p in rows if isinstance(p, dict) and isinstance(p.get("paramName"), str))
+        _SSRM_WIDGET[wid] = (declared, list(dict.fromkeys(fields)) or None)
+    return _SSRM_WIDGET[wid][0]
 
 
 async def _ssrm(request):
@@ -489,14 +476,15 @@ async def _ssrm(request):
     hit = SSRM_CACHE.fresh(key)
     view = json.dumps([body["filterModel"], body["sortModel"]], sort_keys=True)
     try:
-        df = await SSRM_CACHE.get(key, lambda: _acquire(request.app, route, params, authorization, _SSRM_COLUMNS.get(SSRM_ROUTES[route])))
+        df = await SSRM_CACHE.get(key, lambda: _acquire(request.app, route, params, authorization, _SSRM_WIDGET.get(SSRM_ROUTES[route], (None, None))[1]))
         order = SSRM_CACHE.view(key, df, view)
         if order is None:
             hit = False
             async with SSRM_CACHE.view_slots:
                 order = await asyncio.to_thread(_view_order, df, body)
             SSRM_CACHE.add_view(key, df, view, order)
-        rows, total = await asyncio.to_thread(_page, df, order, body), len(order)
+        rows = await asyncio.to_thread(lambda: _ssrm_json_safe(df.iloc[order[body["startRow"]:body["endRow"]]]))
+        total = len(order)
     except SsrmBadRequest:
         return refused
     except SsrmUpstream as exc:
@@ -504,7 +492,7 @@ async def _ssrm(request):
     page = {"rowData": rows, "rowCount": total}
     if df.attrs.get("warnings"):
         page["warnings"] = df.attrs["warnings"]
-    reply = json.dumps(page, allow_nan=False, default=_json_default)
+    reply = json.dumps(page, allow_nan=False, default=lambda v: v.isoformat() if hasattr(v, "isoformat") else str(v))  # e.g. a timestamp: ISO text
     # Marks a cache hit; the door does not relay this header.
     return _cors(request, Response(reply, 200, media_type="application/json",
                                    headers={"x-openbq-ssrm": "hit" if hit else "miss"}))
