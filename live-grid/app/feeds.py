@@ -285,6 +285,9 @@ class FeedManager:
             client = self._clients.pop(feed)
             await asyncio.to_thread(_stop_quietly, client)
         self._active = {}
+        # The registrations still stand: a run() restarted after a crash (L4, main.supervise)
+        # must rebuild what this stopped.
+        self._rebuild_pending = True
 
     async def run(self) -> None:
         """Drain ticks and apply pending subscription changes until cancelled."""

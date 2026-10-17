@@ -439,3 +439,38 @@ class TestBadMessages:
         assert m.bad_messages == 2
         assert m.quotes.rows["AAPL"]["price"] == 1.0
         assert len([r for r in caplog.records if "could not apply" in r.getMessage()]) == 1
+
+
+def test_a_restarted_run_rebuilds_the_feeds_its_crash_stopped(fake_ws_client_factory):
+    """L4: run()'s finally stops every client (stop_all), so a run() the supervisor restarts
+    must rebuild them, not wait for the next subscription change."""
+    m = FeedManager("k", QuoteTable(), client_factory=fake_ws_client_factory,
+                    rebuild_delay=0.0, drain_interval=0.01)
+    m.register("c1", ["AAPL"])
+
+    async def scenario():
+        calls = {"n": 0}
+        real = m._drain_all
+
+        def crash_once():
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("boom")
+            real()
+
+        m._drain_all = crash_once
+        try:
+            await m.run()
+        except RuntimeError:
+            pass
+        assert m.status()["us"]["symbols"] == []  # stop_all ran
+        task = asyncio.create_task(m.run())
+        await asyncio.sleep(0.1)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(scenario())
+    assert [c.symbols for c in fake_ws_client_factory.built] == [["AAPL"], ["AAPL"]]
