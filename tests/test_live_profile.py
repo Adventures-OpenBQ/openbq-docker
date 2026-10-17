@@ -228,3 +228,13 @@ def test_a_one_shot_job_gives_live_grid_data_to_its_uid_before_live_grid_starts(
     assert lg['depends_on'] == {'live-grid-perms': {'condition': 'service_completed_successfully'}}
     readme = (ROOT / 'live-grid/README.md').read_text()
     assert 'live-grid-perms' in readme and 'run --rm --user 0 live-grid chown' not in readme
+
+
+def test_matplotlib_keeps_its_config_on_the_tmp_tmpfs():
+    """L2 (NAS, 2026-10-16): the eodhd SDK pulls in matplotlib, whose default config dir
+    (/.config/matplotlib for uid 10001) is on the read-only root, so it warned on every start
+    and fell back to a fresh temporary cache. The image points it at the /tmp tmpfs that
+    compose gives live-grid."""
+    dockerfile = (ROOT / 'live-grid/Dockerfile').read_text()
+    assert 'MPLCONFIGDIR=/tmp/matplotlib' in dockerfile
+    assert any(t.startswith('/tmp:') for t in SERVICES['live-grid']['tmpfs'])

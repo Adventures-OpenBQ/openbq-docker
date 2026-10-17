@@ -14,6 +14,9 @@
 # Pinned by digest (the multi-arch index), as Dockerfile.lake is (D21).
 FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+# matplotlib (pulled in by the eodhd SDK) keeps its config and font cache under $HOME/.config,
+# which for uid 10001 is /.config on the read-only root (L2); compose's /tmp tmpfs is writable.
+ENV MPLCONFIGDIR=/tmp/matplotlib
 WORKDIR /srv
 
 # plotly.js is vendored: the page must render on a network with no CDN route.
