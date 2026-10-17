@@ -14,8 +14,9 @@ byte on what is admitted. What was left at v8 and v10 is listed in
 
 ## Isolation and lock-first
 
-`funnel-gateway` is a compose service under `profiles: [web]`: `docker compose up -d` never
-starts it; `docker compose --profile web up -d` does. The gateway joins the
+`funnel-gateway` is a compose service under `profiles: [web]`:
+`docker compose -f docker-compose.yml -f docker-compose.v3.yml up -d` never starts it;
+`docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web up -d` does. The gateway joins the
 `openbq-internal` bridge (and, for the managed tables, the internal `table-private` bridge), listens on `0.0.0.0:8091` with no host port, and is reached only through
 Tailscale Serve. It runs `read_only`, as uid 1000, `cap_drop: [ALL]`, 512 MB, 64 pids; its only
 writable mount is the `gateway-state` volume behind `/state`.
