@@ -46,7 +46,7 @@ Caller headers, cookies and credentials are never relayed.
 | `/state/<digits>` | GET | the user's saved files `{files: {name: text}}` |
 | `/state/<digits>/<file>` | PUT, DELETE | one of the app's JSON stores (`policy.mjs` `stateFile`); 256 KiB a file, 2 MiB and 200 files a user; `application/json` only |
 | `/ai/**` | — | not served by openbq-docker: 404 (POST 405) |
-| `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, six budget units, 240 s lifetime, 10 s to the first frame |
+| `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, six budget units, no lifetime (a 30 s ping; a missed pong closes it), 10 s to the first frame |
 | any other WebSocket upgrade | — | 401 without the token, else 403 (foreign Origin) or 404 |
 | everything else | — | 404 |
 
@@ -71,8 +71,8 @@ access control: rss-ticker has no authentication, and the door takes no feed URL
 `/news/api/news` names a feed only by an approved id; the socket's single subscription frame
 `{"subscribe":[{"url":…}]}` (1–50 unique urls, no other key) is rebuilt from the approved urls
 alone, unapproved ones dropped, and closed if none is left. A second frame, a binary or oversized
-frame closes it. The upstream opens only after a valid frame; a socket lives at most 240 s and
-must send its frame within 10 s; frames are capped at 64 KiB.
+frame closes it. The upstream opens only after a valid frame; a socket has no lifetime (a 30 s ping closes one
+whose client stops answering) and must send its frame within 10 s; frames are capped at 64 KiB.
 
 ```json
 {

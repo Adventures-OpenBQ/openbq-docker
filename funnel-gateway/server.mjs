@@ -292,7 +292,7 @@ async function tableExchange(req, res, route, config) {
 
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openNews = connectNews, openRef = connectRef,
-  now = Date.now, socketMs = 240000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
+  now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
   const budgets = {
     ordinary: {left: config.requestsPerMinute, resetAt: now() + 60000},
     control: {left: config.requestsPerMinute, resetAt: now() + 60000},
@@ -408,12 +408,16 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       socket.setTimeout(0);
       let upstream = null, pending = null, subscribed = false;
       const close = () => { client.terminate(); upstream?.terminate(); };
-      // An absolute lifetime (a socket is not a lease on the door), and a shorter deadline
-      // for the first frame -- a client that opens and says nothing holds a slot for free.
-      const lifetime = setTimeout(close, socketMs);
+      // No lifetime: a socket stays open while its client answers. A ping every pingMs that
+      // goes unanswered by the next one closes it, so a peer that vanished without closing (a
+      // sleeping tablet, a dropped link) hands its slot back. A shorter deadline applies to the
+      // first frame -- a client that opens and says nothing holds a slot for free.
+      let alive = true;
+      client.on("pong", () => { alive = true; });
+      const heartbeat = setInterval(() => { if (!alive) return close(); alive = false; client.ping(); }, pingMs);
       const initial = setTimeout(close, firstFrameMs);
       client.once("close", () => {
-        sockets--; clearTimeout(lifetime); clearTimeout(initial); upstream?.terminate();
+        sockets--; clearInterval(heartbeat); clearTimeout(initial); upstream?.terminate();
       });
       client.on("error", close);
       client.on("message", (data, binary) => {
@@ -442,7 +446,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         }
         // A params frame on open AND on every symbol change over the same socket, re-validated
         // each time. The reference is a keyless local fixture, so there is no vendor meter here;
-        // the upgrade's six units, maxSockets and the lifetime are the whole budget.
+        // the upgrade's six units and maxSockets are the whole budget.
         if (binary) return close();
         const frame = refSubscription(data);
         if (!frame) return close();
