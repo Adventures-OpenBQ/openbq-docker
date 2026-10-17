@@ -220,15 +220,18 @@
     "columnsDefs": [
      {
       "field": "time",
-      "headerName": "Time"
+      "headerName": "Time",
+      "formatterFn": "none"
      },
      {
       "field": "price",
-      "headerName": "Price"
+      "headerName": "Price",
+      "abbreviate": false
      },
      {
       "field": "size",
-      "headerName": "Size"
+      "headerName": "Size",
+      "formatterFn": "none"
      }
     ]
    }

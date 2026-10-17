@@ -193,6 +193,13 @@ def test_kdb_ticks_is_a_plain_table_widget():
     assert w["type"] == "table"
     assert w["endpoint"] == "ticks"
     assert [p["paramName"] for p in w["params"]] == ["symbol", "limit"]
+    # A tick table must show what each tick is: the time of day (not just the
+    # date an ISO string would be inferred as), the full price (not 81.5K) and
+    # a sub-unit crypto size (not 0 at two decimals).
+    defs = {c["field"]: c for c in w["data"]["table"]["columnsDefs"]}
+    assert defs["time"]["formatterFn"] == "none"
+    assert defs["price"]["abbreviate"] is False
+    assert defs["size"]["formatterFn"] == "none"
 
 
 def test_live_grid_seeds_rows_in_request_order(monkeypatch):
