@@ -198,15 +198,23 @@ The reference recipe carries forward the previously qualified PDF repair from `b
 ## Episode 6: Rita and MCP
 
 The optional [v6 Compose overlay](docker-compose.v6.yml) adds OpenBQ Rita (the
-agent BDOBB talks to) and the OpenBB MCP server, both from private GHCR images
-pinned by digest. Their recipe is `Adventures-OpenBQ/agent-rita`. The shared
+agent BDOBB talks to) and the OpenBB MCP server. Both are built on the machine
+that runs them; nothing is pulled from a registry. Rita's recipe is
+`Adventures-OpenBQ/agent-rita-bdobb`, which patches public
+[openbq-org/agent-rita](https://github.com/openbq-org/agent-rita). MCP is
+`openbb-mcp-server` 2.0.1 installed on this release's `openbq-local` API image,
+from [mcp/](mcp/Dockerfile). The shared
 private Tailscale sidecar serves Rita on 10443 and MCP on 11443, next to ODP on
 443 and the reference backend on 8443. No host ports or Funnel are enabled.
 
 ```sh
+# Rita: build openbq-rita:6.0.0 once, next to this checkout (needs git and Docker).
+git clone --branch v6.0.0 https://github.com/Adventures-OpenBQ/agent-rita-bdobb.git ../agent-rita-bdobb
+../agent-rita-bdobb/scripts/build.sh
 cp rita.env.example rita.env   # then chmod 600 and fill it in
 docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.v6.yml config --quiet
-docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.v6.yml pull openbq-rita openbq-mcp
+# MCP: builds openbq-api first, then openbq-mcp on top of it.
+docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.v6.yml build openbq-api openbq-mcp
 docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.v6.yml up -d
 ```
 
@@ -227,6 +235,8 @@ resolver. Serve reaches Rita on `127.0.0.1:7777` inside that namespace. If the
 tailscale container is recreated, recreate `openbq-rita` too
 (`docker compose ... up -d --force-recreate openbq-rita`); otherwise it is left
 in the old, dead namespace. MCP advertises the 10 tool-discovery tools; categories load on demand.
-The images are the Episode 6 builds, pinned by digest (Rita with the agent-rita
-patches through 0012; see VERIFICATION.md).
+Rita carries the agent-rita-bdobb patches through 0012. MCP drops the separate
+trading-calendar extension the first Episode 6 image carried: from v4 the API image's
+own `calendar` routes (`v4/routes`) serve `obb.calendar`, and the build checks it.
+See VERIFICATION.md.
 Released in `v6.0.0`, with BDOBB v6.0.0.

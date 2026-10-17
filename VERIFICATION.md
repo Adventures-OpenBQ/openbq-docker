@@ -32,3 +32,14 @@ answers 400, not 500), 0011 (follow-up suggestions only on the final answer) and
 on the NAS alone; `agents.json` answered 200, a malformed POST answered 400, and
 the live gate passed 21 of 22 (the search, add and set case fails on the model's
 conduct, as with patch 0011). MCP is unchanged.
+
+Built from source on October 16, 2026 (the GHCR images above stay private and are no longer
+used). On the x86-64 NAS, from an export of this commit and an empty Docker client config (no
+registry login): agent-rita-bdobb v6.0.0 `scripts/build.sh` built `openbq-rita:6.0.0` from
+openbq-org/agent-rita `f673c1f` plus patches 0001–0012, and `/status` and `agents.json`
+answered 200. `docker compose ... build openbq-api openbq-mcp` built `openbq-local:6.0.0`, then
+`openbq-mcp:6.0.0` on it (`pip check` clean, `obb.calendar OK`). MCP `initialize` opened a
+session and listed the same 10 tool-discovery tools as `sha256:d76fbbac…`. Its catalog has
+1,219 tools in place of 1,215: `econdb` (3), `fundamentals` (1) and `videos` (1) are new from
+the v3/v4 base, and `calendar_trading_table` is gone with the separate calendar extension;
+`calendar_trading` now comes from `v4/routes`.
