@@ -100,7 +100,7 @@ services:
   #   mkdir -p gateway-config && cp funnel-gateway/settings.example.json gateway-config/settings.json
   funnel-gateway:
     profiles: [web]
-    build: ./funnel-gateway
+    build: {context: ./funnel-gateway, additional_contexts: {lanes: ./lanes}}
     image: openbq-funnel-gateway:9.0.0
     restart: unless-stopped
     expose: ["8091"]
