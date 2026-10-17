@@ -29,6 +29,11 @@ const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "maxConcur
 // A settings file that still names them is refused by name, so the operator deletes them knowingly.
 const REMOVED_KEYS = new Set(["quoteDailyLimit", "requestsPerMinute"]);
 
+function bounded(value, label) {
+  if (!Number.isInteger(value) || value < 1 || value > 32) throw new Error(`${label} must be between 1 and 32`);
+  return value;
+}
+
 export function validateConfig(settings, secrets) {
   for (const key of Object.keys(settings)) {
     if (REMOVED_KEYS.has(key)) throw new Error(`Removed setting: ${key} (the gateway no longer has this budget; delete it)`);
@@ -41,14 +46,8 @@ export function validateConfig(settings, secrets) {
       /[\r\n\0]/.test(secrets.apiPassword) || secrets.apiPassword.length > 1024) {
     throw new Error("Invalid machine or API credential");
   }
-  const maxConcurrent = settings.maxConcurrent ?? 8;
-  if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1 || maxConcurrent > 32) {
-    throw new Error("Max concurrent must be between 1 and 32");
-  }
-  const maxSockets = settings.maxSockets ?? 4;
-  if (!Number.isInteger(maxSockets) || maxSockets < 1 || maxSockets > 32) {
-    throw new Error("Max sockets must be between 1 and 32");
-  }
+  const maxConcurrent = bounded(settings.maxConcurrent ?? 8, "Max concurrent");
+  const maxSockets = bounded(settings.maxSockets ?? 4, "Max sockets");
   // The web preview's own origin. Naming it turns on socket tickets (server.mjs): the one
   // Origin, besides the gateway's own, a WebSocket may arrive from. Unset = off.
   const previewOrigin = settings.previewOrigin === undefined ? null : httpsOrigin(settings.previewOrigin, false, null);
