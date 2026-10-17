@@ -164,7 +164,7 @@ The client must:
 
 The docks is stored in the credential's dashboards file under the key `docks`, as a record with
 `hidden: true` and `revision`. Tests: `v3/tests/test_openbq_settings.py`, with 37 docks cases among
-68 in total. The live check is `scripts/verify-dashboards.py`.
+68 in total. The live check is `scripts/verify-settings.py`.
 
 ### Login mode (`workspace/patches/004-system-dashboard.patch`)
 

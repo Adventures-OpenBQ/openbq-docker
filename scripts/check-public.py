@@ -40,21 +40,17 @@ def main():
  public_demo={('EIA_API_KEY','DEMO_KEY'),('CONGRESS_GOV_API_KEY','DEMO_KEY'),('EODHD_API_KEY','demo')}
  compiled=[(name,re.compile(pattern)) for name,pattern in patterns]
  findings=[]
+ def filled(name,value):
+  return (name,value) not in public_demo and bool(value) and not value.startswith(('$','<')) and not re.fullmatch(r'(?:YOUR_[A-Z_]+|EXAMPLE_[A-Z_]+|PLACEHOLDER|CHANGE_ME|CHANGEME)',value)
  def scan(label,data):
   text=data.decode('utf-8',errors='replace')
   text=text.replace('YOUR-TAILNET.ts.net','PLACEHOLDER').replace('YOUR_TAILNET.ts.net','PLACEHOLDER')
   for name,pattern in compiled:
    if pattern.search(text):findings.append((label,name))
   for match in re.finditer(r'(?m)^[ \t]*([A-Z][A-Z0-9_]*(?:API_KEY|TOKEN|PASSWORD|SECRET|ACCESS_KEY_ID))[ \t]*=[ \t]*(.*)$',text):
-   value=match.group(2).strip().strip('"').strip("'")
-   if (match.group(1),value) in public_demo:continue
-   if value and not value.startswith(('$','<')) and not re.fullmatch(r'(?:YOUR_[A-Z_]+|EXAMPLE_[A-Z_]+|PLACEHOLDER|CHANGE_ME|CHANGEME)',value):
-    findings.append((label,'filled credential assignment'))
+   if filled(match.group(1),match.group(2).strip().strip('"').strip("'")):findings.append((label,'filled credential assignment'))
   for match in re.finditer(r'(?i)"([a-z0-9_]*(?:api_key|token|password|secret|access_key_id))"[ \t\r\n]*:[ \t\r\n]*"([^"\n]*)"',text):
-   value=match.group(2).strip()
-   if (match.group(1).upper(),value) in public_demo:continue
-   if value and not value.startswith(('$','<')) and not re.fullmatch(r'(?:YOUR_[A-Z_]+|EXAMPLE_[A-Z_]+|PLACEHOLDER|CHANGE_ME|CHANGEME)',value):
-    findings.append((label,'filled JSON credential'))
+   if filled(match.group(1).upper(),match.group(2).strip()):findings.append((label,'filled JSON credential'))
  files=git('ls-files','--cached','--others','--exclude-standard','-z').decode().split('\0')
  for name in sorted(set(filter(None,files))):
   p=Path(name)
