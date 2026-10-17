@@ -9,12 +9,11 @@ Gated tree: `2a4d087`. This receipt commit changes only this file. `release/v8` 
 - The `web` compose profile: `funnel-gateway`, ported from openbb-docker v8.0.3 with `/api`, `/state` and `/news` only, and `rss-ticker`. See `funnel-gateway/README.md` and `docs/v8/news-relay-and-hidden-dashboards.md`.
 - BDOBB's hidden docks dashboard is served on its reserved id, including from Workspace/Lite. A docks `DELETE` is checked against the client's revision.
 - The BDOBB examples are synced from the v8 freeze `de951a1`. The 5-year TIPS maturity is dropped from the v8 FRED overlay.
-- **rss-ticker uses `ghcr.io/artcashin/rss-feedhandler:8.0.1`**, digest `sha256:bbe5e391249176d91490b570d4defeb934d1ddf8d56dcbee8c423bed2c3ea49c`.
-  - 8.0.1 is the newest published image. Tags v8.1.0–v8.3.0 exist only in the source repo, with no image.
-  - 8.0.1 is built for amd64 and arm64; 8.0.0 was amd64 only.
-  - It changes no application code from 8.0.0.
-  - It started healthy (`{"status":"ok","version":"8.0.1"}`) on `rss-ticker-config/config.yaml.example`.
-  - The GHCR package is public, so it pulls without a registry login.
+- **rss-ticker uses `ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0`**, digest `sha256:e47d0912b0e21aa2b0fa1ed8898fbabf22e19d65234222d13c83efe54bc11b15`.
+  - It is built from `rss-ticker/`, the rss-feedhandler v8.0.1 source (`96dbe26`, MIT) vendored into this repo, for amd64 and arm64.
+  - It replaces `ghcr.io/artcashin/rss-feedhandler:8.0.1` (`sha256:bbe5e391…`), which was built from the same commit in a personal namespace (re-cut 2026-10-16).
+  - The application reports `"version":"8.0.1"`, its upstream version. It started healthy on `rss-ticker-config/config.yaml.example`.
+  - The GHCR package is private, like the org's other images, so pulls need the org read token.
 - **Serve/Funnel: the door is on Funnel port 10000**, so the episode 3 reference keeps 8443 and both run on one node (user ruling, option B). Funnel offers only 443, 8443 and 10000, and 443 stays ODP's. One sidecar applies exactly one serve file; each tailnet file has a Funnel variant that adds only the door:
 
   | Serve file | Applied by | 443 | 8443 | 8088 | 10000 |
