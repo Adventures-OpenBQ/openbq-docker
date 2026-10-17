@@ -8,7 +8,10 @@
 <title>Subscriptions</title>
 <style>
   :root { color-scheme: light dark; --line: #8883; --dim: #8888; --bad: #c33; }
-  body { font: 13px/1.5 system-ui, sans-serif; margin: 0; padding: 12px; }
+  /* Canvas/CanvasText, not the frame's default white: under a dark color-scheme the
+     text turns light, and on the embedding app's white frame it vanished. */
+  body { font: 13px/1.5 system-ui, sans-serif; margin: 0; padding: 12px;
+         background: Canvas; color: CanvasText; }
   header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
   h1 { font-size: 14px; margin: 0; font-weight: 600; }
   .bar { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }

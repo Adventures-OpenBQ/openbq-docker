@@ -500,3 +500,11 @@ def test_supervise_resets_its_backoff_after_a_healthy_run():
     except asyncio.CancelledError:
         pass
     assert sleeps == [1.0, 2.0, 4.0, 1.0, 2.0]
+
+
+def test_subscriptions_page_paints_its_own_background():
+    # Under a dark color-scheme the page's text turns light; without its own
+    # background it sat on the embedding frame's white and vanished.
+    from pathlib import Path
+    html = (Path(__file__).resolve().parents[1] / "app" / "static" / "subscriptions.html").read_text()
+    assert "background: Canvas" in html and "color: CanvasText" in html
