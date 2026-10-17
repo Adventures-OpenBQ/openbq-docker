@@ -1344,6 +1344,14 @@ class FixtureTest(unittest.IsolatedAsyncioTestCase):
             for k, v in old.items():
                 os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
 
+    def test_the_vendored_rows_are_bdobbs_cash_flow_json(self):
+        import hashlib
+
+        # git blob a2d6e419 of BDOBB docs/examples/v5-financial-demo/cash-flow.json
+        data = (FIXTURES / "synthetic_cash_flow.json").read_bytes()
+        self.assertEqual(hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest(),
+                         "a2d6e419eadb2bcc1fc12ea1d7e9c59c4842b780")
+
 
 if __name__ == "__main__":
     unittest.main()
