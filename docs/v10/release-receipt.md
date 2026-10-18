@@ -122,7 +122,7 @@ v10.0.0 was re-cut again after three user reports on the Live dashboard (the Liv
 - **Subscriptions** draws on a dark app (Canvas/CanvasText), and its frame address comes from the request when `LIVE_GRID_PUBLIC_URL` is empty (52300fb), so the widget always appears.
 - **The Live Chart's `/series`:**
   - EODHD's intraday history ends in `Z` while tick bars are naive UTC, so the seam comparison raised and `/series` answered 502 (765af30).
-  - A chart width is now built only from a history source that divides it (user ruling): under a minute, ticks alone; 15m, 30m, 1h and other multiples of 5m from 5m, resampled on the tick grid (EODHD's half-hour-stamped 1h is no longer used); 1m and its multiples from 1m, fetched in 120-day pieces (2efa43c).
+  - A chart width is now built only from a history source that divides it (user ruling): under a minute, ticks alone; 15m, 30m, 1h and other multiples of 5m from 5m, resampled on the tick grid (EODHD's half-hour-stamped 1h is no longer used); 1m and its multiples from 1m, as one request of at most 120 days (2efa43c, clamped in 455da59).
   - An intraday `/series` defaults to five days (user ruling 2026-10-17).
   - Minutes live-grid was down for are filled at query time (user ruling): US equities from EODHD's real-time `/history` minute bars, crypto from intraday 1m; forex is left unfilled, and ticks win wherever they exist (a5c6ee8).
 
@@ -159,6 +159,6 @@ v10.0.0 was re-cut again after three user reports on the Live dashboard (the Liv
 - `openbq-lake` `sha256:ac72245b3278f682910741fa811ef172be6bd2603e877708c8f30d6aceb757ff`
 - `openbq-key-maint` `sha256:994fe7114e2350806e1663b6d1eba61175fba307e8976426fb74a5bde3032b56`
 - `openbq-rss-ticker` `sha256:5d48cf244f79cdbd5366d851fd1fbe9e8feebcde564f00544058a153f894ce45`
-- `openbq-table-service` TABLE_DIGEST, from BDOBB TABLE_REV per `table-service/source.lock.json`
+- `openbq-table-service` `sha256:94234d7a079c468e20fe8ab8fb1e18468e731be65d3657cabc8644c167242493`, from BDOBB `952a1dd` per `table-service/source.lock.json` (the image first deployed on 10-18 was built while the lock still named v9's `8ee70ad`)
 
 `latest` was not moved.
