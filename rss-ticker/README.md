@@ -10,7 +10,7 @@ feeds — the consumer is bdobb-v2's built-in **News** widget.
 
 ## Quick start
 
-    cp config.example.yaml config.yaml   # four operational settings
+    cp config.yaml.example config.yaml   # four operational settings
     docker compose up -d
 
 The default compose publishes `127.0.0.1:8088` and nothing else. **Every endpoint
