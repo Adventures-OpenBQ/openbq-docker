@@ -43,6 +43,12 @@ class DemoKeys(unittest.TestCase):
     def test_any_other_filled_json_key_is_flagged(self):
         self.assertEqual(scan('{"EIA_API_' 'KEY": "abcdef123"}'), 1)
 
+    def test_a_replace_with_placeholder_is_allowed(self):
+        """An example file's REPLACE_WITH_... value is a placeholder, not a credential
+        (an old settings.example.json on an unmerged branch failed CI's all-refs scan)."""
+        self.assertEqual(scan('{"gateway_' 'token": "REPLACE_WITH_A_LONG_RANDOM_TOKEN"}'), 0)
+        self.assertEqual(scan('{"gateway_' 'token": "replace_with_a_real_value_9f2"}'), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

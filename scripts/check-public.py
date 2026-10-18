@@ -41,7 +41,7 @@ def main():
  compiled=[(name,re.compile(pattern)) for name,pattern in patterns]
  findings=[]
  def filled(name,value):
-  return (name,value) not in public_demo and bool(value) and not value.startswith(('$','<')) and not re.fullmatch(r'(?:YOUR_[A-Z_]+|EXAMPLE_[A-Z_]+|PLACEHOLDER|CHANGE_ME|CHANGEME)',value)
+  return (name,value) not in public_demo and bool(value) and not value.startswith(('$','<')) and not re.fullmatch(r'(?:YOUR_[A-Z_]+|EXAMPLE_[A-Z_]+|REPLACE_WITH_[A-Z0-9_]+|PLACEHOLDER|CHANGE_ME|CHANGEME)',value)
  def scan(label,data):
   text=data.decode('utf-8',errors='replace')
   text=text.replace('YOUR-TAILNET.ts.net','PLACEHOLDER').replace('YOUR_TAILNET.ts.net','PLACEHOLDER')
