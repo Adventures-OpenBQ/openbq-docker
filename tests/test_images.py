@@ -61,11 +61,12 @@ class ApiImages(unittest.TestCase):
             with self.subTest(name):
                 self.assertIn("COPY v9/eodhd/source /eodhd", text)
                 self.assertIn("--wheel-dir /wheels /eodhd", text)
-                self.assertIn("python -m pip install --no-deps /tmp/eodhd/openbq_eodhd-9.0.1-py3-none-any.whl", text)
+                self.assertIn("python -m pip install --no-deps /tmp/ext/*.whl", text)
                 # The SDK is vendored in openbq-eodhd 9.0.1; nothing fetches or pins it separately.
                 self.assertNotIn("EODHD-APIs-Python-Financial-Library", text)
                 self.assertNotIn("/tmp/eodhd/extra.lock", text)
-                self.assertIn("RUN python /tmp/eodhd-verify/verify.py", text)
+                self.assertIn("/wheels/openbq_eodhd-9.0.1-py3-none-any.whl /tmp/ext/", text)
+                self.assertIn("python /tmp/ext-verify/eodhd/verify.py", text)
 
     def test_the_api_service_gets_eodhd_api_key_from_the_credentials_files(self):
         import yaml

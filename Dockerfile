@@ -1,14 +1,13 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. SPDX-License-Identifier: Apache-2.0
 # Extensions with no PyPI release for openbb-core 2 (v3/videos, v3/econdb), built as wheels with a pinned builder.
 FROM python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS extensions-build
-RUN python -m pip install hatchling==1.32.4 packaging==26.3 pathspec==1.1.1 pluggy==1.6.0 trove-classifiers==2026.9.21.13
+RUN python -m pip install hatchling==1.32.4 packaging==26.3 pathspec==1.1.1 pluggy==1.6.0 trove-classifiers==2026.9.21.13 setuptools==84.0.0
 COPY v3/videos/source /videos
 COPY v3/econdb/source /econdb
 RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /videos /econdb
 # v9: openbq-eodhd 9.0.1 (Adventures-OpenBQ/openbq-eodhd v9.0.1: bdobb-dev/openbb-docker's openbb-eodhd v9.6.3,
 # fixes through v9.6.6, renamed, plus the v9 review fixes; v9/eodhd/source.json), with the official
 # EODHD SDK vendored at openbq_eodhd/_vendor/eodhd.
-RUN python -m pip install setuptools==84.0.0
 COPY v9/eodhd/source /eodhd
 RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /eodhd
 
@@ -26,19 +25,16 @@ RUN python /tmp/provider-fixes/apply.py && rm -rf /tmp/provider-fixes
 # provider ported to openbb-core 2, v3/econdb) extensions. No PyPI release fits the lock; their
 # dependencies are all in requirements.lock, so --no-deps.
 COPY --from=extensions-build /wheels/openbb_videos-3.0.1-py3-none-any.whl /wheels/openbb_econdb-1.0.0+openbq.1-py3-none-any.whl /tmp/ext/
+# v9: EODHD provider extension, served as obb.eodhd.* (/api/v1/eodhd/*) with its "EODHD" app (the v3
+# stage builds FROM api, so it has it too). Its dependencies (numpy, pandas, requests, rich) are all in requirements.lock, so --no-deps.
+COPY --from=extensions-build /wheels/openbq_eodhd-9.0.1-py3-none-any.whl /tmp/ext/
 RUN python -m pip install --no-deps /tmp/ext/*.whl && python -m pip check && openbb-build && rm -rf /tmp/ext
 COPY v3/videos/verify.py /tmp/ext-verify/videos.py
 COPY v3/econdb/verify.py /tmp/ext-verify/econdb/verify.py
 COPY v3/econdb/tests /tmp/ext-verify/econdb/tests
-RUN python /tmp/ext-verify/videos.py && python /tmp/ext-verify/econdb/verify.py && rm -rf /tmp/ext-verify
-# v9: EODHD provider extension, served as obb.eodhd.* (/api/v1/eodhd/*) with its "EODHD" app (the v3
-# stage builds FROM api, so it has it too). Its dependencies (numpy, pandas, requests, rich) are all in requirements.lock, so --no-deps.
-COPY --from=extensions-build /wheels/openbq_eodhd-9.0.1-py3-none-any.whl /tmp/eodhd/
-RUN python -m pip install --no-deps /tmp/eodhd/openbq_eodhd-9.0.1-py3-none-any.whl \
-    && python -m pip check && openbb-build && rm -rf /tmp/eodhd
-COPY v9/eodhd/verify.py /tmp/eodhd-verify/verify.py
-COPY v9/eodhd/tests /tmp/eodhd-verify/tests
-RUN python /tmp/eodhd-verify/verify.py && rm -rf /tmp/eodhd-verify
+COPY v9/eodhd/verify.py /tmp/ext-verify/eodhd/verify.py
+COPY v9/eodhd/tests /tmp/ext-verify/eodhd/tests
+RUN python /tmp/ext-verify/videos.py && python /tmp/ext-verify/econdb/verify.py && python /tmp/ext-verify/eodhd/verify.py && rm -rf /tmp/ext-verify
 COPY lanes/openbq_lanes.py /usr/local/lib/python3.12/site-packages/openbq_lanes.py
 WORKDIR /workspace
 # BDOBB example dashboards, appended to /apps.json by the lanes hook (examples/bdobb/README.md).

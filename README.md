@@ -144,7 +144,7 @@ BDOBB's locked-widget bands sync as a hidden `docks` dashboard on `/pro/dash/syn
 
 ## EODHD provider (v9)
 
-Both API images (the `Dockerfile` stages `api` and `v3`) install the openbq-eodhd extension 9.0.1 (Adventures-OpenBQ/openbq-eodhd, vendored in `v9/eodhd/source`, with the official EODHD SDK inside it): bdobb-dev/openbb-docker's openbb-eodhd v9.6.3 (fixes through v9.6.6), renamed, plus the v9 review fixes. It is served as `obb.eodhd.*` on `/api/v1/eodhd/` (52 commands; this build has no standard routers) and adds the `EODHD` app to `/apps.json`. Put your own token in `credentials.env` as `EODHD_API_KEY`. See [v9/eodhd/README.md](v9/eodhd/README.md) and [docs/v9/eodhd-port.md](docs/v9/eodhd-port.md).
+Both API images (the `Dockerfile` stages `api` and `v3`) install the vendored openbq-eodhd extension 9.0.1, served as `obb.eodhd.*` on `/api/v1/eodhd/` with an `EODHD` app in `/apps.json`; put your own token in `credentials.env` as `EODHD_API_KEY`. Provenance, the 52 commands and the checks are in [v9/eodhd/README.md](v9/eodhd/README.md) and [docs/v9/eodhd-port.md](docs/v9/eodhd-port.md).
 
 ## Public repository checks
 
