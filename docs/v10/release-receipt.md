@@ -160,6 +160,6 @@ v10.0.0 was re-cut again after three user reports on the Live dashboard (the Liv
 - `openbq-lake` `sha256:ac72245b3278f682910741fa811ef172be6bd2603e877708c8f30d6aceb757ff`
 - `openbq-key-maint` `sha256:994fe7114e2350806e1663b6d1eba61175fba307e8976426fb74a5bde3032b56`
 - `openbq-rss-ticker` `sha256:5d48cf244f79cdbd5366d851fd1fbe9e8feebcde564f00544058a153f894ce45`
-- `openbq-table-service` `sha256:94234d7a079c468e20fe8ab8fb1e18468e731be65d3657cabc8644c167242493`, from BDOBB `952a1dd` per `table-service/source.lock.json` (the image first deployed on 10-18 was built while the lock still named v9's `8ee70ad`)
+- `openbq-table-service` `sha256:8d2abb230caee549a0dc9ff5c787d080da70836f306bf363b0bf0c69dff68def`, from BDOBB `0b51af5` per `table-service/source.lock.json` (the image first deployed on 10-18 was built while the lock still named v9's `8ee70ad`)
 
 `latest` was not moved.
