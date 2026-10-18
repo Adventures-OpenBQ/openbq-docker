@@ -102,7 +102,8 @@ tables are dropped, the per-feed `group`, `title_format` and
 `poll_interval_s` columns go, `articles.author` is added, and feed URLs are
 canonicalised. Articles keep their history. The config does **not** migrate:
 delete every key but the four above (the server names the stale ones), drop
-`rss-ticker.env`, and pull `ghcr.io/artcashin/rss-feedhandler:8.0.0`. The
+`rss-ticker.env`, and rebuild the local image
+(`docker compose --profile web build rss-ticker`). The
 OpenBB Workspace widgets are gone; the consumer is bdobb-v2 v8.0.0's News
 widget.
 
@@ -111,20 +112,18 @@ widget.
 rss-feedhandler is MIT and is built on FastAPI, uvicorn, httpx, feedparser and
 PyYAML. Every distribution in the image is listed with its licence text in
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), generated from the built
-image by `python3 scripts/third-party-notices.py`; rerun it after `make buildx`.
+image.
 
-## Multi-arch builds
+## Building
 
-`make buildx` builds and pushes a `linux/amd64,linux/arm64` image to
-`ghcr.io/artcashin/rss-feedhandler`. Multi-platform builds require a
-`docker-container`-driver builder; the target auto-creates one named
-`rss-ticker-builder` on first use.
+openbq-docker's compose builds this directory as the local image
+`openbq-rss-ticker:8.0.0`; nothing is pulled or pushed.
 
 ## Development
 
     uv venv --python 3.12 && uv pip install -e ".[dev]"
-    make test
-    make lint
+    pytest
+    ruff check .
 
 Docs: [base design](docs/superpowers/specs/2026-07-21-rss-news-ticker-design.md) ·
 [user-agnostic rework](docs/superpowers/specs/2026-09-01-user-agnostic-rework-design.md) ·
