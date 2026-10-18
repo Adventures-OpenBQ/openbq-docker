@@ -87,7 +87,7 @@ def test_every_serve_config_publishes_the_pool_on_tailnet_8088_and_never_funnels
 
 def test_the_feed_pool_builds_openbq_rss_ticker_8_0_0_from_source():
     service = SERVICES['rss-ticker']
-    assert service['image'] == 'openbq-rss-ticker:8.0.0', service['image']
+    assert service['image'] == 'openbq-rss-ticker:9.0.0', service['image']
     assert service['build'] == './rss-ticker', service['build']
 
 

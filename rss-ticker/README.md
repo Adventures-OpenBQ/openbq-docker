@@ -117,7 +117,7 @@ image.
 ## Building
 
 openbq-docker's compose builds this directory as the local image
-`openbq-rss-ticker:8.0.0`; nothing is pulled or pushed.
+`openbq-rss-ticker:9.0.0`; nothing is pulled or pushed.
 
 ## Development
 

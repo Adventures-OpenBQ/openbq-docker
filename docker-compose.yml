@@ -82,7 +82,7 @@ services:
   #
   # rss-ticker: a shared feed pool with NO authentication, so reachability is its
   # whole access control. Build it from ./rss-ticker (rss-feedhandler v8.0.1) as the local
-  # image openbq-rss-ticker:8.0.0; nothing is pulled:
+  # image openbq-rss-ticker:9.0.0; nothing is pulled:
   #   docker compose --profile web build rss-ticker
   # On the bridge only; every ts-config/serve*.json publishes it on tailnet port 8088
   # (a 502 there until the web profile runs), never funneled.
@@ -90,7 +90,7 @@ services:
   rss-ticker:
     profiles: [web]
     build: ./rss-ticker
-    image: openbq-rss-ticker:8.0.0
+    image: openbq-rss-ticker:9.0.0
     restart: unless-stopped
     volumes:
       - ./rss-ticker-config:/config:ro
@@ -106,7 +106,7 @@ services:
   funnel-gateway:
     profiles: [web]
     build: ./funnel-gateway
-    image: openbq-funnel-gateway:8.0.0
+    image: openbq-funnel-gateway:9.0.0
     restart: unless-stopped
     expose: ["8091"]
     depends_on: [openbq-api]
