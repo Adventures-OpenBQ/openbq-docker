@@ -1,7 +1,7 @@
 <!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# funnel-gateway (openbq-docker v8.0.0, `web` profile)
+# funnel-gateway (openbq-docker v9.0.0, `web` profile)
 
 The door the sidecar publishes on Funnel port 10000 for BDOBB's browser (web) preview. Port 443
 stays `openbq-api` for your tailnet and is never funneled; 8443 belongs to the episode 3 reference
