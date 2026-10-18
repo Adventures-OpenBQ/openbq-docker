@@ -300,6 +300,7 @@ async function tableExchange(req, res, route, config) {
 export function createGateway(config, { requestJson = getJson, openNews = connectNews, openRef = connectRef,
   now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
   let inflight = 0, controlInflight = 0, sockets = 0;
+  const approvedIds = new Set(Object.values(config.feeds));
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
   const admitted = new Map();
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_SOCKET, perMessageDeflate: false });
@@ -416,7 +417,12 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
           upstream.on("message", (message, isBinary) => {
             if (isBinary || message.length > MAX_SOCKET || client.readyState !== WebSocket.OPEN ||
                 client.bufferedAmount > 262144) return close();
-            client.send(message, { binary: false });
+            // The door is the only trust boundary: rss-ticker is unauthenticated on the tailnet,
+            // so the door forwards the {"feeds"} reply and approved-feed articles, nothing else.
+            let out;
+            try { out = JSON.parse(message.toString()); } catch { return close(); }
+            if (out && Object.keys(out).join() === "feeds" ||
+                approvedIds.has(out?.feed_id)) client.send(message, { binary: false });
           });
           upstream.on("error", close);
           upstream.once("close", close);

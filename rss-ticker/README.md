@@ -3,9 +3,9 @@
 *Companion code for Adventures in OpenBB, Ep. 8: "All the News That Fits, We Print."*
 
 A user-agnostic RSS feed pool with a live wire. Clients tell it which feeds
-they want over a websocket; it polls the union, pushes every new article to
-every connected client tagged by `feed_id`, and keeps cursor-paged history in
-SQLite. The client filters. There are no users, no keys and no configured
+they want over a websocket; it polls the union, pushes each new article,
+tagged by `feed_id`, to the sockets subscribed to its feed, and keeps
+cursor-paged history in SQLite. There are no users, no keys and no configured
 feeds — the consumer is bdobb-v2's built-in **News** widget.
 
 ## Quick start
@@ -51,7 +51,7 @@ fragment follows the path), nothing cleverer — the same rule bdobb-v2's
 `favicon` is the publisher's icon resolved against the feed's own host (each
 Substack newsletter gets its own), or `null` until it resolves.
 
-**Articles** (server → client, every other frame; the same shape on `/api/news`):
+**Articles** (server → client, every other frame, only for the socket's subscribed feeds; the same shape on `/api/news`):
 
     {"id": 91, "feed_id": 3, "cursor": "...", "title": "...", "link": "...", "summary": "...",
      "source": "Markets", "author": null, "published_at": 1756800000, "sort_at": 1756800000}

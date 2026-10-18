@@ -82,7 +82,7 @@ class Broadcaster:
         return len(self._subs)
 
     async def publish(self, articles: list[Article]) -> None:
-        """Every inserted article to every open socket; clients filter."""
+        """Each inserted article to the sockets whose subscription names its feed."""
         if not articles or not self._subs:
             return
         names: dict[int, str | None] = {}
@@ -92,6 +92,8 @@ class Broadcaster:
                 names[article.feed_id] = feed.name if feed else None
             payload = article_payload(article, names[article.feed_id])
             for sub in list(self._subs):
+                if article.feed_id not in sub.feed_ids:
+                    continue
                 try:
                     sub.queue.put_nowait(payload)
                 except asyncio.QueueFull:
