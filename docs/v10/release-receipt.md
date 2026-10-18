@@ -128,7 +128,7 @@ v10.0.0 was re-cut again after three user reports on the Live dashboard (the Liv
 
 **Release review** of everything since the 10-17 re-cut (both merges included): 1 Important and 5 Minor findings, all fixed (455da59), and a scoped re-review's 2 Minor follow-ups fixed (f870ea8). The Important one: a 1m `start` far in the past fanned one request out into hundreds of sequential vendor calls; a 1m window is now one request, clamped to the 120 days EODHD accepts. The others: a reversed 1m window raised; the lake read-back path does not gap-fill (documented); resampled bars carry a volume-weighted vwap only when every traded row has one; `Dockerfile.v3` references; and, with `LIVE_GRID_PUBLIC_URL` unset, a browser write to the watchlist is taken only from a loopback host (the Host-derived origin was open to DNS rebinding).
 
-**v9.0.0 is carried at `d6c4657`** (merge 6cf51a9): local image names in compose and project `openbq-stack`; the v3 image is the Dockerfile's `v3` stage and the gateway's SSRM default comes from `lanes/`; the door relays text/plain and forwards only approved News feeds; key-maint probes EODHD on its own namespace. v10's `/grid` door, `liveGrid` switch and live services are kept as they were.
+**v9.0.0 is carried at `0e0d955`** (merges 6cf51a9 and a70dc82; the second brings the Calendars example's relative ranges): local image names in compose and project `openbq-stack`; the v3 image is the Dockerfile's `v3` stage and the gateway's SSRM default comes from `lanes/`; the door relays text/plain and forwards only approved News feeds; key-maint probes EODHD on its own namespace. v10's `/grid` door, `liveGrid` switch and live services are kept as they were.
 
 **Gates on the final tree:**
 
@@ -149,11 +149,12 @@ v10.0.0 was re-cut again after three user reports on the Live dashboard (the Liv
 - `nas-verify`: smoke, app layouts, heavy routes, isolation and provider fixes all passed.
 - The Live dashboard, drawn from BDOBB `9ba6a8d1` in browser mode against this stack: Subscriptions lists the watchlist, Tick History shows full prices, and the Live Chart draws five days of AAPL 1m candles. Its long wicks after 20:00 UTC are EODHD's own after-hours prints in the 1m history.
 - live-grid at `f870ea8` (after the NAS Docker zvol's inodes were freed by pruning the build cache and week-old unused images): a 1m window from 1900 is one fetch of 120 days, and a reversed one is refused by the provider.
+- openbq-api and MCP at `a70dc82`: `nas-verify` passed again, and the served Calendars example opens on its relative ranges (T-1mo/T+2mo, T-MON/T+1m).
 - The openbq-api `/apps.json` serves twelve BDOBB examples; the Live Grid example is served by live-grid's own `/apps.json` (its cards are none of the API's widgets).
 
 **GHCR `10.0.0`**, built for amd64 and arm64 at `6cf51a9` unless noted:
-- `openbq-local` `sha256:2b8aea41a60b9bcdf493f3f072c8f846a3a081f23b99095590b7bd7a96971c5a`
-- `openbq-mcp` `sha256:3bf8ec34844fd3c8e0004e67173763e1f1b8717dfc06e1dd52ef37be825080f5`
+- `openbq-local` `sha256:c7425917e7f5be809f189af832fc27fb5552afdcac22483cd277fd850382d406`, image revision `a70dc82`
+- `openbq-mcp` `sha256:b8684de82d783c47ac7337722ac802c3e09abef8d0f1e337dd975558c6845b72`, image revision `a70dc82`
 - `openbq-funnel-gateway` `sha256:2e950e1c485eae6a8635999b9bb3bb43c741f514f8e9c228fb77134ec7a6d346`
 - `openbq-live-grid` `sha256:f83068001f9bee730f77bce3017d247eca11ad5766e87021e4289c217eb6982a`, image revision `f870ea8`
 - `openbq-lake` `sha256:ac72245b3278f682910741fa811ef172be6bd2603e877708c8f30d6aceb757ff`
