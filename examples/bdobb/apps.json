@@ -1431,6 +1431,8 @@
             "state": {
               "params": {
                 "country": "US",
+                "start_date": "T-1mo",
+                "end_date": "T+2mo",
                 "provider": "eodhd"
               },
               "chartView": {
@@ -1477,6 +1479,8 @@
             "h": 18,
             "state": {
               "params": {
+                "start_date": "T-MON",
+                "end_date": "T+1m",
                 "provider": "eodhd"
               },
               "chartView": {
