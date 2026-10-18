@@ -225,10 +225,19 @@ directly on a tailnet machine. Its `/etc/resolv.conf` is the tracked
 [rita-resolv.conf](rita-resolv.conf), which points at Tailscale's MagicDNS
 resolver. Serve reaches Rita on `127.0.0.1:7777` inside that namespace. If the
 tailscale container is recreated, recreate `openbq-rita` too
-(`docker compose ... up -d --force-recreate openbq-rita`); otherwise it is left
+(`docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.v6.yml up -d --force-recreate openbq-rita`); otherwise it is left
 in the old, dead namespace. MCP advertises the 10 tool-discovery tools; categories load on demand.
 Rita carries the agent-rita-bdobb patches through 0012. MCP drops the separate
 trading-calendar extension the first Episode 6 image carried: from v4 the API image's
 own `calendar` routes (`v4/routes`) serve `obb.calendar`, and the build checks it.
 See VERIFICATION.md.
+
+MCP runs ODP in-process, so it loads the same provider keys as the API
+(`credentials.demo.env`, then your `credentials.env`) and the same 16g memory cap;
+its in-process calls never ask for the API's Basic auth. MCP on 11443 has no
+authentication of its own, even with the API's lock on: any tailnet device that can
+reach the `openbq` node can call its tools and spend those keys. Restrict 11443 with a
+tailnet ACL, as for Rita on 10443, which has no authentication either. Funnel never
+exposes either port. Rita listens on the namespace's wildcard address, so it also
+answers tailnet devices as plain HTTP on the node's port 7777; a tailnet ACL is what covers it.
 Released in `v6.0.0`, with BDOBB v6.0.0.
