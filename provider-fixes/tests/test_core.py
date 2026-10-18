@@ -3,6 +3,7 @@
 """openbb-core overlay: error mapping, required provider inputs, command deadlines."""
 import asyncio
 import json
+import urllib.parse
 import os
 import sys
 import time
@@ -115,6 +116,13 @@ class ErrorMappingTest(unittest.TestCase):
         response = _get(self.app, "/timeout")
         self.assertEqual(response.status_code, 504)
         self.assertIn("did not respond in time", response.json()["detail"])
+
+    def test_error_text_hides_provider_keys(self):
+        response = _get(self.app, "/timeout?message=" + urllib.parse.quote(
+            "Connection timeout to host https://api.stlouisfed.org/x?series_id=GDP&api_key=SEKRET&file_type=json"))
+        self.assertEqual(response.status_code, 504)
+        self.assertNotIn("SEKRET", response.text)
+        self.assertIn("api_key=***&file_type=json", response.json()["detail"])
 
     def test_non_json_is_502(self):
         response = _get(self.app, "/non_json")

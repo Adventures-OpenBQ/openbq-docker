@@ -14,8 +14,9 @@ byte on what is admitted. What was left at v8 and v10 is listed in
 
 ## Isolation and lock-first
 
-`funnel-gateway` is a compose service under `profiles: [web]`: `docker compose up -d` never
-starts it; `docker compose --profile web up -d` does. The gateway joins the
+`funnel-gateway` is a compose service under `profiles: [web]`:
+`docker compose -f docker-compose.yml -f docker-compose.v3.yml up -d` never starts it;
+`docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web up -d` does. The gateway joins the
 `openbq-internal` bridge (and, for the managed tables, the internal `table-private` bridge), listens on `0.0.0.0:8091` with no host port, and is reached only through
 Tailscale Serve. It runs `read_only`, as uid 1000, `cap_drop: [ALL]`, 512 MB, 64 pids; its only
 writable mount is the `gateway-state` volume behind `/state`.
@@ -41,30 +42,30 @@ Caller headers, cookies and credentials are never relayed.
 | `/ref/widgets.json`, `/ref/apps.json` | GET | the reference backend's root documents, keyless (no credential is injected); no query; bodies up to 16 MiB |
 | `/ref/agents.json`, `/ref/bundle.apps.json`, `/ref/market-examples.apps.json`, `/ref/assets/bdobb-logo.svg` | GET | the four other exact documents the reference serves with a dot in the path; no query; nothing else dotted passes |
 | `GET /ref/<path>` | GET | the reference's other routes, keyless, under the same structural bounds as `/api/api/v1` (lowercase segments, no dot, no `%`, bounded query, re-serialised); any `omni*` segment at any depth is refused |
-| `/api/api/v1/**` | GET | under the shape bounds (lowercase route ≤ 200 chars, ≤ 40 query pairs, name grammar, ≤ 1024-char values, no control characters, ≤ 4096 chars leaving), query re-serialised; one unit of `quoteDailyLimit` |
+| `/api/api/v1/**` | GET | under the shape bounds (lowercase route ≤ 200 chars, ≤ 40 query pairs, name grammar, ≤ 1024-char values, no control characters, ≤ 4096 chars leaving), query re-serialised |
 | `/api/api/v1/calendar/trading` | GET | only `exchange=<MIC>&year=1990..2040` |
 | `/table/**`, `ssrmRoutes` POSTs | see below | the managed table service and registered OpenBB SSRM endpoints |
 | `/state/<digits>` | GET | the user's saved files `{files: {name: text}}` |
 | `/state/<digits>/<file>` | PUT, DELETE | one of the app's JSON stores (`policy.mjs` `stateFile`); 256 KiB a file, 2 MiB and 200 files a user; `application/json` only |
 | `/ai/**` | — | not served by openbq-docker: 404 (POST 405) |
 | `/news/**` | — | the wire arrives at v8: 404 |
-| `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, six budget units, no lifetime (a 30 s ping; a missed pong closes it), 10 s to the first frame |
+| `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, no lifetime (a 30 s ping; a missed pong closes it), 10 s to the first frame |
 | any other WebSocket upgrade | — | 401 without the token, else 403 (foreign Origin) or 404 |
 | everything else | — | 404 |
 
-Budgets (settings): `requestsPerMinute` (default 60, ≤ 600), `maxConcurrent` (8, ≤ 32), `maxSockets` (4, ≤ 32),
-`quoteDailyLimit` (100, ≤ 10000, UTC day). Counters are in memory and reset on restart; keep one
-instance.
+Caps (settings): `maxConcurrent` (8, ≤ 32) and `maxSockets` (4, ≤ 32). There is no daily vendor
+cap and no per-minute request budget (removed 2026-10-17; `quoteDailyLimit` and `requestsPerMinute`
+are refused at startup by name, so delete them from an older settings file). Counters are in
+memory and reset on restart; keep one instance.
 
 Managed table cancellation and cleanup reserve **two concurrent requests** outside
 `maxConcurrent`. Only exact, query-free `POST /table/sessions/:id/cancel`,
 `DELETE /table/sessions/:id` and `DELETE /table/exports/:id` qualify, after route
-validation and bearer authentication. Their independent per-minute bucket uses
-`requestsPerMinute` too; ordinary requests cannot spend it. A full control lane or
-spent control bucket returns 429, with no borrowing from the ordinary lane.
+validation and bearer authentication. A full control lane returns 429, with no borrowing
+from the ordinary lane.
 Body limits, identity assertions, deadlines and disconnect cleanup still apply.
 Source deletion, derive/commands/export creation and standard LIVE requests use
-the ordinary concurrency and rate budgets. See [managed tables](../table-service/README.md).
+the ordinary concurrency limit. See [managed tables](../table-service/README.md).
 
 ## Configuration
 
@@ -73,7 +74,7 @@ the ordinary concurrency and rate budgets. See [managed tables](../table-service
   the same pair as in `credentials.env` (repeated so the gateway never loads provider keys).
 - `gateway-config/settings.json` (from `funnel-gateway/settings.example.json`, read-only bind):
   `origin` (`https://openbq.<tailnet>.ts.net:10000`), `stateDir` (`/var/lib/bdobb/state` to turn
-  `/state` on), `previewOrigin` (the web preview's portless HTTPS origin, to turn socket tickets on; the example leaves it unset, so tickets stay off until a Vercel origin exists), the budgets, and the table keys (`tableService`, `tableDesktopPrincipal`,
+  `/state` on), `previewOrigin` (the web preview's portless HTTPS origin, to turn socket tickets on; the example leaves it unset, so tickets stay off until a Vercel origin exists), the caps, and the table keys (`tableService`, `tableDesktopPrincipal`,
   `ssrmRoutes`, `tableTimeoutMs`, `ssrmTimeoutMs`; see [managed tables](../table-service/README.md)). An unknown
   key is refused at startup, including Rita's `ritaOrigin`, `ritaAddress` and `socksProxy` and
   the keys of later lines (`rssOrigin`, `rssAddress` and `feeds` at v8; `liveGrid` at v10).
@@ -98,13 +99,13 @@ Funnel offers only 443, 8443 and 10000; 10000 is the only port any file funnels
 ## Verification
 
 ```sh
-docker compose --profile web up -d
-docker compose --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked
-docker compose --profile web exec funnel-gateway node verify.mjs           # the door's own lock, on the bridge
-cp ts-config/serve-funnel.json ts-config/serve.json.new && jq empty ts-config/serve.json.new && mv ts-config/serve.json.new ts-config/serve.json   # the door opens; the sidecar live-applies it, and a malformed file would kill it
-# with the v3 overlay running, swap its file instead:
-# cp ts-config/serve-v3-funnel.json ts-config/serve-v3.json.new && jq empty ts-config/serve-v3.json.new && mv ts-config/serve-v3.json.new ts-config/serve-v3.json
-docker compose --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net:10000 funnel-gateway node verify.mjs
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web up -d
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web exec funnel-gateway node verify.mjs           # the door's own lock, on the bridge
+cp ts-config/serve-v3-funnel.json ts-config/serve-v3.json.new && jq empty ts-config/serve-v3.json.new && mv ts-config/serve-v3.json.new ts-config/serve-v3.json   # the door opens; the sidecar live-applies it, and a malformed file would kill it
+# a base stack without the v3 overlay swaps its own file instead:
+# cp ts-config/serve-funnel.json ts-config/serve.json.new && jq empty ts-config/serve.json.new && mv ts-config/serve.json.new ts-config/serve.json
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net:10000 funnel-gateway node verify.mjs
 ```
 
 `git checkout ts-config/serve.json` and a sidecar restart close the door again. Then test from a

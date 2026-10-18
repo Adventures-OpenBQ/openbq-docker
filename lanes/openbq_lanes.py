@@ -505,7 +505,7 @@ async def _ssrm(request):
     if df.attrs.get("warnings"):
         page["warnings"] = df.attrs["warnings"]
     reply = json.dumps(page, allow_nan=False, default=_json_default)
-    # On a hit the door refunds its daily quote.
+    # Marks a cache hit; the door does not relay this header.
     return _cors(request, Response(reply, 200, media_type="application/json",
                                    headers={"x-openbq-ssrm": "hit" if hit else "miss"}))
 

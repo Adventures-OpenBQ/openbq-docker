@@ -106,7 +106,7 @@ The list is committed data, `lanes/ssrm_widgets.json`:
 
 Settings (`credentials.env`): `OPENBQ_SSRM_WIDGETS` (path of that list, default `/workspace/ssrm_widgets.json`), `OPENBQ_SSRM_CACHE_BYTES` (default 3 GiB), `OPENBQ_SSRM_TTL` (seconds, default 900), `OPENBQ_SSRM_DEADLINE` (seconds per first acquisition, default 300). As with widget settings, restart the API after editing them.
 
-The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults to the 23 paths `/api<route>/ssrm`, one per row above, committed as `funnel-gateway/ssrm-routes.json`; leave the setting out unless you mean to narrow it (`[]` turns SSRM through the door off). `funnel-gateway/ssrm-routes.test.mjs` checks that file against `ssrm_widgets.json` (equal as door paths, 23 unique routes, each admitted for POST, a listed route's GET and an unlisted sibling refused), so edit both together. Each SSRM POST spends one daily quote (`quoteDailyLimit`), which caps vendor calls; the door refunds it when od answers `x-openbq-ssrm: hit` (a further page of a view already built, so no provider call and no new sort), and never passes that header to the client.
+The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults to the 23 paths `/api<route>/ssrm`, one per row above, committed as `funnel-gateway/ssrm-routes.json`; leave the setting out unless you mean to narrow it (`[]` turns SSRM through the door off). `funnel-gateway/ssrm-routes.test.mjs` checks that file against `ssrm_widgets.json` (equal as door paths, 23 unique routes, each admitted for POST, a listed route's GET and an unlisted sibling refused), so edit both together. The door never passes od's `x-openbq-ssrm` cache marker to the client.
 
 ## Credentials and restart
 
@@ -138,7 +138,7 @@ Copyright 2026 SecretoftheUniverse.com LLC. Apache-2.0 for this backend companio
 
 ## BDOBB web preview door (v4, opt-in)
 
-`docker compose --profile web up -d` adds `funnel-gateway` for BDOBB's browser preview: `/api` (the ODP catalogue, with the API's Basic pair injected), `/state` (per-user saved configuration) and, with the `table` profile, `/table` (managed server-side tables). There is no `/ai`, and the `/news` wire arrives at v8. Nothing is public until you also swap `ts-config/serve.json` for `ts-config/serve-funnel.json` (with the v3 overlay: `serve-v3.json` for `serve-v3-funnel.json`), which funnels port 10000 alone; 443 (ODP) and 8443 (the episode 3 reference) stay tailnet-only. Turn the API's lock on first (`OPENBB_API_AUTH=true`), and fill `gateway.env` and `gateway-config/settings.json` from their examples. See [funnel-gateway/README.md](funnel-gateway/README.md) and [docs/v4/gateway-down.md](docs/v4/gateway-down.md).
+`docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web up -d` adds `funnel-gateway` for BDOBB's browser preview: `/api` (the ODP catalogue, with the API's Basic pair injected), `/state` (per-user saved configuration) and, with the `table` profile, `/table` (managed server-side tables). There is no `/ai`, and the `/news` wire arrives at v8. Nothing is public until you also swap `ts-config/serve.json` for `ts-config/serve-funnel.json` (with the v3 overlay: `serve-v3.json` for `serve-v3-funnel.json`), which funnels port 10000 alone; 443 (ODP) and 8443 (the episode 3 reference) stay tailnet-only. Turn the API's lock on first (`OPENBB_API_AUTH=true`), and fill `gateway.env` and `gateway-config/settings.json` from their examples. See [funnel-gateway/README.md](funnel-gateway/README.md) and [docs/v4/gateway-down.md](docs/v4/gateway-down.md).
 
 ## Public repository checks
 
@@ -182,8 +182,8 @@ examples for an 80-card BDOBB file import. The two Episode 3 app entries carry
 the BDOBB logo in standard image fields. Workspace is an optional Episode 2
 comparison, not a prerequisite for this setup.
 
-Released as `v3.0.0` with BDOBB v3.0.0: `ghcr.io/adventures-openbq/openbq-local:3.0.0`
-and `openbq-key-maint:3.0.0` are the images the 2026-10-15 regression ran on a NAS.
+Released as `v3.0.0` with BDOBB v3.0.0: `openbq-local:3.0.0` and
+`openbq-key-maint:3.0.0`, both built from this checkout, are the images the 2026-10-15 regression ran on a NAS.
 
 The reference recipe carries forward the previously qualified PDF repair from `bdobb-dev/backends-for-openbb` commit `32615f789f9423ea14d3f95003da250f4ef5bcfc`. Sample and Bitcoin PDFs use immutable GitHub raw URLs because the original S3 bucket returns AllAccessDisabled. Downloaded bytes match the pinned upstream fixtures; this changes asset transport, not PDF content.
 
