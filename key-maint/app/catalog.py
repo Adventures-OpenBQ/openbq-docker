@@ -46,7 +46,7 @@ EXAMPLES: dict[str, Example] = {e.provider_id: e for e in [
         f"{_D}/economy/gdp/real", demo_ok=True),
     _ex("government_us", "/api/v1/fixedincome/government/treasury_auctions", {},
         f"{_D}/fixedincome/government/treasury_auctions", demo_ok=True),
-    _ex("eodhd", "/api/v1/equity/price/quote", {"symbol": "AAPL"},
+    _ex("eodhd", "/api/v1/eodhd/equity/price/quote", {"symbol": "AAPL"},
         f"{_D}/equity/price/quote", demo_ok=True),
     _ex("fmp", "/api/v1/equity/profile", {"symbol": "AAPL"}, f"{_D}/equity/profile"),
     _ex("fred", "/api/v1/fred/economy/fred_series", {"symbol": "GNPCA"}, f"{_D}/economy/fred_series"),

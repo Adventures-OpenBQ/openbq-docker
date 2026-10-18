@@ -29,6 +29,11 @@ class TestShape:
         for pid in ("fmp", "fred", "tiingo", "intrinio", "benzinga", "tradingeconomics", "bls"):
             assert EXAMPLES[pid].demo_ok is False
 
+    def test_eodhd_probe_uses_the_namespace(self):
+        # This line serves EODHD only under /api/v1/eodhd/ (v9/eodhd/README.md); a
+        # standard-router path 404s and flags every key, the demo token included.
+        assert EXAMPLES["eodhd"].path.startswith("/api/v1/eodhd/")
+
 
 class TestClassify:
     def test_2xx_with_results_is_ok(self):
