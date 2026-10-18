@@ -148,20 +148,25 @@ def resample(rows: list[dict], interval: str) -> list[dict]:
     """OHLCV bars of `interval` from finer history rows on the epoch clock grid
     (the tick buckets' grid). The caller guarantees the source width divides
     `interval`, so every source bar falls wholly inside one bucket. A bucket's
-    vwap is the volume-weighted mean of its rows' vwaps, when they carry one;
+    vwap is the volume-weighted mean of its rows' vwaps when every traded row
+    carries one, and absent otherwise (never estimated);
     other fields (adjusted_close) are not carried."""
     from openbq_kdb.aggregate import bucket_ns
 
     width = timedelta(microseconds=bucket_ns(interval) / 1000)
     buckets: dict[datetime, dict] = {}
     pv: dict[datetime, tuple[float, float]] = {}
+    partial: set[datetime] = set()
     for row in sorted(rows, key=lambda r: _row_dt(r["date"])):
         t = _row_dt(row["date"])
         start = EPOCH + ((t - EPOCH) // width) * width
         bar = buckets.get(start)
-        if row.get("vwap") is not None and row.get("volume"):
-            pv[start] = pv.get(start, (0.0, 0.0))
-            pv[start] = (pv[start][0] + row["vwap"] * row["volume"], pv[start][1] + row["volume"])
+        if row.get("volume"):
+            if row.get("vwap") is None:
+                partial.add(start)  # traded volume with no vwap: the bucket's vwap is unknown
+            else:
+                w, v = pv.get(start, (0.0, 0.0))
+                pv[start] = (w + row["vwap"] * row["volume"], v + row["volume"])
         if bar is None:
             buckets[start] = {"date": start.isoformat() + "Z", "open": row["open"],
                               "high": row["high"], "low": row["low"], "close": row["close"],
@@ -173,7 +178,8 @@ def resample(rows: list[dict], interval: str) -> list[dict]:
         if row.get("volume") is not None:
             bar["volume"] = (bar["volume"] or 0) + row["volume"]
     for start, (weighted, volume) in pv.items():
-        buckets[start]["vwap"] = weighted / volume
+        if start not in partial:
+            buckets[start]["vwap"] = weighted / volume
     return list(buckets.values())
 
 

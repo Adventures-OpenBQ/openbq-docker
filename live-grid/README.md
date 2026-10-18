@@ -320,8 +320,9 @@ An `iframe` widget's endpoint must be an absolute URL. `/widgets.json` uses
 `LIVE_GRID_PUBLIC_URL` when it is set (e.g.
 `https://openbb.<your-tailnet>.ts.net:6903`); unset or empty, it uses the
 scheme and host the request came in on, so any address a client reaches
-live-grid at works without configuration. `X-Forwarded-*` headers are not
-consulted. Behind a direct HTTPS tailnet Serve (TLS ends before live-grid, so it sees plain
+live-grid at loads the page without configuration. Its writes (add, remove)
+then work only on a loopback host (a local relay): set `LIVE_GRID_PUBLIC_URL`
+for any other direct address. `X-Forwarded-*` headers are not consulted. Behind a direct HTTPS tailnet Serve (TLS ends before live-grid, so it sees plain
 HTTP) you must set `LIVE_GRID_PUBLIC_URL` to the `https://` address: otherwise the iframe URL
 comes out `http://` and the page's POST/DELETE writes get 403 on the Origin check.
 `/health` reports `"subscriptions": {"published": true}`.
@@ -357,7 +358,8 @@ the resulting `Origin: null` is refused by the origin check on `POST`/`DELETE
 Tailnet-only, like every route here. Never funnel it. `POST`/`DELETE
 /api/subscriptions` additionally reject a request whose browser `Origin`
 header does not match `LIVE_GRID_PUBLIC_URL` (unset: the request's own scheme and
-host, the origin the page was framed from; a request with no `Origin`,
+host, the origin the page was framed from, and only on a loopback host, since a
+DNS-rebinding page controls both Host and Origin; a request with no `Origin`,
 e.g. curl, is unaffected) — CORS here is wide open for the Workspace origin's
 reads, and this keeps some other page an operator has open from silently
 mutating the durable watchlist.

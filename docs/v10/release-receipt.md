@@ -14,7 +14,7 @@ Gated tree: `e6cb490` (`claude/openbq-docker-v10`). This receipt commit changes 
 - **The S3 tier on RustFS 1.0.1** (user ruling: RustFS, not MinIO). It covers bucket init (`scripts/s3_init.py`), `eod-dump` (`scripts/eod_dump.py`) and the lake read-back in a separate `openbq-lake` image (`Dockerfile.lake`, with `openbb-deltalake`). The env files `rustfs.env` and `eod.env` are optional, and the tier fails closed without them. RustFS data is kept on the host (`${RUSTFS_DATA_DIR:-./rustfs-data}`).
 - **funnel-gateway 10.0.0.** It adds the `/grid` family behind the `liveGrid` setting, which is off by default, so `/grid` answers 503. That family is Bearer-gated, metered per symbol, capped at 60 frames per socket and admitted with a single-use ticket. It also serves live-grid's Subscriptions page and watchlist API (V10-P5). `funnel-gateway/policy.mjs` gains the `/grid` rules and the grid frame rule. BDOBB 10.0.0 vendors it.
 - **BDOBB examples** are synced with `EPISODE=10`. The live-grid example goes to `live-grid/apps.json`.
-- **Unchanged from v9.0.0:** `ts-config/`, `Dockerfile.v3`, `rss-ticker-config/` and the ports: 443 for ODP, 8443 for the Episode 3 reference, 8088 for rss-ticker and 10000 for the gateway (Funnel). `docker-compose.v3.yml` changes only its three image tags, 9.0.0 to 10.0.0 (`openbq-local`, `openbq-episode3-demo`, `openbq-key-maint`).
+- **Unchanged from v9.0.0:** `ts-config/`, `Dockerfile.v3` (since the v9 merge, 2026-10-18, the Dockerfile's `v3` stage), `rss-ticker-config/` and the ports: 443 for ODP, 8443 for the Episode 3 reference, 8088 for rss-ticker and 10000 for the gateway (Funnel). `docker-compose.v3.yml` changes only its three image tags, 9.0.0 to 10.0.0 (`openbq-local`, `openbq-episode3-demo`, `openbq-key-maint`).
 
 ## Gates run for this receipt (cloud, at `e6cb490`)
 
@@ -41,7 +41,7 @@ Receipts already recorded on the Mac's real q and Docker: drill A (`38e4958`: kd
 ## Docker gates for the Mac, before the tag is pushed
 
 This session has no Docker daemon. As for v9.0.0, these run on the Mac:
-- `docker build -f Dockerfile.v3` (since the v9 merge, 2026-10-18: `docker build --target v3 .`);
+- `docker build --target v3 .` (before the v9 merge of 2026-10-18, `docker build -f Dockerfile.v3`);
 - `--profile live` build and up with the licence;
 - `Dockerfile.lake`;
 - `lanes/tests`, `v9/eodhd/tests` and `examples/episode3` in the image;

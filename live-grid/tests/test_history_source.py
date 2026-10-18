@@ -68,7 +68,10 @@ def test_resample_carries_a_volume_weighted_vwap():
         {"date": "2026-10-16T13:31:00Z", "open": 2, "high": 2, "low": 2, "close": 2, "volume": 30, "vwap": 2.0},
         {"date": "2026-10-16T13:32:00Z", "open": 2, "high": 2, "low": 2, "close": 2, "volume": 5},
     ]
-    assert resample(rows, "5m")[0]["vwap"] == pytest.approx((10 * 1 + 30 * 2) / 40)
+    assert resample(rows[:2], "5m")[0]["vwap"] == pytest.approx((10 * 1 + 30 * 2) / 40)
+    # A traded minute with no vwap (a filled one) makes the bucket's vwap unknown, not a
+    # vwap of the other minutes' volume alone (re-review, 2026-10-18).
+    assert "vwap" not in resample(rows, "5m")[0]
     assert "vwap" not in resample([{**rows[2], "date": "2026-10-16T13:40:00Z"}], "5m")[0]
 
 
