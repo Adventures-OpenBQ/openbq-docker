@@ -49,7 +49,8 @@ fragment follows the path), nothing cleverer — the same rule bdobb-v2's
     {"feeds": [{"id": 3, "url": "https://feeds.example/markets.rss", "title": "Markets", "favicon": "data:image/png;base64,..."}]}
 
 `favicon` is the publisher's icon resolved against the feed's own host (each
-Substack newsletter gets its own), or `null` until it resolves.
+Substack newsletter gets its own), or `null` until it resolves. An icon over
+16 KiB is skipped and stays `null`, so the reply fits the public door's 64 KiB frame.
 
 **Articles** (server → client, every other frame, only for the socket's subscribed feeds; the same shape on `/api/news`):
 
