@@ -1,0 +1,35 @@
+{
+  "status": "affected_acceptance_passed_review_pending",
+  "source_commit": "f83abc2141af2ca3b3991df9d7e5e9c78dd44b00",
+  "image_id": "sha256:8bf7945541cd8139805b6b5309d84552b05cd8d83fc9efb3b8cd09603d132007",
+  "distribution": "local-docker-save; unpublished",
+  "registry_reference": null,
+  "scope": "Gate4 full installed protocol plus Gate5 focused consumer/recovery continuation, same corrective artifact; distinct fixtures, not one uninterrupted run",
+  "protocol": "protocol-gate-4.json",
+  "consumer": "consumer-gate-5.json",
+  "installed_gate_5": {
+    "result": "9 passed",
+    "seconds": 171.79
+  },
+  "ui": "ui.json",
+  "rita": {
+    "status": "PASS",
+    "evidence": "rita.json",
+    "actual_tool": "get_query_result",
+    "call_count": 1,
+    "execution_id": "4abad567-e5c9-4489-9e3b-0082840f87de",
+    "route": "real runAgentQuery -> executeFunction -> runAgentTool -> MCP -> tool result repost to actual Rita"
+  },
+  "protected_replay": "replay.json",
+  "independent_restore": "restore.json",
+  "explicit_protected_run_id": "d328df7e-3064-46ff-84e9-1c37a6dc0b16",
+  "runtime_archive": "runtime-archive.json",
+  "timeout": "timeout.json",
+  "historical_reuse": "historical-source-comparison.json",
+  "dependencies": "dependency-comparison.json",
+  "cleanup": "cleanup.json",
+  "failures_retained": "See README.md; initial failed image is not qualified",
+  "provider_evidence_scope": "Installed cache miss caused no new capture/job; no provider configuration supplied. Historical provider/acquisition/FUSE checks retain original identity and were not rerun.",
+  "evidence_repository": "Adventures-OpenBQ/temporalDB-docker",
+  "evidence_directory": "docs/releases/mcp"
+}

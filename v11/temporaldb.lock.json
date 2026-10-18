@@ -3,27 +3,27 @@
   "client_compatibility": 11,
   "service": "TemporalDB",
   "version": "0.4.0",
-  "source_commit": "f83abc2141af2ca3b3991df9d7e5e9c78dd44b00",
-  "image_id": "sha256:8bf7945541cd8139805b6b5309d84552b05cd8d83fc9efb3b8cd09603d132007",
+  "source_commit": "8d259ddd06995b48febe11c3f9a56f1ab9274f0d",
+  "image_id": "sha256:36d2c63cb95dbdcb154031312920864ea1ccfe73cd76633577fdbe01f27328b3",
   "platform": "linux/arm64",
   "artifact": "temporaldb-0.4.0-linux-arm64.docker.tar",
-  "artifact_sha256": "a4b48e7a12af673bbc0457d8590276047fa423c87c75e99f2c1b3290cb22f265",
+  "artifact_sha256": "a2fd9e71e0d9a3a26f86aff8beb998afe91fa2ba1b0fa2602756efe593bf3342",
   "distribution": "local-docker-save; unpublished",
   "registry_reference": null,
   "provenance": {
-    "image_id": "sha256:8bf7945541cd8139805b6b5309d84552b05cd8d83fc9efb3b8cd09603d132007",
+    "image_id": "sha256:36d2c63cb95dbdcb154031312920864ea1ccfe73cd76633577fdbe01f27328b3",
     "platform": "linux/arm64",
     "labels": {
-      "org.opencontainers.image.revision": "f83abc2141af2ca3b3991df9d7e5e9c78dd44b00",
+      "org.opencontainers.image.revision": "8d259ddd06995b48febe11c3f9a56f1ab9274f0d",
       "org.opencontainers.image.source": "https://github.com/Adventures-OpenBQ/temporalDB-docker",
       "org.opencontainers.image.title": "TemporalDB",
       "org.opencontainers.image.version": "0.4.0"
     },
     "version": "0.4.0",
-    "source_commit": "f83abc2141af2ca3b3991df9d7e5e9c78dd44b00",
-    "source_date_epoch": "1792330930",
+    "source_commit": "8d259ddd06995b48febe11c3f9a56f1ab9274f0d",
+    "source_date_epoch": "1792332829",
     "artifact": "temporaldb-0.4.0-linux-arm64.docker.tar",
-    "artifact_sha256": "a4b48e7a12af673bbc0457d8590276047fa423c87c75e99f2c1b3290cb22f265",
+    "artifact_sha256": "a2fd9e71e0d9a3a26f86aff8beb998afe91fa2ba1b0fa2602756efe593bf3342",
     "distribution": "local-docker-save; unpublished",
     "registry_reference": null,
     "build_command": "scripts/build_release.py --platform linux/arm64",
@@ -40,8 +40,8 @@
   },
   "qualification_report": "temporaldb-mcp-qualification.json",
   "candidate_qualification": {
-    "status": "affected_acceptance_passed_review_pending",
-    "reason": "Gate4 full installed protocol plus Gate5 focused consumer/recovery continuation, same corrective artifact; distinct fixtures, not one uninterrupted run; actual Rita, pinned widget, replay and explicit-run restore passed. No release approval."
+    "status": "targeted_final_correction_passed_scoped_review_pending",
+    "reason": "Fresh installed final discovery error/manifest corrections and ordinary cached execution; earlier consumer/Rita/protected replay/restore proof retained separately, not rerun or relabeled."
   },
   "provider_host": {
     "version": "11.0.0",
@@ -87,10 +87,19 @@
     }
   },
   "previous_runtime": {
-    "source_commit": "219e7e7dc261064e1868d0c9888e102711c3a2b0",
-    "image_id": "sha256:486634d5aa36dc29c1ae9d0f7cbf73d2328b843d33671bbcd5c9f8eadede7e7e",
-    "artifact_sha256": "3b03d312d5c7ae4d5487fd5ed17c23c76fe8c40a5c5a8e93e3f70b982f34ab24",
-    "qualification_report": "temporaldb-wholebranch-corrections-qualification.json"
+    "source_commit": "f83abc2141af2ca3b3991df9d7e5e9c78dd44b00",
+    "image_id": "sha256:8bf7945541cd8139805b6b5309d84552b05cd8d83fc9efb3b8cd09603d132007",
+    "artifact_sha256": "a4b48e7a12af673bbc0457d8590276047fa423c87c75e99f2c1b3290cb22f265",
+    "runtime_environment_digest": "c5075c0f2740f98583476d60d98234f988df92aa6773c0c6cc6120ead295b0e9",
+    "qualification_report": "temporaldb-mcp-previous-qualification.json"
   },
-  "runtime_environment_digest": "c5075c0f2740f98583476d60d98234f988df92aa6773c0c6cc6120ead295b0e9"
+  "runtime_environment_digest": "46c9c02c5d55c93b815bcb2c6c280ec12511efbfae1d9796cb831a7bd6568425",
+  "previous_runtimes": [
+    {
+      "source_commit": "219e7e7dc261064e1868d0c9888e102711c3a2b0",
+      "image_id": "sha256:486634d5aa36dc29c1ae9d0f7cbf73d2328b843d33671bbcd5c9f8eadede7e7e",
+      "artifact_sha256": "3b03d312d5c7ae4d5487fd5ed17c23c76fe8c40a5c5a8e93e3f70b982f34ab24",
+      "qualification_report": "temporaldb-wholebranch-corrections-qualification.json"
+    }
+  ]
 }
