@@ -128,39 +128,40 @@ def history_source(interval: str) -> str | None:
     return None
 
 
-def one_minute_spans(start: str, end: str) -> list[tuple[str, str]]:
-    """Date pieces of [start, end] that one 1m request each can cover (both
-    ends inclusive). A bound that is not a date is passed through whole."""
+def one_minute_window(start: str, end: str) -> tuple[str, str]:
+    """[start, end] clamped to the one 1m request EODHD accepts (120 days, both
+    ends inclusive), keeping `end`. One request per call whatever `start` says:
+    split into pieces, a window from 1900 was 386 sequential vendor calls from
+    one URL (release review, 2026-10-18). A reversed or unparseable window is
+    passed through for the provider to refuse."""
     from datetime import date
 
     try:
         lo, hi = date.fromisoformat(str(start)[:10]), date.fromisoformat(str(end)[:10])
     except ValueError:
-        return [(start, end)]
-    step = timedelta(days=ONE_MINUTE_SPAN_DAYS - 1)
-    spans = []
-    while lo <= hi:
-        top = min(hi, lo + step)
-        spans.append((str(lo), str(top)))
-        lo = top + timedelta(days=1)
-    spans[0] = (start, spans[0][1])
-    spans[-1] = (spans[-1][0], end)
-    return spans
+        return start, end
+    floor = hi - timedelta(days=ONE_MINUTE_SPAN_DAYS - 1)
+    return (str(floor), end) if lo < floor else (start, end)
 
 
 def resample(rows: list[dict], interval: str) -> list[dict]:
     """OHLCV bars of `interval` from finer history rows on the epoch clock grid
     (the tick buckets' grid). The caller guarantees the source width divides
-    `interval`, so every source bar falls wholly inside one bucket. Fields
-    other than OHLCV (adjusted_close) are not carried."""
+    `interval`, so every source bar falls wholly inside one bucket. A bucket's
+    vwap is the volume-weighted mean of its rows' vwaps, when they carry one;
+    other fields (adjusted_close) are not carried."""
     from openbq_kdb.aggregate import bucket_ns
 
     width = timedelta(microseconds=bucket_ns(interval) / 1000)
     buckets: dict[datetime, dict] = {}
+    pv: dict[datetime, tuple[float, float]] = {}
     for row in sorted(rows, key=lambda r: _row_dt(r["date"])):
         t = _row_dt(row["date"])
         start = EPOCH + ((t - EPOCH) // width) * width
         bar = buckets.get(start)
+        if row.get("vwap") is not None and row.get("volume"):
+            pv[start] = pv.get(start, (0.0, 0.0))
+            pv[start] = (pv[start][0] + row["vwap"] * row["volume"], pv[start][1] + row["volume"])
         if bar is None:
             buckets[start] = {"date": start.isoformat() + "Z", "open": row["open"],
                               "high": row["high"], "low": row["low"], "close": row["close"],
@@ -171,6 +172,8 @@ def resample(rows: list[dict], interval: str) -> list[dict]:
         bar["close"] = row["close"]
         if row.get("volume") is not None:
             bar["volume"] = (bar["volume"] or 0) + row["volume"]
+    for start, (weighted, volume) in pv.items():
+        buckets[start]["vwap"] = weighted / volume
     return list(buckets.values())
 
 

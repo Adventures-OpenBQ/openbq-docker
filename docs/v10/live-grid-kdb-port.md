@@ -288,6 +288,8 @@ The Live Chart's `/series` fills those down minutes at query time (user ruling 2
 `app/gapfill.py`): US equities from EODHD's recent closed minute bars (the same EDGX stream,
 about the last two traded hours), crypto from intraday 1m; forex stays unfilled. A filled
 minute serves 1m and wider widths only, and the ticks themselves (Tick History) keep the hole.
+With the S3 tier's read-back on (`LIVE_GRID_LAKE_READBACK`), an intraday request takes the lake path,
+which does not fill: the NAS runs with read-back off.
 
 ### The S3 tier (724739e)
 

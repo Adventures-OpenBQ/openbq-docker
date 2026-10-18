@@ -116,22 +116,17 @@ def _parse_symbols(raw: str) -> list[str]:
 async def fetch_history(symbol, interval, start, end, provider="kdb"):
     """History for a chart width, fetched only at an interval that divides it
     (app.series.history_source) and resampled up to it. A width with no history
-    source (under a minute) gets none: ticks alone build it. 1m is fetched in
-    pieces EODHD accepts (120 days each)."""
+    source (under a minute) gets none: ticks alone build it. 1m is one request
+    EODHD accepts, clamped to 120 days ending at `end`."""
     from app.openbb_client import _UNKNOWN
-    from app.series import history_source, one_minute_spans, resample
+    from app.series import history_source, one_minute_window, resample
 
     source = history_source(interval)
     if source is None:
         return [], dict(_UNKNOWN)
-    spans = one_minute_spans(start, end) if source == "1m" else [(start, end)]
-    rows, meta = [], None
-    for lo, hi in spans:
-        part, part_meta = await fetch_series(symbol, source, lo, hi, provider)
-        rows.extend(part)
-        meta = meta or part_meta
-    if len(spans) > 1:  # adjacent pieces may both hold the boundary day's bars
-        rows = list({str(r["date"]): r for r in rows}.values())
+    if source == "1m":
+        start, end = one_minute_window(start, end)
+    rows, meta = await fetch_series(symbol, source, start, end, provider)
     if source != interval:
         rows = resample(rows, interval)
     return rows, meta
@@ -790,6 +785,12 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         origin = request.headers.get("origin")
         if origin is None:
             return
+        # With no public URL the expected origin is built from the request's own Host, which
+        # a DNS-rebinding page controls (it sends a Host and an Origin that agree). So then a
+        # browser write is taken only from a loopback host: a local relay (release review,
+        # 2026-10-18). The gateway path sends no Origin.
+        if public_url is None and request.url.hostname not in ("localhost", "127.0.0.1", "::1"):
+            raise HTTPException(status_code=403, detail="origin not allowed")
         if origin.rstrip("/") != _own_url(request):
             raise HTTPException(status_code=403, detail="origin not allowed")
 

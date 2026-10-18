@@ -208,6 +208,11 @@ def test_without_a_public_url_the_widget_points_at_the_address_the_client_used(t
     r = client.post("http://localhost:26906/api/subscriptions", json={"symbol": "MSFT"},
                     headers={"Origin": "https://evil.example.com"})
     assert r.status_code == 403
+    # Review finding 6: a rebinding page sends a Host and an Origin that agree; with no
+    # public URL, only a loopback host may make a browser write.
+    r = client.post("http://rebound.example.com:26906/api/subscriptions", json={"symbol": "TSLA"},
+                    headers={"Origin": "http://rebound.example.com:26906"})
+    assert r.status_code == 403
 
 
 def test_a_websocket_registered_symbol_counts_toward_used(tmp_path, monkeypatch):

@@ -11,12 +11,11 @@ history source at all, only ticks.
 
 import asyncio
 from datetime import date, datetime, timedelta
-from itertools import pairwise
 
 import pytest
 
 from app import main as main_mod
-from app.series import history_source, one_minute_spans, resample
+from app.series import history_source, one_minute_window, resample
 
 
 @pytest.mark.parametrize("interval, source", [
@@ -30,17 +29,22 @@ def test_history_source_divides_evenly(interval, source):
     assert history_source(interval) == source
 
 
-def test_one_minute_spans_stay_within_120_days():
-    spans = one_minute_spans("2025-10-17", "2026-10-17")
-    assert spans[0][0] == "2025-10-17" and spans[-1][1] == "2026-10-17"
-    for lo, hi in spans:
-        assert (date.fromisoformat(hi) - date.fromisoformat(lo)).days < 120
-    for (_, hi), (lo, _) in pairwise(spans):
-        assert date.fromisoformat(lo) == date.fromisoformat(hi) + timedelta(days=1)
+def test_one_minute_window_is_one_request_ending_at_end():
+    """Review finding 1: a 1m window is clamped to the one request EODHD accepts
+    (120 days), ending at `end`, so no `start` can fan one request out."""
+    lo, hi = one_minute_window("1900-01-01", "2026-10-17")
+    assert hi == "2026-10-17"
+    assert (date.fromisoformat(hi) - date.fromisoformat(lo)).days == 119
 
 
-def test_one_minute_spans_leave_a_short_window_alone():
-    assert one_minute_spans("2026-10-12", "2026-10-17") == [("2026-10-12", "2026-10-17")]
+def test_one_minute_window_leaves_a_short_window_alone():
+    assert one_minute_window("2026-10-12", "2026-10-17") == ("2026-10-12", "2026-10-17")
+
+
+def test_one_minute_window_passes_a_reversed_or_unparseable_window_through():
+    """Review finding 2: a reversed window used to raise IndexError."""
+    assert one_minute_window("2026-10-17", "2026-10-01") == ("2026-10-17", "2026-10-01")
+    assert one_minute_window("soon", "2026-10-01") == ("soon", "2026-10-01")
 
 
 def test_resample_builds_15m_from_5m_on_the_clock_grid():
@@ -55,6 +59,17 @@ def test_resample_builds_15m_from_5m_on_the_clock_grid():
     assert out[0] == {"date": "2026-10-16T13:30:00Z", "open": 1, "high": 5, "low": 0.5,
                       "close": 3, "volume": 30}
     assert out[1]["volume"] == 5
+
+
+def test_resample_carries_a_volume_weighted_vwap():
+    """Review finding 4: a filled series kept vwap on none of its bars."""
+    rows = [
+        {"date": "2026-10-16T13:30:00Z", "open": 1, "high": 1, "low": 1, "close": 1, "volume": 10, "vwap": 1.0},
+        {"date": "2026-10-16T13:31:00Z", "open": 2, "high": 2, "low": 2, "close": 2, "volume": 30, "vwap": 2.0},
+        {"date": "2026-10-16T13:32:00Z", "open": 2, "high": 2, "low": 2, "close": 2, "volume": 5},
+    ]
+    assert resample(rows, "5m")[0]["vwap"] == pytest.approx((10 * 1 + 30 * 2) / 40)
+    assert "vwap" not in resample([{**rows[2], "date": "2026-10-16T13:40:00Z"}], "5m")[0]
 
 
 def test_resample_keeps_a_bucket_with_no_volume_as_none():
@@ -106,10 +121,10 @@ def test_15m_is_fetched_at_5m(calls):
     assert bars[0]["date"] == "2026-10-12T13:30:00Z"
 
 
-def test_1m_over_a_year_is_fetched_in_120_day_pieces(calls):
-    _build("1m", "2025-10-17", "2026-10-17")
-    assert len(calls) == 4 and {c[0] for c in calls} == {"1m"}
-    assert calls[0][1] == "2025-10-17" and calls[-1][2] == "2026-10-17"
+def test_1m_from_long_ago_is_one_fetch(calls):
+    """Review finding 1: start=1900-01-01 made 386 sequential fetches."""
+    _build("1m", "1900-01-01", "2026-10-17")
+    assert len(calls) == 1 and calls[0][0] == "1m" and calls[0][2] == "2026-10-17"
 
 
 def test_series_defaults_intraday_to_five_days(monkeypatch):

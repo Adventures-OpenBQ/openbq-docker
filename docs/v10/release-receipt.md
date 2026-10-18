@@ -41,7 +41,7 @@ Receipts already recorded on the Mac's real q and Docker: drill A (`38e4958`: kd
 ## Docker gates for the Mac, before the tag is pushed
 
 This session has no Docker daemon. As for v9.0.0, these run on the Mac:
-- `docker build -f Dockerfile.v3`;
+- `docker build -f Dockerfile.v3` (since the v9 merge, 2026-10-18: `docker build --target v3 .`);
 - `--profile live` build and up with the licence;
 - `Dockerfile.lake`;
 - `lanes/tests`, `v9/eodhd/tests` and `examples/episode3` in the image;
