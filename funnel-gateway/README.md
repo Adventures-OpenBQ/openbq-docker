@@ -91,7 +91,7 @@ contract changing. A bridge container reaches the tailnet CGNAT range only if th
 before configuring the three keys (200 or 401 = routable):
 
 ```sh
-docker run --rm --network openbq-episode1_openbq-internal curlimages/curl \
+docker run --rm --network openbq-stack_openbq-internal curlimages/curl \
   -s -o /dev/null -w '%{http_code}\n' --max-time 5 \
   --resolve "openbq.<tailnet>.ts.net:8088:<rssAddress>" \
   "https://openbq.<tailnet>.ts.net:8088/api/news?feed_id=<an approved id>&limit=1"
