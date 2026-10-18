@@ -112,3 +112,53 @@ v9.0.0 is carried at `7b54c69`: the rss-ticker and the Rita and MCP images are b
 - `openbq-key-maint` `sha256:ba2d3d252680be8c5c804296f29aea2ebde935ad1294dce65df56295728445b5`, the 9.0.0 image re-tagged, unchanged.
 
 Rita and MCP are built locally (`openbq-rita:6.0.0` and `openbq-mcp:10.0.0`, `pull_policy: never`). `latest` was not moved.
+
+## Re-cut (2026-10-18)
+
+v10.0.0 was re-cut again after three user reports on the Live dashboard (the Live Chart did not draw, Subscriptions was blank, Tick History rounded its prices) and the v3–v9 walk's hand-off.
+
+**Live-grid fixes:**
+- **Tick History** shows the full time, price and size (`formatterFn: "none"`, no abbreviation). The Live quotes grid gains hidden `Updated (UTC)` and `Stream volume` columns, and a tick now adds its size to the day's volume.
+- **Subscriptions** draws on a dark app (Canvas/CanvasText), and its frame address comes from the request when `LIVE_GRID_PUBLIC_URL` is empty (52300fb), so the widget always appears.
+- **The Live Chart's `/series`:**
+  - EODHD's intraday history ends in `Z` while tick bars are naive UTC, so the seam comparison raised and `/series` answered 502 (765af30).
+  - A chart width is now built only from a history source that divides it (user ruling): under a minute, ticks alone; 15m, 30m, 1h and other multiples of 5m from 5m, resampled on the tick grid (EODHD's half-hour-stamped 1h is no longer used); 1m and its multiples from 1m, fetched in 120-day pieces (2efa43c).
+  - An intraday `/series` defaults to five days (user ruling 2026-10-17).
+  - Minutes live-grid was down for are filled at query time (user ruling): US equities from EODHD's real-time `/history` minute bars, crypto from intraday 1m; forex is left unfilled, and ticks win wherever they exist (a5c6ee8).
+
+**Release review** of everything since the 10-17 re-cut (both merges included): 1 Important and 5 Minor findings, all fixed (455da59), and a scoped re-review's 2 Minor follow-ups fixed (f870ea8). The Important one: a 1m `start` far in the past fanned one request out into hundreds of sequential vendor calls; a 1m window is now one request, clamped to the 120 days EODHD accepts. The others: a reversed 1m window raised; the lake read-back path does not gap-fill (documented); resampled bars carry a volume-weighted vwap only when every traded row has one; `Dockerfile.v3` references; and, with `LIVE_GRID_PUBLIC_URL` unset, a browser write to the watchlist is taken only from a loopback host (the Host-derived origin was open to DNS rebinding).
+
+**v9.0.0 is carried at `d6c4657`** (merge 6cf51a9): local image names in compose and project `openbq-stack`; the v3 image is the Dockerfile's `v3` stage and the gateway's SSRM default comes from `lanes/`; the door relays text/plain and forwards only approved News feeds; key-maint probes EODHD on its own namespace. v10's `/grid` door, `liveGrid` switch and live services are kept as they were.
+
+**Gates on the final tree:**
+
+| Check | Result |
+|---|---|
+| `scripts/check-public.py` | PASS |
+| `tests` | 72 passed |
+| `v3/tests` | 68 passed |
+| `workspace/tests` | OK |
+| funnel-gateway | 121 of 121 |
+| live-grid | 539 passed (14 network tests deselected) |
+| key-maint | 230 passed |
+| lanes | 89 passed, 1 skipped |
+
+**NAS, production `openbq-stack` on v10 (2026-10-18, from 17:09Z):**
+- The copied `openbq-stack_kdb-data` and `openbq-stack_live-grid-data` volumes came up: live-grid replayed a tick its spool held from the old project, and the gap fill rebuilt 1,028 BTC-USD minutes missed while the v3–v9 walk held production.
+- `/series` answers 200 at 1s, 1m, 5m, 15m, 30m, 1h and 1d for AAPL and BTC-USD, and at 5m for EURUSD; AAPL's 1h bars now start on the hour.
+- `nas-verify`: smoke, app layouts, heavy routes, isolation and provider fixes all passed.
+- The Live dashboard, drawn from BDOBB `9ba6a8d1` in browser mode against this stack: Subscriptions lists the watchlist, Tick History shows full prices, and the Live Chart draws five days of AAPL 1m candles. Its long wicks after 20:00 UTC are EODHD's own after-hours prints in the 1m history.
+- live-grid at `f870ea8` (after the NAS Docker zvol's inodes were freed by pruning the build cache and week-old unused images): a 1m window from 1900 is one fetch of 120 days, and a reversed one is refused by the provider.
+- The openbq-api `/apps.json` serves twelve BDOBB examples; the Live Grid example is served by live-grid's own `/apps.json` (its cards are none of the API's widgets).
+
+**GHCR `10.0.0`**, built for amd64 and arm64 at `6cf51a9` unless noted:
+- `openbq-local` `sha256:2b8aea41a60b9bcdf493f3f072c8f846a3a081f23b99095590b7bd7a96971c5a`
+- `openbq-mcp` `sha256:3bf8ec34844fd3c8e0004e67173763e1f1b8717dfc06e1dd52ef37be825080f5`
+- `openbq-funnel-gateway` `sha256:2e950e1c485eae6a8635999b9bb3bb43c741f514f8e9c228fb77134ec7a6d346`
+- `openbq-live-grid` `sha256:f83068001f9bee730f77bce3017d247eca11ad5766e87021e4289c217eb6982a`, image revision `f870ea8`
+- `openbq-lake` `sha256:ac72245b3278f682910741fa811ef172be6bd2603e877708c8f30d6aceb757ff`
+- `openbq-key-maint` `sha256:994fe7114e2350806e1663b6d1eba61175fba307e8976426fb74a5bde3032b56`
+- `openbq-rss-ticker` `sha256:5d48cf244f79cdbd5366d851fd1fbe9e8feebcde564f00544058a153f894ce45`
+- `openbq-table-service` TABLE_DIGEST, from BDOBB TABLE_REV per `table-service/source.lock.json`
+
+`latest` was not moved.
