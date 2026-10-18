@@ -76,7 +76,7 @@ services:
   # funnel-gateway/README.md and docs/v8/news-relay-and-hidden-dashboards.md.
   #
   # rss-ticker: a shared feed pool with NO authentication, so reachability is its
-  # whole access control. Build it from ./rss-ticker (rss-feedhandler v8.0.1) as the local
+  # whole access control. Build it from ./rss-ticker (rss-feedhandler v8.3.1) as the local
   # image openbq-rss-ticker:8.0.0; nothing is pulled:
   #   docker compose --profile web build rss-ticker
   # On the bridge only; every ts-config/serve*.json publishes it on tailnet port 8088
