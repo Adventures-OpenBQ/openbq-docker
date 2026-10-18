@@ -76,14 +76,19 @@ async def test_failing_feed_does_not_stop_the_healthy_one(wiring):
     assert status["Live"]["last_success_at"] == 100
 
 
-async def test_a_feed_nobody_names_is_not_polled_and_is_dropped_by_the_sweep(wiring):
+async def test_a_feed_nobody_names_is_not_polled_and_keeps_its_id(wiring):
     config, store, broadcaster, sub, _ = wiring
     live = store.feed_by_url("https://live.example/rss").id
+    dead = store.feed_by_url("https://dead.example/rss").id
     broadcaster.set_feeds(sub, {live})  # drop Dead
     poller = poller_for(store, config, broadcaster, [ROUND1])
     assert await poller.run_once(now=100) == 1
-    assert store.drop_disabled_feeds() == 1
-    assert [f.name for f in store.all_feeds()] == ["Live"]
+    # The hourly sweep keeps the row: ids are what the door approves, so an
+    # idle feed must come back under the same id and its id is never reused.
+    store.sweep(now=100, retention_days=7)
+    other = store.upsert_feed("https://other.example/rss", now=200)
+    assert other not in {live, dead}
+    assert store.upsert_feed("https://dead.example/rss", now=200) == dead
 
 
 async def test_cache_survives_a_restart(wiring):

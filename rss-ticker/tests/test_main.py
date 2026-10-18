@@ -43,6 +43,24 @@ def test_every_feed_starts_disabled_at_boot(tmp_path):
         assert [(f["id"], f["enabled"], f["subscribers"]) for f in feeds] == [(fid, False, 0)]
 
 
+def test_the_hourly_sweep_keeps_an_idle_feed_and_its_id(tmp_path, monkeypatch):
+    # The door approves feeds by id: an idle hour must not re-id a feed or
+    # hand its id to the next URL subscribed.
+    monkeypatch.setattr(main_mod, "SWEEP_INTERVAL_S", 0.05)
+
+    def subscribe(client, url):
+        with client.websocket_connect("/ws/news") as ws:
+            ws.send_json({"subscribe": [{"url": url}]})
+            return ws.receive_json()["feeds"][0]["id"]
+
+    with TestClient(app_for(tmp_path)) as client:
+        approved = subscribe(client, "https://approved.example/rss")
+        time.sleep(0.3)  # the last socket left; several sweeps run
+        other = subscribe(client, "https://other.example/rss")
+        assert other != approved
+        assert subscribe(client, "https://approved.example/rss") == approved
+
+
 def test_a_stale_config_exits_with_one_clean_line(tmp_path, monkeypatch, capsys):
     cfg = tmp_path / "config.yaml"
     cfg.write_text("admin_key: k\nusers: []\n")

@@ -64,8 +64,7 @@ def build(config_path: Path, db_path: str, env: Mapping[str, str] | None = None)
                 deleted = await asyncio.to_thread(
                     store.sweep, int(time.time()), config.retention_days
                 )
-                dropped = await asyncio.to_thread(store.drop_disabled_feeds)
-                log.info("Retention sweep removed %d articles and %d idle feeds", deleted, dropped)
+                log.info("Retention sweep removed %d articles", deleted)
             except Exception:
                 log.exception("Retention sweep failed")
 

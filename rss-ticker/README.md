@@ -68,8 +68,9 @@ oldest-first and exists for a reconnect gap fill. `limit` is 1–200, default
 
 A feed is polled while at least one open socket names it. The count is in
 memory: a socket closing releases its feeds, a feed at zero subscribers stops
-polling at once, and the hourly retention sweep deletes feeds still at zero —
-with their state and articles. Every feed starts disabled at boot; a client
+polling at once. A feed's row is never deleted, so its id stays stable and is
+never reused (the public door approves feeds by id); its articles age out
+under `retention_days` like any other. Every feed starts disabled at boot; a client
 reconnecting re-enables its own within seconds. The first successful poll of
 a feed new to the pool caches its back catalogue without broadcasting it, so
 adding a feed never floods the wire.

@@ -168,11 +168,6 @@ def create_app(
                 continue
             ids.add(feed_id)
             feed = store.get_feed(feed_id)
-            if feed is None:
-                # The sweep can drop a disabled feed between the upsert and
-                # this read. Nothing to report for it; the next frame will
-                # add it back.
-                continue
             records.append(feed_record(feed))
             if existing is None and on_feed_added is not None:
                 on_feed_added(feed)
