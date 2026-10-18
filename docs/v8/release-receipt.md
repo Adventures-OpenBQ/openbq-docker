@@ -70,3 +70,17 @@ GHCR `8.0.0`, all built for amd64 and arm64 from this tree, with image revision 
 - `openbq-key-maint` `sha256:ba2d3d252680be8c5c804296f29aea2ebde935ad1294dce65df56295728445b5`, unchanged
 
 `latest` was not moved and still names the 2026-10-14 `openbq-local` above.
+
+## Re-cut (2026-10-18, v8 walk)
+
+The release walk re-cut v8.0.0 at `fa7d230` (BDOBB `2bbe6ca`) after its v8 review. Its fixes: rss-ticker delivers only subscribed feeds, keeps feed ids stable, caps favicons at 16 KiB and refuses non-public fetch targets on every redirect hop; the door forwards approved feeds only; serve-v3-keys.json publishes 8088; the compose project is `openbq-stack`.
+
+GHCR `8.0.0`, all built for amd64 and arm64, deployed to NAS production at `/share/Container/openbq-stack`:
+- `openbq-local` `sha256:a725b8479c84589e748f993b472e99c37997830461ccae5c1b427b1e35bf3a30`
+- `openbq-funnel-gateway` `sha256:203f94b1f48735a6ce246d48dae506f63aaabaeb3f6d247759c57f50018fa2aa`
+- `openbq-key-maint` `sha256:2dc230a6fa056d610c4df50fd72d6536d40d8200bc60266712818afa6e7e8879`
+- `openbq-table-service` `sha256:cfdd1f3d4edce957128bbaacf3f3f97e21701f4b3bed5bb0484423efb76e5862`, from BDOBB `2bbe6ca` per `table-service/source.lock.json`
+- `openbq-mcp` `sha256:af674c8e8b4b7a75e85ec672238db8fb22b56bf4de276cd2c124eeb273e50134`, on that `openbq-local`
+- `openbq-rss-ticker` `sha256:b09040610aa54d192909d75358543d4ef4bb7f23a6613f92f8337769b46953e7`
+
+The sections above record the earlier cuts; their digests are superseded.
