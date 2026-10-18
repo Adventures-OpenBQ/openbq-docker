@@ -30,15 +30,15 @@ async def drain(sub):
     return out
 
 
-async def test_every_socket_receives_every_article(store):
+async def test_a_socket_receives_only_its_subscribed_feeds(store):
     a, b = add(store), add(store, url="https://y.example/rss", name="Y")
     bc = Broadcaster(store)
     s1, s2 = bc.subscribe(), bc.subscribe()
     bc.set_feeds(s1, {a})
-    bc.set_feeds(s2, set())
+    bc.set_feeds(s2, {b})
     await bc.publish(articles(store, b, [("g", "From Y", 1)]))
-    # Filtering is the client's job: s1 named only `a` and still gets Y's article.
-    assert [m["feed_id"] for m in await drain(s1)] == [b]
+    # s1 named only `a`: B's article never reaches it.
+    assert await drain(s1) == []
     assert [m["feed_id"] for m in await drain(s2)] == [b]
 
 
@@ -46,6 +46,7 @@ async def test_payload_shape(store):
     fid = add(store, name="Reuters")
     bc = Broadcaster(store)
     sub = bc.subscribe()
+    bc.set_feeds(sub, {fid})
     await bc.publish(
         store.insert_articles(
             fid, [NewArticle("a", "Fed holds", "https://l", "s", 1, author="Jane")], now=1000

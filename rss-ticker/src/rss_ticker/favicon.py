@@ -20,12 +20,17 @@ log = logging.getLogger(__name__)
 # A favicon is a cosmetic nicety, not something ingest should ever wait on.
 # Short total deadline so a slow/hostile host can't stall a poll cycle.
 FAVICON_TIMEOUT_S = 10.0
-# Favicons are small; one is stored per feed (as a data URI, in the feeds
-# table) and later sent whole in /api/feeds, so 128 KB raw is a safe ceiling
-# that keeps that payload bounded without rejecting a real-world icon --
-# CNBC's own favicon.ico is a 101 KB multi-resolution bundle (verified
-# 2026-08-06), and the previous 50 KB cap silently rejected it.
-MAX_FAVICON_BYTES = 128 * 1024
+# One favicon is stored per feed (as a data URI, in the feeds table) and sent
+# whole in the subscribe reply, which the public door caps at 64 KiB per
+# frame. 16 KiB raw (about 22 KB as base64) keeps a reply of a few feeds
+# under that; a larger icon -- CNBC's favicon.ico is a 101 KB multi-resolution
+# bundle -- is skipped and the feed has none (BDOBB shows the source name).
+MAX_FAVICON_BYTES = 16 * 1024
+
+
+def _over_cap(data_uri: str) -> bool:
+    """True when a stored data URI decodes to more than MAX_FAVICON_BYTES."""
+    return len(data_uri.split(",", 1)[-1]) > (MAX_FAVICON_BYTES + 2) // 3 * 4
 
 # RSS-syndication hosts that are not real websites and refuse every request
 # outright (verified 2026-08-06: 403/404/503, independent of headers). The
@@ -255,7 +260,9 @@ async def resolve_and_store(store: Store, client: httpx.AsyncClient, feed) -> No
     time for a feed new to the pool (decision D)."""
     try:
         icon = await resolve_favicon(client, feed.url)
-        if icon:
+        # A failed re-check keeps a good icon, but never one stored under an
+        # older, larger cap: that one is cleared.
+        if icon or (feed.favicon and _over_cap(feed.favicon)):
             store.set_feed_favicon(feed.id, icon)
     except Exception as exc:
         log.debug("Favicon resolution failed for %s: %s", redact_feed_url(feed.url), exc)

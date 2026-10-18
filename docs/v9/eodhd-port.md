@@ -91,10 +91,8 @@ Note for the examples sync: the donor's BDOBB example "Example Dashboard - V9.6.
 
 1. openbb-eodhd is taken at its v9.6.6 state: the v9.6.3 base plus aggregation hints (v9.6.4), the `obb.eodhd.*` namespace and app (v9.6.5), and the core 2 floor (v9.6.6). The core 2 floor is required, and the namespace is the only way EODHD is routed on this line. The aggregation hints are additive (per-column widget metadata and typed statement columns; same rows and values) and come in with the same `fundamental.py`.
 2. No standard routers are installed. EODHD is served only on `/api/v1/eodhd/*` (52 commands).
-3. The EODHD SDK is built from the pinned GitHub archive, and its added dependencies resolve at build time with `requirements.lock` as constraints. They are not yet locked by hash or version, because github.com archives are refused by this session's egress policy (HTTP 403), so neither the SDK nor its metadata could be read here. Lock them at the first Mac build.
-4. The ArcticDB L2 cache stays as the donor wrote it: a soft import that is inert here.
-5. The EODHD app ships inside the extension and is served by openbb-api. It is not copied into `examples/bdobb/apps.json`.
-6. The SDK licence (MIT) is recorded from its PyPI metadata (1.0.32). Confirm it against the pinned commit.
+3. The ArcticDB L2 cache stays as the donor wrote it: a soft import that is inert here.
+4. The EODHD app ships inside the extension and is served by openbb-api. It is not copied into `examples/bdobb/apps.json`.
 
 ## Test receipts (cloud, 2026-10-12, Python 3.12.3, `requirements.lock` installed with uv)
 
@@ -116,8 +114,6 @@ No assertion was weakened, skipped or deleted. EODHD API calls used: 0 (`EODHD_A
 
 ## NOT_RUN and Mac-pending
 
-- `docker compose -f docker-compose.yml -f docker-compose.v3.yml build`: building the SDK wheel from the GitHub archive, `pip check`, `openbb-build` and `v9/eodhd/verify.py` in the image. Then record the SDK's added packages as a lock.
-- The five `tests/test_client.py` SDK tests and `verify.py`'s SDK pin check need the pinned SDK, which this cloud session cannot fetch.
 - The live stack: `/apps.json` and `/widgets.json` over Tailscale, `scripts/verify-app-layouts.py` against the running API, and Workspace or BDOBB rendering the EODHD app.
 - Any live EODHD call (`scripts/smoke.py` and real-key queries): NOT_RUN, because no key is available.
 

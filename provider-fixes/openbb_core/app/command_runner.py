@@ -334,14 +334,6 @@ def _route_warning(message, category, filename, lineno, file=None, line=None):
         )
 
 
-def _collect_warnings() -> tuple[list, contextvars.Token]:
-    """Start collecting this context's warnings; reset the token when done."""
-    warnings.showwarning = _route_warning
-    warnings._filters_mutated()  # as catch_warnings did: "default" filters re-show per command
-    collected: list = []
-    return collected, _WARNINGS.set(collected)
-
-
 async def _run_command(
     key: str, func: Callable, kwargs: dict[str, Any], collected: list | None = None
 ):
@@ -454,7 +446,11 @@ class StaticCommandRunner:
         raised_warnings: list = []
         custom_headers: dict[str, Any] | None = None
 
-        warning_list, token = _collect_warnings()
+        # Collect this context's warnings; the token is reset when done.
+        warnings.showwarning = _route_warning
+        warnings._filters_mutated()  # as catch_warnings did: "default" filters re-show per command
+        warning_list: list = []
+        token = _WARNINGS.set(warning_list)
         try:
             # If we're on Jupyter we need to pop here because we will lose "chart" after
             # ParametersBuilder.build. This needs to be fixed in a way that chart is

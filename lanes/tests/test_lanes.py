@@ -16,6 +16,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 os.environ["OPENBQ_ROLE"] = "worker"  # importing the module must not spawn the production lane
 os.environ["OPENBQ_EXTRA_APPS"] = "/nonexistent/bdobb_apps.json"  # tests set their own extras
+os.environ.setdefault("OPENBQ_FIXTURES", "/nonexistent-openbq-fixtures")  # FixtureTest sets its own
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import openbq_lanes  # noqa: E402
 from collections import OrderedDict
@@ -219,6 +220,7 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
         small = await self.client.get("/api/v1/cftc/big?n=500")
         self.assertEqual((small.status_code, len(small.content)), (200, 500))
 
+    @unittest.skipUnless(os.path.exists("/proc/self/status"), "worker RSS is read from /proc (Linux only)")
     async def test_the_lane_is_recycled_when_its_memory_passes_the_cap(self):
         self.make(rss_mb=300)
         pid = (await self.client.get("/api/v1/cftc/hog?mb=400")).json()["pid"]
@@ -688,12 +690,11 @@ class SsrmFixRound1Test(unittest.IsolatedAsyncioTestCase):
     client = SsrmRowsTest.client
 
     async def asyncSetUp(self):
-        for name in ("SSRM_ROUTES", "SSRM_CACHE", "_SSRM_DECLARED", "_SSRM_COLUMNS", "_CATALOG_CACHE"):
+        for name in ("SSRM_ROUTES", "SSRM_CACHE", "_SSRM_WIDGET", "_CATALOG_CACHE"):
             self.addCleanup(setattr, openbq_lanes, name, getattr(openbq_lanes, name))
         openbq_lanes.SSRM_ROUTES = {"/api/v1/listed/data": "listed_obb"}
         openbq_lanes.SSRM_CACHE = openbq_lanes.SsrmCache(max_bytes=3 << 30, ttl=900)
-        openbq_lanes._SSRM_DECLARED = {}
-        openbq_lanes._SSRM_COLUMNS = {}
+        openbq_lanes._SSRM_WIDGET = {}
         openbq_lanes._CATALOG_CACHE = {}
 
     def app(self, rows, widgets=None, raises=False):
@@ -797,7 +798,7 @@ class SsrmFixRound1Test(unittest.IsolatedAsyncioTestCase):
         async with self.client(app) as c:
             await c.post("/api/v1/listed/data/ssrm?a=1", json=self.req())
         self.assertEqual(self.queries, [[("a", "1")]])
-        self.assertIsNone(openbq_lanes._SSRM_DECLARED["listed_obb"])
+        self.assertIsNone(openbq_lanes._SSRM_WIDGET["listed_obb"][0])
 
     # M2 -----------------------------------------------------------------
     async def test_an_inner_exception_is_an_ordinary_500_without_its_text(self):
@@ -1094,10 +1095,6 @@ class SsrmWarningsTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("warnings", r.json())
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ExtraAppsTest(unittest.TestCase):
     """BDOBB's example apps are appended to a built apps.json list, and nothing else is touched."""
 
@@ -1110,11 +1107,11 @@ class ExtraAppsTest(unittest.TestCase):
         old = openbq_lanes.EXTRA_APPS
         openbq_lanes.EXTRA_APPS = f.name
         try:
-            merged = json.loads(openbq_lanes._with_extra_apps(b'[{"name": "BLS"}]'))
-            self.assertEqual([a["name"] for a in merged], ["BLS", "Example"])
-            self.assertEqual(openbq_lanes._with_extra_apps(b'{"build": 1}'), b'{"build": 1}')
+            merged, extended = openbq_lanes._apps(b'[{"name": "BLS"}]')
+            self.assertEqual(([a["name"] for a in merged], extended), (["BLS", "Example"], True))
+            self.assertEqual(openbq_lanes._apps(b'{"build": 1}'), (None, False))
             openbq_lanes.EXTRA_APPS = f.name + ".absent"
-            self.assertEqual(openbq_lanes._with_extra_apps(b"[]"), b"[]")
+            self.assertEqual(openbq_lanes._apps(b"[]"), ([], False))
         finally:
             openbq_lanes.EXTRA_APPS = old
 
@@ -1354,3 +1351,7 @@ class FixtureTest(unittest.IsolatedAsyncioTestCase):
         data = (FIXTURES / "synthetic_cash_flow.json").read_bytes()
         self.assertEqual(hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest(),
                          "a2d6e419eadb2bcc1fc12ea1d7e9c59c4842b780")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-API_DOCKERFILES = ["Dockerfile", "Dockerfile.v3"]  # both build openbq-api (docker-compose.yml, docker-compose.v3.yml)
+API_DOCKERFILES = ["Dockerfile"]  # openbq-api: target api (docker-compose.yml), target v3 (docker-compose.v3.yml)
 
 
 def dockerfile(name):
@@ -55,17 +55,18 @@ class ApiImages(unittest.TestCase):
                 self.assertTrue(re.search(r"(?m)^WORKDIR /workspace$", text))
 
     def test_every_api_image_builds_installs_and_gates_openbq_eodhd(self):
-        # v9: the base image installs openbq-eodhd from v9/eodhd/source, as Dockerfile.v3 does.
+        # v9: the api stage installs openbq-eodhd from v9/eodhd/source; the v3 stage builds FROM api.
         for name in API_DOCKERFILES:
             text = dockerfile(name)
             with self.subTest(name):
                 self.assertIn("COPY v9/eodhd/source /eodhd", text)
                 self.assertIn("--wheel-dir /wheels /eodhd", text)
-                self.assertIn("python -m pip install --no-deps /tmp/eodhd/openbq_eodhd-9.0.1-py3-none-any.whl", text)
+                self.assertIn("python -m pip install --no-deps /tmp/ext/*.whl", text)
                 # The SDK is vendored in openbq-eodhd 9.0.1; nothing fetches or pins it separately.
                 self.assertNotIn("EODHD-APIs-Python-Financial-Library", text)
                 self.assertNotIn("/tmp/eodhd/extra.lock", text)
-                self.assertIn("RUN python /tmp/eodhd-verify/verify.py", text)
+                self.assertIn("/wheels/openbq_eodhd-9.0.1-py3-none-any.whl /tmp/ext/", text)
+                self.assertIn("python /tmp/ext-verify/eodhd/verify.py", text)
 
     def test_the_api_service_gets_eodhd_api_key_from_the_credentials_files(self):
         import yaml
@@ -84,9 +85,9 @@ class ApiImages(unittest.TestCase):
     def test_the_v3_overlay_builds_under_the_release_version(self):
         # A local build of the overlay must not overwrite an earlier release's images.
         # The gateway keeps the version it was brought down at (4.0.0 for v4-v7), so the
-        # release is the overlay's published key-maint tag.
+        # release is the overlay's key-maint tag.
         overlay = dockerfile("docker-compose.v3.yml")
-        release = re.search(r"image: ghcr.io/adventures-openbq/openbq-key-maint:(\S+)", overlay).group(1)
+        release = re.search(r"image: openbq-key-maint:(\S+)", overlay).group(1)
         for name in ("openbq-local", "openbq-episode3-demo"):
             with self.subTest(name):
                 self.assertIn(f"image: {name}:{release}\n", overlay)
@@ -94,7 +95,7 @@ class ApiImages(unittest.TestCase):
     def test_the_v6_overlay_builds_rita_and_mcp_locally(self):
         # The GHCR images are private: Rita comes from agent-rita-bdobb's build.sh and MCP
         # builds from ./mcp on this release's API image. Compose must never pull either.
-        release = re.search(r"image: ghcr.io/adventures-openbq/openbq-key-maint:(\S+)",
+        release = re.search(r"image: openbq-key-maint:(\S+)",
                             dockerfile("docker-compose.v3.yml")).group(1)
         overlay = dockerfile("docker-compose.v6.yml")
         self.assertNotIn("ghcr.io", overlay)

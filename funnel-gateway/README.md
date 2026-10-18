@@ -16,10 +16,11 @@ v10 adds the `/grid` family (live-grid, the opt-in `live` profile), ported from 
 
 ## Isolation and lock-first
 
-`funnel-gateway` and `rss-ticker` are compose services under `profiles: [web]`: `docker compose
-up -d` never starts them; `docker compose --profile web up -d` does. The gateway joins the
-`openbq-internal` bridge, listens on `0.0.0.0:8091` with no host port, and is reached only through
-Tailscale Serve. It runs `read_only`, as uid 1000, `cap_drop: [ALL]`, 256 MB, 64 pids; its only
+`funnel-gateway` and `rss-ticker` are compose services under `profiles: [web]`:
+`docker compose -f docker-compose.yml -f docker-compose.v3.yml up -d` never starts them;
+`docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web up -d` does. The gateway joins the
+`openbq-internal` bridge (and, for the managed tables, the internal `table-private` bridge), listens on `0.0.0.0:8091` with no host port, and is reached only through
+Tailscale Serve. It runs `read_only`, as uid 1000, `cap_drop: [ALL]`, 512 MB, 64 pids; its only
 writable mount is the `gateway-state` volume behind `/state`.
 
 Nothing is public until two separate steps both happen: the profile is started, **and** the
@@ -66,10 +67,10 @@ Caller headers, cookies and credentials are never relayed.
 | any other WebSocket upgrade | — | 401 without the token, else 403 (foreign Origin) or 404 |
 | everything else | — | 404 |
 
-Caps (settings): `maxConcurrent` (8, ≤ 32) and `maxSockets` (4, ≤ 32). There is no daily vendor
-cap and no per-minute request budget (removed 2026-10-17; `quoteDailyLimit` and `requestsPerMinute`
-are refused at startup by name, so delete them from an older settings file). Counters are in
-memory and reset on restart; keep one instance.
+Caps (settings): `maxConcurrent` (8, ≤ 32) and `maxSockets` (4, ≤ 32, shared by `/news/ws/news`,
+`/ref/live_grid_ws` and the `/grid` sockets). There is no daily vendor cap and no per-minute request budget (removed
+2026-10-17; `quoteDailyLimit` and `requestsPerMinute` are refused at startup by name, so delete them
+from an older settings file). Counters are in memory and reset on restart; keep one instance.
 
 Managed table cancellation and cleanup reserve **two concurrent requests** outside
 `maxConcurrent`. Only exact, query-free `POST /table/sessions/:id/cancel`,
@@ -78,7 +79,7 @@ validation and bearer authentication. A full control lane returns 429, with no b
 from the ordinary lane.
 Body limits, identity assertions, deadlines and disconnect cleanup still apply.
 Source deletion, derive/commands/export creation and standard LIVE requests use
-the ordinary concurrency cap. See [managed tables](../table-service/README.md).
+the ordinary concurrency limit. See [managed tables](../table-service/README.md).
 
 ## The wire (`/news`)
 
@@ -87,7 +88,8 @@ access control: rss-ticker has no authentication, and the door takes no feed URL
 `/news/api/news` names a feed only by an approved id; the socket's single subscription frame
 `{"subscribe":[{"url":…}]}` (1–50 unique urls, no other key) is rebuilt from the approved urls
 alone, unapproved ones dropped, and closed if none is left. A second frame, a binary or oversized
-frame closes it. The upstream opens only after a valid frame; a socket has no lifetime (a 30 s ping closes one
+frame closes it. Going back, the door forwards the `{"feeds":…}` reply and articles whose
+`feed_id` is an approved id, drops any other frame, and closes on one that is not JSON. The upstream opens only after a valid frame; a socket has no lifetime (a 30 s ping closes one
 whose client stops answering) and must send its frame within 10 s; frames are capped at 64 KiB.
 
 ```json
@@ -105,7 +107,7 @@ contract changing. A bridge container reaches the tailnet CGNAT range only if th
 before configuring the three keys (200 or 401 = routable):
 
 ```sh
-docker run --rm --network openbq-episode1_openbq-internal curlimages/curl \
+docker run --rm --network openbq-stack_openbq-internal curlimages/curl \
   -s -o /dev/null -w '%{http_code}\n' --max-time 5 \
   --resolve "openbq.<tailnet>.ts.net:8088:<rssAddress>" \
   "https://openbq.<tailnet>.ts.net:8088/api/news?feed_id=<an approved id>&limit=1"
@@ -214,13 +216,13 @@ Funnel offers only 443, 8443 and 10000; 10000 is the only port any file funnels
 ## Verification
 
 ```sh
-docker compose --profile web up -d            # add --profile live (and "liveGrid": true) for /grid
-docker compose --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked, live-grid answers and is locked, wire answers, if on
-docker compose --profile web exec funnel-gateway node verify.mjs           # the door's own lock, on the bridge
-cp ts-config/serve-funnel.json ts-config/serve.json.new && jq empty ts-config/serve.json.new && mv ts-config/serve.json.new ts-config/serve.json   # the door opens; the sidecar live-applies it, and a malformed file would kill it
-# with the v3 overlay running, swap its file instead:
-# cp ts-config/serve-v3-funnel.json ts-config/serve-v3.json.new && jq empty ts-config/serve-v3.json.new && mv ts-config/serve-v3.json.new ts-config/serve-v3.json
-docker compose --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net:10000 funnel-gateway node verify.mjs
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web up -d   # add --profile live (and "liveGrid": true) for /grid
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked, live-grid answers and is locked, wire answers, if on
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web exec funnel-gateway node verify.mjs           # the door's own lock, on the bridge
+cp ts-config/serve-v3-funnel.json ts-config/serve-v3.json.new && jq empty ts-config/serve-v3.json.new && mv ts-config/serve-v3.json.new ts-config/serve-v3.json   # the door opens; the sidecar live-applies it, and a malformed file would kill it
+# a base stack without the v3 overlay swaps its own file instead:
+# cp ts-config/serve-funnel.json ts-config/serve.json.new && jq empty ts-config/serve.json.new && mv ts-config/serve.json.new ts-config/serve.json
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web exec -e GATEWAY_URL=https://openbq.<tailnet>.ts.net:10000 funnel-gateway node verify.mjs
 ```
 
 `git checkout ts-config/serve.json` and a sidecar restart close the door again. Then test from a

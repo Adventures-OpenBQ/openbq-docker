@@ -24,8 +24,8 @@ Summary (after the user's rulings of 2026-10-11 on the first survey):
 
 | Service | Image | Role for `/news` |
 |---|---|---|
-| `funnel-gateway` | `openbb-funnel-gateway:8.0.3`, built from `./funnel-gateway` (Node, `ws`) | The public door. It runs under `profiles: ["web"]`, is published only on Funnel port **10000** through `ts-config/serve-funnel.json` (or `serve-v3-funnel.json` with the v3 overlay), and is `read_only` with `cap_drop: [ALL]`, 256 MB and 64 pids. It reads the bind mount `./gateway-config/settings.json` and writes only the `gateway-state` volume. |
-| `rss-ticker` | `ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0` (built locally from `rss-ticker/`, the vendored rss-feedhandler v8.0.1 source: `docker compose --profile web build rss-ticker`) | A shared feed pool that is not tied to any user. It polls the union of the subscribed feed URLs, streams new articles tagged by `feed_id` over `/ws/news`, and pages history at `/api/news`. It has **no authentication**, so the only access control is who can reach it. Serve publishes it on tailnet port `:8088`, and it is never funneled. Its config is `rss-ticker-config/config.yaml` (`retention_days`, `default_poll_interval_s`, `max_concurrent_polls`, `bind_host`), and it keeps its data in the `rss-ticker-data` volume. |
+| `funnel-gateway` | `openbq-funnel-gateway:8.0.0`, built from `./funnel-gateway` (Node, `ws`) | The public door. It runs under `profiles: ["web"]`, is published only on Funnel port **10000** through `ts-config/serve-funnel.json` (or `serve-v3-funnel.json` with the v3 overlay), and is `read_only` with `cap_drop: [ALL]`, 512 MB and 64 pids. It reads the bind mount `./gateway-config/settings.json` and writes only the `gateway-state` volume. |
+| `rss-ticker` | `openbq-rss-ticker:8.0.0` (built locally from `rss-ticker/`, the vendored rss-feedhandler v8.0.1 source: `docker compose --profile web build rss-ticker`) | A shared feed pool that is not tied to any user. It polls the union of the subscribed feed URLs, streams new articles tagged by `feed_id` over `/ws/news`, and pages history at `/api/news`. It has **no authentication**, so the only access control is who can reach it. Serve publishes it on tailnet port `:8088`, and it is never funneled. Its config is `rss-ticker-config/config.yaml` (`retention_days`, `default_poll_interval_s`, `max_concurrent_polls`, `bind_host`), and it keeps its data in the `rss-ticker-data` volume. |
 | `openbb-api` | `openbb-local:8.0.3` | The `/api` upstream. Not part of `/news`. |
 
 ### Env and settings
@@ -49,13 +49,13 @@ Summary (after the user's rulings of 2026-10-11 on the first survey):
 
 Every HTTP request must carry exactly one `Authorization: Bearer <GATEWAY_TOKEN>` header, compared in
 timing-safe form. `Host` must equal `origin`, and an `Origin` header, if present, must equal `origin`
-too. The gateway caps concurrency (`maxConcurrent`); it has no per-minute or daily budget
-(removed 2026-10-17).
+too. The gateway caps concurrency (`maxConcurrent`) and sockets (`maxSockets`); it has no daily
+or per-minute budget (`quoteDailyLimit` and `requestsPerMinute` are refused at startup by name).
 
 | Route | Rule | Upstream |
 |---|---|---|
 | `GET /news/api/news?feed_id=<id>&limit=<n>` | Only those two keys. `feed_id` is a positive integer that must be one of `feeds`' values. `limit` is 1–50, and an out-of-range value is refused rather than clamped (`policy.mjs` `upstreamPath`). | `GET <rssOrigin>/api/news?...`, without the caller's headers. The response must be JSON, up to 2 MB, and is answered with a 12 s timeout. |
-| `GET /news/ws/news` (WebSocket upgrade, no query) | `socketTarget()` accepts it. Admission is by Bearer + Origin = `origin`, **or** by a socket ticket + Origin = `previewOrigin` (below). `maxSockets` (default 4) applies. 503 if `feeds` is empty. | `wss://<rssOrigin>/ws/news` (`server.mjs` `connectNews`), opened only after the client's single frame passes `newsSubscription`. 64 KiB frames, no compression, no redirects. No lifetime (a 30 s ping closes a socket whose client stops answering), and the first frame must arrive within 10 s. |
+| `GET /news/ws/news` (WebSocket upgrade, no query) | `socketTarget()` accepts it. Admission is by Bearer + Origin = `origin`, **or** by a socket ticket + Origin = `previewOrigin` (below). `maxSockets` (default 4) is the only socket cap. 503 if `feeds` is empty. | `wss://<rssOrigin>/ws/news` (`server.mjs` `connectNews`), opened only after the client's single frame passes `newsSubscription`. 64 KiB frames, no compression, no redirects. No lifetime (a 30 s ping closes a socket whose client stops answering), and the first frame must arrive within 10 s. |
 | Others at v8.0.3 (not `/news`) | `/api/widgets.json`, `/api/apps.json`, `/api/api/v1/**` (structural bounds), `/api/api/v1/calendar/trading`, `/ai/agents.json`, `POST /ai/v1/query`, `/state/<id>[/<file>]`, `/_gateway/health` | openbb-api, Rita, the state volume |
 
 `newsSubscription(data, config)` applies these rules to the client's frame:
@@ -164,7 +164,7 @@ The client must:
 
 The docks is stored in the credential's dashboards file under the key `docks`, as a record with
 `hidden: true` and `revision`. Tests: `v3/tests/test_openbq_settings.py`, with 37 docks cases among
-68 in total. The live check is `scripts/verify-dashboards.py`.
+68 in total. The live check is `scripts/verify-settings.py`.
 
 ### Login mode (`workspace/patches/004-system-dashboard.patch`)
 
@@ -232,8 +232,8 @@ Compose (`docker-compose.yml`) puts both services under `profiles: [web]`:
 
 | Service | Image | Notes |
 |---|---|---|
-| `rss-ticker` | built from `rss-ticker/`, tagged `ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0` | Config from `rss-ticker-config/config.yaml`; data in the `rss-ticker-data` volume. |
-| `funnel-gateway` | built, `openbq-funnel-gateway:8.0.0` | `read_only`, uid 1000, `cap_drop: ALL`, 256 MB, `gateway-state` volume, `gateway-config/` bind mounted read-only. |
+| `rss-ticker` | built from `rss-ticker/`, tagged `openbq-rss-ticker:8.0.0` | Config from `rss-ticker-config/config.yaml`; data in the `rss-ticker-data` volume. |
+| `funnel-gateway` | built, `openbq-funnel-gateway:8.0.0` | `read_only`, uid 1000, `cap_drop: ALL`, 512 MB, `gateway-state` volume, `gateway-config/` bind mounted read-only. |
 
 Neither service publishes a host port. Serve (`ts-config/serve-funnel.json`):
 
@@ -308,9 +308,9 @@ The admission logic matches the client's v8.1.2 `web/policy.mjs`, which is the d
   pinned tailnet IPv4 (`rssAddress`), as the donor does. This works only if the Docker host routes
   the bridge into the tailnet; `funnel-gateway/README.md` has the one-command check. Without that
   route, `/news` stays off (404/503) and `/api` and `/state` still work.
-- **One image digest is not pinned.** `node:22-alpine` is referenced by tag. The rss image is pinned
-  (8.0.1, `sha256:bbe5e391…`), and its GHCR package is public, so it pulls without a registry login.
+- **One image digest is not pinned.** `node:22-alpine` is referenced by tag. The rss image is not
+  pulled: compose builds it locally from `rss-ticker/` as `openbq-rss-ticker:8.0.0`.
 - **Not built or run.** Docker has no daemon here, so the gateway image was not built and no
   container was run.
-- **rss-ticker only runs under the `web` profile.** A desktop-only News user who wants the pool
-  without the door would need it outside the profile.
+- **rss-ticker runs without the door.** Naming the service starts it alone, with no `gateway.env`
+  or `gateway-config/`: `docker compose up -d rss-ticker` (check with `docker compose config -q rss-ticker`).

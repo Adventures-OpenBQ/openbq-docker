@@ -7,7 +7,7 @@ Adventures-OpenBQ/openbq-eodhd at tag `v9.0.1`. That package is bdobb-dev/openbb
 `openbb-eodhd` (v9.6.3, fixes through v9.6.6), renamed `openbq-eodhd` (module `openbq_eodhd`)
 (`source.json`; per-file record in [docs/v9/eodhd-port.md](../../docs/v9/eodhd-port.md)),
 plus the v9 review fixes released as 9.0.1.
-Its own README describes the data. `Dockerfile.v3` builds it as a wheel and
+Its own README describes the data. The `Dockerfile` builds it as a wheel and
 installs it on the locked ODP recipe with the provider-fixes overlay applied.
 
 ## Where it is served
@@ -30,7 +30,7 @@ does the other provider apps. It does not go in `examples/bdobb/apps.json`.
 Without it the committed `credentials.demo.env` supplies EODHD's public `demo` token, which answers
 only EODHD's demo symbols (AAPL.US, TSLA.US, VTI.US, AMZN.US, MCD.US, BTC-USD.CC); other symbols
 are refused with a client error, and the rest of the API is unaffected. Data access depends on your
-EODHD plan. Both API images (`Dockerfile` and `Dockerfile.v3`) install the extension.
+EODHD plan. Both API images (the `Dockerfile` stages `api` and `v3`) install the extension.
 
 ## Tests
 

@@ -107,23 +107,15 @@ async def _settings(request):
     if request.url.path.startswith(APP_PREFIX) and request.method in ("POST", "DELETE"):
         return await _app(request, STORE / f"{key}.apps.json", request.url.path[len(APP_PREFIX):])
     path = STORE / f"{key}.json"
-    if (request.method, request.url.path) == ("GET", "/pro/user"):
-        settings = json.loads(path.read_text()) if path.exists() else {}
-        return JSONResponse({"pro_display_settings": settings})
-    if (request.method, request.url.path) == ("POST", "/pro/display-settings"):
-        body = await request.body()
-        if len(body) > MAX_BYTES:
-            return JSONResponse({"detail": "Settings exceed 1 MB."}, status_code=413)
-        try:
-            settings = json.loads(body)
-        except ValueError:
-            settings = None
-        if not isinstance(settings, dict):
+    if route == ("GET", "/pro/user"):
+        return JSONResponse({"pro_display_settings": _load(path)})
+    if route == ("POST", "/pro/display-settings"):
+        settings, error = await _json_body(request, MAX_BYTES, "Settings exceed 1 MB.")
+        if error and error.status_code == 413:
+            return error
+        if not isinstance(settings, dict):  # invalid JSON included
             return JSONResponse({"detail": "The body must be a JSON object."}, status_code=400)
-        STORE.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-        tmp.write_text(json.dumps(settings))
-        os.replace(tmp, path)
+        _save(path, settings)
         return JSONResponse({"pro_display_settings": settings})
     return JSONResponse({"detail": "Method not allowed."}, status_code=405)
 
@@ -153,11 +145,11 @@ def _save(path, data):
     os.replace(tmp, path)
 
 
-async def _json_body(request):
+async def _json_body(request, limit=MAX_SYNC_BYTES, too_big="The body exceeds 5 MB."):
     """The request body parsed, or (None, a 413/400 response)."""
     body = await request.body()
-    if len(body) > MAX_SYNC_BYTES:
-        return None, JSONResponse({"detail": "The body exceeds 5 MB."}, status_code=413)
+    if len(body) > limit:
+        return None, JSONResponse({"detail": too_big}, status_code=413)
     try:
         return json.loads(body), None
     except ValueError:

@@ -4,7 +4,7 @@
 overlay and no standard routers (openbb-equity and friends are not installed).
 
 Run where openbq-eodhd is installed on the locked recipe, with the overlay
-applied and the static package rebuilt (the Dockerfile.v3 image does all three;
+applied and the static package rebuilt (the Dockerfile's api image does all three;
 v9/eodhd/verify.py runs this module at build time):
 
     python -m unittest discover -s v9/eodhd/tests

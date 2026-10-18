@@ -170,13 +170,19 @@ def create_app(role: str, cred_file: str, auth_file: str) -> FastAPI:
 
     api_url = os.environ.get("OPENBB_API_URL", "http://openbq-api:6900")
 
+    def _api_auth() -> tuple[str, str]:
+        auth = load(auth_file) or {}
+        return auth.get("OPENBB_API_USERNAME", ""), auth.get("OPENBB_API_PASSWORD", "")
+
+    def _checks_response(checks) -> Response:
+        return JSONResponse({"checks": [_check_dict(c) for c in checks],
+                             "test": _check_dict(worst(checks))})
+
     @app.get("/keys")
     async def keys(request: Request, run_tests: bool = False) -> Response:
         tier = _tier(role, request)
         values, malformed = load_with_warnings(cred_file)
-        auth = load(auth_file) or {}
-        user = auth.get("OPENBB_API_USERNAME", "")
-        pw = auth.get("OPENBB_API_PASSWORD", "")
+        user, pw = _api_auth()
         descriptor = await fetch_descriptor(api_url, user, pw)
         tests = None
         if run_tests and tier >= 2 and values is not None:
@@ -210,14 +216,11 @@ def create_app(role: str, cred_file: str, auth_file: str) -> FastAPI:
         if _tier(role, request) < 2:
             return JSONResponse({"detail": "not permitted"}, status_code=403)
         values, _ = load_with_warnings(cred_file)
-        auth = load(auth_file) or {}
-        user = auth.get("OPENBB_API_USERNAME", "")
-        pw = auth.get("OPENBB_API_PASSWORD", "")
+        user, pw = _api_auth()
         descriptor = await fetch_descriptor(api_url, user, pw)
         checks = await probe_one_provider(env_var, values or {}, descriptor or [],
                                           api_url, (user, pw))
-        dicts = [_check_dict(c) for c in checks]
-        return JSONResponse({"checks": dicts, "test": _check_dict(worst(checks))})
+        return _checks_response(checks)
 
     @app.get("/providers/{provider_id}/test")
     async def test_provider(provider_id: str, request: Request) -> Response:
@@ -225,12 +228,9 @@ def create_app(role: str, cred_file: str, auth_file: str) -> FastAPI:
             return JSONResponse({"detail": "unknown provider"}, status_code=404)
         if _tier(role, request) < 2:
             return JSONResponse({"detail": "not permitted"}, status_code=403)
-        auth = load(auth_file) or {}
-        user = auth.get("OPENBB_API_USERNAME", "")
-        pw = auth.get("OPENBB_API_PASSWORD", "")
+        user, pw = _api_auth()
         checks = await probe_provider_by_id(provider_id, api_url, (user, pw))
-        dicts = [_check_dict(c) for c in checks]
-        return JSONResponse({"checks": dicts, "test": _check_dict(worst(checks))})
+        return _checks_response(checks)
 
     @app.put("/keys/{env_var}")
     async def put_key(env_var: str, request: Request) -> Response:

@@ -485,6 +485,7 @@ export const stateFile = name => typeof name === "string" && STATE_FILE_RE.test(
 
 // Managed HTTP routes are deliberately independent of the broad read-only API rule.
 export const TABLE_RESPONSE_BYTES = 8 * 1024 * 1024;
+// The BDOBB web door (web/server.mjs) vendors this file and falls back to this deadline.
 export const TABLE_DEADLINE_MS = 65000;
 export function validSsrmRoutes(routes) {
   return Array.isArray(routes) && routes.length <= 100 && new Set(routes).size === routes.length &&

@@ -337,17 +337,6 @@ class Store:
         self.db.commit()
 
     @_synchronized
-    def drop_disabled_feeds(self) -> int:
-        """Remove every feed at zero subscribers, with its state and articles."""
-        with self.db:
-            ids = [r["id"] for r in self.db.execute("SELECT id FROM feeds WHERE enabled = 0")]
-            for feed_id in ids:
-                self.db.execute("DELETE FROM articles WHERE feed_id = ?", (feed_id,))
-                self.db.execute("DELETE FROM feed_state WHERE feed_id = ?", (feed_id,))
-                self.db.execute("DELETE FROM feeds WHERE id = ?", (feed_id,))
-        return len(ids)
-
-    @_synchronized
     def get_feed(self, feed_id: int) -> Feed | None:
         row = self.db.execute("SELECT * FROM feeds WHERE id = ?", (feed_id,)).fetchone()
         return _feed(row) if row else None

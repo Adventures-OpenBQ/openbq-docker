@@ -14,7 +14,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
-import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, TABLE_DEADLINE_MS, upstreamPath, newsSubscription, liveGridSubscription, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
+import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
 // The root manifests are static catalogue documents, not data: openbq-api's widgets.json is
@@ -75,13 +75,19 @@ const COMMON = {
   "X-Robots-Tag": "noindex, nofollow, noarchive",
 };
 const LOGO = "/ref/assets/bdobb-logo.svg", MAX_SVG = 262144;
-/** The reference logo's bytes: the one non-JSON body the door relays. */
+/** The reference logo's bytes, relayed as SVG. */
 class SvgBody { constructor(text) { this.text = text; } }
+/** A text/plain answer (the video routes return a bare URL), relayed as text. */
+class TextBody { constructor(text) { this.text = text; } }
 function reply(res, code, value = { error: "Request refused" }) {
   if (value instanceof SvgBody) {
     // The logo: same common headers, its own type, and a sandbox CSP so a directly opened SVG runs nothing.
     res.writeHead(code, { ...COMMON, "Content-Type": "image/svg+xml",
       "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'" });
+    return res.end(value.text);
+  }
+  if (value instanceof TextBody) {
+    res.writeHead(code, { ...COMMON, "Content-Type": "text/plain; charset=utf-8" });
     return res.end(value.text);
   }
   res.writeHead(code, { ...COMMON, "Content-Type": "application/json" });
@@ -198,15 +204,16 @@ export function connectRef(config) {
     handshakeTimeout: 10000, followRedirects: false, maxPayload: MAX_SOCKET, perMessageDeflate: false });
 }
 
-/** Bounded JSON-only request (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
+/** Bounded JSON or text/plain request (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
 export async function getJson(path, config, signal) {
   const { url, headers, options } = target(path, config);
   const send = url.protocol === "https:" ? httpsRequest : httpRequest;
   const svg = path === LOGO, limit = svg ? MAX_SVG : MANIFESTS.has(path) ? MANIFEST_MAX : MAX_BODY;
   return new Promise((resolve, rejectPromise) => {
     const request = send(url, { ...options, method: "GET", headers, signal }, response => {
+      const type = response.headers["content-type"] ?? "", plain = !svg && /^text\/plain(?:\s*;|$)/i.test(type);
       if (response.statusCode !== 200 ||
-          !(svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(response.headers["content-type"] ?? "")) {
+          !(plain || (svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(type))) {
         response.destroy();
         // The STATUS travels on the error, never the body: the handler needs to tell a 404
         // from every other refusal for the optional documents (OPTIONAL_DOCS below), and
@@ -225,6 +232,7 @@ export async function getJson(path, config, signal) {
       response.on("end", () => {
         const text = Buffer.concat(parts).toString("utf8");
         if (svg) return resolve(new SvgBody(text));
+        if (plain) return resolve(new TextBody(text));
         try { resolve(JSON.parse(text)); }
         catch { rejectPromise(new Error("Invalid JSON")); }
       });
@@ -456,7 +464,7 @@ async function tableExchange(req, res, route, config) {
   const principal = route.managed ? tablePrincipal(req, config) : null;
   if (route.managed && !principal) return reply(res,401);
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),route.managed ? config.tableTimeoutMs ?? TABLE_DEADLINE_MS : config.ssrmTimeoutMs ?? 170000);
+  const timer=setTimeout(()=>controller.abort(),route.managed ? config.tableTimeoutMs : config.ssrmTimeoutMs);
   const disconnect=()=>{if(!res.writableEnded)controller.abort();}; res.once("close",disconnect);
   try {
     const body=await tableBody(req,route,controller.signal);
@@ -487,6 +495,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
   openGrid = connectGrid, openRef = connectRef, sendSubscription = sendGrid, fetchPage = getGridPage,
   now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
   let inflight = 0, controlInflight = 0, sockets = 0;
+  const approvedIds = new Set(Object.values(config.feeds));
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
   const admitted = new Map();
   // The Subscriptions page, fetched from live-grid once and kept: it is the one route served
@@ -708,6 +717,14 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         upstream.on("message", (message, isBinary) => {
           if (isBinary || message.length > MAX_SOCKET || client.readyState !== WebSocket.OPEN ||
               client.bufferedAmount > 262144) return close();
+          // The door is the only trust boundary for the wire: rss-ticker is unauthenticated on
+          // the tailnet, so the door forwards the {"feeds"} reply and approved-feed articles,
+          // nothing else. The grid and the reference relay as they are.
+          if (!grid && !ref) {
+            let out;
+            try { out = JSON.parse(message.toString()); } catch { return close(); }
+            if (!(out && Object.keys(out).join() === "feeds" || approvedIds.has(out?.feed_id))) return;
+          }
           client.send(message, { binary: false });
         });
         upstream.on("error", close);

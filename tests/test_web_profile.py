@@ -74,9 +74,20 @@ def test_the_episode_6_configs_are_the_episode_3_config_plus_rita_and_mcp_tailne
         assert {k: v for k, v in serve['Web'].items() if not k.endswith((':10443', ':11443'))} == v3, name
         assert not any(serve['AllowFunnel'].values()), name
 
+def test_every_serve_config_publishes_the_pool_on_tailnet_8088_and_never_funnels_it():
+    # A News card dials :8088 whichever Serve file is live, the key-maint ones included.
+    names = sorted(p.name for p in (ROOT / 'ts-config').glob('serve*.json'))
+    assert len(names) == 7, names
+    for name in names:
+        serve = _serve(name)
+        assert serve['TCP']['8088'] == {'HTTPS': True}, name
+        assert serve['Web']['${TS_CERT_DOMAIN}:8088']['Handlers']['/']['Proxy'] == 'http://rss-ticker:8088', name
+        assert not serve.get('AllowFunnel', {}).get('${TS_CERT_DOMAIN}:8088'), name
+
+
 def test_the_feed_pool_builds_openbq_rss_ticker_8_0_0_from_source():
     service = SERVICES['rss-ticker']
-    assert service['image'] == 'ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0', service['image']
+    assert service['image'] == 'openbq-rss-ticker:10.0.0', service['image']
     assert service['build'] == './rss-ticker', service['build']
 
 

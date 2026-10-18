@@ -65,9 +65,7 @@ BUILTIN_CARDS = frozenset({
 # without credentials, so this one path answers without Basic auth.
 LOGO_PATH = "/openbq/bdobb-logo.svg"
 LOGO_FILE = os.environ.get("OPENBQ_BDOBB_LOGO", "/workspace/bdobb-logo.svg")
-# Fixture widgets this backend serves itself (v5/fixtures): widgets.json joins
-# /widgets.json, and GET /api/v1/openbq/fixtures/<id> answers <id>.json as is
-# (under /api/v1/ so the v8 Funnel door's route rule admits it like any widget call).
+# v5/fixtures (see its README)
 FIXTURES = os.environ.get("OPENBQ_FIXTURES", "/workspace/openbq-fixtures")
 FIXTURE_PREFIX = "/api/v1/openbq/fixtures/"
 # The OpenBQ API's largest table widgets (default response > ~10 MB) served as
@@ -88,12 +86,8 @@ def _load_ssrm_widgets(path=SSRM_FILE) -> dict:
             entries = json.load(f)
     except (OSError, ValueError):
         return {}
-    routes = {}
-    if isinstance(entries, list):
-        for e in entries:
-            if isinstance(e, dict) and isinstance(e.get("id"), str) and isinstance(e.get("route"), str):
-                routes[e["route"]] = e["id"]
-    return routes
+    return {e["route"]: e["id"] for e in entries if isinstance(e, dict) and isinstance(e.get("id"), str)
+            and isinstance(e.get("route"), str)} if isinstance(entries, list) else {}
 
 
 SSRM_ROUTES = _load_ssrm_widgets()
@@ -111,7 +105,9 @@ def _rewrite_widgets(body: bytes) -> bytes:
         return body
     if not isinstance(widgets, dict):
         return body
-    changed = False
+    fixtures = _fixture_widgets()
+    widgets = {**fixtures, **widgets}
+    changed = bool(fixtures)
     for route, wid in SSRM_ROUTES.items():
         entry = widgets.get(wid)
         if isinstance(entry, dict):
@@ -424,37 +420,28 @@ def _ssrm_json_safe(page) -> list:
     return cells.where(cells.notna() & ~cells.isin([math.inf, -math.inf]), None).to_dict("records")
 
 
-def _json_default(value):
-    """A value json cannot write natively (a timestamp, should one appear): its ISO text."""
-    return value.isoformat() if hasattr(value, "isoformat") else str(value)
-
-
-_SSRM_DECLARED = {}  # widget id -> its declared param names, from the fixed /widgets.json
-_SSRM_COLUMNS = {}  # widget id -> its declared columnsDefs fields (None: undeclared), same source
+# widget id -> (its declared param names, its declared columnsDefs fields), None where
+# undeclared; from the fixed /widgets.json, so never re-parsed.
+_SSRM_WIDGET = {}
 
 
 async def _declared_params(request, wid):
     """The widget's declared param names, or None when the catalogue does not say."""
-    if wid not in _SSRM_DECLARED:
+    if wid not in _SSRM_WIDGET:
         cache = LANE.catalogs if LANE is not None else _CATALOG_CACHE
         if await _widget_ids(cache, request) is None:
             return None
         entry = json.loads(cache["/widgets.json"][0]).get(wid)
         defs = (((entry.get("data") or {}).get("table") or {}).get("columnsDefs") if isinstance(entry, dict) else None) or []
         fields = [d["field"] for d in defs if isinstance(d, dict) and isinstance(d.get("field"), str)]
-        _SSRM_COLUMNS[wid] = list(dict.fromkeys(fields)) or None
         params = entry.get("params") if isinstance(entry, dict) else None
-        if not isinstance(params, list):  # kept as None: the catalogue is fixed, so never re-parse it
-            _SSRM_DECLARED[wid] = None
-            return None
-        rows = [p for row in params for p in (row if isinstance(row, list) else [row])]  # grouped rows too
-        _SSRM_DECLARED[wid] = frozenset(
-            p["paramName"] for p in rows if isinstance(p, dict) and isinstance(p.get("paramName"), str))
-    return _SSRM_DECLARED[wid]
-
-
-def _page(df, order, body):
-    return _ssrm_json_safe(df.iloc[order[body["startRow"]:body["endRow"]]])
+        declared = None
+        if isinstance(params, list):
+            rows = [p for row in params for p in (row if isinstance(row, list) else [row])]  # grouped rows too
+            declared = frozenset(
+                p["paramName"] for p in rows if isinstance(p, dict) and isinstance(p.get("paramName"), str))
+        _SSRM_WIDGET[wid] = (declared, list(dict.fromkeys(fields)) or None)
+    return _SSRM_WIDGET[wid][0]
 
 
 async def _ssrm(request):
@@ -465,7 +452,7 @@ async def _ssrm(request):
     # The API's Basic auth is a route dependency, which this hook runs before:
     # check it here, or a cached frame would be served to anyone.
     if not _authorized(request):
-        return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+        return _unauthorized(request)
     refused = _cors(request, JSONResponse({"detail": _SSRM_REFUSED}, 400))
     raw = b""
     async for chunk in request.stream():
@@ -489,14 +476,15 @@ async def _ssrm(request):
     hit = SSRM_CACHE.fresh(key)
     view = json.dumps([body["filterModel"], body["sortModel"]], sort_keys=True)
     try:
-        df = await SSRM_CACHE.get(key, lambda: _acquire(request.app, route, params, authorization, _SSRM_COLUMNS.get(SSRM_ROUTES[route])))
+        df = await SSRM_CACHE.get(key, lambda: _acquire(request.app, route, params, authorization, _SSRM_WIDGET.get(SSRM_ROUTES[route], (None, None))[1]))
         order = SSRM_CACHE.view(key, df, view)
         if order is None:
             hit = False
             async with SSRM_CACHE.view_slots:
                 order = await asyncio.to_thread(_view_order, df, body)
             SSRM_CACHE.add_view(key, df, view, order)
-        rows, total = await asyncio.to_thread(_page, df, order, body), len(order)
+        rows = await asyncio.to_thread(lambda: _ssrm_json_safe(df.iloc[order[body["startRow"]:body["endRow"]]]))
+        total = len(order)
     except SsrmBadRequest:
         return refused
     except SsrmUpstream as exc:
@@ -504,8 +492,8 @@ async def _ssrm(request):
     page = {"rowData": rows, "rowCount": total}
     if df.attrs.get("warnings"):
         page["warnings"] = df.attrs["warnings"]
-    reply = json.dumps(page, allow_nan=False, default=_json_default)
-    # x-openbq-ssrm tells the caller whether the frame and the row order came from the cache.
+    reply = json.dumps(page, allow_nan=False, default=lambda v: v.isoformat() if hasattr(v, "isoformat") else str(v))  # e.g. a timestamp: ISO text
+    # Marks a cache hit; the door does not relay this header.
     return _cors(request, Response(reply, 200, media_type="application/json",
                                    headers={"x-openbq-ssrm": "hit" if hit else "miss"}))
 
@@ -527,17 +515,21 @@ def _rss_mb(pid: int) -> float:
     return 0.0
 
 
-def _with_extra_apps(body: bytes) -> bytes:
-    """The built apps.json plus EXTRA_APPS, when both are lists; else unchanged."""
+def _apps(body: bytes):
+    """(apps, extended): the built apps.json list, plus EXTRA_APPS when that is a list too.
+    (None, False) when the build is not a JSON list."""
+    try:
+        apps = json.loads(body)
+    except ValueError:
+        return None, False
+    if not isinstance(apps, list):
+        return None, False
     try:
         with open(EXTRA_APPS, encoding="utf-8") as f:
             extra = json.load(f)
-        apps = json.loads(body)
     except (OSError, ValueError):
-        return body
-    if not isinstance(apps, list) or not isinstance(extra, list):
-        return body
-    return json.dumps(apps + extra).encode()
+        return apps, False
+    return (apps + extra, True) if isinstance(extra, list) else (apps, False)
 
 
 def _cards(app) -> set:
@@ -549,13 +541,12 @@ def _cards(app) -> set:
             for card in tab.get("layout") or [] if isinstance(card, dict)}
 
 
-def _servable_apps(body: bytes, widget_ids) -> bytes:
+def _servable_apps(apps: list, widget_ids) -> list:
     """Drop every app with a card that is neither in /widgets.json nor a BDOBB built-in.
 
     A provider that is not installed would otherwise ship its apps as blank
     cards: openbb-api keeps an app when any one of its tabs resolves.
     """
-    apps = json.loads(body)
     kept = []
     for app in apps:
         missing = sorted(map(str, _cards(app) - BUILTIN_CARDS - widget_ids))
@@ -564,7 +555,7 @@ def _servable_apps(body: bytes, widget_ids) -> bytes:
                         app.get("name"), ", ".join(missing))
         else:
             kept.append(app)
-    return body if len(kept) == len(apps) else json.dumps(kept).encode()
+    return kept
 
 
 async def _widget_ids(cache, request):
@@ -587,36 +578,20 @@ async def _widget_ids(cache, request):
 def _fixture_widgets() -> dict:
     try:
         with open(os.path.join(FIXTURES, "widgets.json"), encoding="utf-8") as f:
-            widgets = json.load(f)
-    except (OSError, ValueError):
+            return json.load(f)
+    except OSError:  # off-image runs have no /workspace
         return {}
-    return widgets if isinstance(widgets, dict) else {}
-
-
-def _with_fixture_widgets(body: bytes) -> bytes:
-    """The built widgets.json plus the fixture widgets it does not already have."""
-    extra = _fixture_widgets()
-    try:
-        widgets = json.loads(body)
-    except ValueError:
-        return body
-    if not extra or not isinstance(widgets, dict):
-        return body
-    return json.dumps({**extra, **widgets}).encode()
 
 
 def _fixture(request):
     """A fixture widget's data, behind the API's Basic auth like any data route."""
     if not _authorized(request):
-        return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+        return _unauthorized(request)
     widget_id = request.url.path[len(FIXTURE_PREFIX):]
-    if widget_id not in _fixture_widgets():
+    if widget_id not in _fixture_widgets():  # the path-traversal guard: only listed ids are opened
         return _cors(request, JSONResponse({"detail": "Not Found"}, 404))
-    try:
-        with open(os.path.join(FIXTURES, widget_id + ".json"), "rb") as f:
-            data = f.read()
-    except OSError:
-        return _cors(request, JSONResponse({"detail": "Not Found"}, 404))
+    with open(os.path.join(FIXTURES, widget_id + ".json"), "rb") as f:
+        data = f.read()
     return _cors(request, Response(data, 200, media_type="application/json"))
 
 
@@ -631,14 +606,6 @@ def _logo(request):
                                    headers={"Cache-Control": "public, max-age=86400"}))
 
 
-def _json_list(body: bytes):
-    try:
-        value = json.loads(body)
-    except ValueError:
-        return None
-    return value if isinstance(value, list) else None
-
-
 def _is_catalog(request) -> bool:
     return request.method == "GET" and request.url.path in _CATALOGS and not request.url.query
 
@@ -646,7 +613,7 @@ def _is_catalog(request) -> bool:
 async def _catalog(cache, request, call_next):
     """Serve /widgets.json and /apps.json from their first successful build."""
     if not _authorized(request):  # the cache must not outlive the API's own Basic auth
-        return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+        return _unauthorized(request)
     path = request.url.path
     if path not in cache:
         response = await call_next(request)
@@ -654,16 +621,19 @@ async def _catalog(cache, request, call_next):
             return response
         body = b"".join([chunk async for chunk in response.body_iterator])
         if path == "/widgets.json":
-            body = _rewrite_widgets(_with_fixture_widgets(body))
+            body = _rewrite_widgets(body)
         elif path == "/apps.json":
-            body = _with_extra_apps(body)
-            apps = _json_list(body)
+            apps, extended = _apps(body)
+            if extended:
+                body = json.dumps(apps).encode()
             if apps is not None and any(_cards(app) - BUILTIN_CARDS for app in apps):
                 widget_ids = await _widget_ids(cache, request)
                 if widget_ids is None:  # no widget catalog yet: serve as built, cache nothing
                     log.warning("OpenBQ apps.json: /widgets.json unavailable, apps not checked")
                     return _cors(request, Response(body, 200, media_type="application/json"))
-                body = _servable_apps(body, widget_ids)
+                kept = _servable_apps(apps, widget_ids)
+                if len(kept) < len(apps):
+                    body = json.dumps(kept).encode()
         cache[path] = (body, [
             (k, v) for k, v in response.raw_headers
             if k.lower() not in _HOP | _PER_CALLER and not k.lower().startswith(b"access-control-")
@@ -672,6 +642,10 @@ async def _catalog(cache, request, call_next):
     response = Response(body, 200)
     response.raw_headers = [*headers, (b"content-length", str(len(body)).encode())]
     return _cors(request, response)
+
+
+def _unauthorized(request):
+    return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
 
 
 def _cors(request, response):
@@ -774,7 +748,7 @@ class Lane:
         path = request.url.path
         if path == "/openbq/lanes":
             if not _authorized(request):
-                return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+                return _unauthorized(request)
             return _cors(request, JSONResponse(self.status()))
         if _is_catalog(request):
             return await _catalog(self.catalogs, request, call_next)
@@ -928,8 +902,8 @@ _NAMES = {
 
 def provider_descriptor(credentials: dict) -> list:
     """key-maint's provider inventory (Episode 3): which providers this API has
-    and which credential names each takes. Names only; no value is read. A copy
-    of key-maint/app/providers_route.build_provider_descriptor; keep them in sync."""
+    and which credential names each takes. Names only; no value is read.
+    Unit-tested in key-maint/tests/test_providers_route.py."""
     out = []
     for pid in sorted(credentials):
         names = list(credentials[pid])
@@ -953,7 +927,7 @@ async def middleware(request, call_next):
         return _fixture(request)
     if request.method == "GET" and request.url.path == PROVIDERS_PATH:
         if not _authorized(request):
-            return _cors(request, JSONResponse({"detail": "Unauthorized"}, 401, {"WWW-Authenticate": "Basic"}))
+            return _unauthorized(request)
         return _cors(request, JSONResponse(provider_descriptor(_provider_credentials())))
     if request.method == "POST" and request.url.path.endswith(SSRM_SUFFIX):
         return await _ssrm(request)  # before the lane, which would forward it to a worker with no such route

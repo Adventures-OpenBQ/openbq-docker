@@ -2,12 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Build gate: openbq-eodhd on the locked ODP, with the SDK boundary stubbed.
 
-Dockerfile.v3 copies this file next to v9/eodhd/tests and runs it after
+The Dockerfile's api stage copies this file next to v9/eodhd/tests and runs it after
 openbb-build. No EODHD key and no network are used.
 """
 import importlib.metadata as metadata
 import importlib.util
-import sys
 import unittest
 from pathlib import Path
 
@@ -23,15 +22,9 @@ client = APIClient('demo')
 # openbq_eodhd.models._client configures these SDK internals (see its tests/test_client.py).
 assert hasattr(client, '_session') and hasattr(client, '_timeout'), 'EODHD SDK pin moved'
 # This line ships no standard routers; obb.eodhd.* is the EODHD namespace.
-for name in ('openbb-equity', 'openbb-etf', 'openbb-economy'):
-    try:
-        metadata.version(name)
-    except metadata.PackageNotFoundError:
-        continue
-    raise AssertionError(f'{name} is installed; v9/eodhd/tests assume no standard routers')
+stray = {'openbb-equity', 'openbb-etf', 'openbb-economy'} & {d.metadata['Name'] for d in metadata.distributions()}
+assert not stray, f'{sorted(stray)} installed; v9/eodhd/tests assume no standard routers'
 
 suite = unittest.defaultTestLoader.discover(str(Path(__file__).with_name('tests')))
-result = unittest.TextTestRunner(verbosity=1).run(suite)
-if not result.wasSuccessful():
-    sys.exit(1)
+assert unittest.TextTestRunner(verbosity=1).run(suite).wasSuccessful()
 print('PASS: openbq-eodhd 9.0.1, 52 obb.eodhd.* mirrors, the EODHD app, a stubbed price query, and the app under OPENBB_API_AUTH')

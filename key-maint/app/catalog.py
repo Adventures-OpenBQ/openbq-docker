@@ -21,13 +21,12 @@ class Example:
     provider_id: str
     path: str
     params: dict[str, str]
-    expect: str
     demo_ok: bool
     doc: str
 
 
-def _ex(pid, path, params, doc, expect="results_nonempty", demo_ok=False):
-    return Example(pid, path, {"provider": pid, **params}, expect, demo_ok, doc)
+def _ex(pid, path, params, doc, demo_ok=False):
+    return Example(pid, path, {"provider": pid, **params}, demo_ok, doc)
 
 
 # Paths follow OpenBQ's API, which routes most installed providers under their
@@ -46,7 +45,7 @@ EXAMPLES: dict[str, Example] = {e.provider_id: e for e in [
         f"{_D}/economy/gdp/real", demo_ok=True),
     _ex("government_us", "/api/v1/fixedincome/government/treasury_auctions", {},
         f"{_D}/fixedincome/government/treasury_auctions", demo_ok=True),
-    _ex("eodhd", "/api/v1/equity/price/quote", {"symbol": "AAPL"},
+    _ex("eodhd", "/api/v1/eodhd/equity/price/quote", {"symbol": "AAPL"},
         f"{_D}/equity/price/quote", demo_ok=True),
     _ex("fmp", "/api/v1/equity/profile", {"symbol": "AAPL"}, f"{_D}/equity/profile"),
     _ex("fred", "/api/v1/fred/economy/fred_series", {"symbol": "GNPCA"}, f"{_D}/economy/fred_series"),
@@ -87,27 +86,6 @@ _DETAIL = {
 _BACKEND_REFUSED = "the backend refused key-maint's own credentials"
 
 
-def _shape_ok(body, expect) -> bool:
-    if not isinstance(body, dict):
-        return False
-    if expect == "results_nonempty":
-        return bool(body.get("results"))
-    if expect == "results_object":
-        return isinstance(body.get("results"), dict) and bool(body["results"])
-    node = body  # dotted path, each segment must exist
-    for seg in expect.split("."):
-        if isinstance(node, list):
-            try:
-                node = node[int(seg)]
-            except (ValueError, IndexError):
-                return False
-        elif isinstance(node, dict) and seg in node:
-            node = node[seg]
-        else:
-            return False
-    return True
-
-
 def _marker_code(detail_text: str) -> tuple[str, str]:
     """(result, code) from markers in the API's own detail string. The text is
     read for signal only; it is NEVER placed in the returned detail."""
@@ -130,11 +108,11 @@ def _marker_code(detail_text: str) -> tuple[str, str]:
     return "error", "upstream_error"
 
 
-def classify(status: int, body, expect: str) -> tuple[str, str | None, str]:
+def classify(status: int, body) -> tuple[str, str | None, str]:
     """(result, code, detail) for an API response that WAS received. Transport
     failures that never reached the API are handled by the connectivity probe."""
     if 200 <= status < 300:
-        if _shape_ok(body, expect):
+        if isinstance(body, dict) and body.get("results"):
             return "ok", None, f"HTTP {status}"
         return "error", "unexpected_response", f"{_DETAIL['unexpected_response']} (HTTP {status})"
     if status in (401, 403):
@@ -163,7 +141,7 @@ def _check(base_url: str, username: str, password: str) -> int:
                                   params=ex.params, auth=(username, password))
                 body = resp.json() if resp.headers.get("content-type", "").startswith(
                     "application/json") else {}
-                result, _, _ = classify(resp.status_code, body, ex.expect)
+                result, _, _ = classify(resp.status_code, body)
             except httpx.HTTPError as e:
                 result = "no_response"
                 print(f"{pid}: transport error {type(e).__name__}")

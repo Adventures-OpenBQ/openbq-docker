@@ -35,15 +35,21 @@ services:
     image: openbq-mcp:10.0.0
     pull_policy: never
     restart: unless-stopped
-    command: [openbb-mcp, --host, 0.0.0.0, --port, "6901", --default-categories, equity, --tool-discovery]
+    # Hard cap, as on openbq-api: MCP runs ODP in-process, so if it outgrows it the kernel
+    # kills MCP, not the host's other services.
+    mem_limit: 16g
+    # The API's provider keys: demo first, then yours.
+    env_file:
+      - path: ./credentials.demo.env
+        required: true
+      - path: ./credentials.env
+        required: false
     environment:
       OPENBB_MCP_DEFAULT_SKILLS_DIR: ""
+      # In-process ODP calls must not demand the API's Basic auth.
+      OPENBB_API_AUTH: "false"
     volumes:
       - openbq-mcp-data:/root/.openbb_platform
     networks: [openbq-internal]
-networks:
-  openbq-internal:
-    driver_opts:
-      com.docker.network.driver.mtu: "1500"
 volumes:
   openbq-mcp-data:

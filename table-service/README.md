@@ -88,11 +88,11 @@ Success, error, disconnect and deadlines release the associated lane's capacity.
 Standard provider SSRM POSTs are exact entries in `ssrmRoutes`, e.g.
 `/api/api/v1/reviewed_provider/rows`; review each actual provider endpoint before
 registering it. Unset, it defaults to the 23 routes od serves
-(`funnel-gateway/ssrm-routes.json`, `lanes/ssrm_widgets.json` as door paths); set it
+(`lanes/ssrm_widgets.json` as door paths); set it
 only to narrow that list, and `[]` turns SSRM through the door off. The web `SSRM_ROUTES_JSON` must contain the same paths. Query rules
 remain the existing bounded API policy; these POSTs use the existing injected Basic
-credential and concurrency cap. No broad POST prefix or generic proxy
-is introduced. Existing GET API/news/grid and state routes retain their policies.
+credential and the concurrency cap. No broad POST prefix or generic proxy
+is introduced. Existing GET API, grid and state routes retain their policies.
 
 ## Private runtime and verification
 
@@ -147,7 +147,7 @@ Before any local bring-up, validate operator env/settings and run:
 
 ```sh
 node --test funnel-gateway/*.test.mjs
-docker compose --env-file /absolute/new-table-context.env --profile web --profile table config --quiet
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --env-file /absolute/new-table-context.env --profile web --profile table config --quiet
 ```
 
 The image build must succeed before recording image qualification. Then, on an isolated

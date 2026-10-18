@@ -1,26 +1,29 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
-name: openbq-episode1
+name: openbq-stack
+# The two Tailscale sidecars (the stack's node and the Workspace's) differ only in name and paths.
+x-tailscale: &tailscale
+  image: tailscale/tailscale:v1.98.9@sha256:f15d5d3f4a68773a853180b72496f70ba614b64de0878c43fe3da39fe0afba47
+  restart: unless-stopped
+  devices: [/dev/net/tun:/dev/net/tun]
+  cap_add: [NET_ADMIN, NET_RAW]
+x-tailscale-env: &tailscale-env
+  TS_AUTH_ONCE: "true"
+  TS_USERSPACE: "false"
+  TS_STATE_DIR: /var/lib/tailscale
+  TS_SERVE_CONFIG: /config/serve.json
 services:
   tailscale:
-    image: tailscale/tailscale:v1.98.9@sha256:f15d5d3f4a68773a853180b72496f70ba614b64de0878c43fe3da39fe0afba47
+    <<: *tailscale
     hostname: openbq
-    restart: unless-stopped
     env_file: [./ts.env]
-    environment:
-      TS_HOSTNAME: openbq
-      TS_AUTH_ONCE: "true"
-      TS_USERSPACE: "false"
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_SERVE_CONFIG: /config/serve.json
+    environment: {<<: *tailscale-env, TS_HOSTNAME: openbq}
     volumes:
       - ./ts-state:/var/lib/tailscale
       - ./ts-config:/config:ro
     networks: [openbq-internal]
-    devices: [/dev/net/tun:/dev/net/tun]
-    cap_add: [NET_ADMIN, NET_RAW]
   openbq-api:
-    build: .
+    build: {context: ., target: api}
     image: openbq-local:2.0.0-candidate
     restart: unless-stopped
     # Hard cap: if the API outgrows it, the kernel kills the API, not the host's other services.
@@ -56,22 +59,14 @@ services:
     volumes: [workspace-data:/data]
     networks: [workspace-internal]
   workspace-tailscale:
+    <<: *tailscale
     profiles: [workspace]
-    image: tailscale/tailscale:v1.98.9@sha256:f15d5d3f4a68773a853180b72496f70ba614b64de0878c43fe3da39fe0afba47
     hostname: openbq-workspace
-    restart: unless-stopped
     env_file: [./workspace/ts.env]
-    environment:
-      TS_HOSTNAME: openbq-workspace
-      TS_AUTH_ONCE: "true"
-      TS_USERSPACE: "false"
-      TS_STATE_DIR: /var/lib/tailscale
-      TS_SERVE_CONFIG: /config/serve.json
+    environment: {<<: *tailscale-env, TS_HOSTNAME: openbq-workspace}
     volumes:
       - ./workspace/ts-state:/var/lib/tailscale
       - ./workspace/ts-config:/config:ro
-    devices: [/dev/net/tun:/dev/net/tun]
-    cap_add: [NET_ADMIN, NET_RAW]
     networks: [workspace-internal]
   # BDOBB's web preview door (v8, opt-in): `docker compose --profile web up -d`
   # starts these two; plain `docker compose up -d` never does. Ported from
@@ -83,16 +78,16 @@ services:
   # docs/v10/live-grid-kdb-port.md.
   #
   # rss-ticker: a shared feed pool with NO authentication, so reachability is its
-  # whole access control. Build it from ./rss-ticker (rss-feedhandler v8.0.1); the GHCR
-  # package is private, so readers never pull it:
+  # whole access control. Build it from ./rss-ticker (rss-feedhandler v8.0.1) as the local
+  # image openbq-rss-ticker:10.0.0; nothing is pulled:
   #   docker compose --profile web build rss-ticker
-  # On the bridge only; both ts-config/serve*.json publish it on tailnet port 8088
+  # On the bridge only; every ts-config/serve*.json publishes it on tailnet port 8088
   # (a 502 there until the web profile runs), never funneled.
   #   cp rss-ticker-config/config.yaml.example rss-ticker-config/config.yaml
   rss-ticker:
     profiles: [web]
     build: ./rss-ticker
-    image: ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0
+    image: openbq-rss-ticker:10.0.0
     restart: unless-stopped
     volumes:
       - ./rss-ticker-config:/config:ro
@@ -107,7 +102,7 @@ services:
   #   mkdir -p gateway-config && cp funnel-gateway/settings.example.json gateway-config/settings.json
   funnel-gateway:
     profiles: [web]
-    build: ./funnel-gateway
+    build: {context: ./funnel-gateway, additional_contexts: {lanes: ./lanes}}
     image: openbq-funnel-gateway:10.0.0
     restart: unless-stopped
     expose: ["8091"]

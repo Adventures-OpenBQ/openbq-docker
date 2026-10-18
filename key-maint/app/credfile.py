@@ -10,6 +10,7 @@ leaks the comment text in as the value).
 """
 from __future__ import annotations
 
+import errno
 import os
 import re
 import stat
@@ -18,45 +19,9 @@ import tempfile
 _LINE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
 
 
-def parse_text(text: str) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        m = _LINE.match(line)
-        if not m:
-            continue
-        key, value = m.group(1), m.group(2).strip()
-        if not value.startswith("#"):
-            # Inline comment after a real value is stripped; '#' with no
-            # preceding whitespace is part of the value.
-            cut = value.find(" #")
-            if cut != -1:
-                value = value[:cut].rstrip()
-        out[key] = value
-    return out
-
-
-def load(path: str) -> dict[str, str] | None:
-    try:
-        with open(path, encoding="utf-8") as f:
-            return parse_text(f.read())
-    except OSError:
-        return None
-
-
-def load_with_warnings(path: str) -> tuple[dict[str, str] | None, list[str]]:
-    """Like `load`, but also reports malformed lines (non-blank, non-comment,
-    not matching KEY=VALUE) as ["line N", ...] instead of silently skipping
-    them. Only the line number is reported — the line text could contain a
-    partial secret, so it is never included."""
-    try:
-        with open(path, encoding="utf-8") as f:
-            text = f.read()
-    except OSError:
-        return None, []
-
+def _parse(text: str) -> tuple[dict[str, str], list[str]]:
+    """Values, plus malformed lines (non-blank, non-comment, not KEY=VALUE) as
+    ["line N", ...]. Only the line number -- the text could hold a partial secret."""
     out: dict[str, str] = {}
     warnings: list[str] = []
     for lineno, raw in enumerate(text.splitlines(), start=1):
@@ -69,11 +34,31 @@ def load_with_warnings(path: str) -> tuple[dict[str, str] | None, list[str]]:
             continue
         key, value = m.group(1), m.group(2).strip()
         if not value.startswith("#"):
+            # Inline comment after a real value is stripped; '#' with no
+            # preceding whitespace is part of the value.
             cut = value.find(" #")
             if cut != -1:
                 value = value[:cut].rstrip()
         out[key] = value
     return out, warnings
+
+
+def parse_text(text: str) -> dict[str, str]:
+    return _parse(text)[0]
+
+
+def load(path: str) -> dict[str, str] | None:
+    return load_with_warnings(path)[0]
+
+
+def load_with_warnings(path: str) -> tuple[dict[str, str] | None, list[str]]:
+    """Like `load`, but also reports malformed lines instead of silently
+    skipping them (see _parse)."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return _parse(f.read())
+    except OSError:
+        return None, []
 
 
 def set_value(path: str, env_var: str, value: str) -> None:
@@ -146,7 +131,21 @@ def set_value(path: str, env_var: str, value: str) -> None:
         # for a brand-new credentials file.
         if original_mode is not None:
             os.chmod(tmp, original_mode)
-        os.replace(tmp, path)
+        try:
+            os.replace(tmp, path)
+        except OSError as e:
+            # docker-compose mounts credentials.env as a single file, and a
+            # rename onto a mount point fails (EBUSY; EXDEV across devices).
+            # Write that inode in place instead: a new inode would never
+            # reach the host's file anyway.
+            if e.errno not in (errno.EBUSY, errno.EXDEV):
+                raise
+            with open(path, "r+", encoding="utf-8") as f:
+                f.write("\n".join(out) + "\n")
+                f.truncate()
+                f.flush()
+                os.fsync(f.fileno())
+            os.unlink(tmp)
     except BaseException:
         # Never leave a temp file holding a credential behind.
         if os.path.exists(tmp):
