@@ -12,7 +12,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Scan current files and reachable history
-        run: python3 scripts/check-public.py --history
+        # The pushed commit's own history, not every ref: another branch's unmerged
+        # history must not fail this push (user ruling 2026-10-18).
+        run: python3 scripts/check-public.py --history HEAD
       - name: Verify source assembly and privacy checks
         run: python3 -m unittest discover -s workspace/tests
       - uses: actions/setup-python@v5
