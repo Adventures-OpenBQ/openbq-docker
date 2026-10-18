@@ -76,7 +76,7 @@ def test_the_episode_6_configs_are_the_episode_3_config_plus_rita_and_mcp_tailne
 
 def test_the_feed_pool_builds_openbq_rss_ticker_8_0_0_from_source():
     service = SERVICES['rss-ticker']
-    assert service['image'] == 'ghcr.io/adventures-openbq/openbq-rss-ticker:8.0.0', service['image']
+    assert service['image'] == 'openbq-rss-ticker:8.0.0', service['image']
     assert service['build'] == './rss-ticker', service['build']
 
 

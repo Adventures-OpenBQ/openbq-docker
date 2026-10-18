@@ -26,7 +26,7 @@ const RSS_ADDRESS = [100, 64, 0, 3].join(".");
 const FEED = "https://feeds.example.com/news.xml";
 // The wire is ON in the default fixture -- it is this tag's own row. openbq-docker serves no
 // /ai (Rita), so her settings are unknown keys and her routes unmatched (tests below).
-const settings = { origin: ORIGIN, quoteDailyLimit: 100,
+const settings = { origin: ORIGIN,
   rssOrigin: RSS_ORIGIN, rssAddress: RSS_ADDRESS, feeds: { [FEED]: 7 } };
 const secrets = { token: TOKEN, apiUsername: "testuser", apiPassword: "synthetic-password" };
 const config = () => validateConfig(settings, secrets);
@@ -83,8 +83,6 @@ test("configuration fails closed; secrets come from the environment", () => {
     { origin: "http://example.com" }, { origin: "https://arbitrary.example.com" },
     { origin: `https://openbq.${TAILNET}:8443` },   // the episode 3 reference's tailnet port, never the door
     { origin: `https://openbq.${TAILNET}:10000/x` },
-    { quoteDailyLimit: 0 }, { quoteDailyLimit: 10001 }, { quoteDailyLimit: 1.5 },
-    { requestsPerMinute: 0 }, { requestsPerMinute: 601 }, { requestsPerMinute: "60" },
     { maxConcurrent: 0 }, { maxConcurrent: 33 },
     { maxSockets: 0 }, { maxSockets: 33 }, { maxSockets: 1.5 }, { maxSockets: "4" },
     // The preview origin is any HTTPS origin (a Vercel name is not on the tailnet), but only an origin.
@@ -123,8 +121,8 @@ test("configuration fails closed; secrets come from the environment", () => {
   assert.equal(validateConfig({ ...settings, origin: `https://openbq.${TAILNET}:443` }, secrets).origin,
     `https://openbq.${TAILNET}`);
   const defaults = validateConfig(settings, secrets);
-  assert.deepEqual([defaults.requestsPerMinute, defaults.maxConcurrent, defaults.maxSockets, defaults.previewOrigin, defaults.stateDir],
-    [60, 8, 4, null, null]);
+  assert.deepEqual([defaults.maxConcurrent, defaults.maxSockets, defaults.previewOrigin, defaults.stateDir],
+    [8, 4, null, null]);
   assert.equal(validateConfig({ ...settings, previewOrigin: "https://BDOBB.example.vercel.app" }, secrets).previewOrigin,
     "https://bdobb.example.vercel.app");
   assert.deepEqual([1, 32].map(maxSockets => validateConfig({ ...settings, maxSockets }, secrets).maxSockets), [1, 32]);
@@ -145,8 +143,12 @@ test("configuration fails closed; secrets come from the environment", () => {
   // A portless rss origin stays valid for a reader who fronts the pool on a node's own :443.
   assert.equal(validateConfig({ ...settings, rssOrigin: `https://rss.${TAILNET}` }, secrets).rssOrigin,
     `https://rss.${TAILNET}`);
-  const roomy = validateConfig({ ...settings, quoteDailyLimit: 10000, requestsPerMinute: 600, maxConcurrent: 32 }, secrets);
-  assert.deepEqual([roomy.quoteDailyLimit, roomy.requestsPerMinute, roomy.maxConcurrent], [10000, 600, 32]);
+  assert.equal(validateConfig({ ...settings, maxConcurrent: 32 }, secrets).maxConcurrent, 32);
+  // The removed budgets are refused by name, whatever their value, so a stale settings file fails loudly.
+  for (const key of ["quoteDailyLimit", "requestsPerMinute"]) {
+    assert.throws(() => validateConfig({ ...settings, [key]: 100 }, secrets), new RegExp(`Removed setting: ${key}`));
+    assert.equal(key in defaults, false, key);
+  }
   assert.throws(() => validateConfig({ origin: ORIGIN, ritaOrigin: `https://rita.${TAILNET}` }, secrets),
     /Unknown setting: ritaOrigin/);
   const directory = mkdtempSync(join(tmpdir(), "gateway-config-"));
@@ -239,7 +241,7 @@ test("the OpenBB root documents and every api/v1 route forward; the rest of /api
   upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
   t.after(() => new Promise(resolve => upstream.close(resolve)));
   const { port } = await fixture(t,
-    { apiOrigin: `http://127.0.0.1:${upstream.address().port}`, quoteDailyLimit: 1000 },
+    { apiOrigin: `http://127.0.0.1:${upstream.address().port}` },
     { requestJson: getJson });
   // The two root documents the client fetches, plus one route from each of the
   // families the 331-widget catalogue spans. All carry the stack's Basic pair,
@@ -288,33 +290,15 @@ test("the OpenBB root documents and every api/v1 route forward; the rest of /api
   assert.equal((await http(port, "/api/widgets.json", HEADERS, "POST")).status, 405);
 });
 
-test("single-instance aggregate and daily quote budgets reject before forwarding", async t => {
-  const { port, calls } = await fixture(t, { quoteDailyLimit: 1 });
-  assert.equal((await http(port, quote)).status, 200);
-  assert.equal((await http(port, quote)).status, 429);
-  assert.equal(calls.length, 1);
-  for (let i = 0; i < 58; i++) assert.equal((await http(port, "/_gateway/health")).status, 200);
-  assert.equal((await http(port, "/_gateway/health")).status, 429);
+test("no daily or per-minute budget: hundreds of vendor calls in a minute all pass", async t => {
+  // The daily vendor cap (100) and the per-minute budget (60) were removed (user ruling
+  // 2026-10-17); the concurrency cap and EODHD's own limits remain.
+  const { port, calls } = await fixture(t);
+  for (let i = 0; i < 150; i++) assert.equal((await http(port, quote)).status, 200);
+  assert.equal(calls.length, 150);
 });
 
-test("the daily budget meters vendor calls, not the two manifests", async t => {
-  // widgets.json and apps.json are openbb-api's own static documents: no provider is
-  // called, so no quota is spent. Metering them made a dashboard open cost N+1 units
-  // and ten opens exhaust a default day (review of the all-widgets change, 2026-09-20).
-  const { port } = await fixture(t, { quoteDailyLimit: 1 });
-  for (const manifest of ["/api/widgets.json", "/api/apps.json", "/api/widgets.json"]) {
-    assert.equal((await http(port, manifest)).status, 200, manifest);
-  }
-  assert.equal((await http(port, quote)).status, 200);
-  assert.equal((await http(port, quote)).status, 429);
-  assert.equal((await http(port, "/api/apps.json")).status, 200);
-});
-
-test("the per-minute budget and the concurrency cap come from settings", async t => {
-  const { port } = await fixture(t, { requestsPerMinute: 3 });
-  for (let i = 0; i < 3; i++) assert.equal((await http(port, "/_gateway/health")).status, 200);
-  assert.equal((await http(port, "/_gateway/health")).status, 429);
-
+test("the concurrency cap comes from settings", async t => {
   // maxConcurrent: hold one upstream call open, and the next REST request is refused.
   let release;
   const held = await fixture(t, { maxConcurrent: 1 }, { requestJson: () => new Promise(resolve => { release = resolve; }) });
@@ -441,6 +425,20 @@ test("upstream redirects, error text, invalid JSON and oversized responses never
     assert.equal(response.text, '{"error":"Request refused"}');
     assert.equal(response.headers.location, undefined);
   }
+});
+
+test("a text/plain answer (the video routes) is relayed as text under the same cap", async t => {
+  const upstream = createServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" }); res.end("https://www.youtube.com/embed/abc");
+  });
+  upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
+  t.after(() => new Promise(resolve => upstream.close(resolve)));
+  const { port } = await fixture(t, { apiOrigin: `http://127.0.0.1:${upstream.address().port}` }, { requestJson: getJson });
+  const response = await http(port, quote);
+  assert.equal(response.status, 200);
+  assert.equal(response.text, "https://www.youtube.com/embed/abc");
+  assert.equal(response.headers["content-type"], "text/plain; charset=utf-8");
+  assert.equal(response.headers["x-content-type-options"], "nosniff");
 });
 
 test("root manifests get MANIFEST_MAX (16 MiB); every other path keeps 2 MiB", async t => {
@@ -722,19 +720,11 @@ test("WS initial frame deadline and the dead-peer heartbeat are bounded", async 
   const b = await deafConnect(second.port, "/news/ws/news"); await within(b, "close");
 });
 
-test("the socket cap and the six-unit socket price come from settings, charged before the upgrade", async t => {
+test("the socket cap comes from settings, checked before the upgrade", async t => {
   const capped = await fixture(t, { maxSockets: 1 }, { openNews: () => new WebSocket("ws://127.0.0.1:9") });
   const first = await wsConnect(capped.port); assert.equal(first.status, 101);
   assert.equal((await wsConnect(capped.port)).status, 429);
   first.ws.terminate();
-  // A socket costs six of the per-minute budget, and it is charged BEFORE handleUpgrade: with
-  // six left exactly one socket is admitted, and the seventh unit is gone -- so the REST side
-  // is out of budget too, which is what proves the charge happened and not a refund.
-  const metered = await fixture(t, { requestsPerMinute: 6 }, { openNews: () => new WebSocket("ws://127.0.0.1:9") });
-  const only = await wsConnect(metered.port); assert.equal(only.status, 101);
-  assert.equal((await http(metered.port, "/_gateway/health")).status, 429);
-  assert.equal((await wsConnect(metered.port)).status, 429);
-  only.ws.terminate();
 });
 
 test("a refused upgrade never allocates a socket slot, so the cap is not consumed by 404s", async t => {
@@ -812,7 +802,7 @@ test("state refuses everything outside its contract", async t => {
 });
 
 test("state is bounded per user, and off until the operator gives it a directory", async t => {
-  const { port } = await stateFixture(t, { requestsPerMinute: 600 });
+  const { port } = await stateFixture(t);
   const big = JSON.stringify("x".repeat(262000));
   for (let i = 0; i < 8; i++) assert.equal((await send(port, `/state/42/dashboards/d${i}.json`, "PUT", big)).status, 204);
   assert.equal((await send(port, "/state/42/dashboards/d8.json", "PUT", big)).status, 413); // > 2 MiB for this user
@@ -929,7 +919,7 @@ test("table credential configuration fails closed and service origins are fixed"
   for(const patch of [{tableGatewayToken:TOKEN},{tableRelayToken:TOKEN},{tableRelayToken:TABLE_PRIVATE},{tableGatewayToken:""},{tableRelayToken:"short"}])assert.throws(()=>validateConfig(enabled,{...privateSecrets,...patch}));
   for(const patch of [{tableDesktopPrincipal:"github:42"},{tableService:"true"},{ssrmRoutes:["https://evil.example.com"]},{ssrmRoutes:["/api/api/v1/a/../b"]},{tableOrigin:"http://evil.example.com"},{tableTimeoutMs:0}])assert.throws(()=>validateConfig({...enabled,...patch},privateSecrets));
 });
-test("table batches fail atomically on truncation, oversize or deadline; standard POST is exact and metered",async t=>{
+test("table batches fail atomically on truncation, oversize or deadline; standard POST is exact",async t=>{
   const {call,calls,cfg}=await tableFixture(t,{tableTimeoutMs:40});
   for(const name of ["stalled","truncated","oversized"]){const result=await call(`/table/sessions/${name}/commands`,"POST",'{}').catch(error=>{throw new Error(name,{cause:error});});assert.equal(result.status,502);assert.doesNotMatch(result.body,/partial|xxxxxxxx/);}
   cfg.tableTimeoutMs=65000;
@@ -938,7 +928,6 @@ test("table batches fail atomically on truncation, oversize or deadline; standar
   assert.equal(calls.at(-1).headers.authorization,config().apiAuthorization);assert.equal(calls.at(-1).headers["x-table-principal"],undefined);
   assert.equal((await call("/table/sessions/../healthz").catch(error=>{throw new Error("traversal",{cause:error});})).status,421);
   assert.equal((await call("/table/sessions/%2e%2e/healthz").catch(error=>{throw new Error("encoded",{cause:error});})).status,421);
-  const capped=await tableFixture(t,{quoteDailyLimit:1});assert.equal((await capped.call("/api/api/v1/test/rows","POST",'{}')).status,200);assert.equal((await capped.call("/api/api/v1/test/rows","POST",'{}')).status,429);
 });
 test("SSRM exchanges have their own deadline, longer than managed table routes", async t => {
   assert.equal(validateConfig(settings, secrets).ssrmTimeoutMs, 170000);
@@ -1209,17 +1198,11 @@ test("/ref/live_grid_ws: a silent client is dropped at the first-frame deadline,
   await refSlotReleased(deaf.port);
 });
 
-test("/ref/live_grid_ws: the socket cap and the six-unit socket price come from settings, charged before the upgrade", async t => {
+test("/ref/live_grid_ws: the socket cap comes from settings, checked before the upgrade", async t => {
   const capped = await fixture(t, { maxSockets: 1 }, { openRef: refused });
   const first = await refConnect(capped.port); assert.equal(first.status, 101);
   assert.equal((await refConnect(capped.port)).status, 429);
   first.ws.terminate();
-  // Six left: exactly one socket is admitted, and the REST side is out of budget too.
-  const metered = await fixture(t, { requestsPerMinute: 6 }, { openRef: refused });
-  const only = await refConnect(metered.port); assert.equal(only.status, 101);
-  assert.equal((await http(metered.port, "/_gateway/health")).status, 429);
-  assert.equal((await refConnect(metered.port)).status, 429);
-  only.ws.terminate();
 });
 
 test("/ref/live_grid_ws: a refused upgrade never allocates a socket slot, so the cap is not consumed by 404s", async t => {
@@ -1230,14 +1213,12 @@ test("/ref/live_grid_ws: a refused upgrade never allocates a socket slot, so the
   const admitted = await refConnect(port); assert.equal(admitted.status, 101); admitted.ws.terminate();
 });
 
-test("an SSRM page served from od's cache refunds the daily quote; a miss spends it; a client header cannot", async t => {
-  const {call,calls}=await tableFixture(t,{quoteDailyLimit:1});
+test("od's SSRM cache marker never reaches the client, and a client's never reaches od", async t => {
+  const {call,calls}=await tableFixture(t);
   for (let i=0;i<3;i++) {
     const hit=await call("/api/api/v1/test/rows?cached=1","POST",'{}');
     assert.equal(hit.status,200); assert.equal(hit.headers["x-openbq-ssrm"],undefined);
   }
   const spoof=await call("/api/api/v1/test/rows","POST",'{}',{"x-openbq-ssrm":"hit"});
   assert.equal(spoof.status,200); assert.equal(calls.at(-1).headers["x-openbq-ssrm"],undefined);
-  assert.equal((await call("/api/api/v1/test/rows","POST",'{}')).status,429);  // the miss spent the one quote
-  assert.equal((await call("/api/api/v1/test/rows?cached=1","POST",'{}')).status,429);
 });

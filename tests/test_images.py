@@ -84,9 +84,9 @@ class ApiImages(unittest.TestCase):
     def test_the_v3_overlay_builds_under_the_release_version(self):
         # A local build of the overlay must not overwrite an earlier release's images.
         # The gateway keeps the version it was brought down at (4.0.0 for v4-v7), so the
-        # release is the overlay's published key-maint tag.
+        # release is the overlay's key-maint tag.
         overlay = dockerfile("docker-compose.v3.yml")
-        release = re.search(r"image: ghcr.io/adventures-openbq/openbq-key-maint:(\S+)", overlay).group(1)
+        release = re.search(r"image: openbq-key-maint:(\S+)", overlay).group(1)
         for name in ("openbq-local", "openbq-episode3-demo"):
             with self.subTest(name):
                 self.assertIn(f"image: {name}:{release}\n", overlay)
@@ -94,7 +94,7 @@ class ApiImages(unittest.TestCase):
     def test_the_v6_overlay_builds_rita_and_mcp_locally(self):
         # The GHCR images are private: Rita comes from agent-rita-bdobb's build.sh and MCP
         # builds from ./mcp on this release's API image. Compose must never pull either.
-        release = re.search(r"image: ghcr.io/adventures-openbq/openbq-key-maint:(\S+)",
+        release = re.search(r"image: openbq-key-maint:(\S+)",
                             dockerfile("docker-compose.v3.yml")).group(1)
         overlay = dockerfile("docker-compose.v6.yml")
         self.assertNotIn("ghcr.io", overlay)

@@ -78,10 +78,8 @@ Cancellation and cleanup remain reachable during ordinary HTTP saturation. Each
 of the web relay, gateway and service reserves **two concurrent control requests**
 for exact, query-free POST session cancel and DELETE session/export routes only.
 No other route borrows this capacity. The web relay retains four ordinary table
-slots and a separate control allowance of 240 requests/minute per signed-in user;
-the gateway retains `maxConcurrent` ordinary slots and a separate control allowance
-of `requestsPerMinute` per process. Both control allowances are finite and reset
-on the same existing one-minute policy, independently of ordinary consumption.
+slots and the gateway `maxConcurrent`; neither has a per-minute allowance (both
+removed 2026-10-17).
 The service retains `max_http_requests` ordinary slots, plus two authenticated
 control slots; it retains its body/job deadlines and owner checks. Control limits
 return 429 at relays and the existing 413 resource-limit response at the service.
@@ -93,7 +91,7 @@ registering it. Unset, it defaults to the 23 routes od serves
 (`funnel-gateway/ssrm-routes.json`, `lanes/ssrm_widgets.json` as door paths); set it
 only to narrow that list, and `[]` turns SSRM through the door off. The web `SSRM_ROUTES_JSON` must contain the same paths. Query rules
 remain the existing bounded API policy; these POSTs use the existing injected Basic
-credential and daily vendor/concurrency budget. No broad POST prefix or generic proxy
+credential and the concurrency cap. No broad POST prefix or generic proxy
 is introduced. Existing GET API and state routes retain their policies.
 
 ## Private runtime and verification
@@ -149,7 +147,7 @@ Before any local bring-up, validate operator env/settings and run:
 
 ```sh
 node --test funnel-gateway/*.test.mjs
-docker compose --env-file /absolute/new-table-context.env --profile web --profile table config --quiet
+docker compose -f docker-compose.yml -f docker-compose.v3.yml --env-file /absolute/new-table-context.env --profile web --profile table config --quiet
 ```
 
 The image build must succeed before recording image qualification. Then, on an isolated
