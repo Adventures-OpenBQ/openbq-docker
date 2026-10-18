@@ -127,7 +127,7 @@ def test_canonical_url_agrees_with_the_client(raw, expected):
     assert canonical_url(raw) == expected
 
 
-def test_enable_disable_and_drop(store):
+def test_enable_disable(store):
     a = store.upsert_feed("https://a.example/rss", now=0)
     b = store.upsert_feed("https://b.example/rss", now=0)
     store.insert_articles(a, [NewArticle("g", "t", None, None, 1)], now=1)
@@ -136,11 +136,6 @@ def test_enable_disable_and_drop(store):
     assert store.due_feeds(now=10) == []
     store.set_enabled(b, True)
     assert [f.id for f in store.due_feeds(now=10)] == [b]
-    assert store.drop_disabled_feeds() == 1
-    assert store.get_feed(a) is None
-    assert store.get_feed_state(a) is None
-    assert store.page_news(limit=10)[0] == []
-    assert store.get_feed(b).id == b
 
 
 FAVICON = "data:image/png;base64,AAAA"

@@ -596,14 +596,20 @@ test("the WS relays one sanitized approved subscription and closes on a second f
   t.after(() => new Promise(resolve => { for (const ws of upstream.clients) ws.terminate(); upstream.close(resolve); }));
   const messages = [];
   upstream.on("connection", ws => ws.on("message", data => {
-    messages.push(JSON.parse(data)); ws.send('{"type":"test-news"}');
+    messages.push(JSON.parse(data));
+    // An unapproved feed's article, a stray frame, then the reply and an approved article:
+    // only the last two reach the client.
+    ws.send('{"id":1,"feed_id":8,"title":"private"}'); ws.send('{"type":"test-news"}');
+    ws.send('{"feeds":[{"id":7}]}'); ws.send('{"id":2,"feed_id":7,"title":"approved"}');
   }));
   const { port } = await fixture(t, {}, { openNews: () => new WebSocket(`ws://127.0.0.1:${upstream.address().port}`) });
   const { ws } = await wsConnect(port);
-  const message = once(ws, "message");
+  const received = [];
+  const two = new Promise(resolve => ws.on("message", data => { if (received.push(data.toString()) === 2) resolve(); }));
   // The unapproved feed is dropped on the way through, not a reason to refuse the approved one.
   ws.send(JSON.stringify({ subscribe: [{ url: FEED, name: "rename-attempt", admin: true }, { url: "https://unapproved.invalid/feed" }] }));
-  assert.equal((await message)[0].toString(), '{"type":"test-news"}');
+  await two;
+  assert.deepEqual(received, ['{"feeds":[{"id":7}]}', '{"id":2,"feed_id":7,"title":"approved"}']);
   assert.deepEqual(messages, [{ subscribe: [{ url: FEED }] }]);
   const closed = once(ws, "close"); ws.send('{"unsubscribe":[]}'); await closed;
 });
@@ -687,10 +693,11 @@ test("a client too far behind is closed rather than queued behind, and hands the
   await slotReleased(f);
 });
 
-test("an oversized or binary frame from the wire closes the relay, and hands the slot back", async t => {
+test("an oversized, binary or unparseable frame from the wire closes the relay, and hands the slot back", async t => {
   for (const [what, send] of [
     ["oversized", up => up.send("x".repeat(65537))],
     ["binary", up => up.send(Buffer.from("news"), { binary: true })],
+    ["unparseable", up => up.send("not json")],
   ]) {
     const f = await wireFixture(t);
     const { ws, up } = await relayed(f);

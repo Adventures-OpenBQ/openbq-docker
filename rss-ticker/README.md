@@ -3,14 +3,14 @@
 *Companion code for Adventures in OpenBB, Ep. 8: "All the News That Fits, We Print."*
 
 A user-agnostic RSS feed pool with a live wire. Clients tell it which feeds
-they want over a websocket; it polls the union, pushes every new article to
-every connected client tagged by `feed_id`, and keeps cursor-paged history in
-SQLite. The client filters. There are no users, no keys and no configured
+they want over a websocket; it polls the union, pushes each new article,
+tagged by `feed_id`, to the sockets subscribed to its feed, and keeps
+cursor-paged history in SQLite. There are no users, no keys and no configured
 feeds — the consumer is bdobb-v2's built-in **News** widget.
 
 ## Quick start
 
-    cp config.example.yaml config.yaml   # four operational settings
+    cp config.yaml.example config.yaml   # four operational settings
     docker compose up -d
 
 The default compose publishes `127.0.0.1:8088` and nothing else. **Every endpoint
@@ -49,9 +49,10 @@ fragment follows the path), nothing cleverer — the same rule bdobb-v2's
     {"feeds": [{"id": 3, "url": "https://feeds.example/markets.rss", "title": "Markets", "favicon": "data:image/png;base64,..."}]}
 
 `favicon` is the publisher's icon resolved against the feed's own host (each
-Substack newsletter gets its own), or `null` until it resolves.
+Substack newsletter gets its own), or `null` until it resolves. An icon over
+16 KiB is skipped and stays `null`, so the reply fits the public door's 64 KiB frame.
 
-**Articles** (server → client, every other frame; the same shape on `/api/news`):
+**Articles** (server → client, every other frame, only for the socket's subscribed feeds; the same shape on `/api/news`):
 
     {"id": 91, "feed_id": 3, "cursor": "...", "title": "...", "link": "...", "summary": "...",
      "source": "Markets", "author": null, "published_at": 1756800000, "sort_at": 1756800000}
@@ -68,8 +69,9 @@ oldest-first and exists for a reconnect gap fill. `limit` is 1–200, default
 
 A feed is polled while at least one open socket names it. The count is in
 memory: a socket closing releases its feeds, a feed at zero subscribers stops
-polling at once, and the hourly retention sweep deletes feeds still at zero —
-with their state and articles. Every feed starts disabled at boot; a client
+polling at once. A feed's row is never deleted, so its id stays stable and is
+never reused (the public door approves feeds by id); its articles age out
+under `retention_days` like any other. Every feed starts disabled at boot; a client
 reconnecting re-enables its own within seconds. The first successful poll of
 a feed new to the pool caches its back catalogue without broadcasting it, so
 adding a feed never floods the wire.
@@ -100,7 +102,8 @@ tables are dropped, the per-feed `group`, `title_format` and
 `poll_interval_s` columns go, `articles.author` is added, and feed URLs are
 canonicalised. Articles keep their history. The config does **not** migrate:
 delete every key but the four above (the server names the stale ones), drop
-`rss-ticker.env`, and pull `ghcr.io/artcashin/rss-feedhandler:8.0.0`. The
+`rss-ticker.env`, and rebuild the local image
+(`docker compose --profile web build rss-ticker`). The
 OpenBB Workspace widgets are gone; the consumer is bdobb-v2 v8.0.0's News
 widget.
 
@@ -109,20 +112,18 @@ widget.
 rss-feedhandler is MIT and is built on FastAPI, uvicorn, httpx, feedparser and
 PyYAML. Every distribution in the image is listed with its licence text in
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), generated from the built
-image by `python3 scripts/third-party-notices.py`; rerun it after `make buildx`.
+image.
 
-## Multi-arch builds
+## Building
 
-`make buildx` builds and pushes a `linux/amd64,linux/arm64` image to
-`ghcr.io/artcashin/rss-feedhandler`. Multi-platform builds require a
-`docker-container`-driver builder; the target auto-creates one named
-`rss-ticker-builder` on first use.
+openbq-docker's compose builds this directory as the local image
+`openbq-rss-ticker:8.0.0`; nothing is pulled or pushed.
 
 ## Development
 
     uv venv --python 3.12 && uv pip install -e ".[dev]"
-    make test
-    make lint
+    pytest
+    ruff check .
 
 Docs: [base design](docs/superpowers/specs/2026-07-21-rss-news-ticker-design.md) ·
 [user-agnostic rework](docs/superpowers/specs/2026-09-01-user-agnostic-rework-design.md) ·

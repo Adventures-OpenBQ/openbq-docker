@@ -381,13 +381,11 @@ async def test_known_provider_falls_back_to_homepage_with_headers_on_every_hop()
     assert all("python-httpx" not in ua.lower() and ua != "" for ua in seen_uas)
 
 
-async def test_cap_accepts_a_real_world_101kb_icon():
-    # CNBC's actual favicon.ico, observed 2026-08-06: a 101,440-byte
-    # multi-resolution .ico bundle. The cap must clear it with room to spare.
-    real_cnbc_icon_size = 101_440
-    assert MAX_FAVICON_BYTES >= real_cnbc_icon_size
-
-    body = b"\x00\x00\x01\x00" + b"x" * (real_cnbc_icon_size - 4)
+async def test_cap_is_16_kib_and_an_icon_at_the_cap_is_kept():
+    # The subscribe reply must fit the door's 64 KiB frame, so the cap is
+    # 16 KiB raw; CNBC's 101,440-byte favicon.ico is skipped.
+    assert MAX_FAVICON_BYTES == 16 * 1024
+    body = b"\x00\x00\x01\x00" + b"x" * (MAX_FAVICON_BYTES - 4)
 
     def handler(request):
         return httpx.Response(200, content=body, headers={"Content-Type": "image/x-icon"})
@@ -395,6 +393,28 @@ async def test_cap_accepts_a_real_world_101kb_icon():
     out = await call(handler, feed_url="https://x.example/rss")
     assert out is not None
     _b64_roundtrip(out, body, "image/x-icon")
+    assert not favicon_module._over_cap(out)
+
+
+async def test_refresh_clears_an_icon_stored_under_the_old_cap(monkeypatch):
+    store = _store()
+    try:
+        big, small = (store.upsert_feed(f"https://{h}.example/rss", now=0) for h in "ab")
+        too_big = "data:image/x-icon;base64," + base64.b64encode(b"x" * 101_440).decode()
+        store.set_feed_favicon(big, too_big)
+        store.set_feed_favicon(small, "data:image/png;base64,OLD")
+
+        async def none(client, feed_url):
+            return None
+
+        monkeypatch.setattr(favicon_module, "resolve_favicon", none)
+        async with _unused_client() as client:
+            await refresh_favicons(store, client)
+
+        assert store.get_feed(big).favicon is None
+        assert store.get_feed(small).favicon == "data:image/png;base64,OLD"
+    finally:
+        store.close()
 
 
 # www.ft.com's bot wall 403s /favicon.ico and the homepage regardless of
