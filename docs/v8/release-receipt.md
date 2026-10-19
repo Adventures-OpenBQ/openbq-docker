@@ -84,3 +84,10 @@ GHCR `8.0.0`, all built for amd64 and arm64, deployed to NAS production at `/sha
 - `openbq-rss-ticker` `sha256:b09040610aa54d192909d75358543d4ef4bb7f23a6613f92f8337769b46953e7`
 
 The sections above record the earlier cuts; their digests are superseded.
+
+## Re-cut 2026-10-18: Live TV
+
+- `rss-ticker/` is re-vendored from rss-feedhandler v8.3.1 (`7e3014a`, MIT): the upstream 8.0.1→8.3.1 diff applied on top of this repo's local changes, which stay (subscribed-only delivery, idle feeds kept by the sweep, the 16 KiB favicon cap, and the fetch SSRF guard that 8.3.1 also carries).
+- New: an optional `live_tv` channel list. With channels listed, `/widgets.json` publishes one "Live TV" `youtube` widget (`/api/live/video`, Channel picker from `/api/live/channels`) and `/yt` serves a wrapper page. `rss-ticker-config/config.yaml.example` ships the list commented out, so Live TV is off until a reader adds channels.
+- Same service, same tailnet port 8088; nothing new is funneled. The public door still relays only `/news` from rss-ticker.
+- The image keeps its name, `openbq-rss-ticker:8.0.0`, built locally from source. The application reports `"version":"8.3.1"`.
