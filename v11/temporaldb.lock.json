@@ -3,27 +3,27 @@
   "client_compatibility": 11,
   "service": "TemporalDB",
   "version": "0.4.0",
-  "source_commit": "8d259ddd06995b48febe11c3f9a56f1ab9274f0d",
-  "image_id": "sha256:36d2c63cb95dbdcb154031312920864ea1ccfe73cd76633577fdbe01f27328b3",
+  "source_commit": "d96c33823addbaa519f95c74ec23ee4700748871",
+  "image_id": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
   "platform": "linux/arm64",
   "artifact": "temporaldb-0.4.0-linux-arm64.docker.tar",
-  "artifact_sha256": "a2fd9e71e0d9a3a26f86aff8beb998afe91fa2ba1b0fa2602756efe593bf3342",
+  "artifact_sha256": "ae622de144e527a89b93c5c27d572c981adce228acc148915ead027deccc6039",
   "distribution": "local-docker-save; unpublished",
   "registry_reference": null,
   "provenance": {
-    "image_id": "sha256:36d2c63cb95dbdcb154031312920864ea1ccfe73cd76633577fdbe01f27328b3",
+    "image_id": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
     "platform": "linux/arm64",
     "labels": {
-      "org.opencontainers.image.revision": "8d259ddd06995b48febe11c3f9a56f1ab9274f0d",
+      "org.opencontainers.image.revision": "d96c33823addbaa519f95c74ec23ee4700748871",
       "org.opencontainers.image.source": "https://github.com/Adventures-OpenBQ/temporalDB-docker",
       "org.opencontainers.image.title": "TemporalDB",
       "org.opencontainers.image.version": "0.4.0"
     },
     "version": "0.4.0",
-    "source_commit": "8d259ddd06995b48febe11c3f9a56f1ab9274f0d",
-    "source_date_epoch": "1792332829",
+    "source_commit": "d96c33823addbaa519f95c74ec23ee4700748871",
+    "source_date_epoch": "1792388006",
     "artifact": "temporaldb-0.4.0-linux-arm64.docker.tar",
-    "artifact_sha256": "a2fd9e71e0d9a3a26f86aff8beb998afe91fa2ba1b0fa2602756efe593bf3342",
+    "artifact_sha256": "ae622de144e527a89b93c5c27d572c981adce228acc148915ead027deccc6039",
     "distribution": "local-docker-save; unpublished",
     "registry_reference": null,
     "build_command": "scripts/build_release.py --platform linux/arm64",
@@ -32,46 +32,46 @@
   },
   "providers": {
     "eodhd": {
-      "reviewed_commit": "5d35ac098992c5f7605484f505367f48182c0369"
+      "reviewed_commit": "135a1f81f7db5b4d4afa1ec84f3f88f22e83e7e0"
     },
     "yfinance": {
-      "reviewed_commit": "a3c07f2964b5376aadadf2e465fd5a0062cb1d18"
+      "reviewed_commit": "3ffd6c62408fa70227d4fb2ccc8c6c8c881dbead"
     }
   },
-  "qualification_report": "temporaldb-mcp-qualification.json",
+  "qualification_report": null,
   "candidate_qualification": {
-    "status": "targeted_final_correction_passed_scoped_review_pending",
-    "reason": "Fresh installed final discovery error/manifest corrections and ordinary cached execution; earlier consumer/Rita/protected replay/restore proof retained separately, not rerun or relabeled."
+    "status": "unqualified",
+    "reason": "Rebuilt 2026-10-19 from the merged release/v11 heads (TemporalDB d96c338, eodhd 135a1f8, yfinance 3ffd6c6). Earlier qualification reports describe the previous images and are retained as history; requalification of these images is pending."
   },
   "provider_host": {
     "version": "11.0.0",
-    "image_id": "sha256:66a4981190470dba410483ba84afc456450bb03933cdeaa6795aa17b9ae0153d",
+    "image_id": "sha256:5b321c6d9d286f4acdf47f4320e3db20dd55b8abcaaca8190f39338fd15f1ea4",
     "platform": "linux/arm64",
     "distribution": "local build; unpublished",
     "registry_reference": null,
     "sources": {
       "eodhd": {
-        "commit": "5d35ac098992c5f7605484f505367f48182c0369",
-        "archive_sha256": "d06885b2bca6758f226c1c6f9157e5894805acf3520b4564000831a896226821",
+        "commit": "135a1f81f7db5b4d4afa1ec84f3f88f22e83e7e0",
+        "archive_sha256": "6d1c9d6b1e2db31397abb9a2b913cbf46898632e71e2949fb195917e228c757b",
         "distribution": "verified local clean commit archive; remote availability not asserted"
       },
       "yfinance": {
-        "commit": "a3c07f2964b5376aadadf2e465fd5a0062cb1d18",
-        "archive_sha256": "a1e85b0929071dc59402725480424b2612bfcec2bbc1cca42953ab7853a01de2",
+        "commit": "3ffd6c62408fa70227d4fb2ccc8c6c8c881dbead",
+        "archive_sha256": "8d95eaac6504ffbb784634e7ff7c736e3471e1243d770a5a1af69a9fc1f133f2",
         "distribution": "verified local clean commit archive; remote availability not asserted"
       }
     },
-    "qualification": "Historical Task5.1 fix1 Linux arm64 image:20 installed hashes match. Task6 provider topology passed2/253.00s with TemporalDB source75/fae. Unchanged provider/settings source and dependencies are reused by exact comparison for final sourceb769/fa9; provider topology was not rerun against fa9.",
-    "settings_source_commit": "5b18205a5e0553a071f3644d86815a8c0f79879f",
+    "qualification": "Unqualified: rebuilt 2026-10-19 with v11/prepare-provider-build.py from the merged heads; requalification pending.",
+    "settings_source_commit": "41008a1e4a7d1aafce877d5fdce69571f6c57c49",
     "installed_source_hashes": {
-      "v3/openbq_settings.py": "a24bc9310fb30282d9fd9c9bf182528402d0d4050738372a0b1123917dfbc30d",
-      "v11/settings/README.md": "259bf3e33284b6531f54d6456b0c99b68df10cd3c8e11c0a7e0b740641753d1f",
+      "v3/openbq_settings.py": "26018e9b609aca93e3e04adf126d12631533fe436a5ec3e614dd0c5b4e8a9ee9",
+      "v11/settings/README.md": "dfd5340537e7650d903e7b324f523ed0c96babf0c795e24cd6fec291432d7338",
       "v11/settings/schema.sql": "26bd0a500474688cb3eff4507f5a61fa14e970b2793df365c8db8f3b6e334e26",
       "v11/settings/store.py": "d268fc62402e427fa959d37599c7719d2d207cca603972ce7e25add3a6898e6d",
       "v11/settings/openbb.toml": "8010bc1373ba4ad3f141a18f33c120b4270da860dc43f8c66deeb938a8998487",
       "v11/settings/private_state.py": "0a3dbf60243ba29a89a0fda824f9b2aa8b659307fc59c5e0d33a982f856bab9c",
       "v11/settings/verify-settings.sh": "17b6c020d313bc2a6f72f18264c517dafd364f484fb57f6c30898c4acfd35caa",
-      "v11/settings/config.py": "2ea6ddc32f4c3d5bb048fa7cb1673da59299e62f24666d295e533ff9208a3c91",
+      "v11/settings/config.py": "6ce989f5b5647ea0dbf082aff90c15594f5edbd7e2890456155e41681ce9aaf4",
       "v11/settings/launch.py": "5433a3e1b78f147599fa2fba2a54d028c3346eca03b0c1ad69195f229f917fce",
       "v11/settings/provision.sql": "6093e0db0fe7183bb80cedaf181022aba5a64698bbaed35178cd24f141777fcc",
       "v11/settings/requirements.lock": "a170e2a10c9104242f29ae6c6cd696306a4e4fe8b476a6d834fc257f32c995f8",
@@ -82,7 +82,7 @@
       "v11/settings/fixtures/gateway.mjs": "d3dcacce79896b562c95dc93fb541251918151ec52bea3f8f33eedf9bbc1d206",
       "v11/settings/fixtures/json-syntax.mjs": "7909f6ac3787fd3787fe24e96df7b516d6c9cdb92c1947cb792ba2ad361019b2",
       "v11/settings/tests/verify_fixture.py": "6d1c5fe5a3e38f899e84fdea90a827c3a60f05dfb23b9fddee1bce05ecaed426",
-      "v11/settings/tests/test_contracts.py": "2019876d586c96fd14027731c89fa18a2783c6ca363181c329fec72a8396948a",
+      "v11/settings/tests/test_contracts.py": "1b28f658eae81836d7d1151067a2861cc7217138eafc415740c76c2d386dd837",
       "v11/settings/tests/verify_encoding.py": "e1e8cec387d135a550288c8d9107b4f0c9825f335016bcfa427c8951e3460fc9"
     }
   },
@@ -93,8 +93,14 @@
     "runtime_environment_digest": "c5075c0f2740f98583476d60d98234f988df92aa6773c0c6cc6120ead295b0e9",
     "qualification_report": "temporaldb-mcp-previous-qualification.json"
   },
-  "runtime_environment_digest": "46c9c02c5d55c93b815bcb2c6c280ec12511efbfae1d9796cb831a7bd6568425",
   "previous_runtimes": [
+    {
+      "source_commit": "8d259ddd06995b48febe11c3f9a56f1ab9274f0d",
+      "image_id": "sha256:36d2c63cb95dbdcb154031312920864ea1ccfe73cd76633577fdbe01f27328b3",
+      "artifact_sha256": "a2fd9e71e0d9a3a26f86aff8beb998afe91fa2ba1b0fa2602756efe593bf3342",
+      "runtime_environment_digest": "46c9c02c5d55c93b815bcb2c6c280ec12511efbfae1d9796cb831a7bd6568425",
+      "qualification_report": "temporaldb-mcp-qualification.json"
+    },
     {
       "source_commit": "219e7e7dc261064e1868d0c9888e102711c3a2b0",
       "image_id": "sha256:486634d5aa36dc29c1ae9d0f7cbf73d2328b843d33671bbcd5c9f8eadede7e7e",
