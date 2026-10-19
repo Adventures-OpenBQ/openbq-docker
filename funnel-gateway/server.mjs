@@ -13,6 +13,8 @@ import { request as httpsRequest } from "node:https";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
+import { gzip } from "node:zlib";
 import { WebSocket, WebSocketServer } from "ws";
 import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
 
@@ -92,6 +94,19 @@ function reply(res, code, value = { error: "Request refused" }) {
   }
   res.writeHead(code, { ...COMMON, "Content-Type": "application/json" });
   res.end(JSON.stringify(value));
+}
+/**
+ * A root manifest, gzipped for a caller that accepts gzip. openbq-api's 5.2 MB widgets.json
+ * crossed Funnel's public ingress at ~0.3 MB/s on 2026-10-18 (18-60+ s), past BDOBB's web
+ * layer's 12 s upstream timeout; its fetch sends Accept-Encoding: gzip and decodes the answer.
+ */
+const gzipAsync = promisify(gzip);
+async function replyManifest(req, res, value) {
+  // ponytail: substring match ignores "gzip;q=0", as BDOBB's web layer does; parse q-values if a caller ever sends it.
+  if (!/\bgzip\b/i.test(req.headers["accept-encoding"] ?? "")) return reply(res, 200, value);
+  const body = await gzipAsync(JSON.stringify(value));
+  res.writeHead(200, { ...COMMON, "Content-Type": "application/json", "Content-Encoding": "gzip", Vary: "Accept-Encoding" });
+  res.end(body);
 }
 function reject(socket, code) {
   socket.end(`HTTP/1.1 ${code} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
@@ -608,7 +623,8 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       res.once("close", disconnect);
       try {
         const answer = await requestJson(path, config, controller.signal);
-        reply(res, 200, path === "/grid/widgets.json" ? rewriteGridWidgets(answer, config) : answer);
+        if (MANIFESTS.has(path)) await replyManifest(req, res, answer);
+        else reply(res, 200, path === "/grid/widgets.json" ? rewriteGridWidgets(answer, config) : answer);
       }
       catch (failure) {
         // The one status this door relays, and only for the two documents the client probes

@@ -9,6 +9,7 @@ import { EventEmitter, once } from "node:events";
 import { createServer, request } from "node:http";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { gunzipSync } from "node:zlib";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
 import { validateConfig, readConfig } from "./config.mjs";
@@ -50,7 +51,10 @@ function http(port, path, headers = HEADERS, method = "GET") {
     const req = request({ host: "127.0.0.1", port, path, method, headers }, res => {
       const parts = [];
       res.on("data", c => parts.push(c));
-      res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, text: Buffer.concat(parts).toString() }));
+      res.on("end", () => {
+        const body = Buffer.concat(parts);
+        resolve({ status: res.statusCode, headers: res.headers, body, text: body.toString() });
+      });
     });
     req.on("error", reject); req.end();
   });
@@ -478,6 +482,36 @@ test("root manifests get MANIFEST_MAX (16 MiB); every other path keeps 2 MiB", a
   const over = await http(port, "/api/widgets.json");
   assert.equal(over.status, 502);
   assert.equal(over.text, '{"error":"Request refused"}');
+});
+
+test("root manifests are gzipped for a caller that accepts gzip; data routes and other callers are not", async t => {
+  // openbq-api's 5.2 MB widgets.json crossed Funnel's public ingress at ~0.3 MB/s on
+  // 2026-10-18 (18-60+ s), past BDOBB's web layer's 12 s upstream timeout. Its fetch sends
+  // Accept-Encoding: gzip and decodes the answer itself.
+  const upstream = createServer((req, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`w${i}`, "x".repeat(2500)]))));
+  });
+  upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
+  t.after(() => new Promise(resolve => upstream.close(resolve)));
+  const origin = `http://127.0.0.1:${upstream.address().port}`;
+  const { port } = await fixture(t, { apiOrigin: origin, refOrigin: origin }, { requestJson: getJson });
+  const gzip = { ...HEADERS, "Accept-Encoding": "gzip, deflate" };
+  for (const path of ["/api/widgets.json", "/api/apps.json", "/ref/widgets.json", "/ref/apps.json"]) {
+    const packed = await http(port, path, gzip);
+    assert.equal(packed.status, 200, path);
+    assert.equal(packed.headers["content-encoding"], "gzip", path);
+    assert.match(packed.headers.vary ?? "", /Accept-Encoding/, path);
+    assert.equal(packed.headers["x-content-type-options"], "nosniff", path);
+    assert.ok(packed.body.length < 100_000, `${path} sent ${packed.body.length} bytes`);
+    assert.equal(Object.keys(JSON.parse(gunzipSync(packed.body).toString())).length, 400, path);
+    const plain = await http(port, path);
+    assert.equal(plain.headers["content-encoding"], undefined, path);
+    assert.equal(Object.keys(JSON.parse(plain.text)).length, 400, path);
+  }
+  // A data route is never encoded, whatever the caller accepts.
+  const data = await http(port, "/ref/metric_widget", gzip);
+  assert.equal(data.headers["content-encoding"], undefined);
 });
 
 test("operator verifier makes no upstream or provider calls, wire on or off", async t => {
