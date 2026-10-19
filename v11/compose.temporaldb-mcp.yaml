@@ -3,7 +3,11 @@
 services:
   temporaldb-mcp:
     profiles: [mcp]
-    image: ${TEMPORALDB_IMAGE:?Verified immutable image ID or published digest required}
+    # Same local immutable ID as v11/compose.temporaldb.yaml; no registry pull claim.
+    image: sha256:36d2c63cb95dbdcb154031312920864ea1ccfe73cd76633577fdbe01f27328b3
+    platform: linux/arm64
+    pull_policy: never
+    depends_on: [temporaldb-api]
     command: [python, -m, temporaldb.mcp.app]
     user: "65532:65532"
     read_only: true

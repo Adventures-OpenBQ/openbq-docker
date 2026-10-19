@@ -7,9 +7,17 @@ import subprocess
 
 def test_mcp_overlay_is_private_scoped_and_resource_bounded():
     root = Path(__file__).resolve().parents[2]
-    env = dict(os.environ, TEMPORALDB_IMAGE='sha256:'+'a'*64, TEMPORALDB_MCP_ALLOWED_HOSTS='["mcp.example.test"]', TEMPORALDB_MCP_ALLOWED_ORIGINS='[]', TEMPORALDB_MCP_POLICY_HOST='/private/tmp/policy.json')
-    result = subprocess.run(['docker','compose','-f',str(root/'v11/compose.temporaldb-mcp.yaml'),'--profile','mcp','config','--format','json'],env=env,capture_output=True,text=True,check=True)
-    service = json.loads(result.stdout)['services']['temporaldb-mcp']
+    env = dict(os.environ, TEMPORALDB_MCP_ALLOWED_HOSTS='["mcp.example.test"]', TEMPORALDB_MCP_ALLOWED_ORIGINS='[]', TEMPORALDB_MCP_POLICY_HOST='/private/tmp/policy.json',
+               TEMPORALDB_ARCHIVE_HOST='/private/tmp/archive', TEMPORALDB_EVIDENCE_HOST='/private/tmp/evidence', OPENBQ_V11_IMAGE='sha256:'+'b'*64,
+               **{name: os.devnull for name in ('TEMPORALDB_API_ENV_FILE','TEMPORALDB_WORKER_ENV_FILE','OPENBQ_V11_ENV_FILE')})
+    files = [arg for name in ('compose.temporaldb.yaml','compose.temporaldb-mcp.yaml') for arg in ('-f',str(root/'v11'/name))]
+    result = subprocess.run(['docker','compose',*files,'--profile','temporaldb-v11','--profile','mcp','config','--format','json'],env=env,capture_output=True,text=True,check=True)
+    services = json.loads(result.stdout)['services']
+    service = services['temporaldb-mcp']
+    api = services['temporaldb-api']
+    assert service['image'] == api['image'] and service['image'].startswith('sha256:')
+    assert service['pull_policy'] == 'never' and service['platform'] == api['platform']
+    assert 'temporaldb-api' in service['depends_on']
     assert service['profiles'] == ['mcp']
     assert service['command'] == ['python', '-m', 'temporaldb.mcp.app']
     assert 'ports' not in service and 'env_file' not in service

@@ -4,8 +4,8 @@ Add `-f v11/compose.temporaldb-mcp.yaml --profile mcp` to the existing v11
 Compose invocation. The adapter uses `http://temporaldb-api:8080`, and publishes
 no host port. Connect existing trusted ingress to port 8081 and `/mcp`.
 
-Set `TEMPORALDB_IMAGE` to the qualified immutable image from
-`v11/temporaldb.lock.json`, `TEMPORALDB_MCP_ALLOWED_HOSTS` to an exact JSON ingress
+The adapter runs the same pinned local image ID as `v11/compose.temporaldb.yaml`
+and depends on `temporaldb-api`. Set `TEMPORALDB_MCP_ALLOWED_HOSTS` to an exact JSON ingress
 host/port list, `TEMPORALDB_MCP_ALLOWED_ORIGINS` to explicit browser origins (or
 `[]`), and `TEMPORALDB_MCP_POLICY_HOST` to a private credential policy readable by
 uid 65532 with mode 0600 or 0400. MCP replicas receive only this private mount and
