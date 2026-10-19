@@ -1,6 +1,6 @@
 # Opt-in tailnet names for v11, after compose.temporaldb.yaml (and compose.temporaldb-mcp.yaml).
-# ts-config/serve-v11.json is serve-v6.json plus the Tailscale Services svc:openbq-temporal
-# and svc:openbq-temporal-mcp; create both in the admin console first (v11/RUNBOOK.md).
+# ts-config/serve-v11.json is serve-v6-services.json (keys, Rita, MCP) plus svc:openbq-temporal
+# and svc:openbq-temporal-mcp; create all five in the admin console first (v11/RUNBOOK.md).
 services:
   tailscale:
     environment:

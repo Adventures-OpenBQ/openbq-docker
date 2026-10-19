@@ -159,7 +159,7 @@ v11 adds [TemporalDB](https://github.com/Adventures-OpenBQ/temporalDB-docker): d
 - `v11/compose.temporaldb.yaml` (profile `temporaldb-v11`) runs `temporaldb-api` (loopback `127.0.0.1:8088`), `temporaldb-worker`, and `openbq-v11`, the provider host whose openbq-eodhd and openbq-yfinance write every response to TemporalDB (loopback `127.0.0.1:6901`). Both images are local builds pinned in `v11/temporaldb.lock.json`, with `pull_policy: never`.
 - `v11/compose.gateway.yaml` gives the funnel gateway a `/temporal` route (`temporalDB: true` plus `TEMPORALDB_GATEWAY_TOKEN`) and can point `/api` at the provider host (`apiUpstream: "v11"`).
 - `v11/compose.temporaldb-mcp.yaml` (profile `mcp`) runs the MCP server for Rita. It publishes no port ([v11/temporaldb-mcp.md](v11/temporaldb-mcp.md)).
-- `v11/compose.tailnet.yaml` and `ts-config/serve-v11.json` give the API and the MCP server stable tailnet names as the Tailscale Services `svc:openbq-temporal` and `svc:openbq-temporal-mcp` (setup in [v11/RUNBOOK.md](v11/RUNBOOK.md#tailnet-names-tailscale-services)).
+- `v11/compose.tailnet.yaml` and `ts-config/serve-v11.json` give the API and the MCP server stable tailnet names as the Tailscale Services `svc:openbq-temporal` and `svc:openbq-temporal-mcp`, on top of Episode 6's `serve-v6-services.json` names (setup in [v11/RUNBOOK.md](v11/RUNBOOK.md#tailnet-names-tailscale-services)).
 - `v11/compose.settings.yaml` and `v11/compose.workspace-postgres.yaml` move key-mode settings and workspace state into PostgreSQL ([v11/settings/README.md](v11/settings/README.md)).
 
 PostgreSQL and S3 are yours to provision. Build, setup (migrations, runtime archive, catalogs) and qualification are covered step by step in [v11/RUNBOOK.md](v11/RUNBOOK.md); [v11/MIGRATION.md](v11/MIGRATION.md) records what the recovery rehearsal does and does not cover. BDOBB v11's query library and query widget use this service.
@@ -242,6 +242,18 @@ switching recreates tailscale (and Rita with it), and `serve-v6.json` drops extr
 ports such as 9443.
 `serve-v6.json` also has no Funnel door: with the [web preview door](#bdobb-web-preview-door-v4-opt-in),
 add the port 10000 entries from `ts-config/serve-v3-funnel.json` to the live file.
+
+Tailscale Service names for Rita and MCP are opt-in. `ts-config/serve-v6-services.json` is
+`serve-v6-keys.json` plus `svc:openbq-rita` (`https://openbq-rita.<your-tailnet>.ts.net`) and
+`svc:openbq-mcp` (`https://openbq-mcp.<your-tailnet>.ts.net/mcp`), proxied to the same targets as
+10443 and 11443. Those ports stay served, so both addresses work. To use it, create the
+Services `svc:openbq-keys`, `svc:openbq-rita` and `svc:openbq-mcp` in your tailnet's admin
+console and approve this node as their host (a Service host must be a tagged node), replace `<your-tailnet>` in the file, point the
+`tailscale` service's `TS_SERVE_CONFIG` at `/config/serve-v6-services.json`, and recreate
+tailscale and then `openbq-rita` (below). Until the Services exist, keep `serve-v6.json` or
+`serve-v6-keys.json`: a serve file that names a Service the tailnet does not have can be
+refused. The Services have no authentication of their own either; restrict them with a
+tailnet ACL, as for the ports.
 
 Rita needs an OpenAI-compatible model endpoint, typically on the tailnet.
 Containers on a Docker bridge network do not get Tailscale MagicDNS, so Rita

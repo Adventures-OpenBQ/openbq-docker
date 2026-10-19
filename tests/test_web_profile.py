@@ -74,10 +74,11 @@ def test_the_episode_6_configs_are_the_episode_3_config_plus_rita_and_mcp_tailne
         assert {k: v for k, v in serve['Web'].items() if not k.endswith((':10443', ':11443'))} == v3, name
         assert not any(serve['AllowFunnel'].values()), name
 
-def test_the_v11_config_is_the_v6_config_plus_two_temporaldb_services():
-    v6, v11 = _serve('serve-v6.json'), _serve('serve-v11.json')
-    services = v11.pop('Services')
+def test_the_v11_config_is_the_v6_services_config_plus_two_temporaldb_services():
+    v6, v11 = _serve('serve-v6-services.json'), _serve('serve-v11.json')
+    services, base = v11.pop('Services'), v6.pop('Services')
     assert v11 == v6
+    assert {name: services.pop(name) for name in base} == base
     assert {name: s['Web'] for name, s in services.items()} == {
         'svc:openbq-temporal': {'openbq-temporal.<your-tailnet>.ts.net:443': {'Handlers': {'/': {'Proxy': 'http://temporaldb-api:8080'}}}},
         'svc:openbq-temporal-mcp': {'openbq-temporal-mcp.<your-tailnet>.ts.net:443': {'Handlers': {'/': {'Proxy': 'http://temporaldb-mcp:8081'}}}},
@@ -87,7 +88,7 @@ def test_the_v11_config_is_the_v6_config_plus_two_temporaldb_services():
 def test_every_serve_config_publishes_the_pool_on_tailnet_8088_and_never_funnels_it():
     # A News card dials :8088 whichever Serve file is live, the key-maint ones included.
     names = sorted(p.name for p in (ROOT / 'ts-config').glob('serve*.json'))
-    assert len(names) == 8, names
+    assert len(names) == 9, names  # serve-v6-services.json (v6 opt-in Service names) and serve-v11.json
     for name in names:
         serve = _serve(name)
         assert serve['TCP']['8088'] == {'HTTPS': True}, name
@@ -111,3 +112,21 @@ def test_the_gateway_examples_hold_placeholders_only():
 
 def test_the_private_gateway_configuration_is_gitignored():
     assert 'gateway-config/' in (ROOT / '.gitignore').read_text().splitlines()
+
+
+def test_the_services_config_is_the_keys_config_plus_rita_and_mcp():
+    """serve-v6-services.json (opt-in, user ruling 2026-10-19): serve-v6-keys.json plus
+    svc:openbq-rita and svc:openbq-mcp, served beside :10443 and :11443, never funneled."""
+    keys, services = _serve('serve-v6-keys.json'), _serve('serve-v6-services.json')
+    assert {k: v for k, v in services.items() if k != 'Services'} == {k: v for k, v in keys.items() if k != 'Services'}
+    assert set(services['Services']) == set(keys['Services']) | {'svc:openbq-rita', 'svc:openbq-mcp'}
+    for name in keys['Services']:
+        assert services['Services'][name] == keys['Services'][name], name
+    web = _serve('serve-v6.json')['Web']
+    for svc, port in (('svc:openbq-rita', '10443'), ('svc:openbq-mcp', '11443')):
+        entry = services['Services'][svc]
+        assert entry['TCP'] == {'443': {'HTTPS': True}}, svc
+        (host, handlers), = entry['Web'].items()
+        assert host == f"{svc[4:]}.<your-tailnet>.ts.net:443", svc
+        assert handlers == web['${TS_CERT_DOMAIN}:' + port], svc
+    assert not any(services.get('AllowFunnel', {}).values())
