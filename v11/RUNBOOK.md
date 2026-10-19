@@ -154,20 +154,20 @@ must be writable by UID 65532 for step 2 only; every later mount is read-only.
 
 ```sh
 TEMPORALDB_IMAGE=$(python3 -c "import json;print(json.load(open('v11/temporaldb.lock.json'))['image_id'])")
-HARDEN="--rm --read-only --cap-drop ALL --security-opt no-new-privileges:true"
 # 1. Migrations (admin DSN in TEMPORALDB_MIGRATION_DSN)
-docker run $HARDEN --tmpfs /tmp:rw,size=16777216,mode=1777 \
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+  --tmpfs /tmp:rw,size=16777216,mode=1777 \
   --env-file "$TEMPORALDB_MIGRATION_ENV_FILE" \
   "$TEMPORALDB_IMAGE" python -m temporaldb.control.db
 # 2. Runtime archive; record the printed environment_digest in both env files
-docker run $HARDEN \
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges:true \
   --tmpfs /tmp:rw,noexec,nosuid,nodev,size=67108864,mode=1777 \
   --tmpfs /run/temporaldb/runtime:rw,exec,nosuid,nodev,size=2147483648,mode=1777 \
   -v "$TEMPORALDB_ARCHIVE_HOST":/archive:rw \
   -e TEMPORALDB_IDENTITIES="$(cat identities.json)" \
   "$TEMPORALDB_IMAGE" python -m temporaldb.provision archive --directory /archive
 # 3. First-time DuckLake catalogs, once, with the worker environment
-docker run $HARDEN \
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges:true \
   --tmpfs /tmp:rw,noexec,nosuid,nodev,size=67108864,mode=1777 \
   --tmpfs /run/temporaldb/runtime:rw,exec,nosuid,nodev,size=2147483648,mode=1777 \
   --tmpfs /run/temporaldb/gold:rw,noexec,nosuid,nodev,size=1073741824,uid=65532,gid=65532,mode=0700 \
