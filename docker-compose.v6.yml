@@ -5,7 +5,7 @@
 # publishes a host port; the Tailscale sidecar serves Rita on 10443 and MCP on
 # 11443 (ts-config/serve-v6.json). Both images are built locally and never pulled:
 # Rita by Adventures-OpenBQ/agent-rita-bdobb v6.0.0 (scripts/build.sh), MCP from ./mcp
-# on top of the openbq-api image that docker-compose.v3.yml builds.
+# on top of the openbq-api image that docker-compose.yml builds.
 services:
   tailscale:
     environment:
