@@ -1,0 +1,11 @@
+# Opt-in network/build overlay, applied after docker-compose.yml and compose.temporaldb.yaml.
+# /temporal requires temporalDB:true and TEMPORALDB_GATEWAY_TOKEN in private gateway.env.
+# /api independently selects the installed provider host with apiUpstream:"v11".
+services:
+  funnel-gateway:
+    image: openbq-funnel-gateway:11.0.0-temporal
+    build: ./funnel-gateway
+  temporaldb-api:
+    networks: [openbq-internal]
+  openbq-v11:
+    networks: [openbq-internal]

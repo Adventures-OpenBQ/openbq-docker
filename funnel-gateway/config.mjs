@@ -38,7 +38,7 @@ function tailnetAddress(value) {
 // (see the bottom of validateConfig), never a setting. `liveGrid` (openbq-docker v10) is the
 // one switch: live-grid is the opt-in `live` compose profile here, so the door must be told
 // it runs, and /grid answers 503 until it is.
-const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs", "ssrmTimeoutMs"]);
+const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs", "ssrmTimeoutMs", "temporalDB", "apiUpstream", "stateStorage"]);
 
 // lanes/ssrm_widgets.json as door paths: the image copies it to /lanes beside /app (Dockerfile).
 const DEFAULT_SSRM_ROUTES = JSON.parse(readFileSync(new URL("../lanes/ssrm_widgets.json", import.meta.url), "utf8"))
@@ -115,6 +115,18 @@ export function validateConfig(settings, secrets) {
   // nothing else: its origin is never a setting (gridOrigin below).
   const liveGrid = settings.liveGrid === undefined ? false : settings.liveGrid;
   if (typeof liveGrid !== "boolean") throw new Error("liveGrid must be true or false");
+  const temporalDB = settings.temporalDB === undefined ? false : settings.temporalDB;
+  if (typeof temporalDB !== "boolean") throw new Error("temporalDB must be true or false");
+  const apiUpstream = settings.apiUpstream === undefined ? "v10" : settings.apiUpstream;
+  if (apiUpstream !== "v10" && apiUpstream !== "v11") throw new Error("apiUpstream must be v10 or v11");
+  const stateStorage = settings.stateStorage === undefined ? "file" : settings.stateStorage;
+  if (!["file", "postgresql"].includes(stateStorage) ||
+      (stateStorage === "postgresql" && (apiUpstream !== "v11" || settings.stateDir !== undefined))) {
+    throw new Error("Invalid state storage selection");
+  }
+  if (temporalDB && (!/^[A-Za-z0-9_-]{32,256}$/.test(secrets.temporalToken ?? "") || secrets.temporalToken === secrets.token)) {
+    throw new Error("TemporalDB requires a separate server-only token");
+  }
   const tableTimeoutMs = settings.tableTimeoutMs ?? 65000;
   if (!Number.isInteger(tableTimeoutMs) || tableTimeoutMs < 1000 || tableTimeoutMs > 65000) throw new Error("Invalid table timeout");
   // An SSRM first page acquires the widget's whole result (od's lane deadline 165 s, its
@@ -130,9 +142,11 @@ export function validateConfig(settings, secrets) {
   const credential = value => typeof value === "string" && /^[A-Za-z0-9_-]{32,256}$/.test(value);
   if (tableService && !credential(secrets.tableGatewayToken)) throw new Error("Table gateway credential required");
   if (secrets.tableRelayToken !== undefined && !credential(secrets.tableRelayToken)) throw new Error("Invalid table relay credential");
-  const privateTokens = [secrets.token, secrets.tableGatewayToken, secrets.tableRelayToken].filter(Boolean);
+  const privateTokens = [secrets.token, secrets.tableGatewayToken, secrets.tableRelayToken, temporalDB && secrets.temporalToken].filter(Boolean);
   if (new Set(privateTokens).size !== privateTokens.length) throw new Error("Table credentials must be distinct");
   return {
+    stateStorage, apiUpstream, temporalDB, temporalOrigin: temporalDB ? "http://temporaldb-api:8080" : null,
+    temporalAuthorization: temporalDB ? "Bearer " + secrets.temporalToken : null,
     tableOrigin: tableService ? "http://table-service:8080" : null,
     tableGatewayToken: secrets.tableGatewayToken, tableRelayToken: secrets.tableRelayToken,
     tableDesktopPrincipal, ssrmRoutes, tableTimeoutMs, ssrmTimeoutMs,
@@ -141,7 +155,7 @@ export function validateConfig(settings, secrets) {
     token: secrets.token,
     apiAuthorization: "Basic " + Buffer.from(`${secrets.apiUsername}:${secrets.apiPassword}`).toString("base64"),
     // Never accept a caller-supplied upstream or a configurable generic proxy.
-    apiOrigin: "http://openbq-api:6900",
+    apiOrigin: apiUpstream === "v11" ? "http://openbq-v11:6900" : "http://openbq-api:6900",
     // live-grid (v10; ported from bdobb-dev/openbb-docker e8c1239): a sibling on the same
     // openbq-internal bridge, so a fixed service name for the same reason apiOrigin is --
     // not something a setting or a caller can point elsewhere. It sits behind the same Basic
@@ -168,6 +182,6 @@ export function readConfig(directory = "/run/bdobb", env = process.env) {
   return validateConfig(
     JSON.parse(readFileSync(`${directory}/settings.json`, "utf8")),
     { token: env.GATEWAY_TOKEN, apiUsername: env.OPENBB_API_USERNAME, apiPassword: env.OPENBB_API_PASSWORD,
-      tableGatewayToken: env.TABLE_GATEWAY_TOKEN, tableRelayToken: env.TABLE_RELAY_TOKEN },
+      tableGatewayToken: env.TABLE_GATEWAY_TOKEN, tableRelayToken: env.TABLE_RELAY_TOKEN, temporalToken: env.TEMPORALDB_GATEWAY_TOKEN },
   );
 }

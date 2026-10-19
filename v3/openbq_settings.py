@@ -18,6 +18,8 @@ OPENBB_API_PASSWORD). With API auth off there is no key to check, so all routes 
 as on a backend without a settings API. One JSON object per credential, kept as sent on the
 persistent user-data volume.
 """
+from contextvars import ContextVar
+import sys
 import base64
 import binascii
 import hashlib
@@ -41,6 +43,7 @@ SYSTEM_IDS = {"docks"}
 MAX_SYNC_BYTES = 5_000_000
 # ponytail: one process-wide lock around every dashboard/app read-modify-write; per-credential locks if it ever contends.
 LOCK = threading.Lock()
+DOCUMENTS = ContextVar("openbq_documents", default=None)
 
 
 def _credential(request) -> str | None:
@@ -48,6 +51,8 @@ def _credential(request) -> str | None:
     from openbb_core.env import Env
 
     env = Env()
+    if len(request.headers.getlist("authorization")) != 1:
+        return None
     scheme, _, value = request.headers.get("authorization", "").partition(" ")
     if scheme.lower() != "basic":
         return None
@@ -79,9 +84,21 @@ async def middleware(request, call_next):
     from openbb_core.env import Env
 
     path = request.url.path
+    if path.startswith("/_openbq/settings/v1/state"):
+        if os.environ.get("OPENBQ_SETTINGS_BACKEND", "file") != "postgresql":
+            return JSONResponse({}, 404)
+        from openbq_settings_pg import dispatch
+        return await dispatch(request)
     if (not (path in PATHS or path.startswith(APP_PREFIX) or path.startswith(SYSTEM_PREFIX))
             or request.method == "OPTIONS" or not Env().API_AUTH):
         return await call_next(request)
+    selected = os.environ.get("OPENBQ_SETTINGS_BACKEND", "file")
+    if selected != "file":
+        try:
+            from openbq_settings_pg import dispatch
+            return _cors(request, await dispatch(request, sys.modules[__name__]))
+        except Exception:
+            return _cors(request, JSONResponse({"detail": "Settings unavailable."}, 503))
     return _cors(request, await _settings(request))
 
 
@@ -133,12 +150,21 @@ def _uuid(raw):
         return None
 
 
+def _document_key(path):
+    return "dashboards" if path.name.endswith(".dashboards.json") else "apps" if path.name.endswith(".apps.json") else "settings"
+
+
 def _load(path):
+    if DOCUMENTS.get() is not None:
+        return json.loads(DOCUMENTS.get().read(_document_key(path)))
     return json.loads(path.read_text()) if path.exists() else {}
 
 
 def _save(path, data):
     """Write atomically: a temp file, then rename over the old one."""
+    if DOCUMENTS.get() is not None:
+        DOCUMENTS.get().write(_document_key(path), json.dumps(data).encode("utf-8"))
+        return
     STORE.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     tmp.write_text(json.dumps(data))
