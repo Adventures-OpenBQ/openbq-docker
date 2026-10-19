@@ -290,25 +290,40 @@ class NoLaneTest(unittest.IsolatedAsyncioTestCase):
         ])
         self.assertEqual(body[1]["name"], "FRED")
 
-    async def test_a_cached_catalog_still_follows_basic_auth(self):
+    async def test_the_catalogues_are_open_with_auth_on_and_built_with_the_stacks_pair(self):
+        # User ruling 2026-10-19: /widgets.json and /apps.json stay open when OPENBB_API_AUTH
+        # is on (credentials.env.example always said so; the image's HEALTHCHECK and BDOBB's
+        # catalogue probe call them without a credential). Data routes keep the lock. The
+        # cache is built through openbb-api, whose own Basic auth would refuse an anonymous
+        # build, so the build carries the stack's pair -- never the caller's.
         openbq_lanes._CATALOG_CACHE.clear()
         self.addCleanup(openbq_lanes._CATALOG_CACHE.clear)
         app = FastAPI()
+        seen = []
 
         @app.get("/widgets.json")
         async def widgets(request: Request):
-            if not request.headers.get("authorization"):  # the API's Basic auth dependency
+            seen.append(request.headers.get("authorization"))
+            if request.headers.get("authorization") != "Basic dTpw":  # the API's Basic auth dependency
                 return JSONResponse({"detail": "Unauthorized"}, 401)
             return {"w": {"name": "x"}}
+
+        @app.get("/apps.json")
+        async def apps(request: Request):
+            seen.append(request.headers.get("authorization"))
+            if request.headers.get("authorization") != "Basic dTpw":
+                return JSONResponse({"detail": "Unauthorized"}, 401)
+            return []
 
         app.middleware("http")(openbq_lanes.middleware)
         with mock.patch.dict(os.environ, OPENBB_API_AUTH="true", OPENBB_API_USERNAME="u", OPENBB_API_PASSWORD="p"):
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api") as client:
-                self.assertEqual((await client.get("/widgets.json", auth=("u", "p"))).status_code, 200)
+                wrong = await client.get("/widgets.json", auth=("u", "x"))  # the miss: its header is replaced
                 anon = await client.get("/widgets.json")
-                wrong = await client.get("/widgets.json", auth=("u", "x"))
-        self.assertEqual((anon.status_code, wrong.status_code), (401, 401))
-        self.assertEqual(anon.headers.get("www-authenticate"), "Basic")
+                apps_anon = await client.get("/apps.json")
+        self.assertEqual((anon.status_code, wrong.status_code, apps_anon.status_code), (200, 200, 200))
+        self.assertEqual(anon.json(), {"w": {"name": "x"}})
+        self.assertEqual(seen, ["Basic dTpw", "Basic dTpw"])  # one build each, with the stack's pair
 
 
 class SsrmCatalogTest(unittest.IsolatedAsyncioTestCase):
