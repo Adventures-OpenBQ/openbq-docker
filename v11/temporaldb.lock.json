@@ -45,7 +45,7 @@
   },
   "provider_host": {
     "version": "11.0.0",
-    "image_id": "sha256:94ee80e9212c36158ccb26dbab25492c32146866ec68c00ff778a6f03ebb0a07",
+    "image_id": "sha256:0ad3a94a94244f96f8c2a081e4be20c9f81da35da861f7e19ce9e1b26927e88f",
     "platform": "linux/arm64",
     "distribution": "local build; unpublished",
     "registry_reference": null,

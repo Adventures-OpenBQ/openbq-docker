@@ -2,7 +2,7 @@
   "date": "2026-10-19",
   "temporaldb_image": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
   "temporaldb_source": "d96c33823addbaa519f95c74ec23ee4700748871",
-  "provider_host_image": "sha256:94ee80e9212c36158ccb26dbab25492c32146866ec68c00ff778a6f03ebb0a07",
+  "provider_host_image": "sha256:0ad3a94a94244f96f8c2a081e4be20c9f81da35da861f7e19ce9e1b26927e88f",
   "harness_source": "temporalDB-docker release/v11 (harness fixes aa8c65e, 75cbc74 and the fixture-settings commit)",
   "runtime_qualification": {
     "command": "docs/releases/v11/final-fix-qualify-runtime.py <image> (scratch copy; disposable tmpfs PostgreSQL/S3)",
@@ -212,15 +212,15 @@
   },
   "installed_provider_host": {
     "test": "tests/test_installed_provider_host.py",
-    "result": "1 passed"
+    "result": "1 passed (rebuilt image)"
   },
   "installed_topology": {
     "test": "tests/test_installed_host_topology.py (TEMPORALDB_TEST_INSTALLED_TOPOLOGY=1)",
-    "result": "2 passed in 290.69s",
+    "result": "2 passed in 200.82s (rebuilt provider host)",
     "report": {
-      "project": "task3-topology-4772e847af",
+      "project": "task3-topology-9511d14a9d",
       "temporaldb_image": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
-      "provider_image": "sha256:94ee80e9212c36158ccb26dbab25492c32146866ec68c00ff778a6f03ebb0a07",
+      "provider_image": "sha256:0ad3a94a94244f96f8c2a081e4be20c9f81da35da861f7e19ce9e1b26927e88f",
       "source_commit": "d96c33823addbaa519f95c74ec23ee4700748871",
       "boundary": "final installed Linux runtime and reviewed provider/settings image; recorded HTTPS/SDK captures",
       "checks": [
@@ -246,7 +246,7 @@
             "durable": {
               "captures": [
                 [
-                  "68ef98db-e899-43fd-8379-4b088344c499",
+                  "8b439094-a2f4-4457-941b-0c5bf4a02313",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
@@ -271,7 +271,7 @@
             "durable": {
               "captures": [
                 [
-                  "68ef98db-e899-43fd-8379-4b088344c499",
+                  "8b439094-a2f4-4457-941b-0c5bf4a02313",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
@@ -291,20 +291,20 @@
             "durable": {
               "captures": [
                 [
-                  "1b301cc1-f897-4998-a835-739415eddfc1",
-                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "TEST",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "68ef98db-e899-43fd-8379-4b088344c499",
+                  "8b439094-a2f4-4457-941b-0c5bf4a02313",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
                   "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "e9efec75-aad8-4a4f-b90f-d432342b59a9",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
                   "11111111-1111-4111-8111-111111111111",
                   "paid"
                 ]
@@ -325,20 +325,20 @@
             "durable": {
               "captures": [
                 [
-                  "1b301cc1-f897-4998-a835-739415eddfc1",
-                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "TEST",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "68ef98db-e899-43fd-8379-4b088344c499",
+                  "8b439094-a2f4-4457-941b-0c5bf4a02313",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
                   "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "e9efec75-aad8-4a4f-b90f-d432342b59a9",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
                   "11111111-1111-4111-8111-111111111111",
                   "paid"
                 ]
@@ -354,16 +354,7 @@
             "durable": {
               "captures": [
                 [
-                  "1b301cc1-f897-4998-a835-739415eddfc1",
-                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "TEST",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "22d885a5-7f06-4dcd-bd2d-8fb41fb53868",
+                  "44cbdc92-d537-410e-bc77-f5a82b531732",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
@@ -372,11 +363,20 @@
                   "paid"
                 ],
                 [
-                  "68ef98db-e899-43fd-8379-4b088344c499",
+                  "8b439094-a2f4-4457-941b-0c5bf4a02313",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
                   "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "e9efec75-aad8-4a4f-b90f-d432342b59a9",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
                   "11111111-1111-4111-8111-111111111111",
                   "paid"
                 ]
@@ -397,16 +397,7 @@
             "durable": {
               "captures": [
                 [
-                  "1b301cc1-f897-4998-a835-739415eddfc1",
-                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "TEST",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "22d885a5-7f06-4dcd-bd2d-8fb41fb53868",
+                  "44cbdc92-d537-410e-bc77-f5a82b531732",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
@@ -415,11 +406,20 @@
                   "paid"
                 ],
                 [
-                  "68ef98db-e899-43fd-8379-4b088344c499",
+                  "8b439094-a2f4-4457-941b-0c5bf4a02313",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
                   "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "e9efec75-aad8-4a4f-b90f-d432342b59a9",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
                   "11111111-1111-4111-8111-111111111111",
                   "paid"
                 ]
@@ -435,25 +435,7 @@
             "durable": {
               "captures": [
                 [
-                  "08eb6c22-84ca-4fa8-abd1-fd91c14e3d19",
-                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "FRESH",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "1b301cc1-f897-4998-a835-739415eddfc1",
-                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "TEST",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "22d885a5-7f06-4dcd-bd2d-8fb41fb53868",
+                  "44cbdc92-d537-410e-bc77-f5a82b531732",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
@@ -462,11 +444,29 @@
                   "paid"
                 ],
                 [
-                  "68ef98db-e899-43fd-8379-4b088344c499",
+                  "8b439094-a2f4-4457-941b-0c5bf4a02313",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
                   "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "cf601ddc-43e5-4f7a-b53e-f2ef9a312a7a",
+                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "FRESH",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "e9efec75-aad8-4a4f-b90f-d432342b59a9",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
                   "11111111-1111-4111-8111-111111111111",
                   "paid"
                 ]
@@ -490,25 +490,7 @@
             "durable": {
               "captures": [
                 [
-                  "08eb6c22-84ca-4fa8-abd1-fd91c14e3d19",
-                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "FRESH",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "1b301cc1-f897-4998-a835-739415eddfc1",
-                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "TEST",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "22d885a5-7f06-4dcd-bd2d-8fb41fb53868",
+                  "44cbdc92-d537-410e-bc77-f5a82b531732",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
@@ -517,11 +499,29 @@
                   "paid"
                 ],
                 [
-                  "68ef98db-e899-43fd-8379-4b088344c499",
+                  "8b439094-a2f4-4457-941b-0c5bf4a02313",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
                   "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "cf601ddc-43e5-4f7a-b53e-f2ef9a312a7a",
+                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "FRESH",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "e9efec75-aad8-4a4f-b90f-d432342b59a9",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
                   "11111111-1111-4111-8111-111111111111",
                   "paid"
                 ]
@@ -545,25 +545,7 @@
             "durable": {
               "captures": [
                 [
-                  "08eb6c22-84ca-4fa8-abd1-fd91c14e3d19",
-                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "FRESH",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "1b301cc1-f897-4998-a835-739415eddfc1",
-                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "TEST",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "22d885a5-7f06-4dcd-bd2d-8fb41fb53868",
+                  "44cbdc92-d537-410e-bc77-f5a82b531732",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
@@ -572,11 +554,29 @@
                   "paid"
                 ],
                 [
-                  "68ef98db-e899-43fd-8379-4b088344c499",
+                  "8b439094-a2f4-4457-941b-0c5bf4a02313",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
                   "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "cf601ddc-43e5-4f7a-b53e-f2ef9a312a7a",
+                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "FRESH",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "e9efec75-aad8-4a4f-b90f-d432342b59a9",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
                   "11111111-1111-4111-8111-111111111111",
                   "paid"
                 ]
@@ -600,25 +600,7 @@
             "durable": {
               "captures": [
                 [
-                  "08eb6c22-84ca-4fa8-abd1-fd91c14e3d19",
-                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "FRESH",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "1b301cc1-f897-4998-a835-739415eddfc1",
-                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "TEST",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "22d885a5-7f06-4dcd-bd2d-8fb41fb53868",
+                  "44cbdc92-d537-410e-bc77-f5a82b531732",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
@@ -627,11 +609,29 @@
                   "paid"
                 ],
                 [
-                  "68ef98db-e899-43fd-8379-4b088344c499",
+                  "8b439094-a2f4-4457-941b-0c5bf4a02313",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
                   "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "cf601ddc-43e5-4f7a-b53e-f2ef9a312a7a",
+                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "FRESH",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "e9efec75-aad8-4a4f-b90f-d432342b59a9",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
                   "11111111-1111-4111-8111-111111111111",
                   "paid"
                 ]
@@ -655,25 +655,7 @@
             "durable": {
               "captures": [
                 [
-                  "08eb6c22-84ca-4fa8-abd1-fd91c14e3d19",
-                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "FRESH",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "1b301cc1-f897-4998-a835-739415eddfc1",
-                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "TEST",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "22d885a5-7f06-4dcd-bd2d-8fb41fb53868",
+                  "44cbdc92-d537-410e-bc77-f5a82b531732",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
@@ -682,11 +664,29 @@
                   "paid"
                 ],
                 [
-                  "68ef98db-e899-43fd-8379-4b088344c499",
+                  "8b439094-a2f4-4457-941b-0c5bf4a02313",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
                   "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "cf601ddc-43e5-4f7a-b53e-f2ef9a312a7a",
+                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "FRESH",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "e9efec75-aad8-4a4f-b90f-d432342b59a9",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
                   "11111111-1111-4111-8111-111111111111",
                   "paid"
                 ]
@@ -710,25 +710,7 @@
             "durable": {
               "captures": [
                 [
-                  "08eb6c22-84ca-4fa8-abd1-fd91c14e3d19",
-                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "FRESH",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "1b301cc1-f897-4998-a835-739415eddfc1",
-                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
-                  "yfinance",
-                  "sdk_decoded_v1",
-                  "TEST",
-                  "11111111-1111-4111-8111-111111111111",
-                  "paid"
-                ],
-                [
-                  "22d885a5-7f06-4dcd-bd2d-8fb41fb53868",
+                  "44cbdc92-d537-410e-bc77-f5a82b531732",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
@@ -737,11 +719,29 @@
                   "paid"
                 ],
                 [
-                  "68ef98db-e899-43fd-8379-4b088344c499",
+                  "8b439094-a2f4-4457-941b-0c5bf4a02313",
                   "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
                   "eodhd",
                   "requests-decoded-content",
                   "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "cf601ddc-43e5-4f7a-b53e-f2ef9a312a7a",
+                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "FRESH",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "e9efec75-aad8-4a4f-b90f-d432342b59a9",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
                   "11111111-1111-4111-8111-111111111111",
                   "paid"
                 ]
@@ -755,7 +755,7 @@
       "rendered_images": {
         "temporaldb-api": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
         "provision": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
-        "openbq-v11": "sha256:94ee80e9212c36158ccb26dbab25492c32146866ec68c00ff778a6f03ebb0a07"
+        "openbq-v11": "sha256:0ad3a94a94244f96f8c2a081e4be20c9f81da35da861f7e19ce9e1b26927e88f"
       },
       "networks": {
         "funnel-gateway": [
@@ -803,25 +803,7 @@
         "durable": {
           "captures": [
             [
-              "08eb6c22-84ca-4fa8-abd1-fd91c14e3d19",
-              "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
-              "yfinance",
-              "sdk_decoded_v1",
-              "FRESH",
-              "11111111-1111-4111-8111-111111111111",
-              "paid"
-            ],
-            [
-              "1b301cc1-f897-4998-a835-739415eddfc1",
-              "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
-              "yfinance",
-              "sdk_decoded_v1",
-              "TEST",
-              "11111111-1111-4111-8111-111111111111",
-              "paid"
-            ],
-            [
-              "22d885a5-7f06-4dcd-bd2d-8fb41fb53868",
+              "44cbdc92-d537-410e-bc77-f5a82b531732",
               "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
               "eodhd",
               "requests-decoded-content",
@@ -830,11 +812,29 @@
               "paid"
             ],
             [
-              "68ef98db-e899-43fd-8379-4b088344c499",
+              "8b439094-a2f4-4457-941b-0c5bf4a02313",
               "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
               "eodhd",
               "requests-decoded-content",
               "TEST.US",
+              "11111111-1111-4111-8111-111111111111",
+              "paid"
+            ],
+            [
+              "cf601ddc-43e5-4f7a-b53e-f2ef9a312a7a",
+              "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+              "yfinance",
+              "sdk_decoded_v1",
+              "FRESH",
+              "11111111-1111-4111-8111-111111111111",
+              "paid"
+            ],
+            [
+              "e9efec75-aad8-4a4f-b90f-d432342b59a9",
+              "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+              "yfinance",
+              "sdk_decoded_v1",
+              "TEST",
               "11111111-1111-4111-8111-111111111111",
               "paid"
             ]
@@ -846,5 +846,6 @@
       "remaining_containers": []
     }
   },
-  "not_covered": "live acquisition, NAS load, public OAuth, packaged native app, Tailscale Services on a live tailnet"
+  "not_covered": "live acquisition, NAS load, public OAuth, packaged native app, Tailscale Services on a live tailnet",
+  "provider_host_rebuild": "Rebuilt after merging openbq-docker v10.0.0 (open catalogues under API auth) into release/v11; same eodhd/yfinance archives."
 }
