@@ -738,9 +738,10 @@ async function stateFixture(t, overrides = {}) {
 
 test("the state allow-list names the app's own JSON files and nothing else", () => {
   for (const ok of ["settings.json", "backends.json", "folders.json", "chat.json", "chart-presets.json",
-    "dashboards/preview.json", "dashboards/docks.json", "dashboards/3f2a-B_c.json"]) assert.equal(stateFile(ok), true, ok);
+    "dashboards/preview.json", "dashboards/docks.json", "dashboards/3f2a-B_c.json",
+    "workspaces/7c9e6679-7425-40de-944b-e07fc1f90ae7.json", "layouts/7c9e6679-7425-40de-944b-e07fc1f90ae7.json"]) assert.equal(stateFile(ok), true, ok);
   for (const bad of ["", "settings.json.tmp", "settings.json.corrupt", "../settings.json", "dashboards/../settings.json",
-    "dashboards/a/b.json", "dashboards/.json", "files/a.pdf", "logs/app.log", "skills/x.md", "Settings.json",
+    "dashboards/a/b.json", "dashboards/.json", "workspaces/.json", "layouts/a/b.json", "files/a.pdf", "logs/app.log", "skills/x.md", "Settings.json",
     "dashboards/" + "a".repeat(81) + ".json", "settings.json\u0000", 7, null]) assert.equal(stateFile(bad), false, String(bad));
 });
 
