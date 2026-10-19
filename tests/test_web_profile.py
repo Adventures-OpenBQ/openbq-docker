@@ -77,7 +77,7 @@ def test_the_episode_6_configs_are_the_episode_3_config_plus_rita_and_mcp_tailne
 def test_every_serve_config_publishes_the_pool_on_tailnet_8088_and_never_funnels_it():
     # A News card dials :8088 whichever Serve file is live, the key-maint ones included.
     names = sorted(p.name for p in (ROOT / 'ts-config').glob('serve*.json'))
-    assert len(names) == 7, names
+    assert len(names) == 8, names  # serve-v6-services.json (v6 opt-in Service names) is the eighth
     for name in names:
         serve = _serve(name)
         assert serve['TCP']['8088'] == {'HTTPS': True}, name
