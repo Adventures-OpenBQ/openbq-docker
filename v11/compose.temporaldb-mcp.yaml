@@ -8,6 +8,9 @@ services:
     platform: linux/arm64
     pull_policy: never
     depends_on: [temporaldb-api]
+    # Both: temporaldb-api sits on default alone, or on openbq-internal alone once
+    # compose.gateway.yaml is applied; openbq-internal is also the Tailscale sidecar's.
+    networks: [default, openbq-internal]
     command: [python, -m, temporaldb.mcp.app]
     user: "65532:65532"
     read_only: true
