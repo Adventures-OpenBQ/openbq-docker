@@ -69,7 +69,9 @@ function requestUrl(req, config) {
   const path = /^\/grid\/api\/subscriptions\/[^/]+$/.test(raw) ? raw.replace(/%5e/gi, "^") : raw;
   if (/[%\\#]/.test(path)) return null;
   const url = new URL([path, ...query].join("?"), config.origin);
-  return url.pathname === path.replaceAll("^", "%5E") && url.origin === config.origin ? url : null;
+  // Whether the parser escapes "^" differs by Node version (22 keeps it, 26 writes %5E); path holds
+  // no "%", so any %5E in the pathname is an escaped caret.
+  return url.pathname.replaceAll("%5E", "^") === path && url.origin === config.origin ? url : null;
 }
 const COMMON = {
   "Cache-Control": "no-store",
