@@ -481,6 +481,8 @@ def seed_signature(connection, manifest):
 
 
 def pg_engine(url=None):
+    if not (os.environ.get('SSL_CA') or os.environ.get('SSL_CERT')) and os.environ.get('WORKSPACE_POSTGRES_ALLOW_PLAINTEXT')!='1':
+        raise ValueError('PostgreSQL TLS material is required; set WORKSPACE_POSTGRES_ALLOW_PLAINTEXT=1 to connect without TLS')
     from sqlalchemy import create_engine
     from sqlalchemy.engine import make_url
     from sqlalchemy.pool import NullPool

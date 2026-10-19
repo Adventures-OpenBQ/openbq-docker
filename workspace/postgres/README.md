@@ -26,7 +26,7 @@ psql -v workspace_db=openbq_workspace -f workspace/postgres/provision.sql
 
 The owner is NOLOGIN; the migrator is NOINHERIT and explicitly selects the owner. Runtime read/write roles have no owner membership, DDL, checkpoint writes, or cross-application grants. Runtime reads only the minimal readiness seal. Provisioning does not modify ACLs on existing settings/catalog databases.
 
-The opt-in overlay mounts only the explicitly supplied `OPENBQ_WORKSPACE_TLS_DIR` at `/run/workspace-tls` for migration; it does not mount the runtime key/storage volume into that job. Set SSL_CA and optional SSL_CERT/SSL_KEY paths inside that directory consistently in runtime and maintenance environments. An empty directory is sufficient only when TLS is intentionally unselected.
+The opt-in overlay mounts only the explicitly supplied `OPENBQ_WORKSPACE_TLS_DIR` at `/run/workspace-tls` for migration; it does not mount the runtime key/storage volume into that job. Set SSL_CA and optional SSL_CERT/SSL_KEY paths inside that directory consistently in runtime and maintenance environments. Without SSL_CA or SSL_CERT/SSL_KEY, runtime and migration refuse to connect; only `WORKSPACE_POSTGRES_ALLOW_PLAINTEXT=1` deliberately selects plaintext, and an empty directory is sufficient only then.
 
 Migration-only environment uses the same DB_HOST/PORT/NAME fields, both READ/WRITE credentials set to the migrator, and `WORKSPACE_MIGRATION_ROLE=openbq_workspace_owner`. It needs no runtime identity keys or Redis. With the verified image and private env-file paths set:
 

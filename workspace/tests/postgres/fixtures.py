@@ -40,7 +40,8 @@ def prepare():
                   LOCAL_STORAGE_SECRET_KEY=secrets.token_urlsafe(32),
                   DB_POOL_SIZE="2", DB_MAX_OVERFLOW="0", DB_POOL_TIMEOUT="30", WORKERS="1",
                   REDIS_HOST="redis", REDIS_PASS="", SELFURL="http://localhost:3000/api",
-                  FRONTENDURL="http://localhost:3000", PROURL="http://localhost:3000", MODE="lite")
+                  FRONTENDURL="http://localhost:3000", PROURL="http://localhost:3000", MODE="lite",
+                  WORKSPACE_POSTGRES_ALLOW_PLAINTEXT="1")
     env = path / "fixture.env"
     env.write_text("".join(f"{key}={value}\n" for key, value in config.items()))
     env.chmod(0o600)

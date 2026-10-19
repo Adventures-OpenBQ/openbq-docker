@@ -39,6 +39,18 @@ class PostgreSQLCheckRenderingTests(unittest.TestCase):
                 self.assertEqual(raw.canonical_postgres_checks(altered_table,[check]),[check])
 
 
+class PlaintextRefusalTests(unittest.TestCase):
+    def test_missing_ca_refuses_plaintext_target_without_opt_out(self):
+        import importlib.util
+        from unittest import mock
+        spec=importlib.util.spec_from_file_location('workspace_tls_probe',CLI)
+        raw=importlib.util.module_from_spec(spec);spec.loader.exec_module(raw)
+        environment={'WORKSPACE_TARGET_DSN':'postgresql://fixture@database/fixture'}
+        with mock.patch.dict(os.environ,environment,clear=True):
+            with self.assertRaisesRegex(ValueError,'WORKSPACE_POSTGRES_ALLOW_PLAINTEXT'):
+                raw.pg_engine()
+
+
 class InventoryTests(unittest.TestCase):
     def setUp(self):
         self.fixture = Path(os.environ["WORKSPACE_FIXTURE"])

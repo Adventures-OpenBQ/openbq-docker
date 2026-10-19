@@ -17,6 +17,7 @@ from utilities.config import DatabaseSettings, DatabaseEngineSettings
 
 class ConfigTests(unittest.TestCase):
     def settings(self, password="fixture", **kwargs):
+        kwargs.setdefault("WORKSPACE_POSTGRES_ALLOW_PLAINTEXT", True)  # TLS-free unit fixture
         return DatabaseSettings(DATABASE_TYPE="postgresql", DB_HOST="localhost", DB_PORT=5432,
             DB_NAME="fixture", READ_DB_USER="fixture", WRITE_DB_USER="fixture",
             **{'READ_DB_PASSWORD':password, 'WRITE_DB_PASSWORD':password}, **kwargs)
@@ -79,6 +80,14 @@ class ConfigTests(unittest.TestCase):
             self.assertIn("lock_timeout", args.get("options", ""))
         finally:
             engine.dispose()
+
+    def test_missing_tls_material_refuses_every_factory_without_plaintext_opt_out(self):
+        config = self.settings(WORKSPACE_POSTGRES_ALLOW_PLAINTEXT=False)
+        for factory in (config.get_read_engine, config.get_write_engine,
+                        config.get_read_session, config.get_write_session, config.get_validate_user_session):
+            with self.subTest(factory=factory.__name__):
+                with self.assertRaisesRegex(ValueError, "WORKSPACE_POSTGRES_ALLOW_PLAINTEXT"):
+                    factory()
 
     def test_invalid_pool_limits_are_rejected(self):
         for invalid in ({"DB_POOL_SIZE": 0}, {"DB_MAX_OVERFLOW": -1}, {"DB_POOL_TIMEOUT": 0}):
