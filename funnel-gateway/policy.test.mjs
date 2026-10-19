@@ -153,9 +153,11 @@ test("families that arrive with later lines are refused at openbq-docker v8.0.0"
 
 test("the state allow-list names the app's own JSON files and nothing else", () => {
   for (const ok of ["settings.json", "backends.json", "folders.json", "chat.json", "chart-presets.json",
-    "dashboards/preview.json", "dashboards/3f2a-B_c.json"]) assert.equal(stateFile(ok), true, ok);
+    "dashboards/preview.json", "dashboards/3f2a-B_c.json",
+    "workspaces/7c9e6679-7425-40de-944b-e07fc1f90ae7.json", "layouts/7c9e6679-7425-40de-944b-e07fc1f90ae7.json"]) assert.equal(stateFile(ok), true, ok);
   for (const bad of ["", "settings.json.tmp", "../settings.json", "dashboards/../settings.json", "dashboards/a/b.json",
-    "files/a.pdf", "Settings.json", "dashboards/" + "a".repeat(81) + ".json", 7, null]) assert.equal(stateFile(bad), false, String(bad));
+    "files/a.pdf", "Settings.json", "dashboards/" + "a".repeat(81) + ".json", "workspaces/a/b.json", "layouts/../settings.json",
+    "workspace/a.json", 7, null]) assert.equal(stateFile(bad), false, String(bad));
 });
 
 test("tickets: signed over the exact target, thirty seconds, base64url, refused when tampered", () => {
