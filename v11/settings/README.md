@@ -38,7 +38,8 @@ checks the exact revision/checksum; an unknown version or checksum fails closed.
 Runtime never applies DDL. DSNs are libpq strings or correctly encoded PostgreSQL
 URIs; no tool concatenates passwords into URLs. Require explicit host, database,
 user and `connect_timeout` (1–10 seconds). TLS fields pass directly to libpq;
-use `sslmode=verify-full sslrootcert=/private/ca.crt` for verified remote TLS.
+use `sslmode=verify-full sslrootcert=/private/ca.crt` for verified remote TLS
+(`sslrootcert` without `sslmode` defaults to `verify-full`, otherwise `require`).
 Ambient `PG*` variables are refused, preventing unintended inherited targets.
 Routine errors and pool retry logs never print DSNs or document contents.
 

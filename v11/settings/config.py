@@ -29,7 +29,7 @@ def connection_info(value):
             raise ValueError()
         # Explicit values prevent ambient libpq defaults changing the endpoint.
         values.setdefault("port", "5432")
-        values.setdefault("sslmode", "require")
+        values.setdefault("sslmode", "verify-full" if values.get("sslrootcert") else "require")
         values["application_name"] = "openbq-settings"
         values["options"] = "-c search_path=pg_catalog -c statement_timeout=8000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=10000"
         return make_conninfo(**values)

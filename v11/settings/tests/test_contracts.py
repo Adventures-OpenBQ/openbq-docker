@@ -42,6 +42,13 @@ class Contracts(unittest.TestCase):
                 self.assertEqual(str(caught.exception),'Settings unavailable')
         with patch.dict(os.environ,{},clear=True):self.assertEqual(backend(),'file')
 
+    def test_configured_ca_defaults_to_verify_full(self):
+        from psycopg.conninfo import conninfo_to_dict
+        base='host=fixture dbname=openbq_settings user=openbq_settings_runtime connect_timeout=3'
+        with patch.dict(os.environ,{},clear=True):
+            self.assertEqual(conninfo_to_dict(connection_info(base+' sslrootcert=/tls/ca.crt'))['sslmode'],'verify-full')
+            self.assertEqual(conninfo_to_dict(connection_info(base))['sslmode'],'require')
+
     def test_inventory_raw_bytes_and_refused_ambiguous_or_unknown_sources(self):
         with tempfile.TemporaryDirectory() as root:
             source=Path(root)/'source';(source/'keys').mkdir(parents=True);(source/'state'/'00042').mkdir(parents=True)
