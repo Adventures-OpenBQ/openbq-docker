@@ -377,7 +377,10 @@ python3 v11/prepare-provider-build.py --eodhd ../openbq-eodhd-v11 --yfinance ../
 
 The script refuses dirty or mismatched checkouts, archives the exact Git commits,
 and passes their SHA256 values to the build, which verifies each archive before
-installation. `v11/build-inputs/sources.json` records the actual inputs. Local
+installation. Build tools and yfinance come only from the hash-locked
+`v11/providers.lock` (`uv pip compile v11/providers.in -c requirements.lock
+--universal --python-version 3.12 --generate-hashes -o v11/providers.lock`).
+`v11/build-inputs/sources.json` records the actual inputs. Local
 archives do not assert that unpublished commits can be fetched remotely; after
 publication operators may fetch those exact commits into clean clones and run the
 same command. Use the resulting immutable image ID as `OPENBQ_V11_IMAGE`.

@@ -106,5 +106,17 @@ class ApiImages(unittest.TestCase):
         self.assertIn(f"ARG BASE=openbq-local:{release}\n", dockerfile("mcp/Dockerfile"))
 
 
+class V11ProviderImage(unittest.TestCase):
+    def test_index_installs_come_only_from_the_hashed_lock(self):
+        installs = re.findall(r"pip install ([^&\\]*)", dockerfile("v11/Dockerfile.providers"))
+        self.assertIn("--require-hashes --no-deps -r /tmp/v11/providers.lock ", installs)
+        for args in installs:
+            with self.subTest(args):
+                self.assertTrue("--require-hashes" in args or "/tmp/v11/eodhd /tmp/v11/yfinance" in args)
+        lock = (ROOT / "v11/providers.lock").read_text()
+        for name in ("hatchling==1.32.4", "setuptools==84.0.0", "yfinance==1.7.0"):
+            self.assertRegex(lock, rf"(?m)^{re.escape(name)} \\\n    --hash=sha256:")
+
+
 if __name__ == "__main__":
     unittest.main()

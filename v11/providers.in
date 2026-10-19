@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# What Dockerfile.providers installs on top of the legacy image; requirements.lock pins stay fixed.
+hatchling==1.32.4
+setuptools==84.0.0
+yfinance==1.7.0
