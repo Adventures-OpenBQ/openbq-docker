@@ -23,8 +23,10 @@ services:
       - ./ts-config:/config:ro
     networks: [openbq-internal]
   openbq-api:
-    build: {context: ., target: api}
-    image: openbq-local:2.0.0-candidate
+    # The full API image (Dockerfile stage v3): ODP, the Episode 3 yfinance extension, BDOBB's
+    # settings API and the v4 trading-calendar and fiscal-year routes. This file alone builds it.
+    build: {context: ., target: v3}
+    image: openbq-local:7.0.0
     restart: unless-stopped
     # Hard cap: if the API outgrows it, the kernel kills the API, not the host's other services.
     mem_limit: 16g
