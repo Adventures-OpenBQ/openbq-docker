@@ -621,10 +621,16 @@ async def _catalog(cache, request, call_next):
     path = request.url.path
     if path not in cache:
         auth = _stack_authorization()
+        # ponytail: concurrent misses each build until one lands (tailnet callers during the
+        # start period; the public door needs its token first); a build lock if that ever bites.
+        caller_headers = request.scope["headers"]
         if auth is not None:
-            request.scope["headers"] = [(k, v) for k, v in request.scope["headers"] if k != b"authorization"]
+            request.scope["headers"] = [(k, v) for k, v in caller_headers if k != b"authorization"]
             request.scope["headers"].append((b"authorization", auth))
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        finally:  # outer layers never see the stack's credential on this request
+            request.scope["headers"] = caller_headers
         if response.status_code != 200:
             return response
         body = b"".join([chunk async for chunk in response.body_iterator])

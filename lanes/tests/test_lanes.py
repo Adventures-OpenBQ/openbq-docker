@@ -318,8 +318,8 @@ class NoLaneTest(unittest.IsolatedAsyncioTestCase):
         app.middleware("http")(openbq_lanes.middleware)
         with mock.patch.dict(os.environ, OPENBB_API_AUTH="true", OPENBB_API_USERNAME="u", OPENBB_API_PASSWORD="p"):
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api") as client:
+                wrong = await client.get("/widgets.json", auth=("u", "x"))  # the miss: its header is replaced
                 anon = await client.get("/widgets.json")
-                wrong = await client.get("/widgets.json", auth=("u", "x"))
                 apps_anon = await client.get("/apps.json")
         self.assertEqual((anon.status_code, wrong.status_code, apps_anon.status_code), (200, 200, 200))
         self.assertEqual(anon.json(), {"w": {"name": "x"}})
