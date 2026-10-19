@@ -157,9 +157,11 @@ Real `credentials.env` files may be used on the NAS, but stay out of Git and Doc
 
 ## Episode 3 candidate: BDOBB and the reference backend
 
-The optional [v3 Compose overlay](docker-compose.v3.yml) builds two independent
-services: ODP with [our original yfinance extension](v3/yfinance/README.md), and
-the [OpenBQ reference backend](examples/episode3/README.md) with fictional pivot
+The stack's API image includes [our original yfinance extension](v3/yfinance/README.md),
+BDOBB's settings API and the v4 calendar and fiscal-year routes; `docker-compose.yml`
+alone builds it.
+The optional [v3 Compose overlay](docker-compose.v3.yml) adds the
+[OpenBQ reference backend](examples/episode3/README.md) with fictional pivot
 widgets. The shared private Tailscale sidecar serves ODP on 443 and the reference
 backend on 8443, both tailnet-only. No NAS host ports or public Funnel are enabled
 (the v8 `web` profile's door, Funnel port 10000, runs beside it through

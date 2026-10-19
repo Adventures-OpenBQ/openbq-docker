@@ -35,8 +35,8 @@ docker compose -f docker-compose.yml -f docker-compose.v3.yml build
 docker compose -f docker-compose.yml -f docker-compose.v3.yml up -d
 ```
 
-The overlay builds ODP with our yfinance extension and the reference backend in
-separate containers. The existing Tailscale sidecar forwards private HTTPS 443
+The base stack builds ODP with our yfinance extension; the overlay adds the
+reference backend in its own container. The existing Tailscale sidecar forwards private HTTPS 443
 to ODP and private HTTPS 8443 to `openbq-reference`. No host ports are published,
 Funnel is disabled, and another Tailscale key is not required. The reference
 container runs as UID/GID 10001 with a read-only filesystem and a temporary

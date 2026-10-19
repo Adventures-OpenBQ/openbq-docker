@@ -2,11 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Optional Episode 3 services; use together with docker-compose.yml.
 services:
-  openbq-api:
-    build:
-      context: .
-      target: v3
-    image: openbq-local:8.0.0
   tailscale:
     environment:
       TS_SERVE_CONFIG: /config/serve-v3.json
