@@ -101,3 +101,21 @@ def test_the_gateway_examples_hold_placeholders_only():
 
 def test_the_private_gateway_configuration_is_gitignored():
     assert 'gateway-config/' in (ROOT / '.gitignore').read_text().splitlines()
+
+
+def test_the_services_config_is_the_keys_config_plus_rita_and_mcp():
+    """serve-v6-services.json (opt-in, user ruling 2026-10-19): serve-v6-keys.json plus
+    svc:openbq-rita and svc:openbq-mcp, served beside :10443 and :11443, never funneled."""
+    keys, services = _serve('serve-v6-keys.json'), _serve('serve-v6-services.json')
+    assert {k: v for k, v in services.items() if k != 'Services'} == {k: v for k, v in keys.items() if k != 'Services'}
+    assert set(services['Services']) == set(keys['Services']) | {'svc:openbq-rita', 'svc:openbq-mcp'}
+    for name in keys['Services']:
+        assert services['Services'][name] == keys['Services'][name], name
+    web = _serve('serve-v6.json')['Web']
+    for svc, port in (('svc:openbq-rita', '10443'), ('svc:openbq-mcp', '11443')):
+        entry = services['Services'][svc]
+        assert entry['TCP'] == {'443': {'HTTPS': True}}, svc
+        (host, handlers), = entry['Web'].items()
+        assert host == f"{svc[4:]}.<your-tailnet>.ts.net:443", svc
+        assert handlers == web['${TS_CERT_DOMAIN}:' + port], svc
+    assert not any(services.get('AllowFunnel', {}).values())
