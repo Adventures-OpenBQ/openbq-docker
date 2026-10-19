@@ -562,10 +562,10 @@ async def _widget_ids(cache, request):
     """The ids /widgets.json serves, from the catalog cache (built through the app if need be)."""
     if "/widgets.json" not in cache:
         transport = httpx.ASGITransport(app=request.app)
-        # The caller's Authorization (already checked), or the API's own auth refuses the build.
-        auth = request.headers.get("authorization")
+        # The stack's pair, as _catalog builds with: the API's own auth refuses an anonymous build.
+        auth = _stack_authorization()
         async with httpx.AsyncClient(transport=transport, base_url="http://openbq") as client:
-            await client.get("/widgets.json", headers={"authorization": auth} if auth else None)
+            await client.get("/widgets.json", headers={"authorization": auth.decode()} if auth else None)
     if "/widgets.json" not in cache:
         return None
     try:
@@ -611,11 +611,19 @@ def _is_catalog(request) -> bool:
 
 
 async def _catalog(cache, request, call_next):
-    """Serve /widgets.json and /apps.json from their first successful build."""
-    if not _authorized(request):  # the cache must not outlive the API's own Basic auth
-        return _unauthorized(request)
+    """Serve /widgets.json and /apps.json from their first successful build.
+
+    Open whatever OPENBB_API_AUTH says (user ruling 2026-10-19, as credentials.env.example
+    describes): the image's HEALTHCHECK and BDOBB's catalogue probe call them with no
+    credential, and they hold no data. openbb-api's own Basic auth would refuse an
+    anonymous build, so a build carries the stack's pair, never the caller's.
+    """
     path = request.url.path
     if path not in cache:
+        auth = _stack_authorization()
+        if auth is not None:
+            request.scope["headers"] = [(k, v) for k, v in request.scope["headers"] if k != b"authorization"]
+            request.scope["headers"].append((b"authorization", auth))
         response = await call_next(request)
         if response.status_code != 200:
             return response
@@ -654,6 +662,14 @@ def _cors(request, response):
         if entry.cls is CORSMiddleware:
             return CORSMiddleware(response, *entry.args, **entry.kwargs)
     return response
+
+
+def _stack_authorization():
+    """The API's own Basic pair when its auth is on (None when it is off): what builds the catalogues."""
+    if os.environ.get("OPENBB_API_AUTH", "").lower() not in ("1", "true", "yes"):
+        return None
+    pair = f"{os.environ.get('OPENBB_API_USERNAME', '')}:{os.environ.get('OPENBB_API_PASSWORD', '')}"
+    return b"Basic " + base64.b64encode(pair.encode())
 
 
 def _authorized(request) -> bool:
