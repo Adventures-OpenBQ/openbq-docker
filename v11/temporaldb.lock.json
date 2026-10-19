@@ -38,14 +38,14 @@
       "reviewed_commit": "3ffd6c62408fa70227d4fb2ccc8c6c8c881dbead"
     }
   },
-  "qualification_report": null,
+  "qualification_report": "temporaldb-v11-requalification.json",
   "candidate_qualification": {
-    "status": "unqualified",
-    "reason": "Rebuilt 2026-10-19 from the merged release/v11 heads (TemporalDB d96c338, eodhd 135a1f8, yfinance 3ffd6c6). Earlier qualification reports describe the previous images and are retained as history; requalification of these images is pending."
+    "status": "requalified_fixture_and_installed_topology",
+    "reason": "2026-10-19: runtime fixture qualification exit 0 (32 migrations, tick authority PASS/FAIL/PASS, protected original/replay), installed provider host 1 passed, installed gateway/provider/capture topology 2 passed, on these exact images. Live acquisition, NAS and packaged-native gates remain separate."
   },
   "provider_host": {
     "version": "11.0.0",
-    "image_id": "sha256:5b321c6d9d286f4acdf47f4320e3db20dd55b8abcaaca8190f39338fd15f1ea4",
+    "image_id": "sha256:94ee80e9212c36158ccb26dbab25492c32146866ec68c00ff778a6f03ebb0a07",
     "platform": "linux/arm64",
     "distribution": "local build; unpublished",
     "registry_reference": null,
@@ -61,7 +61,7 @@
         "distribution": "verified local clean commit archive; remote availability not asserted"
       }
     },
-    "qualification": "Unqualified: rebuilt 2026-10-19 with v11/prepare-provider-build.py from the merged heads; requalification pending.",
+    "qualification": "Requalified 2026-10-19: installed provider host and topology tests passed against this image (temporaldb-v11-requalification.json).",
     "settings_source_commit": "41008a1e4a7d1aafce877d5fdce69571f6c57c49",
     "installed_source_hashes": {
       "v3/openbq_settings.py": "26018e9b609aca93e3e04adf126d12631533fe436a5ec3e614dd0c5b4e8a9ee9",
