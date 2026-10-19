@@ -6,6 +6,9 @@
     "8443": {
       "HTTPS": true
     },
+    "8088": {
+      "HTTPS": true
+    },
     "10443": {
       "HTTPS": true
     },
@@ -28,6 +31,13 @@
         }
       }
     },
+    "${TS_CERT_DOMAIN}:8088": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://rss-ticker:8088"
+        }
+      }
+    },
     "${TS_CERT_DOMAIN}:10443": {
       "Handlers": {
         "/": {
@@ -46,6 +56,7 @@
   "AllowFunnel": {
     "${TS_CERT_DOMAIN}:443": false,
     "${TS_CERT_DOMAIN}:8443": false,
+    "${TS_CERT_DOMAIN}:8088": false,
     "${TS_CERT_DOMAIN}:10443": false,
     "${TS_CERT_DOMAIN}:11443": false
   },
