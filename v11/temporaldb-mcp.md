@@ -2,7 +2,7 @@
 
 Add `-f v11/compose.temporaldb-mcp.yaml --profile mcp` to the existing v11
 Compose invocation. The adapter uses `http://temporaldb-api:8080`, and publishes
-no host port. Connect existing trusted ingress to port 8081 and `/mcp`.
+no host port. Connect existing trusted ingress to port 8081 and `/mcp`. The stack's own route is the Tailscale Service `svc:openbq-temporal-mcp` ([RUNBOOK](RUNBOOK.md#tailnet-names-tailscale-services)).
 
 The adapter runs the same pinned local image ID as `v11/compose.temporaldb.yaml`
 and depends on `temporaldb-api`. Set `TEMPORALDB_MCP_ALLOWED_HOSTS` to an exact JSON ingress

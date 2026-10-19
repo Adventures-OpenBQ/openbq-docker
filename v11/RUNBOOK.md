@@ -237,6 +237,30 @@ Gold automatically. Recorded-fixture linked UI/two-API/two-worker/restore and
 Linux artifact qualification are recorded in the final release evidence. Packaged
 native restart, actual NAS loads and cutover remain separate gates.
 
+## Tailnet names (Tailscale Services)
+
+The desktop app and Rita's MCP calls reach TemporalDB over the tailnet through two
+Tailscale Services, the same arrangement as key-maint's `svc:openbq-keys`:
+
+| Service | Name | Proxies to |
+|---|---|---|
+| `svc:openbq-temporal` | `https://openbq-temporal.<your-tailnet>.ts.net` | `temporaldb-api:8080` |
+| `svc:openbq-temporal-mcp` | `https://openbq-temporal-mcp.<your-tailnet>.ts.net/mcp` | `temporaldb-mcp:8081` |
+
+1. Create both Services in your tailnet's admin console and approve the stack's
+   `openbq` node as their host. Until they exist, keep the v6 serve file.
+2. Replace `<your-tailnet>` in `ts-config/serve-v11.json` (it is `serve-v6.json`
+   plus the two Services; tailnet-only, never funneled).
+3. Add `-f v11/compose.tailnet.yaml` after the other v11 files. It points the
+   sidecar at `serve-v11.json` and keeps `temporaldb-api` on `openbq-internal`.
+4. Set `TEMPORALDB_MCP_ALLOWED_HOSTS` to `["openbq-temporal-mcp.<your-tailnet>.ts.net"]`.
+   Confirm with one MCP Check from the app: a Host mismatch is refused, and the
+   value Serve forwards has not been verified on a live tailnet yet.
+
+In BDOBB, add `https://openbq-temporal.<your-tailnet>.ts.net` as a connection with
+its scope token, and the MCP URL under **AI Library ▸ MCP Servers** with its MCP token.
+The MCP Service answers 502 until the `mcp` profile runs.
+
 ## Opt-in v11 TemporalDB gateway
 
 Canonical `funnel-gateway/policy.mjs` stays byte-for-byte v10. The separate
