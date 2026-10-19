@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Appended to the unchanged legacy recipe by prepare-provider-build.py.
-FROM legacy AS v11
+FROM api AS v11
 ARG EODHD_COMMIT
 ARG YFINANCE_COMMIT
 ARG EODHD_ARCHIVE_SHA256

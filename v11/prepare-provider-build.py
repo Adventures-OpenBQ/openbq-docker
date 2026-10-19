@@ -30,8 +30,8 @@ for name,source in [('eodhd',args.eodhd),('yfinance',args.yfinance)]:
     manifest[name]={'commit':expected,'archive_sha256':digest,'distribution':'verified local clean commit archive; remote availability not asserted'}
     arguments += ['--build-arg',name.upper()+'_COMMIT='+expected,'--build-arg',name.upper()+'_ARCHIVE_SHA256='+digest]
 legacy=(root/'Dockerfile').read_text()
-if legacy.count('FROM odp\n')!=1: raise SystemExit('legacy final stage changed; review recipe')
-recipe=legacy.replace('FROM odp\n','FROM odp AS legacy\n')+'\n'+(root/'v11/Dockerfile.providers').read_text()
+if legacy.count('FROM odp AS api\n')!=1: raise SystemExit('api stage changed; review recipe')
+recipe=legacy+'\n'+(root/'v11/Dockerfile.providers').read_text()
 (destination/'Dockerfile').write_text(recipe)
 (destination/'sources.json').write_text(json.dumps(manifest,indent=2)+'\n')
 command=['docker','build','--platform','linux/arm64','-f',str(destination/'Dockerfile'),'--target','v11','-t',args.tag,*arguments,str(root)]

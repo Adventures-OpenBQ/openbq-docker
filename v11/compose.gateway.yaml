@@ -6,6 +6,7 @@ services:
     image: openbq-funnel-gateway:11.0.0-temporal
     build: ./funnel-gateway
   temporaldb-api:
-    networks: [openbq-internal]
+    # default keeps the opt-in MCP adapter (compose.temporaldb-mcp.yaml) able to reach it.
+    networks: [default, openbq-internal]
   openbq-v11:
     networks: [openbq-internal]
