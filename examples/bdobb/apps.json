@@ -280,7 +280,7 @@
   },
   {
     "name": "OpenBB Workspace - CFTC Commitment of Traders",
-    "description": "OpenBB's CFTC Commitment of Traders dashboard, rebuilt on openbq-docker's widget ids. The search card lists stock-index futures; the report card shows 52 weeks of changes in legacy futures positions. CFTC needs no key.",
+    "description": "OpenBB's CFTC Commitment of Traders dashboard, rebuilt on openbq-docker's widget ids. The search card lists stock-index futures; the report card shows 52 weeks of changes in legacy futures positions. CFTC needs no key. Opens in BDOBB 3.0.0 or later.",
     "img": "/openbq/bdobb-logo.svg",
     "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
@@ -329,7 +329,7 @@
   },
   {
     "name": "OpenBB Workspace - BLS",
-    "description": "OpenBB's example BLS app, rebuilt on openbq-docker's widget ids: a search over the nonfarm-payrolls survey beside one series (total nonfarm employment) since 2016. BLS needs no key.",
+    "description": "OpenBB's example BLS app, rebuilt on openbq-docker's widget ids: a search over the nonfarm-payrolls survey beside one series (total nonfarm employment) since 2016. BLS needs no key. Opens in BDOBB 3.0.0 or later.",
     "img": "/openbq/bdobb-logo.svg",
     "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
@@ -376,7 +376,7 @@
   },
   {
     "name": "OpenBB Workspace - IMF Explorer",
-    "description": "OpenBB's IMF Explorer, rebuilt on openbq-docker's widget ids: available indicators and indicator data, direction of trade, and PortWatch chokepoint and port volumes. Its dataflow and presentation-table tabs used OpenBB-hosted widgets that openbq-docker does not serve, so they are left out. IMF needs no key.",
+    "description": "OpenBB's IMF Explorer, rebuilt on openbq-docker's widget ids: available indicators and indicator data, direction of trade, and PortWatch chokepoint and port volumes. Its dataflow and presentation-table tabs used OpenBB-hosted widgets that openbq-docker does not serve, so they are left out. IMF needs no key. Opens in BDOBB 3.0.0 or later.",
     "img": "/openbq/bdobb-logo.svg",
     "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
