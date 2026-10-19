@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-API_DOCKERFILES = ["Dockerfile"]  # openbq-api: target api (docker-compose.yml), target v3 (docker-compose.v3.yml)
+API_DOCKERFILES = ["Dockerfile"]  # openbq-api: target v3 (docker-compose.yml), the full API image
 
 
 def dockerfile(name):
@@ -54,13 +54,19 @@ class ApiImages(unittest.TestCase):
                 self.assertIn("COPY examples/episode3/assets/bdobb-logo.svg /workspace/bdobb-logo.svg", text)
                 self.assertTrue(re.search(r"(?m)^WORKDIR /workspace$", text))
 
-    def test_the_v3_overlay_builds_under_the_release_version(self):
-        # A local build of the overlay must not overwrite an earlier release's images.
-        release = re.search(r"image: openbq-funnel-gateway:(\S+)", dockerfile("docker-compose.yml")).group(1)
+    def test_the_base_compose_builds_the_full_api_image_under_the_release_version(self):
+        # docker-compose.yml alone must build the stage that installs yfinance and the v4 routes,
+        # and a local build must not overwrite an earlier release's images.
+        base = dockerfile("docker-compose.yml")
+        release = re.search(r"image: openbq-funnel-gateway:(\S+)", base).group(1)
+        self.assertIn("build: {context: ., target: v3}\n", base)
+        self.assertIn(f"image: openbq-local:{release}\n", base)
+        stage = dockerfile("Dockerfile").split("FROM api AS v3\n", 1)[1]
+        self.assertIn("openbq_yfinance-3.0.0-py3-none-any.whl", stage)
+        self.assertIn("openbq_routes-4.0.0-py3-none-any.whl", stage)
         overlay = dockerfile("docker-compose.v3.yml")
-        for name in ("openbq-local", "openbq-episode3-demo"):
-            with self.subTest(name):
-                self.assertIn(f"image: {name}:{release}\n", overlay)
+        self.assertNotRegex(overlay, r"(?m)^  openbq-api:")  # no second, divergent API build
+        self.assertIn(f"image: openbq-episode3-demo:{release}\n", overlay)
 
 
 if __name__ == "__main__":

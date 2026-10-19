@@ -35,7 +35,8 @@ COPY lanes/openbb.toml /workspace/openbb.toml
 HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=5 CMD curl -fsS http://127.0.0.1:6900/widgets.json > /dev/null || exit 1
 CMD ["openbb-api", "--host", "0.0.0.0", "--port", "6900"]
 
-# Episode 3 (docker-compose.v3.yml, target v3): the original Apache-2.0 yfinance extension on the API image.
+# Stage v3, the stack's API image (docker-compose.yml builds it): the original Apache-2.0 yfinance
+# extension from Episode 3, then the v4 routes below.
 FROM extensions-build AS yfinance-build
 COPY v3/yfinance/source /source
 RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /source
