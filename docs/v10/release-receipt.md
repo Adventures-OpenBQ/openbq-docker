@@ -138,7 +138,7 @@ v10.0.0 was re-cut again after three user reports on the Live dashboard (the Liv
 | `tests` | 73 passed |
 | `v3/tests` | 68 passed |
 | `workspace/tests` | OK |
-| funnel-gateway | 121 of 121 |
+| funnel-gateway | 122 of 122 (fourth carry) |
 | live-grid | 539 passed (14 network tests deselected) |
 | key-maint | 230 passed |
 | lanes | 89 passed, 1 skipped |
@@ -155,7 +155,7 @@ v10.0.0 was re-cut again after three user reports on the Live dashboard (the Liv
 **GHCR `10.0.0`**, built for amd64 and arm64 at `6cf51a9` unless noted:
 - `openbq-local` `sha256:c7425917e7f5be809f189af832fc27fb5552afdcac22483cd277fd850382d406`, image revision `a70dc82`
 - `openbq-mcp` `sha256:b8684de82d783c47ac7337722ac802c3e09abef8d0f1e337dd975558c6845b72`, image revision `a70dc82`
-- `openbq-funnel-gateway` `sha256:2e950e1c485eae6a8635999b9bb3bb43c741f514f8e9c228fb77134ec7a6d346`
+- `openbq-funnel-gateway` `sha256:7eb78a089f53e10811f5f92fd14b12ecb342932c76ecd6a6f953374ef325a1d2`, image revision `4ed861b` (the fourth carry below; the third carry's was `2e950e1c…`)
 - `openbq-live-grid` `sha256:f83068001f9bee730f77bce3017d247eca11ad5766e87021e4289c217eb6982a`, image revision `f870ea8`
 - `openbq-lake` `sha256:ac72245b3278f682910741fa811ef172be6bd2603e877708c8f30d6aceb757ff`
 - `openbq-key-maint` `sha256:994fe7114e2350806e1663b6d1eba61175fba307e8976426fb74a5bde3032b56`
@@ -163,5 +163,7 @@ v10.0.0 was re-cut again after three user reports on the Live dashboard (the Liv
 - `openbq-table-service` `sha256:1edec9724947224fe0e5c19a7646191691d9e54015aac1ea7fdfb0af60f6c043`, from BDOBB `006ea64` per `table-service/source.lock.json` (the image first deployed on 10-18 was built while the lock still named v9's `8ee70ad`)
 
 **Third carry (2026-10-18, late):** v9.0.0 `04ac6ab` brings Live TV (rss-ticker re-vendored from rss-feedhandler v8.3.1; the door still relays only `/news`) and v7.0.0 `b3a4d73`, so v8, v9 and v10 contain v7.0.0 again. CI's public-content scan now covers the checked-out ref's history (`--history HEAD`, 2f09eec), and `check-public.py` accepts `REPLACE_WITH_…` placeholders (fd1586c), so an unmerged branch's example token no longer fails it. rss-ticker 8.3.1 runs on production with its existing config, so Live TV answers "not configured" there; rss-ticker's own suite: 250 passed.
+
+**Fourth carry (2026-10-19):** the door gzips its four root manifests (`/api` and `/ref` `widgets.json`, `apps.json`) for a caller that accepts gzip (`4ed861b`); data routes and other callers are unchanged, and `policy.mjs` is untouched, so BDOBB's 7f1a24e pairing and vendored hash stand. Why: off the tailnet, the Vercel preview showed the OpenBB API backend offline because openbq-api's 5.2 MB `widgets.json` took 18–60+ s through Funnel's public ingress (0.5 s on the tailnet), past the web layer's 12 s upstream timeout. Only the gateway image was rebuilt. On production, through the public ingress with the machine token: `/api/widgets.json` 512 KB on the wire in 0.7–0.8 s (5,212,796 bytes decoded), `/ref/widgets.json` 7.7 KB in 0.13 s; anonymous requests still 401. Gates: funnel-gateway 122 of 122, `check-public.py` PASS.
 
 `latest` was not moved.
