@@ -1,0 +1,28 @@
+# Add -f v11/compose.temporaldb-mcp.yaml --profile mcp to the existing v11 topology.
+# Existing trusted ingress must route the private authenticated endpoint.
+services:
+  temporaldb-mcp:
+    profiles: [mcp]
+    image: ${TEMPORALDB_IMAGE:?Verified immutable image ID or published digest required}
+    command: [python, -m, temporaldb.mcp.app]
+    user: "65532:65532"
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=16777216,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 1.0
+    pids_limit: 64
+    restart: unless-stopped
+    environment:
+      TEMPORALDB_MCP_POLICY_FILE: /run/secrets/mcp-policy.json
+      TEMPORALDB_MCP_API_ORIGIN: http://temporaldb-api:8080
+      TEMPORALDB_MCP_ALLOWED_HOSTS: ${TEMPORALDB_MCP_ALLOWED_HOSTS:?Explicit JSON host list required}
+      TEMPORALDB_MCP_ALLOWED_ORIGINS: ${TEMPORALDB_MCP_ALLOWED_ORIGINS:?Explicit JSON browser origin list required; use [] for non-browser clients}
+    volumes:
+      - ${TEMPORALDB_MCP_POLICY_HOST:?Private policy readable by uid 65532}:/run/secrets/mcp-policy.json:ro
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health/ready', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
