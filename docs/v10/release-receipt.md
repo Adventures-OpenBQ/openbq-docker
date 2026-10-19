@@ -128,14 +128,14 @@ v10.0.0 was re-cut again after three user reports on the Live dashboard (the Liv
 
 **Release review** of everything since the 10-17 re-cut (both merges included): 1 Important and 5 Minor findings, all fixed (455da59), and a scoped re-review's 2 Minor follow-ups fixed (f870ea8). The Important one: a 1m `start` far in the past fanned one request out into hundreds of sequential vendor calls; a 1m window is now one request, clamped to the 120 days EODHD accepts. The others: a reversed 1m window raised; the lake read-back path does not gap-fill (documented); resampled bars carry a volume-weighted vwap only when every traded row has one; `Dockerfile.v3` references; and, with `LIVE_GRID_PUBLIC_URL` unset, a browser write to the watchlist is taken only from a loopback host (the Host-derived origin was open to DNS rebinding).
 
-**v9.0.0 is carried at `0e0d955`** (merges 6cf51a9 and a70dc82; the second brings the Calendars example's relative ranges): local image names in compose and project `openbq-stack`; the v3 image is the Dockerfile's `v3` stage and the gateway's SSRM default comes from `lanes/`; the door relays text/plain and forwards only approved News feeds; key-maint probes EODHD on its own namespace. v10's `/grid` door, `liveGrid` switch and live services are kept as they were.
+**v9.0.0 is carried at `04ac6ab`** (merges 6cf51a9, a70dc82 and c8aab8a; the second brings the Calendars example's relative ranges, the third Live TV and v7.0.0's CI change back into the chain): local image names in compose and project `openbq-stack`; the v3 image is the Dockerfile's `v3` stage and the gateway's SSRM default comes from `lanes/`; the door relays text/plain and forwards only approved News feeds; key-maint probes EODHD on its own namespace. v10's `/grid` door, `liveGrid` switch and live services are kept as they were.
 
 **Gates on the final tree:**
 
 | Check | Result |
 |---|---|
 | `scripts/check-public.py` | PASS |
-| `tests` | 72 passed |
+| `tests` | 73 passed |
 | `v3/tests` | 68 passed |
 | `workspace/tests` | OK |
 | funnel-gateway | 121 of 121 |
@@ -159,7 +159,9 @@ v10.0.0 was re-cut again after three user reports on the Live dashboard (the Liv
 - `openbq-live-grid` `sha256:f83068001f9bee730f77bce3017d247eca11ad5766e87021e4289c217eb6982a`, image revision `f870ea8`
 - `openbq-lake` `sha256:ac72245b3278f682910741fa811ef172be6bd2603e877708c8f30d6aceb757ff`
 - `openbq-key-maint` `sha256:994fe7114e2350806e1663b6d1eba61175fba307e8976426fb74a5bde3032b56`
-- `openbq-rss-ticker` `sha256:5d48cf244f79cdbd5366d851fd1fbe9e8feebcde564f00544058a153f894ce45`
+- `openbq-rss-ticker` `sha256:78fab9af79a0fd769154f95ebb7fd519b7cf44396f78ee4447e0104e6ef1de94`, image revision `c8aab8a` (rss-feedhandler v8.3.1)
 - `openbq-table-service` `sha256:8d2abb230caee549a0dc9ff5c787d080da70836f306bf363b0bf0c69dff68def`, from BDOBB `0b51af5` per `table-service/source.lock.json` (the image first deployed on 10-18 was built while the lock still named v9's `8ee70ad`)
+
+**Third carry (2026-10-18, late):** v9.0.0 `04ac6ab` brings Live TV (rss-ticker re-vendored from rss-feedhandler v8.3.1; the door still relays only `/news`) and v7.0.0 `b3a4d73`, so v8, v9 and v10 contain v7.0.0 again. CI's public-content scan now covers the checked-out ref's history (`--history HEAD`, 2f09eec), and `check-public.py` accepts `REPLACE_WITH_…` placeholders (fd1586c), so an unmerged branch's example token no longer fails it. rss-ticker 8.3.1 runs on production with its existing config, so Live TV answers "not configured" there; rss-ticker's own suite: 250 passed.
 
 `latest` was not moved.
