@@ -160,7 +160,7 @@ v10.0.0 was re-cut again after three user reports on the Live dashboard (the Liv
 - `openbq-lake` `sha256:ac72245b3278f682910741fa811ef172be6bd2603e877708c8f30d6aceb757ff`
 - `openbq-key-maint` `sha256:994fe7114e2350806e1663b6d1eba61175fba307e8976426fb74a5bde3032b56`
 - `openbq-rss-ticker` `sha256:78fab9af79a0fd769154f95ebb7fd519b7cf44396f78ee4447e0104e6ef1de94`, image revision `c8aab8a` (rss-feedhandler v8.3.1)
-- `openbq-table-service` `sha256:8d2abb230caee549a0dc9ff5c787d080da70836f306bf363b0bf0c69dff68def`, from BDOBB `0b51af5` per `table-service/source.lock.json` (the image first deployed on 10-18 was built while the lock still named v9's `8ee70ad`)
+- `openbq-table-service` `sha256:1edec9724947224fe0e5c19a7646191691d9e54015aac1ea7fdfb0af60f6c043`, from BDOBB `006ea64` per `table-service/source.lock.json` (the image first deployed on 10-18 was built while the lock still named v9's `8ee70ad`)
 
 **Third carry (2026-10-18, late):** v9.0.0 `04ac6ab` brings Live TV (rss-ticker re-vendored from rss-feedhandler v8.3.1; the door still relays only `/news`) and v7.0.0 `b3a4d73`, so v8, v9 and v10 contain v7.0.0 again. CI's public-content scan now covers the checked-out ref's history (`--history HEAD`, 2f09eec), and `check-public.py` accepts `REPLACE_WITH_…` placeholders (fd1586c), so an unmerged branch's example token no longer fails it. rss-ticker 8.3.1 runs on production with its existing config, so Live TV answers "not configured" there; rss-ticker's own suite: 250 passed.
 
