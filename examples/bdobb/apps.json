@@ -279,6 +279,228 @@
     "prompts": []
   },
   {
+    "name": "OpenBB Workspace - CFTC Commitment of Traders",
+    "description": "OpenBB's CFTC Commitment of Traders dashboard, rebuilt on openbq-docker's widget ids. The search card lists stock-index futures; the report card shows 52 weeks of changes in legacy futures positions. CFTC needs no key. Opens in BDOBB 3.0.0 or later.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "tab0": {
+        "id": "tab0",
+        "name": "Main",
+        "layout": [
+          {
+            "i": "cftc_cot_cftc_obb",
+            "x": 0,
+            "y": 15,
+            "w": 40,
+            "h": 22,
+            "state": {
+              "params": {
+                "code": "CFTC_13874+",
+                "report_type": "legacy",
+                "measure": "changes",
+                "futures_only": "true",
+                "limit": "52",
+                "provider": "cftc"
+              }
+            }
+          },
+          {
+            "i": "cftc_cot_search_cftc_obb",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 15,
+            "state": {
+              "params": {
+                "report_type": "legacy",
+                "subcategory": "stock_indices",
+                "provider": "cftc"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  },
+  {
+    "name": "OpenBB Workspace - BLS",
+    "description": "OpenBB's example BLS app, rebuilt on openbq-docker's widget ids: a search over the nonfarm-payrolls survey beside one series (total nonfarm employment) since 2016. BLS needs no key. Opens in BDOBB 3.0.0 or later.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "Search": {
+        "id": "Search",
+        "name": "Search",
+        "layout": [
+          {
+            "i": "bls_search_bls_obb",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 8,
+            "state": {
+              "params": {
+                "category": "nfp",
+                "include_extras": true,
+                "provider": "bls"
+              }
+            }
+          },
+          {
+            "i": "bls_series_bls_obb",
+            "x": 0,
+            "y": 8,
+            "w": 40,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "CES0000000001",
+                "start_date": "2016-01-01",
+                "calculations": true,
+                "provider": "bls"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  },
+  {
+    "name": "OpenBB Workspace - IMF Explorer",
+    "description": "OpenBB's IMF Explorer, rebuilt on openbq-docker's widget ids: available indicators and indicator data, direction of trade, and PortWatch chokepoint and port volumes. Its dataflow and presentation-table tabs used OpenBB-hosted widgets that openbq-docker does not serve, so they are left out. IMF needs no key. Opens in BDOBB 3.0.0 or later.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "indicators": {
+        "id": "indicators",
+        "name": "indicators",
+        "layout": [
+          {
+            "i": "imf_available_indicators_imf_obb",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 15,
+            "state": {
+              "params": {
+                "dataflows": "CTOT",
+                "symbol": "CTOT::CEPI_CTOTX_GDP",
+                "provider": "imf"
+              }
+            }
+          },
+          {
+            "i": "imf_indicators_imf_obb",
+            "x": 0,
+            "y": 17,
+            "w": 40,
+            "h": 21,
+            "state": {
+              "params": {
+                "symbol": "CTOT::CEPI_CTOTX_GDP",
+                "country": [
+                  "",
+                  "AUS"
+                ],
+                "frequency": "M",
+                "limit": "1",
+                "pivot": "false",
+                "provider": "imf"
+              }
+            }
+          }
+        ]
+      },
+      "direction-of-trade": {
+        "id": "direction-of-trade",
+        "name": "direction-of-trade",
+        "layout": [
+          {
+            "i": "imf_direction_of_trade_imf_obb",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 27,
+            "state": {
+              "params": {
+                "country": "united_states",
+                "counterpart": "world",
+                "direction": "balance",
+                "start_date": "2010-01-01",
+                "frequency": "quarter",
+                "provider": "imf"
+              }
+            }
+          }
+        ]
+      },
+      "port-watch": {
+        "id": "port-watch",
+        "name": "port-watch",
+        "layout": [
+          {
+            "i": "imf_chokepoint_volume_imf_obb",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 16,
+            "state": {
+              "params": {
+                "start_date": "2024-01-01",
+                "chokepoint": [
+                  "chokepoint2"
+                ],
+                "provider": "imf"
+              }
+            }
+          },
+          {
+            "i": "imf_port_info_imf_obb",
+            "x": 0,
+            "y": 18,
+            "w": 40,
+            "h": 14,
+            "state": {
+              "params": {
+                "country": "USA",
+                "port_code": "port664",
+                "provider": "imf"
+              }
+            }
+          },
+          {
+            "i": "imf_port_volume_imf_obb",
+            "x": 0,
+            "y": 32,
+            "w": 40,
+            "h": 15,
+            "state": {
+              "params": {
+                "start_date": "2024-01-01",
+                "port_code": "port664",
+                "country": "DEU",
+                "provider": "imf"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  },
+  {
     "name": "Video Library",
     "description": "One card: the Video Library, a YouTube card served by openbq-docker v3's openbb-videos extension. Pick one of two sample videos and the card plays it. Opens in BDOBB 3.0.0 or later.",
     "img": "/openbq/bdobb-logo.svg",
@@ -1611,6 +1833,266 @@
         ]
       }
     }
+  },
+  {
+    "name": "OpenBB Workspace - Analysis Dashboard",
+    "description": "OpenBB's Analysis Dashboard on openbq-docker's widget ids: eleven tabs for a trading desk, from analyst and fundamentals through bull and bear researchers, traders, risk and a backtest gate. Each holds EODHD price history (NVDA, AAPL, MSFT, QQQ) or AAPL's annual balance sheet and cash flow. EODHD needs the openbq-eodhd extension and a key. Opens in BDOBB 9.0.0 or later.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "01-install-desk": {
+        "id": "01-install-desk",
+        "name": "01-install-desk",
+        "layout": [
+          {
+            "i": "eodhd_equity_price_historical_eodhd_obb",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "NVDA",
+                "interval": "1d",
+                "exchange": "US",
+                "provider": "eodhd"
+              }
+            }
+          }
+        ]
+      },
+      "02-market-analyst": {
+        "id": "02-market-analyst",
+        "name": "02-market-analyst",
+        "layout": [
+          {
+            "i": "eodhd_equity_price_historical_eodhd_obb",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 14,
+            "state": {
+              "params": {
+                "symbol": "NVDA",
+                "interval": "1d",
+                "exchange": "US",
+                "provider": "eodhd"
+              }
+            }
+          }
+        ]
+      },
+      "03-fundamentals": {
+        "id": "03-fundamentals",
+        "name": "03-fundamentals",
+        "layout": [
+          {
+            "i": "eodhd_equity_fundamental_balance_eodhd_obb",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL",
+                "limit": 5,
+                "period": "annual",
+                "exchange": "US",
+                "provider": "eodhd"
+              }
+            }
+          },
+          {
+            "i": "eodhd_equity_fundamental_cash_eodhd_obb",
+            "x": 0,
+            "y": 12,
+            "w": 40,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "AAPL",
+                "limit": 5,
+                "period": "annual",
+                "exchange": "US",
+                "provider": "eodhd"
+              }
+            }
+          }
+        ]
+      },
+      "04-news-sentiment": {
+        "id": "04-news-sentiment",
+        "name": "04-news-sentiment",
+        "layout": [
+          {
+            "i": "eodhd_equity_price_historical_eodhd_obb",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL,NVDA,MSFT",
+                "interval": "1d",
+                "exchange": "US",
+                "provider": "eodhd"
+              }
+            }
+          }
+        ]
+      },
+      "05-bull-researcher": {
+        "id": "05-bull-researcher",
+        "name": "05-bull-researcher",
+        "layout": [
+          {
+            "i": "eodhd_equity_price_historical_eodhd_obb",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL,NVDA,MSFT",
+                "interval": "1d",
+                "exchange": "US",
+                "provider": "eodhd"
+              }
+            }
+          }
+        ]
+      },
+      "06-bear-researcher": {
+        "id": "06-bear-researcher",
+        "name": "06-bear-researcher",
+        "layout": [
+          {
+            "i": "eodhd_equity_price_historical_eodhd_obb",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL,NVDA,MSFT",
+                "interval": "1d",
+                "exchange": "US",
+                "provider": "eodhd"
+              }
+            }
+          }
+        ]
+      },
+      "07-trader-sma": {
+        "id": "07-trader-sma",
+        "name": "07-trader-sma",
+        "layout": [
+          {
+            "i": "eodhd_equity_price_historical_eodhd_obb",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "NVDA",
+                "interval": "5m",
+                "exchange": "US",
+                "provider": "eodhd"
+              }
+            }
+          }
+        ]
+      },
+      "07-trader-rsi": {
+        "id": "07-trader-rsi",
+        "name": "07-trader-rsi",
+        "layout": [
+          {
+            "i": "eodhd_equity_price_historical_eodhd_obb",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL,NVDA,MSFT",
+                "interval": "1d",
+                "exchange": "US",
+                "provider": "eodhd"
+              }
+            }
+          }
+        ]
+      },
+      "07-trader-momentum": {
+        "id": "07-trader-momentum",
+        "name": "07-trader-momentum",
+        "layout": [
+          {
+            "i": "eodhd_equity_price_historical_eodhd_obb",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL,NVDA,MSFT",
+                "interval": "1d",
+                "exchange": "US",
+                "provider": "eodhd"
+              }
+            }
+          }
+        ]
+      },
+      "08-risk-manager": {
+        "id": "08-risk-manager",
+        "name": "08-risk-manager",
+        "layout": [
+          {
+            "i": "eodhd_equity_price_historical_eodhd_obb",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL,NVDA,MSFT",
+                "interval": "1d",
+                "exchange": "US",
+                "provider": "eodhd"
+              }
+            }
+          }
+        ]
+      },
+      "09-backtest-gate": {
+        "id": "09-backtest-gate",
+        "name": "09-backtest-gate",
+        "layout": [
+          {
+            "i": "eodhd_equity_price_historical_eodhd_obb",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "AAPL,NVDA,MSFT,QQQ",
+                "interval": "1d",
+                "exchange": "US",
+                "provider": "eodhd"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
   },
   {
     "name": "Example Dashboard - Version 10.0.0 - Live Grid",
