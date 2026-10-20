@@ -40,6 +40,7 @@ from app.sector_map import (
     refresh_prev_close,
 )
 from app.symbol_meta import get_meta
+from app.ta.figure import add_seam
 from app.ta.figure import delta as ta_delta
 from app.ta.macros import load_all as load_macros_all
 from app.ta.payload import (
@@ -539,18 +540,19 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                        source: str = "local", macro: str = "none",
                        indicators: str = "", anchor: str | None = None,
                        start: str | None = None,
-                       end: str | None = None, provider: str = "kdb"):
+                       end: str | None = None, provider: str = "kdb",
+                       show_seam: bool = False):
         s, e = _window(start, end)
         indicators = with_anchor(indicators, anchor)
         params = ChartParams(symbol, interval, source, macro, indicators, s, e, provider)
         bars_error = None
         try:
-            bars, _ = await build_series(
+            bars, meta = await build_series(
                 symbol, interval, s, e, recorder, _tick_window(), provider, lake=lake
             )
         except Exception as exc:  # noqa: BLE001 - a bad macro must still be reported below
             log.warning("ta_chart bars unavailable for %s: %s", symbol, exc)
-            bars, bars_error = [], exc
+            bars, meta, bars_error = [], {}, exc
         try:
             figure, _, _, _ = await build_payload(
                 params, bars_to_frame(bars), eodhd_source=_eodhd
@@ -567,6 +569,8 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             # fallback annotates the legend, and an indicator that nulled itself
             # was a Critical bug. Degrading is right; degrading silently is not.
             figure["layout"]["title"]["text"] += f"  ·  bars unavailable: {bars_error}"
+        if show_seam:
+            add_seam(figure, meta, lake is not None)
         return JSONResponse(figure)
 
     @app.websocket("/ta_chart_ws")
@@ -582,6 +586,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             indicators=with_anchor(query.get("indicators", ""), query.get("anchor")),
             start=s, end=e, provider=query.get("provider", "kdb"),
         )
+        show_seam = query.get("show_seam", "").lower() in ("1", "true", "yes", "on")
         interval_s = float(os.getenv("TA_PUSH_INTERVAL_MS", "1000")) / 1000.0
         previous: list[str] = []
         previous_marks: tuple[str, ...] = ()
@@ -599,7 +604,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                 # re-aggregate ticks in between.
                 bars_error = None
                 try:
-                    bars, _ = await build_series(
+                    bars, meta = await build_series(
                         params.symbol, params.interval, s, e, recorder,
                         _tick_window(), params.provider, lake=lake
                     )
@@ -608,7 +613,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                 # (Task 11 review).
                 except Exception as exc:  # noqa: BLE001
                     log.warning("ta_chart_ws bars unavailable for %s: %s", params.symbol, exc)
-                    bars, bars_error = [], exc
+                    bars, meta, bars_error = [], {}, exc
                 try:
                     figure, panes, frame, annotations = await build_payload(
                         params, bars_to_frame(bars), eodhd_source=_eodhd
@@ -622,6 +627,8 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                     return
                 if bars_error is not None:
                     figure["layout"]["title"]["text"] += f"  ·  bars unavailable: {bars_error}"
+                if show_seam:
+                    add_seam(figure, meta, lake is not None)
                 dates = [str(d) for d in frame["date"].to_list()] if frame.height else []
                 # `bars_error` forces a FIGURE push, not a delta. The
                 # "bars unavailable" note lives in the figure's title, and a
