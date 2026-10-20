@@ -125,7 +125,10 @@ def bars_to_frame(bars: list[dict]) -> pl.DataFrame:
     # history rows lead with vwap=None; without the override polars infers a
     # Null column and the first tick bar's float then fails to append
     return pl.DataFrame(rows, schema_overrides={"vwap": pl.Float64}).with_columns([
-        pl.col("date").str.to_datetime(strict=False),
+        # Vendor intraday history is UTC with a "Z" (or "+00:00") suffix and kdb+ bars
+        # are naive UTC. to_datetime(strict=False) nulls every suffixed value, so strip
+        # the suffix: both become the same naive UTC the rest of the engine expects.
+        pl.col("date").str.replace(r"(Z|[+-]00:00)$", "").str.to_datetime(strict=False),
         pl.col(["open", "high", "low", "close", "adj_close", "volume", "vwap"])
           .cast(pl.Float64, strict=False),
     ])

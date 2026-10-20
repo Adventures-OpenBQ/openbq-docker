@@ -45,6 +45,20 @@ def test_bars_to_frame_renames_adjusted_close():
     assert "adj_close" in frame.columns and "adjusted_close" not in frame.columns
 
 
+def test_bars_to_frame_parses_utc_suffixed_and_naive_dates_together():
+    """Intraday history from EODHD ends in Z; kdb+ live bars are naive UTC.
+
+    Polars nulls every `...Z` value under to_datetime(strict=False), so an intraday
+    Technical Chart drew no dates at all. Both forms must parse to the same naive UTC.
+    """
+    raw = [dict(BARS[0], date="2026-10-17T00:00:00Z"),
+           dict(BARS[1], date="2026-10-17T00:01:00+00:00"),
+           dict(BARS[1], date="2026-10-20T15:13:00")]
+    dates = bars_to_frame(raw)["date"].to_list()
+    assert [d.isoformat() for d in dates] == [
+        "2026-10-17T00:00:00", "2026-10-17T00:01:00", "2026-10-20T15:13:00"]
+
+
 def test_bars_to_frame_falls_back_when_adjusted_close_is_absent():
     """kdb+ tick-derived bars carry no adjusted close; raw close stands in."""
     raw = [{k: v for k, v in b.items() if k != "adjusted_close"} for b in BARS]
