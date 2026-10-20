@@ -18,6 +18,15 @@ def test_widgets_json_advertises_the_ta_chart_widget():
     assert spec["ta_chart"]["endpoint"] == "ta_chart"
 
 
+def test_widgets_json_offers_optional_start_and_end_dates():
+    """Ep 10 charts CL=F over April 2020: the window has to be pickable on the card."""
+    params = {p["paramName"]: p for p in client().get("/widgets.json").json()["ta_chart"]["params"]}
+    assert (params["start"]["label"], params["end"]["label"]) == ("Start", "End")
+    for name in ("start", "end"):
+        # A blank default is dropped from the request, so /ta_chart's own window applies.
+        assert params[name]["type"] == "date" and params[name]["value"] == ""
+
+
 def test_widgets_json_fills_the_macro_dropdown_from_the_macro_directory():
     spec = client().get("/widgets.json").json()
     macro_param = next(p for p in spec["ta_chart"]["params"]
