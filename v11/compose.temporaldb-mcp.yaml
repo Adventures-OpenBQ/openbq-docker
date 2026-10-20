@@ -4,7 +4,7 @@ services:
   temporaldb-mcp:
     profiles: [mcp]
     # Same local immutable ID as v11/compose.temporaldb.yaml; no registry pull claim.
-    image: sha256:11dfd7a836cf31fc53785ffdfc33d35f7a279188e846a6cc9147dd05da86abda
+    image: sha256:8c000e0415e773ec10d9db9d1793bef0bd2979e6f30abc741d7a8e26d6e4ded9
     platform: linux/arm64
     pull_policy: never
     depends_on: [temporaldb-api]

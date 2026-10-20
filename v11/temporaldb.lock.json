@@ -3,27 +3,27 @@
   "client_compatibility": 11,
   "service": "TemporalDB",
   "version": "0.5.0",
-  "source_commit": "eb2c00da1ef2eb8279a3858e8f0828a15499d3e2",
-  "image_id": "sha256:11dfd7a836cf31fc53785ffdfc33d35f7a279188e846a6cc9147dd05da86abda",
+  "source_commit": "efd560cb6bbbf6b4eeccdc9d84999e90c94598b3",
+  "image_id": "sha256:8c000e0415e773ec10d9db9d1793bef0bd2979e6f30abc741d7a8e26d6e4ded9",
   "platform": "linux/arm64",
   "artifact": "temporaldb-0.5.0-linux-arm64.docker.tar",
-  "artifact_sha256": "a007be571da1dd0503d6845484b98d311bec6880c842963e1021786c3492be60",
+  "artifact_sha256": "a9183fc37b17c9f63dc3ac50212145b6fdd428090e2772e525d633c7db5a3d60",
   "distribution": "local-docker-save; unpublished",
   "registry_reference": null,
   "provenance": {
-    "image_id": "sha256:11dfd7a836cf31fc53785ffdfc33d35f7a279188e846a6cc9147dd05da86abda",
+    "image_id": "sha256:8c000e0415e773ec10d9db9d1793bef0bd2979e6f30abc741d7a8e26d6e4ded9",
     "platform": "linux/arm64",
     "labels": {
-      "org.opencontainers.image.revision": "eb2c00da1ef2eb8279a3858e8f0828a15499d3e2",
+      "org.opencontainers.image.revision": "efd560cb6bbbf6b4eeccdc9d84999e90c94598b3",
       "org.opencontainers.image.source": "https://github.com/Adventures-OpenBQ/temporalDB-docker",
       "org.opencontainers.image.title": "TemporalDB",
       "org.opencontainers.image.version": "0.5.0"
     },
     "version": "0.5.0",
-    "source_commit": "eb2c00da1ef2eb8279a3858e8f0828a15499d3e2",
-    "source_date_epoch": "1792487989",
+    "source_commit": "efd560cb6bbbf6b4eeccdc9d84999e90c94598b3",
+    "source_date_epoch": "1792531753",
     "artifact": "temporaldb-0.5.0-linux-arm64.docker.tar",
-    "artifact_sha256": "a007be571da1dd0503d6845484b98d311bec6880c842963e1021786c3492be60",
+    "artifact_sha256": "a9183fc37b17c9f63dc3ac50212145b6fdd428090e2772e525d633c7db5a3d60",
     "distribution": "local-docker-save; unpublished",
     "registry_reference": null,
     "build_command": "scripts/build_release.py --platform linux/arm64",
@@ -41,7 +41,7 @@
   "qualification_report": null,
   "candidate_qualification": {
     "status": "requalified_fixture",
-    "reason": "2026-10-20: runtime fixture qualification exit 0 on this exact image (explorer widget and seeded v11 example asserted). Live acquisition, NAS and packaged-native gates remain separate."
+    "reason": "2026-10-20: runtime fixture qualification exit 0 on this exact image (explorer widget and seeded v11 example asserted; 32 migrations, tick authority PASS/FAIL/PASS, archived original and replay). Rebuilt from efd560c = eb2c00d + BUSL-1.1 license/header commit. amd64 build of the same commit qualified by temporalDB-docker runtime.yml run 39503529979. Live acquisition, NAS and packaged-native gates remain separate."
   },
   "provider_host": {
     "version": "11.0.0",
@@ -94,6 +94,12 @@
     "qualification_report": "temporaldb-mcp-previous-qualification.json"
   },
   "previous_runtimes": [
+    {
+      "source_commit": "eb2c00da1ef2eb8279a3858e8f0828a15499d3e2",
+      "image_id": "sha256:11dfd7a836cf31fc53785ffdfc33d35f7a279188e846a6cc9147dd05da86abda",
+      "artifact_sha256": "a007be571da1dd0503d6845484b98d311bec6880c842963e1021786c3492be60",
+      "qualification_report": null
+    },
     {
       "source_commit": "d96c33823addbaa519f95c74ec23ee4700748871",
       "image_id": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",

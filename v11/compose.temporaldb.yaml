@@ -1,7 +1,7 @@
 # Additive v11 integration only. Requires separately provisioned durable stores.
 # Local immutable ID from the verified Docker-save artifact; no registry pull claim.
 x-temporaldb: &temporaldb
-  image: sha256:11dfd7a836cf31fc53785ffdfc33d35f7a279188e846a6cc9147dd05da86abda
+  image: sha256:8c000e0415e773ec10d9db9d1793bef0bd2979e6f30abc741d7a8e26d6e4ded9
   platform: linux/arm64
   profiles: [temporaldb-v11]
   pull_policy: never
