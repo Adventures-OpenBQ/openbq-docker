@@ -204,7 +204,7 @@
  },
  "kdb_ticks": {
   "name": "Tick History",
-  "description": "Recent trades for one symbol out of the kdb+ tick cache. The cache is in-memory and holds a rolling day: a restarted kdb reads as empty.",
+  "description": "Recent trades for one symbol out of the kdb+ tick cache: a rolling window (48 hours in the stack's compose file) that survives a restart, since kdb replays its daily logs on boot.",
   "category": "Live",
   "type": "table",
   "endpoint": "ticks",
@@ -255,7 +255,7 @@
  },
  "kdb_cache_chart": {
   "name": "Cached Price Chart",
-  "description": "Historical prices served through the kdb+ read-through cache, joined to live tick-derived bars",
+  "description": "Historical prices from EODHD through openbq-api (kdb+ caches no history), joined to live bars built from the kdb+ tick cache",
   "category": "Equity",
   "type": "chart",
   "endpoint": "chart",
