@@ -99,6 +99,10 @@ const YEAR_RE = /^(?:199\d|20[0-3]\d|2040)$/;
 // carries it (^GSPC) and `.` because an exchange suffix does (AAPL.US).
 const SYMBOL_RE = /^[A-Za-z0-9.^_-]{1,24}$/;
 const SYMBOL_LIST_RE = /^[A-Za-z0-9.^_,-]{1,240}$/;
+// The tick chart's symbol alone may also end in "=F": its history reads futures through
+// yfinance (CL=F, Ep. 10's negative-oil example). Only that trailing suffix, so "=" never
+// reaches any other route or any other position.
+const TA_SYMBOL_RE = /^[A-Za-z0-9.^_-]{1,24}(?:=F)?$/;
 // The whole interval set live-grid's series builder accepts. Wider than this
 // line's two chart widgets declare (1d/1h/5m), because a card's interval is an
 // editable text param: a reader may type any of these and live-grid will serve
@@ -118,6 +122,8 @@ const PROVIDER_RE = /^(?:kdb|eodhd)$/;
 //            literal "none". A filename slug, so no dot-dot, no slash, no percent: the
 //            lookup is a dict hit, and bounding it here means nothing shaped like a path
 //            ever reaches the loader.
+//   show_seam  the "Show seam" boolean: draw where history ends and live begins. The
+//            widget sends it only once a reader toggles it, and only as true or false.
 //   indicators  the spec string the widget sends, e.g. "supertrend:period=10,ichimoku" --
 //            names, colons, "key=value" pairs and commas, and a value may itself hold
 //            colons and dashes (avwap:anchor=2026-08-28T14:30:00). A bounded character
@@ -305,7 +311,8 @@ export function upstreamPath(url, config) {
   // route would have shown a Workspace a card the door will not answer. The v10.0 line's
   // live-grid has neither, which is why this is the first line that maps it.
   //
-  // The keys are exactly the six the widget declares, plus `theme`: it is `type: chart`, so
+  // The keys are exactly the ones the widget declares (symbol, interval, source, macro,
+  // indicators, anchor, start, end, show_seam), plus `theme`: it is `type: chart`, so
   // dataClient's THEMED_TYPES appends the resolved theme to every call, and refusing it
   // would refuse every real one. `provider` is deliberately NOT mapped although the handler
   // accepts it -- the widget never sends it, and leaving it out pins every call and every
@@ -313,12 +320,13 @@ export function upstreamPath(url, config) {
   // caller force `eodhd` on a stream that refetches once a second.
   if (url.pathname === "/grid/ta_chart") {
     if (!onlyKeys(params, ["symbol", "interval", "source", "macro", "indicators",
-                           "anchor", "start", "end", "theme"])) return null;
-    if (!SYMBOL_RE.test(params.get("symbol") ?? "")) return null;
+                           "anchor", "start", "end", "show_seam", "theme"])) return null;
+    if (!TA_SYMBOL_RE.test(params.get("symbol") ?? "")) return null;
     if (params.has("interval") && !INTERVAL_RE.test(params.get("interval"))) return null;
     if (params.has("source") && !SOURCE_RE.test(params.get("source"))) return null;
     if (params.has("macro") && !MACRO_RE.test(params.get("macro"))) return null;
     if (params.has("indicators") && !INDICATORS_RE.test(params.get("indicators"))) return null;
+    if (params.has("show_seam") && !/^(?:true|false)$/.test(params.get("show_seam"))) return null;
     if (params.has("theme") && !/^(?:light|dark)$/.test(params.get("theme"))) return null;
     // `anchor` is the avwap anchor the widget folds into the indicator list
     // (live-grid/app/ta/payload.py's with_anchor). It is an absolute instant on the wire,
