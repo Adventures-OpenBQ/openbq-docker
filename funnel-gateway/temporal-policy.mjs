@@ -9,6 +9,9 @@ const rules = [
   ['GET', /^\/temporal\/temporal\/v1\/capabilities$/, []],
   ['GET|POST', /^\/temporal\/temporal\/v1\/queries$/, []],
   ['POST', /^\/temporal\/temporal\/v1\/queries\/import$/, []],
+  ['GET', /^\/temporal\/temporal\/v1\/cache\/datasets$/, ['cursor','limit']],
+  ['POST', /^\/temporal\/temporal\/v1\/cache\/(?:describe|coverage)$/, []],
+  ['POST', /^\/temporal\/temporal\/v1\/queries\/validate$/, []],
   ['GET', new RegExp(`^/temporal/temporal/v1/queries/import/${UUID}/export$`), []],
   ['GET|PUT|DELETE', new RegExp(`^/temporal/temporal/v1/queries/${UUID}$`), ['revision','receipt_id']],
   ['GET', new RegExp(`^/temporal/temporal/v1/queries/${UUID}/export$`), ['revision','receipt_id']],
@@ -21,7 +24,7 @@ const rules = [
   ['POST', new RegExp(`^/temporal/temporal/v1/audits/${UUID}/publications$`), []],
   ['GET', new RegExp(`^/temporal/temporal/v1/audits/${UUID}/publications/${UUID}$`), []],
 ];
-const values = { revision: /^[1-9][0-9]{0,8}$/, receipt_id: new RegExp(`^${UUID}$`), cursor: /^[A-Za-z0-9_.=-]{1,2048}$/ };
+const values = { revision: /^[1-9][0-9]{0,8}$/, receipt_id: new RegExp(`^${UUID}$`), cursor: /^[A-Za-z0-9_.=-]{1,2048}$/, limit: /^(?:[1-9]|[1-9][0-9]|100)$/ };
 export function temporalRoute(url, method, config) {
   if (config?.temporalDB !== true || url.hash || url.pathname.length + url.search.length > 4096) return null;
   const rule = rules.find(([methods,path]) => methods.split('|').includes(method) && path.test(url.pathname));

@@ -84,3 +84,14 @@ test('protected publication routes admit only canonical exact POST and GET shape
     ['GET',collection+'/not-uuid'],['GET',collection+'/%2e%2e%2f'+id],
   ]) assert.equal(overlay.temporalRoute(new URL(path,settings.origin),method,{temporalDB:true}),null,method+' '+path);
 });
+
+test('v11 explorer: cache discovery and validation admit exact shapes only', () => {
+  for (const [method,path] of [['GET',root+'/cache/datasets'],['GET',root+'/cache/datasets?cursor=eyJh_-0.1f2e&limit=50'],['GET',root+'/cache/datasets?limit=100'],['POST',root+'/cache/describe'],['POST',root+'/cache/coverage'],['POST',root+'/queries/validate']]) {
+    assert.equal(overlay.temporalRoute(new URL(path,settings.origin),method,{temporalDB:true})?.path,path,method+' '+path);
+    assert.equal(overlay.temporalRoute(new URL(path,settings.origin),method,{}),null);
+  }
+  for (const [method,path] of [['POST',root+'/cache/datasets'],['GET',root+'/cache/describe'],['GET',root+'/cache/coverage'],['GET',root+'/queries/validate'],
+    ['GET',root+'/cache/datasets?limit=0'],['GET',root+'/cache/datasets?limit=101'],['GET',root+'/cache/datasets?limit=5&limit=6'],['GET',root+'/cache/datasets?tier=gold'],
+    ['POST',root+'/cache/coverage?cursor=x'],['GET',root+'/cache/other'],['GET',root+'/queries/page'],['POST',root+'/cache/describe/'+id]])
+    assert.equal(overlay.temporalRoute(new URL(path,settings.origin),method,{temporalDB:true}),null,method+' '+path);
+});
