@@ -210,6 +210,9 @@ test("the grid's REST routes take exactly what this line's live-grid serves", ()
   assert.equal(route("/grid/ticks?symbol=AAPL"), "/grid/ticks?symbol=AAPL");
   assert.equal(route("/grid/ticks?symbol=AAPL&limit=1000"), "/grid/ticks?symbol=AAPL&limit=1000");
   assert.equal(route("/grid/ticks?symbol=BTC-USD&limit=1"), "/grid/ticks?symbol=BTC-USD&limit=1");
+  // The Sector Map: no parameters of its own, only the theme every chart widget carries.
+  assert.equal(route("/grid/sector_map"), "/grid/sector_map");
+  assert.equal(route("/grid/sector_map?theme=dark"), "/grid/sector_map?theme=dark");
   // The bars: the same parameter set on both, plus `theme` on the chart alone -- the client
   // appends the resolved theme to every chart-typed widget, so refusing it would refuse the
   // one grid chart this line publishes.
@@ -232,6 +235,8 @@ test("the grid's REST routes take exactly what this line's live-grid serves", ()
     "/grid/series?symbol=AAPL&theme=dark",                // theme is the chart's alone
     "/grid/chart?symbol=AAPL&theme=neon",                 // light or dark
     "/grid/chart?symbol=AAPL&indicators=rsi:period=14",   // a later line's parameter
+    "/grid/sector_map?theme=neon",                        // light or dark
+    "/grid/sector_map?symbol=XLK",                        // it takes no symbol
   ]) assert.equal(route(bad), null, bad);
 });
 
