@@ -32,32 +32,32 @@
   },
   "providers": {
     "eodhd": {
-      "reviewed_commit": "135a1f81f7db5b4d4afa1ec84f3f88f22e83e7e0"
+      "reviewed_commit": "44f51b1c93eb737b007ab85344e7314bf3c889a9"
     },
     "yfinance": {
-      "reviewed_commit": "3ffd6c62408fa70227d4fb2ccc8c6c8c881dbead"
+      "reviewed_commit": "d867c8bb64fda4dc843146a44f46ec7ca17e0ae8"
     }
   },
   "qualification_report": "temporaldb-v11-requalification.json",
   "candidate_qualification": {
     "status": "requalified_fixture_and_installed_topology",
-    "reason": "2026-10-19: runtime fixture qualification exit 0 (32 migrations, tick authority PASS/FAIL/PASS, protected original/replay), installed provider host 1 passed, installed gateway/provider/capture topology 2 passed, on these exact images. Live acquisition, NAS and packaged-native gates remain separate."
+    "reason": "2026-10-19: runtime fixture qualification exit 0 (32 migrations, tick authority PASS/FAIL/PASS, protected original/replay), installed provider host 1 passed, installed gateway/provider/capture topology 2 passed, on these exact images. Provider host rebuilt for openbq-eodhd/openbq-yfinance 11.0.0 and both installed tests rerun on it. Live acquisition, NAS and packaged-native gates remain separate."
   },
   "provider_host": {
     "version": "11.0.0",
-    "image_id": "sha256:870125bfc13b17f895281892c68bb15dade1507f2f06a2d22f6f14cbd85ad781",
+    "image_id": "sha256:fe879c4b7da3a12ebbf63405481cb1d7193456d573aef0d1015d11d8805a9434",
     "platform": "linux/arm64",
     "distribution": "local build; unpublished",
     "registry_reference": null,
     "sources": {
       "eodhd": {
-        "commit": "135a1f81f7db5b4d4afa1ec84f3f88f22e83e7e0",
-        "archive_sha256": "6d1c9d6b1e2db31397abb9a2b913cbf46898632e71e2949fb195917e228c757b",
+        "commit": "44f51b1c93eb737b007ab85344e7314bf3c889a9",
+        "archive_sha256": "da58a2767b18ad2087eb15c1ae69de4f568c9c74c4de0a39528fd287e56315ec",
         "distribution": "verified local clean commit archive; remote availability not asserted"
       },
       "yfinance": {
-        "commit": "3ffd6c62408fa70227d4fb2ccc8c6c8c881dbead",
-        "archive_sha256": "8d95eaac6504ffbb784634e7ff7c736e3471e1243d770a5a1af69a9fc1f133f2",
+        "commit": "d867c8bb64fda4dc843146a44f46ec7ca17e0ae8",
+        "archive_sha256": "b61b6be5d672497db521978fb58b61a89059dcccfdc003c5d47607f3a8b826a7",
         "distribution": "verified local clean commit archive; remote availability not asserted"
       }
     },
