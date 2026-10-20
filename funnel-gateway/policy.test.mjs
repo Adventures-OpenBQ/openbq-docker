@@ -159,6 +159,12 @@ test("families that arrive with later lines are refused at openbq-docker v10 (do
     "/grid/ta_chart?symbol=AAPL&source=vendor", "/grid/ta_chart?symbol=AAPL&indicators=rsi period=14",
     "/grid/ta_chart?symbol=AAPL&anchor=yesterday", "/grid/ta_chart?symbol=AAPL&theme=neon",
     "/grid/ta_chart?symbol=AAPL,MSFT",
+    // "=" only as a trailing futures "=F", and show_seam only as true or false.
+    "/grid/ta_chart?symbol=CL=X", "/grid/ta_chart?symbol=C=L", "/grid/ta_chart?symbol==F",
+    "/grid/ta_chart?symbol=CL=F=F", "/grid/ta_chart?symbol=CL=f",
+    "/grid/live_grid?symbol=CL=F", "/grid/symbol_meta?symbol=CL=F",
+    "/grid/ta_chart?symbol=AAPL&show_seam=1", "/grid/ta_chart?symbol=AAPL&show_seam=",
+    "/grid/ta_chart?symbol=AAPL&show_seam=True",
     // /ticks exists, but only inside its grammar: a list, an unknown key, or a limit
     // outside 1..1000 is refused before live-grid is dialled.
     "/grid/ticks", "/grid/ticks?symbol=", "/grid/ticks?symbol=AAPL,MSFT",
@@ -193,6 +199,13 @@ test("the grid's REST routes take exactly what this line's live-grid serves", ()
     "/grid/ta_chart?symbol=NVDA&interval=1m&source=eodhd&macro=classic-momentum&indicators=supertrend%3Aperiod%3D10%2Cichimoku&theme=dark");
   assert.equal(route("/grid/ta_chart?symbol=NVDA&anchor=2026-08-28T14:30:00-04:00"),
     "/grid/ta_chart?symbol=NVDA&anchor=2026-08-28T14%3A30%3A00-04%3A00");
+  // Futures history (CL=F on the day oil went negative) and the seam toggle.
+  assert.equal(route("/grid/ta_chart?symbol=CL=F&interval=1d&start=2020-04-01&end=2020-04-30"),
+    "/grid/ta_chart?symbol=CL%3DF&interval=1d&start=2020-04-01&end=2020-04-30");
+  assert.equal(route("/grid/ta_chart?symbol=CL%3DF"), "/grid/ta_chart?symbol=CL%3DF");
+  for (const v of ["true", "false"]) {
+    assert.equal(route(`/grid/ta_chart?symbol=NVDA&show_seam=${v}`), `/grid/ta_chart?symbol=NVDA&show_seam=${v}`);
+  }
   // The kdb tick reader, this line's own route: one symbol, an optional bounded limit.
   assert.equal(route("/grid/ticks?symbol=AAPL"), "/grid/ticks?symbol=AAPL");
   assert.equal(route("/grid/ticks?symbol=AAPL&limit=1000"), "/grid/ticks?symbol=AAPL&limit=1000");
@@ -298,6 +311,8 @@ test("the reference's, the wire's and the grid's sockets are the targets a ticke
     "/grid/ta_chart_ws?symbol=NVDA&interval=1m");
   assert.equal(socketTarget("/grid/ta_chart_ws?symbol=NVDA&indicators=rsi:period=14", ORIGIN),
     "/grid/ta_chart_ws?symbol=NVDA&indicators=rsi%3Aperiod%3D14");
+  assert.equal(socketTarget("/grid/ta_chart_ws?symbol=CL=F&show_seam=true", ORIGIN),
+    "/grid/ta_chart_ws?symbol=CL%3DF&show_seam=true");
   for (const raw of [
     "/ref/live_grid_ws?x=1", "/ref/live_grid_ws?", "/ref/live_grid_ws#x", "/ref/live_grid_ws/",
     "/ref/other_ws", "/ref/../ref/live_grid_ws", "/REF/live_grid_ws",
@@ -311,6 +326,8 @@ test("the reference's, the wire's and the grid's sockets are the targets a ticke
     "/grid/ta_chart_ws?symbol=NVDA&macro=../etc",     // a macro is a filename stem
     "/grid/ta_chart_ws?symbol=NVDA&interval=7m",
     "/grid/ta_chart_ws?symbol=NVDA#x",
+    "/grid/ta_chart_ws?symbol=CL=X",
+    "/grid/ta_chart_ws?symbol=NVDA&show_seam=yes",
     "/news/api/news?feed_id=7&limit=1", // a REST route is not a socket target
     "/grid/live_grid?symbol=AAPL",
     "/", "//x", "x", 7, null,

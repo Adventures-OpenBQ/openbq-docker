@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from datetime import datetime, timedelta
 
 import polars as pl
 
@@ -136,6 +137,69 @@ def build_ta_figure(
     layout["title"] = {"text": "  ·  ".join(bits)}
 
     return {"data": data, "layout": layout}
+
+
+_SPAN_FILL = {
+    "provider": "rgba(97, 175, 239, 0.08)",
+    "lake": "rgba(229, 192, 123, 0.14)",
+    "kdb": "rgba(152, 195, 121, 0.14)",
+}
+
+
+def _instant(text: str) -> datetime:
+    return datetime.fromisoformat(text).replace(tzinfo=None)
+
+
+def add_seam(figure: dict, meta: dict, lake_on: bool) -> None:
+    """Show where each bar came from (/ta_chart?show_seam=true), in place.
+
+    Shades the provider, lake and kdb spans build_series stitched together, draws a line
+    at the seam, and adds `history N · lake off|K days · live M · seam <iso>` under the
+    title. `meta` is build_series' own; `lake_on` is whether lake read-back is configured.
+    """
+    x = figure["data"][0]["x"] if figure["data"] else []
+    days = meta.get("lake_days") or []
+    live = meta.get("rows_from_ticks") or 0
+    history = len(x) - (meta.get("rows_from_lake") or 0) - live
+    seam = meta.get("seam")
+    layout = figure["layout"]
+
+    dates = [_instant(d) for d in x if d]
+    if dates:
+        owned = [(_instant(d), _instant(d) + timedelta(days=1), "lake") for d in days]
+        if seam:
+            owned.append((_instant(seam), dates[-1], "kdb"))
+        spans: list[list] = []
+        cursor = dates[0]
+        for lo, hi, kind in sorted(owned):
+            if cursor < lo:
+                spans.append([cursor, lo, "provider"])
+            if spans and spans[-1][2] == kind and spans[-1][1] >= lo:
+                spans[-1][1] = max(spans[-1][1], hi)
+            else:
+                spans.append([lo, hi, kind])
+            cursor = max(cursor, hi)
+        if cursor < dates[-1]:
+            spans.append([cursor, dates[-1], "provider"])
+        for lo, hi, kind in spans:
+            layout["shapes"].append({
+                "type": "rect", "xref": "x", "yref": "paper", "layer": "below",
+                "x0": lo.isoformat(), "x1": hi.isoformat(), "y0": 0, "y1": 1,
+                "fillcolor": _SPAN_FILL[kind], "line": {"width": 0},
+                "label": {"text": kind, "textposition": "top left",
+                          "font": {"size": 10, "color": "#8b919c"}},
+            })
+        if seam:
+            layout["shapes"].append({
+                "type": "line", "xref": "x", "yref": "paper",
+                "x0": _instant(seam).isoformat(), "x1": _instant(seam).isoformat(),
+                "y0": 0, "y1": 1, "line": {"color": "#98c379", "width": 1.5, "dash": "dash"},
+            })
+
+    lake = f"lake {len(days)} days" if lake_on else "lake off"
+    line = f"history {history} · {lake} · live {live} · seam {seam or 'none'}"
+    layout["title"]["text"] += f"<br><sup>{line}</sup>"
+    layout["margin"]["t"] = 64
 
 
 def delta(frame: pl.DataFrame, panes: Sequence[Pane], start_row: int) -> dict:

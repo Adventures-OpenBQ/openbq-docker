@@ -3,6 +3,8 @@
 
 """Tests for app.classify."""
 
+import pytest
+
 from app.classify import FEEDS, classify, snapshot_ticker, split_by_feed
 
 
@@ -61,3 +63,22 @@ def test_normalize_strips_the_feeds_own_exchange_suffix_and_refuses_what_the_sdk
     assert normalize("^GSPC") == "^GSPC" and normalize("BTC-USD") == "BTC-USD"
     for bad in ("AAPL.LSE", "BRK.B", "AAPL.CC", "BTC-USD.US", "A B", "", "X" * 49, "AAPL/US"):
         assert normalize(bad) is None, bad
+
+
+@pytest.mark.parametrize("symbol,kind", [
+    ("CL=F", "futures"), ("cl=f", "futures"), ("AAPL", "us"), ("BTC-USD", "crypto"),
+    ("EURUSD", "forex"),
+])
+def test_classify_table(symbol, kind):
+    assert classify(symbol) == kind
+
+
+def test_a_futures_symbol_has_no_feed_snapshot_or_feed_form():
+    """Futures are history only (Ep 10, CL=F): never fed, never snapshotted, never subscribed."""
+    from app.classify import normalize
+
+    assert "futures" not in FEEDS
+    assert split_by_feed(["CL=F", "AAPL"]) == {"us": {"AAPL"}, "crypto": set(), "forex": set()}
+    with pytest.raises(ValueError):
+        snapshot_ticker("CL=F")
+    assert normalize("CL=F") is None

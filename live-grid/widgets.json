@@ -410,6 +410,27 @@
     ]
    },
    {
+    "paramName": "start",
+    "value": "",
+    "label": "Start",
+    "type": "date",
+    "description": "First date charted, e.g. 2020-03-02. Blank: a year ago."
+   },
+   {
+    "paramName": "end",
+    "value": "",
+    "label": "End",
+    "type": "date",
+    "description": "Last date charted, e.g. 2020-05-29. Blank: today."
+   },
+   {
+    "paramName": "show_seam",
+    "value": false,
+    "label": "Show seam",
+    "type": "boolean",
+    "description": "Shade which bars came from the history provider, the lake and kdb ticks, and mark where history ends and live begins."
+   },
+   {
     "paramName": "macro",
     "value": "classic-momentum",
     "label": "Macro",

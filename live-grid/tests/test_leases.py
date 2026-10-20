@@ -252,3 +252,13 @@ def test_subscribe_honours_the_symbol_cap(monkeypatch):
     assert client.post("/subscribe", json={"symbols": ["A", "B"]}).status_code == 200
     # renewing what is already leased costs no new slot
     assert client.post("/subscribe", json={"symbols": ["A", "B"]}).status_code == 200
+
+
+def test_subscribe_route_refuses_a_futures_symbol():
+    """CL=F classifies as futures for history, but no feed takes it."""
+    from tests.test_main import make_client
+
+    client = make_client()
+    resp = client.post("/subscribe", json={"symbols": ["CL=F"]})
+    assert resp.status_code == 422
+    assert "CL=F" in resp.json()["detail"]
