@@ -3,6 +3,11 @@
 
 """Figure construction."""
 
+import json
+from datetime import datetime
+
+import pandas as pd
+
 from app.figure import build_figure
 
 BARS = [
@@ -29,3 +34,12 @@ def fig_title(fig):
 def test_empty_bars_still_produce_a_valid_figure():
     fig = build_figure("AAPL", [])
     assert fig["data"][0]["x"] == []
+
+
+def test_tick_built_bars_with_datetimes_serialise():
+    """Live bars from kdb+ carry datetimes; /chart must still return JSON, not a 500."""
+    bars = BARS + [dict(BARS[1], date=pd.Timestamp("2026-10-20")),
+                   dict(BARS[1], date=datetime(2026, 10, 20, 15, 13))]
+    fig = json.loads(json.dumps(build_figure("AAPL", bars)))
+    assert fig["data"][0]["x"] == ["2024-01-02", "2024-01-03",
+                                   "2026-10-20T00:00:00", "2026-10-20T15:13:00"]

@@ -304,6 +304,16 @@ export function upstreamPath(url, config) {
     return url.pathname + "?" + params.toString();
   }
 
+  // The S&P 500 Sector Map (live-grid/app/main.py's /sector_map, published in widgets.json
+  // and on the Ep. 10 example dashboard). It declares no parameters; the only key is the
+  // `theme` dataClient appends to every chart-typed widget. It reaches the vendor (SPY's
+  // weights once a day, REST seeds for its funds) and leases its eleven funds onto the feed.
+  if (url.pathname === "/grid/sector_map") {
+    if (!onlyKeys(params, ["theme"])) return null;
+    if (params.has("theme") && !/^(?:light|dark)$/.test(params.get("theme"))) return null;
+    return url.search ? url.pathname + "?" + params.toString() : url.pathname;
+  }
+
   // The tick chart, this line's own feature: bars with server-computed studies drawn into a
   // Plotly figure, over HTTP here and pushed over /grid/ta_chart_ws below. live-grid serves
   // it (live-grid/app/main.py's @app.get("/ta_chart")) and live-grid/widgets.json PUBLISHES
