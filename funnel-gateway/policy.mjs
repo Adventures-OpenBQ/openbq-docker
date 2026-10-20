@@ -483,11 +483,12 @@ export function refSubscription(data) {
 
 /**
  * The files the web preview may keep per GitHub user (gateway /state, web /state):
- * the app's own JSON stores by their exact names, and one flat dashboards/ level.
+ * the app's own JSON stores by their exact names, and one flat level each of
+ * dashboards/, workspaces/ and layouts/ (BDOBB v5's workspaces and saved layouts).
  * Not files/ (uploads), logs/, skills/, nor the .tmp and .corrupt siblings the
  * app's atomic writer and quarantine leave beside them.
  */
-const STATE_FILE_RE = /^(?:(?:settings|backends|folders|chat|chart-presets)\.json|dashboards\/[A-Za-z0-9_-]{1,80}\.json)$/;
+const STATE_FILE_RE = /^(?:(?:settings|backends|folders|chat|chart-presets)\.json|(?:dashboards|workspaces|layouts)\/[A-Za-z0-9_-]{1,80}\.json)$/;
 export const stateFile = name => typeof name === "string" && STATE_FILE_RE.test(name);
 
 

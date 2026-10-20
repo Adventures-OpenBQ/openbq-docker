@@ -29,9 +29,9 @@ def test_the_tier_starts_only_with_the_live_profile_and_the_default_stack_is_unc
     for word in ('rustfs', 'eod', 'DELTA_', 'lake'):
         assert word not in text, word
     # openbq-api's image is untouched: the lake image is its own Dockerfile.
-    # (v9: the API is the Dockerfile's `api` stage; the v3 image is its `v3` stage.)
-    assert SERVICES['openbq-api']['build'] == {'context': '.', 'target': 'api'}
-    assert SERVICES['openbq-api']['image'] == 'openbq-local:2.0.0-candidate'
+    # The base compose builds the full API image, the Dockerfile's `v3` stage.
+    assert SERVICES['openbq-api']['build'] == {'context': '.', 'target': 'v3'}
+    assert SERVICES['openbq-api']['image'] == 'openbq-local:10.0.0'
 
 
 def test_no_minio_or_mc_image_binary_service_or_volume_is_left():
