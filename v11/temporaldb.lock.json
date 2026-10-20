@@ -2,32 +2,32 @@
   "host_compatibility": 11,
   "client_compatibility": 11,
   "service": "TemporalDB",
-  "version": "0.4.0",
-  "source_commit": "d96c33823addbaa519f95c74ec23ee4700748871",
-  "image_id": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
+  "version": "0.5.0",
+  "source_commit": "eb2c00da1ef2eb8279a3858e8f0828a15499d3e2",
+  "image_id": "sha256:11dfd7a836cf31fc53785ffdfc33d35f7a279188e846a6cc9147dd05da86abda",
   "platform": "linux/arm64",
-  "artifact": "temporaldb-0.4.0-linux-arm64.docker.tar",
-  "artifact_sha256": "ae622de144e527a89b93c5c27d572c981adce228acc148915ead027deccc6039",
+  "artifact": "temporaldb-0.5.0-linux-arm64.docker.tar",
+  "artifact_sha256": "a007be571da1dd0503d6845484b98d311bec6880c842963e1021786c3492be60",
   "distribution": "local-docker-save; unpublished",
   "registry_reference": null,
   "provenance": {
-    "image_id": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
+    "image_id": "sha256:11dfd7a836cf31fc53785ffdfc33d35f7a279188e846a6cc9147dd05da86abda",
     "platform": "linux/arm64",
     "labels": {
-      "org.opencontainers.image.revision": "d96c33823addbaa519f95c74ec23ee4700748871",
+      "org.opencontainers.image.revision": "eb2c00da1ef2eb8279a3858e8f0828a15499d3e2",
       "org.opencontainers.image.source": "https://github.com/Adventures-OpenBQ/temporalDB-docker",
       "org.opencontainers.image.title": "TemporalDB",
-      "org.opencontainers.image.version": "0.4.0"
+      "org.opencontainers.image.version": "0.5.0"
     },
-    "version": "0.4.0",
-    "source_commit": "d96c33823addbaa519f95c74ec23ee4700748871",
-    "source_date_epoch": "1792388006",
-    "artifact": "temporaldb-0.4.0-linux-arm64.docker.tar",
-    "artifact_sha256": "ae622de144e527a89b93c5c27d572c981adce228acc148915ead027deccc6039",
+    "version": "0.5.0",
+    "source_commit": "eb2c00da1ef2eb8279a3858e8f0828a15499d3e2",
+    "source_date_epoch": "1792487989",
+    "artifact": "temporaldb-0.5.0-linux-arm64.docker.tar",
+    "artifact_sha256": "a007be571da1dd0503d6845484b98d311bec6880c842963e1021786c3492be60",
     "distribution": "local-docker-save; unpublished",
     "registry_reference": null,
     "build_command": "scripts/build_release.py --platform linux/arm64",
-    "lock_sha256": "5953822d44ed9325027e7ca8460f092c852b05409b88b8f2e8b01dc26689872d",
+    "lock_sha256": "b0a1d48c8df4342988733efea31c576287b4be487b4c2453b8dbc34d4c2ae367",
     "extension_lock_sha256": "17f302af620e7342dc96315d6fbc39f4523e8eb75b509aa660438eb914f69f8f"
   },
   "providers": {
@@ -38,10 +38,10 @@
       "reviewed_commit": "d867c8bb64fda4dc843146a44f46ec7ca17e0ae8"
     }
   },
-  "qualification_report": "temporaldb-v11-requalification.json",
+  "qualification_report": null,
   "candidate_qualification": {
-    "status": "requalified_fixture_and_installed_topology",
-    "reason": "2026-10-19: runtime fixture qualification exit 0 (32 migrations, tick authority PASS/FAIL/PASS, protected original/replay), installed provider host 1 passed, installed gateway/provider/capture topology 2 passed, on these exact images. Provider host rebuilt after the v10.0.0 merge (openbq-eodhd/openbq-yfinance 11.0.0) and both installed tests rerun on it. Live acquisition, NAS and packaged-native gates remain separate."
+    "status": "unqualified",
+    "reason": "2026-10-19: built for the explorer and the v11 TemporalDB example; awaiting the fixture qualification run."
   },
   "provider_host": {
     "version": "11.0.0",
@@ -94,6 +94,12 @@
     "qualification_report": "temporaldb-mcp-previous-qualification.json"
   },
   "previous_runtimes": [
+    {
+      "source_commit": "d96c33823addbaa519f95c74ec23ee4700748871",
+      "image_id": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
+      "artifact_sha256": "ae622de144e527a89b93c5c27d572c981adce228acc148915ead027deccc6039",
+      "qualification_report": "temporaldb-v11-requalification.json"
+    },
     {
       "source_commit": "8d259ddd06995b48febe11c3f9a56f1ab9274f0d",
       "image_id": "sha256:36d2c63cb95dbdcb154031312920864ea1ccfe73cd76633577fdbe01f27328b3",

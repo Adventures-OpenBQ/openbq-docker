@@ -127,16 +127,32 @@ schema migrations, a deletion of new captures or an automatic Docker traffic
 rollback. Keep this rehearsal distinct from Task 14's final live cutover gates
 listed in [MIGRATION.md](MIGRATION.md).
 
-## Standalone TemporalDB 0.3.1 integration
+## Standalone TemporalDB 0.5.0 integration
 
 The current runtime pin is [temporaldb.lock.json](temporaldb.lock.json). It binds
 standalone source, version, Linux arm64 image configuration ID, exported Docker
 artifact SHA256 and reviewed provider heads. This is a **local loadable artifact**;
 no registry digest has been published or made pullable. Obtain the exact
-`temporaldb-0.3.1-linux-arm64.docker.tar` and its provenance from the standalone P
+`temporaldb-0.5.0-linux-arm64.docker.tar` and its provenance from the standalone P
 build output, verify the SHA256 in the lock, `docker load -i ARTIFACT`, then check
 `docker image inspect IMAGE_ID`. `pull_policy: never` deliberately fails when the
 verified local image has not been loaded. amd64 requires its own qualified build.
+
+To rebuild the pinned image instead, check out the lock's `source_commit` in the
+temporalDB-docker repository and run its release build. It builds, saves and verifies
+the image locally; nothing is pushed, and GHCR images stay private:
+
+```sh
+git -C "$TEMPORALDB_SRC" switch --detach "$(python3 -c "import json;print(json.load(open('v11/temporaldb.lock.json'))['source_commit'])")"
+(cd "$TEMPORALDB_SRC" && python3 scripts/build_release.py --output /tmp/temporaldb-build --platform linux/arm64)
+docker image inspect IMAGE_ID --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'   # must equal source_commit
+```
+
+The build writes `provenance.json` beside the artifact; its `image_id`, `artifact_sha256`
+and labels are what the lock records. A rebuild is not guaranteed to reproduce the same
+image ID; when it differs, re-pin the lock and both compose files from the new provenance.
+TemporalDB 0.5.0 adds the `temporaldb_explorer` widget and seeds the v11 example
+dashboard's two queries into a workspace when that workspace first asks for `/apps.json`.
 
 Use [compose.temporaldb.yaml](compose.temporaldb.yaml) as an explicit additive v11
 profile; the existing v10 stack and gateway policy are unchanged. P owns all
