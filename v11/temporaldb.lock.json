@@ -41,11 +41,11 @@
   "qualification_report": "temporaldb-v11-requalification.json",
   "candidate_qualification": {
     "status": "requalified_fixture_and_installed_topology",
-    "reason": "2026-10-19: runtime fixture qualification exit 0 (32 migrations, tick authority PASS/FAIL/PASS, protected original/replay), installed provider host 1 passed, installed gateway/provider/capture topology 2 passed, on these exact images. Provider host rebuilt for openbq-eodhd/openbq-yfinance 11.0.0 and both installed tests rerun on it. Live acquisition, NAS and packaged-native gates remain separate."
+    "reason": "2026-10-19: runtime fixture qualification exit 0 (32 migrations, tick authority PASS/FAIL/PASS, protected original/replay), installed provider host 1 passed, installed gateway/provider/capture topology 2 passed, on these exact images. Provider host rebuilt after the v10.0.0 merge (openbq-eodhd/openbq-yfinance 11.0.0) and both installed tests rerun on it. Live acquisition, NAS and packaged-native gates remain separate."
   },
   "provider_host": {
     "version": "11.0.0",
-    "image_id": "sha256:fe879c4b7da3a12ebbf63405481cb1d7193456d573aef0d1015d11d8805a9434",
+    "image_id": "sha256:ad23875af24d2cf005cf6c77d65d3f99c9f5a42a49231e7da2deacdc0a7e6ba3",
     "platform": "linux/arm64",
     "distribution": "local build; unpublished",
     "registry_reference": null,
