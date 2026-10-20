@@ -40,8 +40,8 @@
   },
   "qualification_report": null,
   "candidate_qualification": {
-    "status": "unqualified",
-    "reason": "2026-10-19: built for the explorer and the v11 TemporalDB example; awaiting the fixture qualification run."
+    "status": "requalified_fixture",
+    "reason": "2026-10-20: runtime fixture qualification exit 0 on this exact image (explorer widget and seeded v11 example asserted). Live acquisition, NAS and packaged-native gates remain separate."
   },
   "provider_host": {
     "version": "11.0.0",
