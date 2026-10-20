@@ -70,6 +70,17 @@ def test_the_eodhd_namespace_routes_every_asset_class_and_pins_its_provider(monk
     assert openbb_client.history_route(symbol, "eodhd") == (route, "eodhd")
 
 
+@pytest.mark.parametrize("namespace", [None, "eodhd"])
+def test_futures_history_goes_to_yfinance_whatever_the_namespace(monkeypatch, namespace):
+    if namespace:
+        monkeypatch.setenv("OPENBB_HISTORY_NAMESPACE", namespace)
+    else:
+        monkeypatch.delenv("OPENBB_HISTORY_NAMESPACE", raising=False)
+    for provider in ("kdb", "eodhd"):
+        assert openbb_client.history_route("CL=F", provider) == (
+            "yfinance/futures/historical", "yfinance")
+
+
 async def test_fetch_series_calls_the_namespace_with_the_pair(monkeypatch, api):
     monkeypatch.setenv("OPENBB_HISTORY_NAMESPACE", "/eodhd/")
     monkeypatch.setattr(openbb_client, "OPENBB_URL", "http://openbq-api:6900")

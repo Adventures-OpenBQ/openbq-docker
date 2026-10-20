@@ -18,8 +18,14 @@ _SNAPSHOT_SUFFIX = {"us": ".US", "crypto": ".CC", "forex": ".FOREX"}
 
 
 def classify(symbol: str) -> str:
-    """Feed for a bare watchlist symbol: 'crypto' | 'forex' | 'us'."""
+    """Asset class of a bare symbol: 'crypto' | 'forex' | 'us', or 'futures' (CL=F).
+
+    'futures' is history only (openbb_client.history_route): it is not in FEEDS, and
+    normalize() refuses the '=' so no futures symbol is ever subscribed.
+    """
     s = symbol.strip().upper()
+    if s.endswith("=F"):
+        return "futures"
     if "-" in s:
         return "crypto"
     if len(s) == 6 and s[:3] in _CCY and s[3:] in _CCY:
@@ -49,16 +55,26 @@ def normalize(symbol) -> str | None:
 
 
 def split_by_feed(symbols: list[str]) -> dict[str, set[str]]:
-    """Group cleaned (upper-cased, de-duplicated) symbols by feed; all feeds present."""
+    """Group cleaned (upper-cased, de-duplicated) symbols by feed; all feeds present.
+
+    A symbol with no feed (futures) is dropped.
+    """
     out: dict[str, set[str]] = {feed: set() for feed in FEEDS}
     for raw in symbols:
         s = str(raw).strip().upper()
-        if s:
+        if s and classify(s) in out:
             out[classify(s)].add(s)
     return out
 
 
 def snapshot_ticker(symbol: str) -> str:
-    """Exchange-qualified ticker for the REST /real-time snapshot (AAPL -> AAPL.US)."""
+    """Exchange-qualified ticker for the REST /real-time snapshot (AAPL -> AAPL.US).
+
+    ValueError for a symbol EODHD has no snapshot for (futures); both callers degrade
+    to a blank row on it.
+    """
     s = symbol.strip().upper()
-    return s + _SNAPSHOT_SUFFIX[classify(s)]
+    suffix = _SNAPSHOT_SUFFIX.get(classify(s))
+    if suffix is None:
+        raise ValueError(f"no EODHD snapshot for {s}")
+    return s + suffix

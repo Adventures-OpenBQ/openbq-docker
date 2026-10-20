@@ -49,8 +49,17 @@ def history_namespace() -> str:
     return os.getenv("OPENBB_HISTORY_NAMESPACE", "").strip().strip("/")
 
 
+# Futures (CL=F) have no EODHD route; openbq-yfinance serves them on its own namespace,
+# whatever OPENBB_HISTORY_NAMESPACE says.
+_FUTURES_ROUTE = ("yfinance/futures/historical", "yfinance")
+
+
 def history_route(symbol: str, provider: str) -> tuple[str, str]:
     """(route under /api/v1/, provider) for one history fetch."""
+    from app.classify import classify
+
+    if classify(symbol) == "futures":
+        return _FUTURES_ROUTE
     namespace = history_namespace()
     if namespace:
         return f"{namespace}/{history_endpoint(symbol)}", namespace
