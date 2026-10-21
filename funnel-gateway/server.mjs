@@ -577,6 +577,8 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       return doc ? reply(res, 200, doc) : reply(res, 502);
     }
     if (ritaInflight >= RITA_CONCURRENT || ritaBusy.has(principal)) return reply(res, 429);
+    // Only a token holder can name a principal, but it can name many: past 1000, sweep the hour.
+    if (ritaUse.size > 1000) for (const [who, times] of ritaUse) if (!times.some(at => now() - at < RITA_HOUR_MS)) ritaUse.delete(who);
     const recent = (ritaUse.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
     if (recent.length) ritaUse.set(principal, recent); else ritaUse.delete(principal);
     if (recent.length >= config.ritaPerHour) return reply(res, 429);
@@ -597,15 +599,16 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         upstream.destroy(); return reply(res, 502);
       }
       res.writeHead(200, { ...COMMON, "Content-Type": "text/event-stream; charset=utf-8", "X-Accel-Buffering": "no" });
+      // One abort listener for the whole turn, not one per drain wait.
+      const aborted = once(controller.signal, "abort").catch(() => {});
       let size = 0;
       for await (const chunk of upstream) {
-        size += chunk.length; if (size > RITA_STREAM_MAX) break;
+        // Past the cap the stream is CUT, so the client cannot read a truncated turn as a whole one.
+        size += chunk.length; if (size > RITA_STREAM_MAX) return res.destroy();
         // A slow client must not let her chunks pile up in this process: wait for the drain,
         // or for the abort (disconnect or the five-minute cap), whichever comes first.
-        if (!res.write(chunk) && !controller.signal.aborted) {
-          await Promise.race([once(res, "drain"), once(controller.signal, "abort")]);
-        }
-        if (controller.signal.aborted) break;
+        if (!res.write(chunk) && !controller.signal.aborted) await Promise.race([once(res, "drain"), aborted]);
+        if (controller.signal.aborted) return res.destroy();
       }
       res.end();
     } finally {

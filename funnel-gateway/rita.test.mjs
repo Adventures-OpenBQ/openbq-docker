@@ -235,3 +235,44 @@ test("the upstream check refuses a door Rita that offers a paid model", async t 
   options = [{ value: "openrouter:x" }, { value: 7 }];
   await assert.rejects(checkRita(config), /paid models/);
 });
+
+test("a client that leaves mid-stream, or a stream that fails, frees its slots", async t => {
+  let mode = "hang";
+  const rita = await fakeRita(t, (_, res) => {
+    res.writeHead(200, { "Content-Type": "text/event-stream" });
+    res.write('data: {"type":"first"}\n\n');
+    if (mode === "fail") res.destroy();
+    else if (mode === "done") res.end();
+  });
+  const port = await door(t, rita, { ritaPerHour: 10 });
+  const leave = () => new Promise((resolve, reject) => {
+    const req = request({ host: "127.0.0.1", port, path: "/ai/v1/query", method: "POST",
+      headers: { ...HEADERS, "X-Rita-Principal": USER, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(QUERY) } },
+      res => res.once("data", () => { req.destroy(); resolve(); }));
+    req.on("error", () => {}); req.end(QUERY);
+  });
+  await leave(); await leave();
+  mode = "fail";
+  await ask(port).catch(() => {});
+  mode = "done";
+  await new Promise(r => setTimeout(r, 50));
+  // Every slot is free again: this user, and both global turns.
+  assert.deepEqual(await Promise.all([ask(port), ask(port, { "X-Rita-Principal": "github:9" })]).then(r => r.map(x => x.status)), [200, 200]);
+});
+
+test("a stream past 16 MiB is cut, not ended as if complete", async t => {
+  const rita = await fakeRita(t, async (_, res) => {
+    res.writeHead(200, { "Content-Type": "text/event-stream" });
+    const chunk = Buffer.alloc(1024 * 1024, "a");
+    for (let i = 0; i < 18 && !res.destroyed; i++) if (!res.write(chunk)) await once(res, "drain");
+    res.end();
+  });
+  const port = await door(t, rita);
+  const outcome = await new Promise(resolve => {
+    const req = request({ host: "127.0.0.1", port, path: "/ai/v1/query", method: "POST",
+      headers: { ...HEADERS, "X-Rita-Principal": USER, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(QUERY) } },
+      res => { res.on("data", () => {}); res.on("end", () => resolve("ended")); res.on("aborted", () => resolve("cut")); res.on("error", () => resolve("cut")); });
+    req.on("error", () => resolve("cut")); req.end(QUERY);
+  });
+  assert.equal(outcome, "cut");
+});

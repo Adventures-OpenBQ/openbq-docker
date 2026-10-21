@@ -60,6 +60,21 @@ test("urls and documents are dropped, and every nested url string is blanked", (
   assert.ok(!JSON.stringify(out).includes("http://"));
 });
 
+test("a fetchable URL as an item's content is blanked; data, base64 and text are not", () => {
+  // agent-rita hands an image or pdf item's string content to the AI SDK as the media itself,
+  // and the SDK (or the model server) fetches a content string that parses as a URL.
+  const items = [
+    { content: `http://${LAN}/x.png`, data_format: { data_type: "png" } },
+    { content: " HTTPS://example.com/a.pdf", data_format: { data_type: "pdf" } },
+    { content: "file:///etc/passwd" }, { content: `ws://${CGNAT}/` }, { content: "ftp://x/y" },
+    { content: "data:image/png;base64,iVBORw0KGgo=" }, { content: "iVBORw0KGgoAAAANSUhEUg==" },
+    { content: "Revenue: 100" }, { content: "see https://example.com for more" }, { content: 7 },
+  ];
+  const out = query({ messages: [{ role: "tool", data: [{ items }] }] }).messages[0].data[0].items.map(i => i.content);
+  assert.deepEqual(out, ["", "", "", "", "",
+    "data:image/png;base64,iVBORw0KGgo=", "iVBORw0KGgoAAAANSUhEUg==", "Revenue: 100", "see https://example.com for more", 7]);
+});
+
 test("a url key that is not a string is removed, not passed through", () => {
   const out = query({ messages: [{ url: { href: `http://${LAN}/` } }, { url: ["http://x/"] }] });
   assert.equal(out.messages[0].url, "");

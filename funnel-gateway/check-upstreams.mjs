@@ -33,6 +33,9 @@ export const QUOTE_PROBES = ["/api/v1/eodhd/equity/price/quote", "/api/v1/equity
  * (openai:) or Ollama's (local, always registered by agent-rita): she lists a provider's models
  * only when its key is set, so an anthropic:, openrouter: or groq: option means a paid key
  * reached openbq-rita-door -- the second layer behind the door's forced model is gone.
+ * It cannot see WHERE openai: points (agent-rita lists the same openai: models either way);
+ * that is openbq-rita-door's own start check (docker-compose.v6.yml), which refuses an unset
+ * or api.openai.com OPENAI_BASE_URL.
  */
 export async function checkRita(config) {
   const doc = await getRitaAgents(config, AbortSignal.timeout(10000));

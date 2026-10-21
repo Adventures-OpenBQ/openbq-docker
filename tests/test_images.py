@@ -121,6 +121,9 @@ class ApiImages(unittest.TestCase):
         for key in ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "OPENROUTER_API_KEY", "GROQ_API_KEY", "OLLAMA_BASE_URL"):
             self.assertIn(f'{key}: ""', door, key)
         self.assertIn("aliases: [openbq-rita-door]", overlay)
+        # It refuses to start without the Spark's endpoint: unset, "openai:" is OpenAI itself.
+        self.assertIn('"" | *api.openai.com*) echo', door)
+        self.assertIn("exec bun src/server.ts", door)
         example = dockerfile("rita-door.env.example")
         self.assertNotIn("ANTHROPIC", example.replace("# ", ""))
 

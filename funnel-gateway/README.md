@@ -18,7 +18,9 @@ v10 adds the `/grid` family (live-grid, the opt-in `live` profile), ported from 
 `rita-policy.mjs`, not `policy.mjs`, so the vendored contract is unchanged: the door forces
 `ritaModel` on every query, drops `urls` and `documents` and blanks every nested `url` (Rita
 fetches those server-side, from inside the stack's network), and forwards to
-`openbq-rita-door` (`docker-compose.v6.yml`), a second Rita that holds no paid provider key.
+`openbq-rita-door` (`docker-compose.v6.yml`), a second Rita that holds no paid provider key and
+will not start unless `OPENAI_BASE_URL` names a non-OpenAI (the Spark's) endpoint. An item's
+`content` that is itself a fetchable URL is blanked too (Rita hands inline media to her AI SDK).
 
 ## Isolation and lock-first
 

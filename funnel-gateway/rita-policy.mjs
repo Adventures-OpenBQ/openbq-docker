@@ -11,8 +11,9 @@
  *   - the model is the pinned one (settings.json "ritaModel"): agent-rita takes
  *     workspace_options.model over its own DEFAULT_MODEL, so a caller could otherwise
  *     name any provider the container holds a key for;
- *   - `urls` and `documents` are dropped, and every `url` anywhere is blanked: Rita
- *     fetches those server-side (url-prefetch, documents, widget and file items), from
+ *   - `urls` and `documents` are dropped, and every `url` anywhere is blanked, as is any
+ *     `content` string that is itself a fetchable URL: Rita fetches those server-side
+ *     (url-prefetch, documents, widget and file items, inline media), from
  *     inside the stack's network and the tailnet, so a caller-named URL is a request
  *     forgery against the NAS. "" keeps her request schema valid and is falsy at every
  *     fetch site.
@@ -29,6 +30,9 @@ export function ritaRoute(url, method) {
   return null;
 }
 
+// A string that parses as a URL Rita, her AI SDK or the model server could fetch.
+const FETCHABLE = new Set(["http:", "https:", "ws:", "wss:", "ftp:", "file:"]);
+const fetchable = value => { try { return FETCHABLE.has(new URL(value).protocol); } catch { return false; } };
 const plain = value => typeof value === "object" && value !== null && !Array.isArray(value);
 // defineProperty: a "__proto__" key stays a plain own key, never a prototype.
 const put = (target, key, value) => Object.defineProperty(target, key, { value, enumerable: true, writable: true, configurable: true });
@@ -45,6 +49,9 @@ function blankUrls(value, depth = 0) {
   const out = {};
   for (const [key, item] of Object.entries(value)) {
     if (key === "url") { out.url = ""; continue; }
+    // An image or pdf item's string content is handed to the AI SDK as the media itself, and
+    // a URL-shaped one is fetched (agent-rita widgets/parse.ts): blanked like a url.
+    if (key === "content" && typeof item === "string" && fetchable(item)) { out.content = ""; continue; }
     const next = blankUrls(item, depth + 1);
     if (next === undefined) return undefined;
     put(out, key, next);

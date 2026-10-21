@@ -50,6 +50,10 @@ services:
       GROQ_API_KEY: ""
       OLLAMA_BASE_URL: ""
       COMPANION_TOOLS_ENABLED: "false"
+    # Unset, "openai:" is OpenAI itself -- a paid model -- and so is agent-rita's own
+    # hard-coded openai:gpt-4o-mini (its enhance_prompt/create_table_from_text helper), which
+    # the door's forced model does not reach. So it does not start without the Spark's endpoint.
+    command: ["sh", "-c", 'case "$$OPENAI_BASE_URL" in "" | *api.openai.com*) echo "openbq-rita-door: OPENAI_BASE_URL must be the Spark endpoint" >&2; exit 1;; esac; exec bun src/server.ts']
     volumes:
       - ./rita-resolv.conf:/etc/resolv.conf:ro
   openbq-mcp:
