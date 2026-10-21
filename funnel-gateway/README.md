@@ -72,6 +72,7 @@ Caller headers, cookies and credentials are never relayed.
 | `/grid/**` with `liveGrid` off | — | `503` (REST and sockets) after the route rules pass; an unmatched `/grid` path is still `404` |
 | `/ai/agents.json` | GET | with `rita` on: Rita's document, its model choice narrowed to `ritaModel` and `file-upload` off; `502` if malformed |
 | `/ai/v1/query` | POST | with `rita` on: Rita's query (JSON, ≤ 1 MiB) rewritten by `rita-policy.mjs`, her `text/event-stream` relayed as it arrives (5 min, 16 MiB). `X-Rita-Principal: github:<id>` (the web layer's user; absent = the desktop's bucket) gets one turn at a time and `ritaPerHour` queries an hour (120; one per tool round); two turns at a time in all. `429` past a limit, `400` for a malformed body or principal. No caller header reaches her |
+| `/mcp` | POST | with `mcp` on: one JSON-RPC message (≤ 1 MiB) to `openbq-mcp`, filtered by `mcp-policy.mjs` -- the protocol's own methods, the read-only discovery tools and `call_tool`; never `install_skill`, `run_pipeline`, or through `call_tool` those, itself or the TMX file viewers (they fetch any URL). Its JSON or event-stream answer is relayed (8 MiB, 2 min) with `Mcp-Session-Id`, and a session answers only the `X-Preview-Principal` that opened it (else `404`, so the client re-initializes). `mcpPerHour` (600) messages per user an hour; `maxConcurrent` in all |
 | `/ai/**` | — | with `rita` off: 404 (POST 405), as at every earlier tag. With it on, anything but the two routes above (her `/v1/generate/*` included) is 404 |
 | `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, no lifetime (a 30 s ping; a missed pong closes it), 10 s to the first frame |
 | any other WebSocket upgrade | — | 401 without the token, else 403 (foreign Origin) or 404 |
@@ -206,7 +207,7 @@ GitHub session) signs a ticket and the browser opens
   overlay's `openbq-rita-door` and a `rita-door.env` from `rita-door.env.example`), `ritaModel`
   (required with it, an `openai:` model, e.g. `openai:qwen3.6-35b`) and `ritaPerHour`. An unknown
   key, including the old tailnet Rita's `ritaOrigin`, `ritaAddress` and `socksProxy`, is refused
-  at startup, and so is `ritaModel` or `ritaPerHour` without `rita`. `check-upstreams` refuses a
+  at startup, and so is `ritaModel` or `ritaPerHour` without `rita`. `mcp` (`true` to serve `/mcp`; needs the v6 overlay's `openbq-mcp`) and `mcpPerHour`; `check-upstreams` then needs `openbq-mcp` to open a session. `check-upstreams` refuses a
   door Rita that offers any model other than `openai:` or `ollama:` ones.
 - `rss-ticker-config/config.yaml` (from `config.yaml.example`).
 

@@ -18,6 +18,7 @@ import { gzip } from "node:zlib";
 import { once } from "node:events";
 import { WebSocket, WebSocketServer } from "ws";
 import { ritaRoute, ritaQuery, ritaAgents } from "./rita-policy.mjs";
+import { mcpRoute, mcpMessage, MCP_SESSION_RE, MCP_VERSION_RE } from "./mcp-policy.mjs";
 import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -557,6 +558,20 @@ function ritaPrincipal(req) {
   return count === 1 && /^github:[1-9][0-9]{0,19}$/.test(value ?? "") ? value : null;
 }
 
+/**
+ * openbq-mcp (mcp-policy.mjs): one JSON-RPC message in (1 MiB), its JSON or event-stream answer
+ * out (8 MiB, two minutes: call_tool runs an OpenBB endpoint). Only the protocol's own headers
+ * travel, both ways, and a session id only to the principal whose initialize opened it.
+ */
+const MCP_BODY_MAX = 1024 * 1024, MCP_REPLY_MAX = 8 * 1024 * 1024, MCP_MS = 120000, MCP_SESSIONS = 5000;
+/** Who an MCP message is charged to: X-Preview-Principal github:<id> once, or the desktop's bucket. */
+function previewPrincipal(req) {
+  const count = req.rawHeaders.filter((v, i) => i % 2 === 0 && v.toLowerCase() === "x-preview-principal").length;
+  if (count === 0) return "desktop";
+  const value = req.headers["x-preview-principal"];
+  return count === 1 && /^github:[1-9][0-9]{0,19}$/.test(value ?? "") ? value : null;
+}
+
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openNews = connectNews,
   openGrid = connectGrid, openRef = connectRef, sendSubscription = sendGrid, fetchPage = getGridPage,
@@ -564,6 +579,63 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
   let inflight = 0, controlInflight = 0, sockets = 0;
   // Rita's limits: turns open now (all, and whose), and each principal's query times this hour.
   // ponytail: in memory, so a restart forgets the hour; persist it if the cap ever has to survive one.
+  // MCP sessions: id -> the principal whose initialize opened it (oldest dropped past MCP_SESSIONS),
+  // and each principal's message times this hour. ponytail: in memory, like Rita's.
+  const mcpSessions = new Map(), mcpUse = new Map();
+  async function handleMcp(req, res, url) {
+    if (!mcpRoute(url, req.method)) return reply(res, 404);
+    const principal = previewPrincipal(req);
+    if (!principal) return reply(res, 400);
+    const session = req.headers["mcp-session-id"], version = req.headers["mcp-protocol-version"];
+    if ((session !== undefined && !MCP_SESSION_RE.test(session)) || (version !== undefined && !MCP_VERSION_RE.test(version))) return reply(res, 400);
+    // An id this door never saw opened, or one another principal opened: MCP's own answer for a
+    // session the server does not know, so the client re-initializes.
+    if (session !== undefined && mcpSessions.get(session) !== principal) return reply(res, 404);
+    if (inflight >= config.maxConcurrent) return reply(res, 429);
+    if (mcpUse.size > 1000) for (const [who, times] of mcpUse) if (!times.some(at => now() - at < RITA_HOUR_MS)) mcpUse.delete(who);
+    const recent = (mcpUse.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
+    if (recent.length >= config.mcpPerHour) { mcpUse.set(principal, recent); return reply(res, 429); }
+    const raw = await jsonBody(req, MCP_BODY_MAX);
+    if (typeof raw === "number") { if (raw === 413) res.setHeader("Connection", "close"); return reply(res, raw); }
+    const message = mcpMessage(raw);
+    if (message.error) return reply(res, 400);
+    // Reading the body yields; another request may have taken the slot.
+    if (inflight >= config.maxConcurrent) return reply(res, 429);
+    mcpUse.set(principal, [...recent, now()]);
+    inflight++;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), MCP_MS);
+    const disconnect = () => { if (!res.writableEnded) controller.abort(); };
+    res.once("close", disconnect);
+    try {
+      const headers = { "Content-Type": "application/json", Accept: "application/json, text/event-stream",
+        ...(version ? { "MCP-Protocol-Version": version } : {}), ...(session ? { "Mcp-Session-Id": session } : {}) };
+      const response = await fetch(new URL("/mcp", config.mcpUpstream), { method: "POST", headers, body: message.body,
+        redirect: "error", signal: controller.signal });
+      if (response.status === 202) { await response.body?.cancel(); res.writeHead(202, COMMON); return res.end(); }
+      const type = response.headers.get("content-type") ?? "";
+      const stream = /^text\/event-stream(?:\s*;|$)/i.test(type);
+      if (![200, 400, 404].includes(response.status) || !(stream || /^application\/json(?:\s*;|$)/i.test(type))) {
+        await response.body?.cancel(); return reply(res, 502);
+      }
+      const opened = response.headers.get("mcp-session-id");
+      if (message.method === "initialize" && opened && MCP_SESSION_RE.test(opened)) {
+        if (mcpSessions.size >= MCP_SESSIONS) mcpSessions.delete(mcpSessions.keys().next().value);
+        mcpSessions.set(opened, principal);
+      }
+      if (response.status === 404 && session) mcpSessions.delete(session);
+      res.writeHead(response.status, { ...COMMON, "Content-Type": stream ? "text/event-stream; charset=utf-8" : "application/json",
+        ...(opened && MCP_SESSION_RE.test(opened) ? { "Mcp-Session-Id": opened } : {}), ...(stream ? { "X-Accel-Buffering": "no" } : {}) });
+      const aborted = once(controller.signal, "abort").catch(() => {});
+      let size = 0;
+      for await (const chunk of response.body ?? []) {
+        size += chunk.length; if (size > MCP_REPLY_MAX) return res.destroy();
+        if (!res.write(chunk) && !controller.signal.aborted) await Promise.race([once(res, "drain"), aborted]);
+        if (controller.signal.aborted) return res.destroy();
+      }
+      res.end();
+    } finally { clearTimeout(timer); res.off("close", disconnect); controller.abort(); inflight--; }
+  }
   let ritaInflight = 0;
   const ritaBusy = new Set(), ritaUse = new Map();
   async function handleRita(req, res, url) {
@@ -700,6 +772,8 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       }
       // Off ("rita" unset), /ai is what it always was here: unmatched, its POST a 405.
       if (config.ritaUpstream && url.pathname.startsWith("/ai/")) return await handleRita(req, res, url);
+      // Off ("mcp" unset), /mcp is unmatched, its POST a 405, as at every earlier tag.
+      if (config.mcpUpstream && (url.pathname === "/mcp" || url.pathname.startsWith("/mcp/"))) return await handleMcp(req, res, url);
       if (req.method !== "GET" || req.headers["transfer-encoding"] ||
           (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
       if (url.pathname === "/_gateway/health" && !url.search) return reply(res, 200, { ok: true });
