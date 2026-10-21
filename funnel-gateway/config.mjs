@@ -40,7 +40,7 @@ function tailnetAddress(value) {
 // (see the bottom of validateConfig), never a setting. `liveGrid` (openbq-docker v10) is the
 // one switch: live-grid is the opt-in `live` compose profile here, so the door must be told
 // it runs, and /grid answers 503 until it is.
-const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs", "ssrmTimeoutMs", "temporalDB", "apiUpstream", "stateStorage", "rita", "ritaModel", "ritaPerHour"]);
+const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs", "ssrmTimeoutMs", "temporalDB", "apiUpstream", "stateStorage", "rita", "ritaModel", "ritaPerHour", "mcp", "mcpPerHour"]);
 
 // lanes/ssrm_widgets.json as door paths: the image copies it to /lanes beside /app (Dockerfile).
 const DEFAULT_SSRM_ROUTES = JSON.parse(readFileSync(new URL("../lanes/ssrm_widgets.json", import.meta.url), "utf8"))
@@ -137,6 +137,12 @@ export function validateConfig(settings, secrets) {
   if (rita && !RITA_MODEL_RE.test(settings.ritaModel ?? "")) throw new Error("ritaModel must name an openai: model");
   const ritaPerHour = settings.ritaPerHour ?? 120;
   if (!Number.isInteger(ritaPerHour) || ritaPerHour < 1 || ritaPerHour > 10000) throw new Error("Invalid ritaPerHour");
+  // openbq-mcp (mcp-policy.mjs): off unless "mcp" is true. mcpPerHour bounds each user's messages.
+  const mcp = settings.mcp ?? false;
+  if (typeof mcp !== "boolean") throw new Error("mcp must be true or false");
+  if (!mcp && settings.mcpPerHour !== undefined) throw new Error("MCP settings need mcp: true");
+  const mcpPerHour = settings.mcpPerHour ?? 600;
+  if (!Number.isInteger(mcpPerHour) || mcpPerHour < 1 || mcpPerHour > 100000) throw new Error("Invalid mcpPerHour");
   const tableTimeoutMs = settings.tableTimeoutMs ?? 65000;
   if (!Number.isInteger(tableTimeoutMs) || tableTimeoutMs < 1000 || tableTimeoutMs > 65000) throw new Error("Invalid table timeout");
   // An SSRM first page acquires the widget's whole result (od's lane deadline 165 s, its
@@ -182,6 +188,8 @@ export function validateConfig(settings, secrets) {
     // The door's own Rita: a fixed compose service holding no paid provider key. null = off.
     ritaUpstream: rita ? "http://openbq-rita-door:7778" : null,
     ritaModel: rita ? settings.ritaModel : null, ritaPerHour,
+    // The stack's openbq-mcp, on openbq-internal (docker-compose.v6.yml). null = off.
+    mcpUpstream: mcp ? "http://openbq-mcp:6901" : null, mcpPerHour,
   };
 }
 

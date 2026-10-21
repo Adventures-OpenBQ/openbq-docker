@@ -45,6 +45,16 @@ export async function checkRita(config) {
   if (paid.length) throw new Error(`Rita preflight failed: openbq-rita-door offers paid models (${paid.join(", ")})`);
 }
 
+/** openbq-mcp must answer an initialize with a session: the leg /mcp depends on, and nothing more. */
+export async function checkMcp(config) {
+  const response = await fetch(new URL("/mcp", config.mcpUpstream), { method: "POST", signal: AbortSignal.timeout(10000),
+    headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize",
+      params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "check-upstreams", version: "1" } } }) });
+  await response.body?.cancel();
+  if (response.status !== 200 || !response.headers.get("mcp-session-id")) throw new Error(`MCP preflight failed (HTTP ${response.status})`);
+}
+
 export async function checkUpstreams(config) {
   const quote = (path, headers) => new Promise((resolve, reject) => {
     const req = request(new URL(path, config.apiOrigin), {
@@ -81,6 +91,7 @@ export async function checkUpstreams(config) {
     }
   }
   if (config.ritaUpstream) await checkRita(config);
+  if (config.mcpUpstream) await checkMcp(config);
   // The first approved feed stands in for the whole map: what is being proved is that the
   // pinned dial, the certificate and the pool itself work, not that every feed has articles.
   const feed = Object.values(config.feeds)[0];
@@ -99,6 +110,6 @@ export async function checkUpstreams(config) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     await checkUpstreams(readConfig());
-    console.log("PASS: openbq-api authenticates the stack pair and is locked; live-grid answers /health behind that pair and is locked; the door's Rita offers no paid model; the wire's history/socket answer, each if configured. No quote or feed subscription requested.");
+    console.log("PASS: openbq-api authenticates the stack pair and is locked; live-grid answers /health behind that pair and is locked; the door's Rita offers no paid model; openbq-mcp opens a session; the wire's history/socket answer, each if configured. No quote or feed subscription requested.");
   } catch (error) { console.error(`STOP: ${error.message}; no public route should be opened.`); process.exitCode = 1; }
 }
