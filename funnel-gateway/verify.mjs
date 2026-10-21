@@ -109,8 +109,11 @@ export async function verify(config, base = "http://127.0.0.1:8091") {
     // so this probe holds on every deployment); and a limit outside 1-50, refused whether or
     // not feed_id=1 happens to be one of the operator's approved ids.
     "/news/admin", "/news/api/news?feed_id=0&limit=1", "/news/api/news?feed_id=1&limit=51",
-    // openbq-docker serves no /ai (Rita): every path under it is unmatched.
-    "/ai/agents.json", "/ai/v1/query", "/ai/agents.json?x=1", "/ai/other",
+    // /ai (Rita): with "rita" off every path under it is unmatched. With it on, her document
+    // answers (it dials her, never a vendor, so it is not probed); her POST is the only other
+    // route, so its GET, a query, her other routes and anything else under /ai stay refused.
+    ...(config.ritaUpstream ? [] : ["/ai/agents.json"]),
+    "/ai/v1/query", "/ai/agents.json?x=1", "/ai/other", "/ai/v1/generate/code", "/ai/status",
     // The /api side forwards the whole catalogue, so the refusals to prove are
     // the SHAPE rules, not a provider allowlist: openbq-api's own interactive
     // surfaces, an uppercase route segment, and a control character in a value.
