@@ -38,5 +38,6 @@
   "openbb_us_eia/eia_router.py": "5e34022b0085c74fa36c835084857884b69d7132ea4389b53a851f4bb70a8b0e",
   "openbb_government_us/usda/models/weather_bulletin_download.py": "b12ea04f2427a87d8c5cce94edb55882d715ac46a47b260f3de5bf9db0b64045",
   "openbb_federal_reserve/regional/new_york.py": "01bcb593fd90dfd7865b5bb6fcefd265d54a2e64c0eba52928cd1a6e681a3c4d",
-  "openbb_federal_reserve/assets/regional/ny_widgets.json": "f8e776868bc77f99b1cace63263d07979c1df138eeb952e6bafbceea786c9e54"
+  "openbb_federal_reserve/assets/regional/ny_widgets.json": "f8e776868bc77f99b1cace63263d07979c1df138eeb952e6bafbceea786c9e54",
+  "openbb_tmx/utils/documents.py": "8f37dc7f75d29daf602fc4cea65105531574c066a5d3f9b50f2ecd373d9a6fb3"
 }
