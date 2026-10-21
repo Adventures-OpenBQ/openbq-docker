@@ -601,7 +601,10 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     if (message.error) return reply(res, 400);
     // Reading the body yields; another request may have taken the slot.
     if (inflight >= config.maxConcurrent) return reply(res, 429);
-    mcpUse.set(principal, [...recent, now()]);
+    // Re-read the hour: a parallel message from the same user may have been charged while this body was read.
+    const charged = (mcpUse.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
+    if (charged.length >= config.mcpPerHour) { mcpUse.set(principal, charged); return reply(res, 429); }
+    mcpUse.set(principal, [...charged, now()]);
     inflight++;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), MCP_MS);

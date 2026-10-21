@@ -15,6 +15,7 @@
  * many endpoints: past any per-request cap), and through call_tool those two, call_tool itself,
  * and the TMX file viewers, which fetched any URL named to them (verified 2026-10-21 against
  * openbq-mcp:6999 on NAS production; openbq-docker claude/v2.0-tmx-viewer-hosts fixes them).
+ * And any call_tool whose arguments name a fetchable URL off the vetted hosts (URL_HOSTS).
  */
 
 export const MCP_SESSION_RE = /^[A-Za-z0-9._~-]{1,200}$/;
@@ -29,6 +30,28 @@ const CALL_TOOL_REFUSED = new Set(["install_skill", "run_pipeline", "call_tool",
 const TOOL_NAME_RE = /^[a-z0-9_]{1,200}$/;
 
 const plain = value => typeof value === "object" && value !== null && !Array.isArray(value);
+// Hosts whose documents call_tool may name, https only (and their subdomains). Their endpoints
+// check the host themselves -- SEC and USDA by parsed hostname -- but the Congress text fetchers
+// only look for "govinfo.gov"/"congress.gov" anywhere in the string, so the door parses every URL
+// itself. Anything else that parses as a fetchable URL is refused, whatever tool or key names it.
+const URL_HOSTS = ["sec.gov", "congress.gov", "govinfo.gov", "esmis.nal.usda.gov"];
+const FETCHABLE = new Set(["http:", "https:", "ws:", "wss:", "ftp:", "file:"]);
+const MAX_DEPTH = 32;
+function allowedUrl(text) {
+  let url; try { url = new URL(text); } catch { return true; }     // not a URL at all
+  if (!FETCHABLE.has(url.protocol)) return true;
+  const host = url.hostname.toLowerCase();
+  return url.protocol === "https:" && !url.username && !url.password && !url.port &&
+    URL_HOSTS.some(allowed => host === allowed || host.endsWith("." + allowed));
+}
+/** Every string in a call_tool's arguments -- and each comma-separated piece, as OpenBB splits them. */
+function urlsAllowed(value, depth = 0) {
+  if (depth > MAX_DEPTH) return false;
+  if (typeof value === "string") return [value, ...value.split(",")].every(piece => allowedUrl(piece.trim()));
+  if (Array.isArray(value)) return value.every(item => urlsAllowed(item, depth + 1));
+  if (plain(value)) return Object.values(value).every(item => urlsAllowed(item, depth + 1));
+  return true;
+}
 
 export function mcpRoute(url, method) {
   return url.pathname === "/mcp" && !url.search && method === "POST";
@@ -46,7 +69,7 @@ export function mcpMessage(raw) {
     if (params.name === "call_tool") {
       const target = params.arguments;
       if (!plain(target) || typeof target.name !== "string" || !TOOL_NAME_RE.test(target.name) ||
-          CALL_TOOL_REFUSED.has(target.name)) return { error: "tool" };
+          CALL_TOOL_REFUSED.has(target.name) || !urlsAllowed(target.arguments)) return { error: "tool" };
     }
   }
   return { body: Buffer.from(JSON.stringify(message)), method: message.method };

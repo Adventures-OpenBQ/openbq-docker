@@ -161,3 +161,11 @@ test("the upstream check needs openbq-mcp to open a session", async t => {
   const none = await fakeMcp(t, (_, res) => { res.writeHead(200, { "Content-Type": "application/json" }); res.end("{}"); });
   await assert.rejects(checkMcp({ mcpUpstream: none.origin }), /MCP preflight failed/);
 });
+
+test("parallel messages from one user are each charged to the hour", async t => {
+  const mcp = await fakeMcp(t);
+  const port = await door(t, mcp, { mcpPerHour: 3, maxConcurrent: 8 });
+  const statuses = (await Promise.all(Array.from({ length: 6 }, () => post(port, INIT, as("github:42"))))).map(r => r.status);
+  assert.equal(statuses.filter(s => s === 200).length, 3, JSON.stringify(statuses));
+  assert.equal(statuses.filter(s => s === 429).length, 3, JSON.stringify(statuses));
+});

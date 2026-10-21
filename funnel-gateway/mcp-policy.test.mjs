@@ -61,3 +61,30 @@ test("session ids and protocol versions have a narrow shape", () => {
   assert.ok(MCP_VERSION_RE.test("2025-06-18"));
   for (const bad of ["2025-6-18", "latest", "2025-06-18\r\n"]) assert.ok(!MCP_VERSION_RE.test(bad), bad);
 });
+
+test("call_tool arguments may name a URL only on a vetted https host, piece by comma-separated piece", () => {
+  const LAN = [10, 0, 0, 1].join(".");
+  const tool = (name, args) => call("call_tool", { name, arguments: args });
+  // The Congress text fetchers only look for the substring (verified 2026-10-21): the door checks the parsed host.
+  for (const urls of [`http://${LAN}/x?govinfo.gov`, [`http://openbq-api:6900/?congress.gov`], "http://www.govinfo.gov/x",
+    `https://www.govinfo.gov/a,http://${LAN}/b?govinfo.gov`, "file:///etc/passwd", "https://govinfo.gov.evil.example/x",
+    { nested: [`ws://${LAN}/`] }, " HTTPS://EVIL.example/x "]) {
+    assert.ok(tool("uscongress_bill_text", { urls }).error, JSON.stringify(urls));
+  }
+  for (const urls of ["https://www.govinfo.gov/content/pkg/BILLS-118hr1ih/html/BILLS-118hr1ih.htm",
+    "https://www.congress.gov/118/bills/hr1/BILLS-118hr1ih.htm,https://www.govinfo.gov/x"]) {
+    assert.equal(tool("uscongress_bill_text", { urls }).error, undefined, urls);
+  }
+  assert.equal(tool("sec_htm_file", { url: "https://www.sec.gov/Archives/edgar/data/320193/x.htm" }).error, undefined);
+  assert.equal(tool("usda_weather_bulletins_download", { urls: ["https://esmis.nal.usda.gov/x.pdf"] }).error, undefined);
+  // Text that merely mentions a URL, symbols and dates are not URLs.
+  assert.equal(tool("equity_price_quote", { symbol: "AAPL,MSFT", note: "see https://example.com", start: "2026-01-01", ratio: "1:2" }).error, undefined);
+});
+
+test("a refused name stays refused however JSON spells the message", () => {
+  for (const raw of ['{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"call_tool","arguments":{"name":"equity_price_quote","name":"install_skill"}}}',
+    '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_tools","name":"install_skill"}}',
+    '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"__proto__":{"name":"search_tools"},"name":"install_skill"}}']) {
+    assert.ok(mcpMessage(Buffer.from(raw)).error, raw);
+  }
+});
