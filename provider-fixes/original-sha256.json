@@ -36,5 +36,6 @@
   "openbb_tmx/routers/equity.py": "2dc08ad4738b2bdff2d402608e0600a10dd75c7dea9a650411eeb14c248680ff",
   "openbb_core/api/app_loader.py": "ca9b4b2b7ce6ca37f59a18d77eaf62c9014ccaaa951af8b863aacdad04a831a4",
   "openbb_government_us/usda/models/weather_bulletin_download.py": "b12ea04f2427a87d8c5cce94edb55882d715ac46a47b260f3de5bf9db0b64045",
-  "openbb_deribit/assets/apps.json": "539acd98d219315d18cc353af817d013e4af9619e9a9c89d35361a6fb571a2d7"
+  "openbb_deribit/assets/apps.json": "539acd98d219315d18cc353af817d013e4af9619e9a9c89d35361a6fb571a2d7",
+  "openbb_tmx/utils/documents.py": "8f37dc7f75d29daf602fc4cea65105531574c066a5d3f9b50f2ecd373d9a6fb3"
 }
