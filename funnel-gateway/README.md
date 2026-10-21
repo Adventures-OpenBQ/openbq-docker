@@ -14,6 +14,12 @@ v10 adds the `/grid` family (live-grid, the opt-in `live` profile), ported from 
 **v10.1.7** (`d606169`): e8c1239 and 7212a1d (v10.0.3), b9545f5, d32966d, dc61be8, d7ec9d1 and
 995e06a (v10.1.4). See [docs/v10/live-grid-kdb-port.md](../docs/v10/live-grid-kdb-port.md).
 
+`/ai` (Rita) is back, off by default and Qwen-only (user ruling 2026-10-20). Its rules live in
+`rita-policy.mjs`, not `policy.mjs`, so the vendored contract is unchanged: the door forces
+`ritaModel` on every query, drops `urls` and `documents` and blanks every nested `url` (Rita
+fetches those server-side, from inside the stack's network), and forwards to
+`openbq-rita-door` (`docker-compose.v6.yml`), a second Rita that holds no paid provider key.
+
 ## Isolation and lock-first
 
 `funnel-gateway` and `rss-ticker` are compose services under `profiles: [web]`:
@@ -62,7 +68,9 @@ Caller headers, cookies and credentials are never relayed.
 | `/grid/api/subscriptions` | GET, POST | the watchlist behind the lock; POST takes `{"symbol": …}` (JSON, ≤ 1 KiB, one-symbol grammar), the body rebuilt from the validated symbol |
 | `/grid/api/subscriptions/<symbol>` | DELETE | remove one symbol (one-symbol grammar, `^` literal) |
 | `/grid/**` with `liveGrid` off | — | `503` (REST and sockets) after the route rules pass; an unmatched `/grid` path is still `404` |
-| `/ai/**` | — | not served by openbq-docker: 404 (POST 405) |
+| `/ai/agents.json` | GET | with `rita` on: Rita's document, its model choice narrowed to `ritaModel` and `file-upload` off; `502` if malformed |
+| `/ai/v1/query` | POST | with `rita` on: Rita's query (JSON, ≤ 1 MiB) rewritten by `rita-policy.mjs`, her `text/event-stream` relayed as it arrives (5 min, 16 MiB). `X-Rita-Principal: github:<id>` (the web layer's user; absent = the desktop's bucket) gets one turn at a time and `ritaPerHour` queries an hour (120; one per tool round); two turns at a time in all. `429` past a limit, `400` for a malformed body or principal. No caller header reaches her |
+| `/ai/**` | — | with `rita` off: 404 (POST 405), as at every earlier tag. With it on, anything but the two routes above (her `/v1/generate/*` included) is 404 |
 | `/ref/live_grid_ws` | WebSocket | the reference's live grid, keyless: the token plus `Origin` = `origin`, or a single-use 30 s ticket (5 s of signer clock skew tolerated) plus `Origin` = `previewOrigin` (tickets off while unset); no query, no subprotocol; every frame must be `{"params":{"symbol":"A,B"}}` (rebuilt before it is forwarded) or the socket closes; `maxSockets`, no lifetime (a 30 s ping; a missed pong closes it), 10 s to the first frame |
 | any other WebSocket upgrade | — | 401 without the token, else 403 (foreign Origin) or 404 |
 | everything else | — | 404 |
@@ -192,8 +200,12 @@ GitHub session) signs a ticket and the browser opens
   (`/var/lib/bdobb/state` to turn `/state` on), the caps (`maxConcurrent`, `maxSockets`), `rssOrigin`/`rssAddress`/`feeds`
   (both-or-neither; feeds need them), the table keys (`tableService`, `tableDesktopPrincipal`,
   `ssrmRoutes`, `tableTimeoutMs`, `ssrmTimeoutMs`; see [managed tables](../table-service/README.md)) and `liveGrid`
-  (`true` when the `live` profile runs). An unknown key, including Rita's `ritaOrigin`,
-  `ritaAddress` and `socksProxy`, is refused at startup.
+  (`true` when the `live` profile runs), and Rita's `rita` (`true` to serve `/ai`; needs the v6
+  overlay's `openbq-rita-door` and a `rita-door.env` from `rita-door.env.example`), `ritaModel`
+  (required with it, an `openai:` model, e.g. `openai:qwen3.6-35b`) and `ritaPerHour`. An unknown
+  key, including the old tailnet Rita's `ritaOrigin`, `ritaAddress` and `socksProxy`, is refused
+  at startup, and so is `ritaModel` or `ritaPerHour` without `rita`. `check-upstreams` refuses a
+  door Rita that offers any model other than `openai:` or `ollama:` ones.
 - `rss-ticker-config/config.yaml` (from `config.yaml.example`).
 
 ## Ports and serve files

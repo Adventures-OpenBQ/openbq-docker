@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { validSsrmRoutes } from "./policy.mjs";
+import { RITA_MODEL_RE } from "./rita-policy.mjs";
 import { readFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { isAbsolute, normalize } from "node:path";
@@ -33,12 +34,13 @@ function tailnetAddress(value) {
 // Every key a settings file may carry at this tag. A key from a later line (tickUrl...) is
 // refused rather than ignored: a stack at this tag has no such upstream, and a silently
 // ignored setting is how an operator believes a door is configured when it is not.
-// openbq-docker serves no /ai (Rita), so ritaOrigin, ritaAddress and socksProxy are refused too.
+// Rita's old tailnet settings (ritaOrigin, ritaAddress, socksProxy) are refused: since
+// 2026-10-20 the door's Rita is the openbq-rita-door compose service, switched on by "rita".
 // `gridOrigin` is deliberately NOT a key: like apiOrigin it is a fixed compose service name
 // (see the bottom of validateConfig), never a setting. `liveGrid` (openbq-docker v10) is the
 // one switch: live-grid is the opt-in `live` compose profile here, so the door must be told
 // it runs, and /grid answers 503 until it is.
-const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs", "ssrmTimeoutMs"]);
+const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs", "ssrmTimeoutMs", "rita", "ritaModel", "ritaPerHour"]);
 
 // lanes/ssrm_widgets.json as door paths: the image copies it to /lanes beside /app (Dockerfile).
 const DEFAULT_SSRM_ROUTES = JSON.parse(readFileSync(new URL("../lanes/ssrm_widgets.json", import.meta.url), "utf8"))
@@ -115,6 +117,14 @@ export function validateConfig(settings, secrets) {
   // nothing else: its origin is never a setting (gridOrigin below).
   const liveGrid = settings.liveGrid === undefined ? false : settings.liveGrid;
   if (typeof liveGrid !== "boolean") throw new Error("liveGrid must be true or false");
+  // Rita (rita-policy.mjs): off unless "rita" is true, and then only with the model the
+  // door forces on every query. ritaPerHour bounds each user's queries (one per tool round).
+  const rita = settings.rita ?? false;
+  if (typeof rita !== "boolean") throw new Error("rita must be true or false");
+  if (!rita && (settings.ritaModel !== undefined || settings.ritaPerHour !== undefined)) throw new Error("Rita settings need rita: true");
+  if (rita && !RITA_MODEL_RE.test(settings.ritaModel ?? "")) throw new Error("ritaModel must name an openai: model");
+  const ritaPerHour = settings.ritaPerHour ?? 120;
+  if (!Number.isInteger(ritaPerHour) || ritaPerHour < 1 || ritaPerHour > 10000) throw new Error("Invalid ritaPerHour");
   const tableTimeoutMs = settings.tableTimeoutMs ?? 65000;
   if (!Number.isInteger(tableTimeoutMs) || tableTimeoutMs < 1000 || tableTimeoutMs > 65000) throw new Error("Invalid table timeout");
   // An SSRM first page acquires the widget's whole result (od's lane deadline 165 s, its
@@ -155,6 +165,9 @@ export function validateConfig(settings, secrets) {
     // a keyless local fixture on the same bridge, so a fixed service name like apiOrigin,
     // never a setting, and NO credential is presented on the bridge.
     refOrigin: "http://openbq-reference:17783",
+    // The door's own Rita: a fixed compose service holding no paid provider key. null = off.
+    ritaUpstream: rita ? "http://openbq-rita-door:7778" : null,
+    ritaModel: rita ? settings.ritaModel : null, ritaPerHour,
   };
 }
 

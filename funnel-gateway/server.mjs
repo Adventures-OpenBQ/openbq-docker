@@ -15,7 +15,9 @@ import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/p
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { gzip } from "node:zlib";
+import { once } from "node:events";
 import { WebSocket, WebSocketServer } from "ws";
+import { ritaRoute, ritaQuery, ritaAgents } from "./rita-policy.mjs";
 import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
@@ -507,11 +509,110 @@ async function tableExchange(req, res, route, config) {
   } finally {clearTimeout(timer);res.off("close",disconnect);}
 }
 
+/**
+ * Rita (rita-policy.mjs), the door's one streamed route. Her query is JSON in (1 MiB) and her
+ * event stream out and nothing else of hers, five minutes and 16 MiB a turn (the web layer's
+ * Vercel function stops at 300 s too). No header of the caller's goes upstream: she is sent
+ * the rewritten body alone. Ported from bdobb-dev/openbb-docker v8.0.3 (775354f) handleQuery,
+ * now over the bridge to openbq-rita-door rather than the tailnet.
+ */
+const RITA_QUERY_MAX = 1024 * 1024, RITA_STREAM_MAX = 16 * 1024 * 1024, RITA_STREAM_MS = 300000;
+const RITA_AGENTS_MAX = 65536, RITA_HOUR_MS = 3600000;
+// The Spark's vLLM runs four sequences at most; two turns leave room for the desktop's own Rita.
+const RITA_CONCURRENT = 2;
+export function getRitaAgents(config, signal) {
+  return new Promise((resolve, rejectPromise) => {
+    const request = httpRequest(new URL("/agents.json", config.ritaUpstream), { method: "GET", signal,
+      headers: { Accept: "application/json" } }, response => {
+      if (response.statusCode !== 200 || !/^application\/json(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
+        response.destroy(); return rejectPromise(new Error("Rita refused"));
+      }
+      const parts = []; let size = 0;
+      response.on("data", chunk => { size += chunk.length; if (size > RITA_AGENTS_MAX) response.destroy(new Error("Body limit")); else parts.push(chunk); });
+      response.on("error", rejectPromise);
+      response.on("end", () => { try { resolve(JSON.parse(Buffer.concat(parts).toString("utf8"))); } catch (e) { rejectPromise(e); } });
+    });
+    request.once("error", rejectPromise);
+    request.end();
+  });
+}
+/** Rita's one POST. The caller checks the status and the content type, and owns the stream. */
+export function postRita(body, config, signal) {
+  return new Promise((resolve, rejectPromise) => {
+    const request = httpRequest(new URL("/v1/query", config.ritaUpstream), { method: "POST", signal,
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream", "Content-Length": body.length } }, resolve);
+    request.once("error", rejectPromise);
+    request.end(body);
+  });
+}
+/**
+ * Who a query is charged to: the web layer's verified GitHub id, sent once as X-Rita-Principal
+ * (github:<id>), or the desktop's one shared bucket when absent. Behind the Bearer lock, so only
+ * a token holder can name one -- enough for a rate limit, which is all it decides here.
+ */
+function ritaPrincipal(req) {
+  const count = req.rawHeaders.filter((v, i) => i % 2 === 0 && v.toLowerCase() === "x-rita-principal").length;
+  if (count === 0) return "desktop";
+  const value = req.headers["x-rita-principal"];
+  return count === 1 && /^github:[1-9][0-9]{0,19}$/.test(value ?? "") ? value : null;
+}
+
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openNews = connectNews,
   openGrid = connectGrid, openRef = connectRef, sendSubscription = sendGrid, fetchPage = getGridPage,
-  now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
+  postQuery = postRita, now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
   let inflight = 0, controlInflight = 0, sockets = 0;
+  // Rita's limits: turns open now (all, and whose), and each principal's query times this hour.
+  // ponytail: in memory, so a restart forgets the hour; persist it if the cap ever has to survive one.
+  let ritaInflight = 0;
+  const ritaBusy = new Set(), ritaUse = new Map();
+  async function handleRita(req, res, url) {
+    const route = ritaRoute(url, req.method);
+    if (!route) return reply(res, 404);
+    const principal = ritaPrincipal(req);
+    if (!principal) return reply(res, 400);
+    if (route === "agents") {
+      if (req.headers["transfer-encoding"] || (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
+      const doc = ritaAgents(await getRitaAgents(config, AbortSignal.timeout(requestMs)), config.ritaModel);
+      return doc ? reply(res, 200, doc) : reply(res, 502);
+    }
+    if (ritaInflight >= RITA_CONCURRENT || ritaBusy.has(principal)) return reply(res, 429);
+    const recent = (ritaUse.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
+    if (recent.length) ritaUse.set(principal, recent); else ritaUse.delete(principal);
+    if (recent.length >= config.ritaPerHour) return reply(res, 429);
+    ritaInflight++; ritaBusy.add(principal);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), RITA_STREAM_MS);
+    const disconnect = () => controller.abort();
+    res.once("close", disconnect);
+    try {
+      const raw = await jsonBody(req, RITA_QUERY_MAX);
+      if (typeof raw === "number") { if (raw === 413) res.setHeader("Connection", "close"); return reply(res, raw); }
+      const body = ritaQuery(raw, config.ritaModel);
+      if (!body) return reply(res, 400);
+      // Charged once the body is one she could be sent: a refused body costs nothing.
+      ritaUse.set(principal, [...recent, now()]);
+      const upstream = await postQuery(Buffer.from(JSON.stringify(body)), config, controller.signal);
+      if (upstream.statusCode !== 200 || !/^text\/event-stream(?:\s*;|$)/i.test(upstream.headers["content-type"] ?? "")) {
+        upstream.destroy(); return reply(res, 502);
+      }
+      res.writeHead(200, { ...COMMON, "Content-Type": "text/event-stream; charset=utf-8", "X-Accel-Buffering": "no" });
+      let size = 0;
+      for await (const chunk of upstream) {
+        size += chunk.length; if (size > RITA_STREAM_MAX) break;
+        // A slow client must not let her chunks pile up in this process: wait for the drain,
+        // or for the abort (disconnect or the five-minute cap), whichever comes first.
+        if (!res.write(chunk) && !controller.signal.aborted) {
+          await Promise.race([once(res, "drain"), once(controller.signal, "abort")]);
+        }
+        if (controller.signal.aborted) break;
+      }
+      res.end();
+    } finally {
+      clearTimeout(timer); res.off("close", disconnect); controller.abort();
+      ritaInflight--; ritaBusy.delete(principal);
+    }
+  }
   const approvedIds = new Set(Object.values(config.feeds));
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
   const admitted = new Map();
@@ -594,6 +695,8 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         try { return await tableExchange(req,res,table,config); }
         finally { if (control) controlInflight--; else inflight--; }
       }
+      // Off ("rita" unset), /ai is what it always was here: unmatched, its POST a 405.
+      if (config.ritaUpstream && url.pathname.startsWith("/ai/")) return await handleRita(req, res, url);
       if (req.method !== "GET" || req.headers["transfer-encoding"] ||
           (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
       if (url.pathname === "/_gateway/health" && !url.search) return reply(res, 200, { ok: true });

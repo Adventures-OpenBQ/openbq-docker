@@ -4,7 +4,7 @@
 import { request } from "node:http";
 import { pathToFileURL } from "node:url";
 import { readConfig } from "./config.mjs";
-import { getJson, connectNews } from "./server.mjs";
+import { getJson, connectNews, getRitaAgents } from "./server.mjs";
 
 /**
  * The preflight before the door opens: openbq-api, reached on the bridge with the stack's
@@ -17,7 +17,8 @@ import { getJson, connectNews } from "./server.mjs";
  * same pair, and 401 without it (its lock, like the API's): it appends BasicAuthMiddleware to its whole app (live-grid/app/auth.py, reading
  * the credentials.env compose loads into it), so /health is behind auth like every other path
  * of its. /health stays authenticated deliberately: it reports feed status and tick-store
- * stats. openbq-docker serves no /ai, so there is no Rita leg. When the wire is
+ * stats. When Rita is on ("rita": true), openbq-rita-door must answer agents.json offering no
+ * paid model (checkRita below). When the wire is
  * configured, rss-ticker must answer both of the shapes the /news family relays: one page of
  * history for an APPROVED feed, and a socket handshake. The handshake is a handshake only --
  * no subscription frame is ever sent, so no feed is polled and no article body is fetched.
@@ -26,6 +27,20 @@ import { getJson, connectNews } from "./server.mjs";
 // /api/v1/eodhd/, and has no standard /equity router; a stack that does carry the standard
 // route still answers on it. The first path that is not a 404 is the one probed.
 export const QUOTE_PROBES = ["/api/v1/eodhd/equity/price/quote", "/api/v1/equity/price/quote"];
+
+/**
+ * The door's Rita must answer her document, and every model it offers must be the Spark's
+ * (openai:) or Ollama's (local, always registered by agent-rita): she lists a provider's models
+ * only when its key is set, so an anthropic:, openrouter: or groq: option means a paid key
+ * reached openbq-rita-door -- the second layer behind the door's forced model is gone.
+ */
+export async function checkRita(config) {
+  const doc = await getRitaAgents(config, AbortSignal.timeout(10000));
+  if (typeof doc !== "object" || doc === null || !Object.keys(doc).length) throw new Error("Rita preflight failed: no agents");
+  const paid = Object.values(doc).flatMap(agent => agent?.features?.model?.options ?? [])
+    .map(option => option?.value).filter(value => typeof value !== "string" || !/^(openai|ollama):/.test(value));
+  if (paid.length) throw new Error(`Rita preflight failed: openbq-rita-door offers paid models (${paid.join(", ")})`);
+}
 
 export async function checkUpstreams(config) {
   const quote = (path, headers) => new Promise((resolve, reject) => {
@@ -62,6 +77,7 @@ export async function checkUpstreams(config) {
       throw new Error(`live-grid lock preflight failed: no credential answered HTTP ${gridOpen}, wanted 401`);
     }
   }
+  if (config.ritaUpstream) await checkRita(config);
   // The first approved feed stands in for the whole map: what is being proved is that the
   // pinned dial, the certificate and the pool itself work, not that every feed has articles.
   const feed = Object.values(config.feeds)[0];
@@ -80,6 +96,6 @@ export async function checkUpstreams(config) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     await checkUpstreams(readConfig());
-    console.log("PASS: openbq-api authenticates the stack pair and is locked; live-grid answers /health behind that pair and is locked; the wire's history/socket answer, each if configured. No quote or feed subscription requested.");
+    console.log("PASS: openbq-api authenticates the stack pair and is locked; live-grid answers /health behind that pair and is locked; the door's Rita offers no paid model; the wire's history/socket answer, each if configured. No quote or feed subscription requested.");
   } catch (error) { console.error(`STOP: ${error.message}; no public route should be opened.`); process.exitCode = 1; }
 }
