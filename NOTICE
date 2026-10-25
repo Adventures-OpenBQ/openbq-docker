@@ -1,6 +1,6 @@
 Copyright 2026 SecretoftheUniverse.com LLC.
 
-Original repository-authored code, documentation, configurations and assets are licensed under Apache-2.0 (see LICENSE). Third-party components retain their original copyrights and licenses; dependency licenses are not replaced.
+Original repository-authored code, documentation, configurations and assets are licensed under Apache-2.0 (see LICENSE), except key-maint/ and rss-ticker/ where present: those first-party components are AGPL-3.0-only under their component LICENSE and LICENSING.md. Earlier grants remain in force. Third-party components retain their original copyrights and licenses; dependency licenses are not replaced.
 
 Third-party code in this repository
 -----------------------------------
@@ -26,8 +26,10 @@ The files below (provider-fixes/openbb_*) are modified copies of OpenBB Platform
   provider-fixes/openbb_deribit/assets/apps.json
   provider-fixes/openbb_famafrench/utils/constants.py
   provider-fixes/openbb_federal_reserve/assets/ffiec/widgets.json
+  provider-fixes/openbb_federal_reserve/assets/regional/ny_widgets.json
   provider-fixes/openbb_federal_reserve/federal_reserve_router.py
   provider-fixes/openbb_federal_reserve/ffiec.py
+  provider-fixes/openbb_federal_reserve/regional/new_york.py
   provider-fixes/openbb_federal_reserve/models/institution_structure.py
   provider-fixes/openbb_federal_reserve/models/list_of_banks_peer_group.py
   provider-fixes/openbb_federal_reserve/models/regional/dallas_bcs.py
@@ -74,4 +76,4 @@ Third-party components used at build or run time (not included in this repositor
 - The reference backend image's Python dependencies are pinned in examples/episode3/requirements.lock and keep their own licenses.
 - MCP image build (mcp/): openbb-mcp-server 2.0.1 from PyPI (Apache-2.0, OpenBB Inc.; provenance openbq-org/OpenBB develop ae0268771f761b036996d81bd21522ce79d95415, openbb_platform/extensions/mcp_server), installed on this repository's API image. Its dependencies are pinned in requirements.lock and keep their own licenses.
 - Rita image (docker-compose.v6.yml): built by Adventures-OpenBQ/agent-rita-bdobb from openbq-org/agent-rita (MIT) plus that recipe's patches; not included in this repository.
-- rss-ticker image build (rss-ticker/): rss-feedhandler v8.3.1 (7e3014a9216a254557ef5df9e464435f41eb3f30), Copyright (c) 2026 Art Cashin, MIT License (rss-ticker/LICENSE), vendored with local changes (subscribed-only delivery, idle feeds kept by the sweep, a 16 KiB favicon cap) and one test value changed; its own dependencies are pinned in rss-ticker/uv.lock and listed in rss-ticker/THIRD_PARTY_NOTICES.md.
+- rss-ticker image build (rss-ticker/): rss-feedhandler v8.3.1 (7e3014a9216a254557ef5df9e464435f41eb3f30), Copyright (c) 2026 Art Cashin, earlier MIT License preserved in rss-ticker/LICENSE.upstream, distributed here under AGPL-3.0-only (rss-ticker/LICENSE and LICENSING.md), vendored with local changes (subscribed-only delivery, idle feeds kept by the sweep, a 16 KiB favicon cap) and one test value changed; its own dependencies are pinned in rss-ticker/uv.lock and listed in rss-ticker/THIRD_PARTY_NOTICES.md.

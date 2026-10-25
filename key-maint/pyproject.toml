@@ -1,5 +1,5 @@
-# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the GNU Affero General Public License, version 3 only.
+# SPDX-License-Identifier: AGPL-3.0-only
 
 [build-system]
 requires = ["setuptools>=61"]
@@ -10,7 +10,7 @@ name = "key-maint"
 version = "0.1.0"
 description = "Transport-tiered OpenBB widget reporting provider API key state"
 requires-python = ">=3.12"
-license = { text = "Apache-2.0" }
+license = { text = "AGPL-3.0-only" }
 dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.29",
