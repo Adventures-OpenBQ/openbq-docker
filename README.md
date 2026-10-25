@@ -263,3 +263,7 @@ tailnet ACL, as for Rita on 10443, which has no authentication either. Funnel ne
 exposes either port. Rita listens on the namespace's wildcard address, so it also
 answers tailnet devices as plain HTTP on the node's port 7777; a tailnet ACL is what covers it.
 Released in `v6.0.0`, with BDOBB v6.0.0.
+
+### Component licenses
+
+The first-party key-maint component is AGPL-3.0-only. Where included, the first-party rss-ticker component is also AGPL-3.0-only. Each component carries its own LICENSE and LICENSING.md; earlier grants and third-party notices are preserved. Other components retain their stated licenses.

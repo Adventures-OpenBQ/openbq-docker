@@ -1,0 +1,11 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. SPDX-License-Identifier: Apache-2.0
+# Docker Desktop on macOS cannot chmod a Unix socket on a host bind mount.
+# Add this after docker-compose.v3.yml on every Compose command on a Mac.
+# The admin socket remains inside Docker's Linux VM; use docker compose exec
+# for tier 3. The network listener and its tier-2 ceiling are unchanged.
+services:
+  key-maint:
+    volumes:
+      - key-maint-admin:/config/admin
+volumes:
+  key-maint-admin:
