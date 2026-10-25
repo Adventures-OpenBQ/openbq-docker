@@ -1,0 +1,55 @@
+# Optional Episode 6 services: OpenBQ Rita (the agent) and the OpenBB MCP server.
+# Use together with docker-compose.yml and docker-compose.v3.yml. Rita's model
+# endpoint lives in the private rita.env (copy rita.env.example). Rita runs in the
+# tailscale service's network namespace; MCP is on openbq-internal. Neither service
+# publishes a host port; the Tailscale sidecar serves Rita on 10443 and MCP on
+# 11443 (ts-config/serve-v6.json). Both images are built locally and never pulled:
+# Rita by Adventures-OpenBQ/agent-rita-bdobb v6.0.0 (scripts/build.sh), MCP from ./mcp
+# on top of the openbq-api image that docker-compose.yml builds.
+services:
+  tailscale:
+    environment:
+      TS_SERVE_CONFIG: /config/serve-v6.json
+  openbq-rita:
+    # Built beforehand by agent-rita-bdobb's scripts/build.sh; compose never pulls it.
+    image: openbq-rita:6.0.0
+    pull_policy: never
+    restart: unless-stopped
+    # Rita shares the Tailscale sidecar's network namespace (like a Rita on a tailnet
+    # machine's host networking) so it can resolve and reach a tailnet model endpoint through
+    # MagicDNS. Serve reaches it on 127.0.0.1:7777. Recreating tailscale requires
+    # recreating openbq-rita too.
+    network_mode: "service:tailscale"
+    depends_on: [tailscale]
+    env_file: [./rita.env]
+    volumes:
+      - ./rita-resolv.conf:/etc/resolv.conf:ro
+  openbq-mcp:
+    build:
+      context: ./mcp
+      args:
+        BASE: base
+      # Builds openbq-api first and hands its image to mcp/Dockerfile as BASE.
+      additional_contexts:
+        base: service:openbq-api
+    image: openbq-mcp:9.0.0
+    pull_policy: never
+    restart: unless-stopped
+    # Hard cap, as on openbq-api: MCP runs ODP in-process, so if it outgrows it the kernel
+    # kills MCP, not the host's other services.
+    mem_limit: 16g
+    # The API's provider keys: demo first, then yours.
+    env_file:
+      - path: ./credentials.demo.env
+        required: true
+      - path: ./credentials.env
+        required: false
+    environment:
+      OPENBB_MCP_DEFAULT_SKILLS_DIR: ""
+      # In-process ODP calls must not demand the API's Basic auth.
+      OPENBB_API_AUTH: "false"
+    volumes:
+      - openbq-mcp-data:/root/.openbb_platform
+    networks: [openbq-internal]
+volumes:
+  openbq-mcp-data:

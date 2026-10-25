@@ -1,0 +1,19 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openbq-routes"
+version = "4.0.0"
+description = "BDOBB v4 trading-calendar and fiscal-year-end routes for OpenBQ"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = ["openbb-core[pandas]>=2.0.1,<3", "openbq-calendar==0.1.0", "openbq-yfinance>=3"]
+
+[project.entry-points."openbb_core_extension"]
+calendar = "openbq_routes.calendar:router"
+fundamentals = "openbq_routes.fundamentals:router"
+
+[tool.hatch.build.targets.wheel]
+packages = ["openbq_routes"]

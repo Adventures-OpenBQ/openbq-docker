@@ -1,0 +1,41 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+.git
+*.env
+ts-state
+
+.docker
+source.tgz
+build.log
+
+._*
+*.tgz
+*.log
+
+.env*
+*.env.*
+local-rehearsal
+workspace
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.db
+*.sqlite*
+backups
+.superpowers
+.DS_Store
+
+credentials*.json
+user_settings.json
+certs
+secrets
+funnel-gateway/node_modules
+gateway-config
+rss-ticker-config
+
+# Private managed-service state and generated source export.
+table-config
+table-source
+table-build.env

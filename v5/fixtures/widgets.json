@@ -1,0 +1,15 @@
+{
+  "synthetic_cash_flow": {
+    "widgetId": "synthetic_cash_flow",
+    "name": "Synthetic Cash Flow",
+    "description": "Synthetic values for Statement and fiscal-label verification. Not investment data.",
+    "category": "OpenBQ",
+    "subCategory": "Fixtures",
+    "type": "table",
+    "endpoint": "/api/v1/openbq/fixtures/synthetic_cash_flow",
+    "params": [],
+    "gridData": {"w": 40, "h": 22},
+    "source": ["OpenBQ fixture"],
+    "data": {"table": {"showAll": true}}
+  }
+}
