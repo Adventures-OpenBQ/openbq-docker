@@ -15,7 +15,7 @@ from openbb_core.provider.standard_models.economic_indicators import (
     EconomicIndicatorsData,
     EconomicIndicatorsQueryParams,
 )
-from openbb_core.provider.utils.errors import EmptyDataError
+from openbb_core.provider.utils.errors import EmptyDataError, OpenBBError, UnauthorizedError
 from openbb_econdb.utils import helpers
 from openbb_econdb.utils.main_indicators import get_main_indicators
 from pandas import DataFrame, concat
@@ -298,8 +298,14 @@ class EconDbEconomicIndicatorsFetcher(
         async def response_callback(response, session):
             """Response callback."""
             if response.status != 200:
-                warn(f"Error: {response.status} - {response.reason}")
+                error_type = UnauthorizedError if response.status in (401, 403) else OpenBBError
+                raise error_type(
+                    f"EconDB series request failed (HTTP {response.status})."
+                    " Check your EconDB API key and the upstream service."
+                )
             response = await response.json()
+            if not isinstance(response, dict) or not isinstance(response.get("results"), list):
+                raise OpenBBError("The EconDB series response did not contain a results list.")
             if response.get("results"):
                 data.extend(response["results"])
             while response.get("next"):

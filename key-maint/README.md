@@ -1,5 +1,5 @@
-<!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. -->
-<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the GNU Affero General Public License, version 3 only. -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
 
 # key-maint
 
@@ -42,10 +42,11 @@ key-maint is part of the Episode 3 overlay (`docker-compose.v3.yml`).
    loopback-only, so the compose file sets `KEYMAINT_DIRECT_TIER=2`: a direct,
    un-forwarded caller (the host itself) gets live tests. Without it a direct
    caller is tier 1. It cannot be raised to 3.
-   Docker Desktop on macOS cannot chmod a unix socket on a bind-mounted host
-   folder, so key-maint exits at start there. On a Mac, mount a named volume
-   at `/config/admin` instead of `./key-maint-admin`; tier 3 is then reached
-   with `docker exec`, which is the same host-level privilege.
+   Docker Desktop on macOS cannot chmod a Unix socket on a bind-mounted host
+   folder. On a Mac, append `-f docker-compose.macos.yml` after the v3 file on
+   every Compose command. This keeps `/config/admin` on a named Linux volume;
+   tier 3 is reached with `docker compose exec`, using host-level Docker access.
+   The network listener stays on host loopback and never grants tier 3.
 4. Tailnet (optional): create the Tailscale Service `svc:openbq-keys` in your
    tailnet's admin console and approve this node as its host, replace
    `<your-tailnet>` in `ts-config/serve-v3-keys.json`, then point the
@@ -128,3 +129,7 @@ comes from `KEYMAINT_AUTH_FILE` (default `/config/credentials.env`).
     pip install -e . && pytest
 
 The suite mocks all probes; nothing needs a live deployment.
+
+## License
+
+AGPL-3.0-only for this first-party component. See [licensing](LICENSING.md), including preserved earlier grants and third-party notices.

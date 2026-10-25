@@ -13,6 +13,7 @@ from aiohttp_client_cache import SQLiteBackend
 from aiohttp_client_cache.session import CachedSession
 from openbb_core.app.utils import get_user_cache_directory
 from openbb_core.provider.utils.helpers import amake_request, amake_requests
+from openbb_core.provider.utils.errors import OpenBBError, UnauthorizedError
 from pandas import DataFrame, concat, read_csv
 
 COUNTRY_MAP = {
@@ -393,8 +394,14 @@ async def create_token(use_cache: bool = True) -> str:
 
     async def _callback(response, session):  # pylint: disable=W0613
         """Response callback function."""
+        if response.status != 200:
+            error_type = UnauthorizedError if response.status in (401, 403) else OpenBBError
+            raise error_type(
+                f"EconDB temporary-token request failed (HTTP {response.status})."
+                " Try again later or provide your own EconDB API key."
+            )
         try:
-            return await response.json()
+            data = await response.json()
         except Exception as _:
             raise RuntimeError(
                 "The temporary EconDB token could not be retrieved."
@@ -402,6 +409,12 @@ async def create_token(use_cache: bool = True) -> str:
                 + " Sign-up at: https://www.econdb.com/"
                 + " Your IP address may have been flagged by Cloudflare."
             ) from _
+        if not isinstance(data, dict) or not isinstance(data.get("api_key"), str) or not data["api_key"].strip():
+            raise OpenBBError(
+                "The EconDB temporary-token response contained no usable API key."
+                " Try again later or provide your own EconDB API key."
+            )
+        return data
 
     url = "https://www.econdb.com/user/create_token/?reset=0"
     if use_cache is True:

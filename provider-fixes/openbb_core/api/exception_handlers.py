@@ -141,7 +141,7 @@ class ExceptionHandlers:
             for err in errors  # ty: ignore[not-iterable]
             for loc in err.get("loc", ())
         )
-        if "QueryParams" in error.title and all_in_query:
+        if ("QueryParams" in error.title or _is_query_model(error.title)) and all_in_query:
             detail = [
                 {
                     **{k: v for k, v in err.items() if k != "ctx"},
