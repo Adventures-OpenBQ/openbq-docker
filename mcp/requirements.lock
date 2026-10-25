@@ -1,0 +1,6 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+# Delta over this episode's openbq-local image; its own dependencies are pinned there.
+# pip install --no-deps --only-binary=:all: --require-hashes -r requirements.lock, then pip check.
+openbb-mcp-server==2.0.1 \
+    --hash=sha256:35f4816b263e95cfc63fa467543f279c0e1a047b714c434faf2bffaf68d5d989

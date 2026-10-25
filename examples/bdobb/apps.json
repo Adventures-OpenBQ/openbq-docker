@@ -1,0 +1,1268 @@
+[
+  {
+    "name": "Built-in widgets",
+    "description": "Every built-in widget on its own tab, plus a Grouping tab showing two Parameter echo cards sharing a Ticker group. Nothing here needs a backend, a key or a sign-up -- it opens and works the moment you import it.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "note": {
+        "id": "note",
+        "name": "Note",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "text": "This is a Note card. Its text is a hidden parameter, so it does not clutter the header's controls row and it travels with the dashboard on export. Click anywhere in the body to edit; Escape throws a draft away."
+              }
+            }
+          }
+        ]
+      },
+      "markdown": {
+        "id": "markdown",
+        "name": "Markdown",
+        "layout": [
+          {
+            "i": "markdown",
+            "x": 0,
+            "y": 0,
+            "w": 26,
+            "h": 16,
+            "state": {
+              "params": {
+                "text": "# Markdown card\n\nA rich-text note with a formatting toolbar. Edits save on their own about half a second after you stop typing.\n\n## What it can show\n\n- Headings, like the two above\n- A bulleted list, like this one\n- **Bold**, *italic*, and a [link to the Workspace docs](https://docs.openbb.co/workspace)\n\n```\nconst example = \"a fenced code block\";\n```\n"
+              }
+            }
+          }
+        ]
+      },
+      "clock": {
+        "id": "clock",
+        "name": "Clock",
+        "layout": [
+          {
+            "i": "clock",
+            "x": 0,
+            "y": 0,
+            "w": 18,
+            "h": 16,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo",
+                "layout": "vertical",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          },
+          {
+            "i": "clock",
+            "x": 18,
+            "y": 0,
+            "w": 22,
+            "h": 8,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo",
+                "layout": "horizontal",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          }
+        ]
+      },
+      "website": {
+        "id": "website",
+        "name": "Website",
+        "layout": [
+          {
+            "i": "website",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 24,
+            "state": {
+              "params": {
+                "url": "https://docs.openbb.co/workspace"
+              }
+            }
+          }
+        ]
+      },
+      "rss": {
+        "id": "rss",
+        "name": "RSS",
+        "layout": [
+          {
+            "i": "rss",
+            "x": 0,
+            "y": 0,
+            "w": 22,
+            "h": 20,
+            "state": {
+              "params": {
+                "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+                "limit": "20"
+              }
+            }
+          }
+        ]
+      },
+      "grouping": {
+        "id": "grouping",
+        "name": "Grouping",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 8,
+            "state": {
+              "params": {
+                "text": "The two Parameter echo cards below share a Ticker group: the chain-link beside each card's Ticker control opens the Groups menu, the numbered badge shows which group a control is in, and editing either card's Ticker moves both."
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 0,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Ticker"
+            ],
+            "state": {
+              "params": {
+                "date": "$currentDate"
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 14,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Ticker"
+            ],
+            "state": {
+              "params": {
+                "date": "$currentDate"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [
+      {
+        "name": "Ticker",
+        "type": "param",
+        "paramName": "ticker",
+        "defaultValue": "AAPL"
+      }
+    ],
+    "prompts": []
+  },
+  {
+    "name": "Demo providers",
+    "description": "One card per data provider that answers on the openbq-docker v3 stack without a sign-up of your own. BLS, CFTC, EconDB and Nasdaq need no key; EIA and Congress.gov use the providers' public demo keys from credentials.demo.env, and a key of your own in credentials.env takes their place. Demo keys are rate-limited, so answers can vary between runs.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "demo-providers": {
+        "id": "demo-providers",
+        "name": "Demo providers",
+        "layout": [
+          {
+            "i": "eia_short_term_energy_outlook_eia_obb",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "uscongress_bills_congress_gov_obb",
+            "x": 20,
+            "y": 0,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "congress": "119"
+              }
+            }
+          },
+          {
+            "i": "bls_search_bls_obb",
+            "x": 0,
+            "y": 12,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "category": "cpi",
+                "query": "CUUR0000SA0"
+              }
+            }
+          },
+          {
+            "i": "cftc_cot_cftc_obb",
+            "x": 20,
+            "y": 12,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "code": "067651",
+                "start_date": "2025-01-01"
+              }
+            }
+          },
+          {
+            "i": "econdb_economy_indicators_econdb_obb",
+            "x": 0,
+            "y": 24,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "RGDP",
+                "country": "US"
+              }
+            }
+          },
+          {
+            "i": "nasdaq_equity_fundamental_historical_eps_nasdaq_obb",
+            "x": 20,
+            "y": 24,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "IBM"
+              }
+            }
+          },
+          {
+            "i": "videos_video_custom_obb",
+            "x": 0,
+            "y": 36,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "video_name": "OpenBB Workspace Demo"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  },
+  {
+    "name": "OpenBB Workspace - CFTC Commitment of Traders",
+    "description": "OpenBB's CFTC Commitment of Traders dashboard, rebuilt on openbq-docker's widget ids. The search card lists stock-index futures; the report card shows 52 weeks of changes in legacy futures positions. CFTC needs no key.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "tab0": {
+        "id": "tab0",
+        "name": "Main",
+        "layout": [
+          {
+            "i": "cftc_cot_cftc_obb",
+            "x": 0,
+            "y": 15,
+            "w": 40,
+            "h": 22,
+            "state": {
+              "params": {
+                "code": "CFTC_13874+",
+                "report_type": "legacy",
+                "measure": "changes",
+                "futures_only": "true",
+                "limit": "52",
+                "provider": "cftc"
+              }
+            }
+          },
+          {
+            "i": "cftc_cot_search_cftc_obb",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 15,
+            "state": {
+              "params": {
+                "report_type": "legacy",
+                "subcategory": "stock_indices",
+                "provider": "cftc"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  },
+  {
+    "name": "OpenBB Workspace - BLS",
+    "description": "OpenBB's example BLS app, rebuilt on openbq-docker's widget ids: a search over the nonfarm-payrolls survey beside one series (total nonfarm employment) since 2016. BLS needs no key.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "Search": {
+        "id": "Search",
+        "name": "Search",
+        "layout": [
+          {
+            "i": "bls_search_bls_obb",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 8,
+            "state": {
+              "params": {
+                "category": "nfp",
+                "include_extras": true,
+                "provider": "bls"
+              }
+            }
+          },
+          {
+            "i": "bls_series_bls_obb",
+            "x": 0,
+            "y": 8,
+            "w": 40,
+            "h": 10,
+            "state": {
+              "params": {
+                "symbol": "CES0000000001",
+                "start_date": "2016-01-01",
+                "calculations": true,
+                "provider": "bls"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  },
+  {
+    "name": "OpenBB Workspace - IMF Explorer",
+    "description": "OpenBB's IMF Explorer, rebuilt on openbq-docker's widget ids: available indicators and indicator data, direction of trade, and PortWatch chokepoint and port volumes. Its dataflow and presentation-table tabs used OpenBB-hosted widgets that openbq-docker does not serve, so they are left out. IMF needs no key.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "indicators": {
+        "id": "indicators",
+        "name": "indicators",
+        "layout": [
+          {
+            "i": "imf_available_indicators_imf_obb",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 15,
+            "state": {
+              "params": {
+                "dataflows": "CTOT",
+                "symbol": "CTOT::CEPI_CTOTX_GDP",
+                "provider": "imf"
+              }
+            }
+          },
+          {
+            "i": "imf_indicators_imf_obb",
+            "x": 0,
+            "y": 17,
+            "w": 40,
+            "h": 21,
+            "state": {
+              "params": {
+                "symbol": "CTOT::CEPI_CTOTX_GDP",
+                "country": [
+                  "",
+                  "AUS"
+                ],
+                "frequency": "M",
+                "limit": "1",
+                "pivot": "false",
+                "provider": "imf"
+              }
+            }
+          }
+        ]
+      },
+      "direction-of-trade": {
+        "id": "direction-of-trade",
+        "name": "direction-of-trade",
+        "layout": [
+          {
+            "i": "imf_direction_of_trade_imf_obb",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 27,
+            "state": {
+              "params": {
+                "country": "united_states",
+                "counterpart": "world",
+                "direction": "balance",
+                "start_date": "2010-01-01",
+                "frequency": "quarter",
+                "provider": "imf"
+              }
+            }
+          }
+        ]
+      },
+      "port-watch": {
+        "id": "port-watch",
+        "name": "port-watch",
+        "layout": [
+          {
+            "i": "imf_chokepoint_volume_imf_obb",
+            "x": 0,
+            "y": 2,
+            "w": 40,
+            "h": 16,
+            "state": {
+              "params": {
+                "start_date": "2024-01-01",
+                "chokepoint": [
+                  "chokepoint2"
+                ],
+                "provider": "imf"
+              }
+            }
+          },
+          {
+            "i": "imf_port_info_imf_obb",
+            "x": 0,
+            "y": 18,
+            "w": 40,
+            "h": 14,
+            "state": {
+              "params": {
+                "country": "USA",
+                "port_code": "port664",
+                "provider": "imf"
+              }
+            }
+          },
+          {
+            "i": "imf_port_volume_imf_obb",
+            "x": 0,
+            "y": 32,
+            "w": 40,
+            "h": 15,
+            "state": {
+              "params": {
+                "start_date": "2024-01-01",
+                "port_code": "port664",
+                "country": "DEU",
+                "provider": "imf"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  },
+  {
+    "name": "Video Library",
+    "description": "One card: the Video Library, a YouTube card served by openbq-docker v3's openbb-videos extension. Pick one of two sample videos and the card plays it.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "video-library": {
+        "id": "video-library",
+        "name": "Video Library",
+        "layout": [
+          {
+            "i": "videos_video_custom_obb",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "video_name": "OpenBB Workspace Demo"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  },
+  {
+    "name": "V4 core tools",
+    "description": "Built-ins, grouping, date expressions and fiscal period controls. No credentials required.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "note": {
+        "id": "note",
+        "name": "Note",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "text": "This is a Note card. Its text is a hidden parameter, so it does not clutter the header's controls row and it travels with the dashboard on export. Click anywhere in the body to edit; Escape throws a draft away."
+              }
+            }
+          }
+        ]
+      },
+      "markdown": {
+        "id": "markdown",
+        "name": "Markdown",
+        "layout": [
+          {
+            "i": "markdown",
+            "x": 0,
+            "y": 0,
+            "w": 26,
+            "h": 16,
+            "state": {
+              "params": {
+                "text": "# Markdown card\n\nA rich-text note with a formatting toolbar. Edits save on their own about half a second after you stop typing.\n\n## What it can show\n\n- Headings, like the two above\n- A bulleted list, like this one\n- **Bold**, *italic*, and a [link to the Workspace docs](https://docs.openbb.co/workspace)\n\n```\nconst example = \"a fenced code block\";\n```\n"
+              }
+            }
+          }
+        ]
+      },
+      "clock": {
+        "id": "clock",
+        "name": "Clock",
+        "layout": [
+          {
+            "i": "clock",
+            "x": 0,
+            "y": 0,
+            "w": 18,
+            "h": 16,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo",
+                "layout": "vertical",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          },
+          {
+            "i": "clock",
+            "x": 18,
+            "y": 0,
+            "w": 22,
+            "h": 8,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo",
+                "layout": "horizontal",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          }
+        ]
+      },
+      "website": {
+        "id": "website",
+        "name": "Website",
+        "layout": [
+          {
+            "i": "website",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 24,
+            "state": {
+              "params": {
+                "url": "https://docs.openbb.co/workspace"
+              }
+            }
+          }
+        ]
+      },
+      "rss": {
+        "id": "rss",
+        "name": "RSS",
+        "layout": [
+          {
+            "i": "rss",
+            "x": 0,
+            "y": 0,
+            "w": 22,
+            "h": 20,
+            "state": {
+              "params": {
+                "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+                "limit": "20"
+              }
+            }
+          }
+        ]
+      },
+      "grouping": {
+        "id": "grouping",
+        "name": "Grouping",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 8,
+            "state": {
+              "params": {
+                "text": "The two Parameter echo cards below share a Ticker group: the chain-link beside each card's Ticker control opens the Groups menu, the numbered badge shows which group a control is in, and editing either card's Ticker moves both."
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 0,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Ticker"
+            ],
+            "state": {
+              "params": {
+                "date": "$currentDate"
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 14,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Ticker"
+            ],
+            "state": {
+              "params": {
+                "date": "$currentDate"
+              }
+            }
+          }
+        ]
+      },
+      "date_probe": {
+        "id": "date_probe",
+        "name": "Date expression",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 5,
+            "state": {
+              "params": {
+                "text": "Each card below resolves one date expression against today and the XNYS exchange calendar, so its dates move with the calendar. Top row: T (today), T-5bd (five business days back), T-1m (one calendar month back). Bottom row: M-1 (start of last month), FQ-4 (start of the fiscal quarter four back), Y-1 (start of last year)."
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 0,
+            "y": 5,
+            "w": 13,
+            "h": 10,
+            "state": {
+              "params": {
+                "expr": "T",
+                "as_of": "T",
+                "exchange": "XNYS"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 13,
+            "y": 5,
+            "w": 14,
+            "h": 10,
+            "state": {
+              "params": {
+                "expr": "T-5bd",
+                "as_of": "T",
+                "exchange": "XNYS"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 27,
+            "y": 5,
+            "w": 13,
+            "h": 10,
+            "state": {
+              "params": {
+                "expr": "T-1m",
+                "as_of": "T",
+                "exchange": "XNYS"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 0,
+            "y": 15,
+            "w": 13,
+            "h": 10,
+            "state": {
+              "params": {
+                "expr": "M-1",
+                "as_of": "T",
+                "exchange": "XNYS"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 13,
+            "y": 15,
+            "w": 14,
+            "h": 10,
+            "state": {
+              "params": {
+                "expr": "FQ-4",
+                "as_of": "T",
+                "exchange": "XNYS"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 27,
+            "y": 15,
+            "w": 13,
+            "h": 10,
+            "state": {
+              "params": {
+                "expr": "Y-1",
+                "as_of": "T",
+                "exchange": "XNYS"
+              }
+            }
+          }
+        ]
+      },
+      "period_echo": {
+        "id": "period_echo",
+        "name": "Period controls",
+        "layout": [
+          {
+            "i": "period_echo",
+            "x": 0,
+            "y": 0,
+            "w": 28,
+            "h": 15,
+            "state": {
+              "params": {
+                "asof": "T",
+                "start_date": "2026-01-01/T"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [
+      {
+        "name": "Ticker",
+        "type": "param",
+        "paramName": "ticker",
+        "defaultValue": "AAPL"
+      }
+    ],
+    "prompts": []
+  },
+  {
+    "name": "Parameters",
+    "description": "The v4 parameter features on their own tabs -- groups that propagate one value to many cards, the period-aware pickers (day, week, month, quarter, fiscal year, date-time and time), and the relative-date expression grammar. Nothing here needs a backend, a key or a sign-up: every card is a built-in that echoes what it would send, so it opens and works the moment you import it.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "groups": {
+        "id": "groups",
+        "name": "Groups",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 28,
+            "h": 8,
+            "state": {
+              "params": {
+                "text": "The two Parameter echo cards below share two groups: Symbol (on each card's Ticker) and Year. The chain-link beside a control opens the Groups menu, the numbered badge shows which group a control is in, and editing either card's Ticker -- or its Year -- moves both. Groups are per dashboard; a group here never touches another dashboard."
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 0,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Symbol",
+              "Year"
+            ],
+            "state": {
+              "params": {
+                "date": "T"
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 14,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Symbol",
+              "Year"
+            ],
+            "state": {
+              "params": {
+                "date": "T-1bd"
+              }
+            }
+          }
+        ]
+      },
+      "period-pickers": {
+        "id": "period-pickers",
+        "name": "Period pickers",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 28,
+            "h": 8,
+            "state": {
+              "params": {
+                "text": "Each Period echo card carries one control of every kind -- day, week, month, quarter, fiscal year, date-time (to the second) and time -- so a fiscal-quarter parameter picks a quarter, not a day on a calendar. The two cards share a Quarter group but end their fiscal years in different months: the same stored quarter shows two different labels, which is exactly what the fiscal-quarter alignment fixes."
+              }
+            }
+          },
+          {
+            "i": "period_echo",
+            "x": 0,
+            "y": 8,
+            "w": 20,
+            "h": 8,
+            "groups": [
+              "Quarter"
+            ],
+            "state": {
+              "params": {
+                "fy_end": "December"
+              }
+            }
+          },
+          {
+            "i": "period_echo",
+            "x": 20,
+            "y": 8,
+            "w": 20,
+            "h": 8,
+            "groups": [
+              "Quarter"
+            ],
+            "state": {
+              "params": {
+                "fy_end": "September"
+              }
+            }
+          }
+        ]
+      },
+      "expressions": {
+        "id": "expressions",
+        "name": "Dynamic expressions",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 42,
+            "h": 8,
+            "state": {
+              "params": {
+                "text": "A date parameter can store an expression instead of a frozen date, and every render resolves it fresh -- so a dashboard set up on \"26 weeks ago\" keeps meaning 26 weeks ago, not the day it was built. Each Date expression card below types one expression and shows what it resolves to today, as a date and as a datetime. Edit the Expression control to try your own; the fiscal cards read their year end from the FY end control."
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 0,
+            "y": 8,
+            "w": 14,
+            "h": 7,
+            "state": {
+              "params": {
+                "expr": "T"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 14,
+            "y": 8,
+            "w": 14,
+            "h": 7,
+            "state": {
+              "params": {
+                "expr": "T-1bd"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 28,
+            "y": 8,
+            "w": 14,
+            "h": 7,
+            "state": {
+              "params": {
+                "expr": "T-26w"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 0,
+            "y": 15,
+            "w": 14,
+            "h": 7,
+            "state": {
+              "params": {
+                "expr": "Q-1"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 14,
+            "y": 15,
+            "w": 14,
+            "h": 7,
+            "state": {
+              "params": {
+                "expr": "FQ-4",
+                "fy_end": "9"
+              }
+            }
+          },
+          {
+            "i": "date_probe",
+            "x": 28,
+            "y": 15,
+            "w": 14,
+            "h": 7,
+            "state": {
+              "params": {
+                "expr": "session_open"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [
+      {
+        "name": "Symbol",
+        "type": "param",
+        "paramName": "ticker",
+        "defaultValue": "AAPL",
+        "groupType": "symbol"
+      },
+      {
+        "name": "Year",
+        "type": "param",
+        "paramName": "year",
+        "defaultValue": "2024"
+      },
+      {
+        "name": "Quarter",
+        "type": "param",
+        "paramName": "quarter",
+        "defaultValue": "T"
+      }
+    ],
+    "prompts": []
+  },
+  {
+    "name": "V5 Statement Example",
+    "description": "Synthetic Q3 and TTM cash flow; no provider key required.",
+    "allowCustomization": true,
+    "tabs": {
+      "cash": {
+        "id": "cash",
+        "name": "Cash flow",
+        "layout": [
+          {
+            "i": "synthetic_cash_flow",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 22,
+            "state": {
+              "params": {}
+            }
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "bdobb": {
+        "schemaVersion": 1,
+        "profile": "v5",
+        "base": {
+          "schemaVersion": 1,
+          "profile": "v3",
+          "tabOrder": [
+            "cash"
+          ]
+        },
+        "cards": [
+          {
+            "tab": "cash",
+            "index": 0,
+            "view": "statement",
+            "statement": {
+              "collapsed": []
+            }
+          }
+        ]
+      }
+    },
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K"
+  },
+  {
+    "name": "Example Dashboard - Version 5.0.0 - Treasury Auctions",
+    "description": "Episode 5 uses the Calendar view (from v4): U.S. Treasury auctions on a month grid, one event per auction, titled by term and coloured by security type (Bill, Note, Bond). Upcoming auctions on the left; on the right, results from six weeks ago to today, a relative start date that moves with every render. Both cards are openbb-api's own U.S. Treasury widgets and need no API key.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "auctions": {
+        "id": "auctions",
+        "name": "Treasury auctions",
+        "layout": [
+          {
+            "i": "ustreasury_upcoming_auctions_us_treasury_obb",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 14,
+            "state": {
+              "params": {
+                "provider": "us_treasury"
+              },
+              "chartView": {
+                "enabled": false,
+                "chartType": "line"
+              },
+              "extensions": {
+                "bdobb": {
+                  "schemaVersion": 1,
+                  "profile": "v3",
+                  "title": "Upcoming Treasury auctions"
+                }
+              }
+            }
+          },
+          {
+            "i": "ustreasury_auction_results_us_treasury_obb",
+            "x": 20,
+            "y": 0,
+            "w": 20,
+            "h": 14,
+            "state": {
+              "params": {
+                "start_date": "T-6w",
+                "end_date": "T",
+                "provider": "us_treasury"
+              },
+              "chartView": {
+                "enabled": false,
+                "chartType": "line"
+              },
+              "extensions": {
+                "bdobb": {
+                  "schemaVersion": 1,
+                  "profile": "v3",
+                  "title": "Treasury auction results, last six weeks"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": [],
+    "extensions": {
+      "bdobb": {
+        "schemaVersion": 1,
+        "profile": "v4",
+        "base": {
+          "schemaVersion": 1,
+          "profile": "v3",
+          "tabOrder": [
+            "auctions"
+          ]
+        },
+        "cards": [
+          {
+            "ref": "c0",
+            "tab": "auctions",
+            "index": 0,
+            "extras": {
+              "calendar": {
+                "mode": "paged",
+                "unit": "month",
+                "dateField": "auction_date",
+                "titleField": "security_term",
+                "seriesField": "security_type"
+              },
+              "view": "calendar"
+            }
+          },
+          {
+            "ref": "c1",
+            "tab": "auctions",
+            "index": 1,
+            "extras": {
+              "calendar": {
+                "mode": "static",
+                "unit": "month",
+                "dateField": "auction_date",
+                "titleField": "security_term",
+                "seriesField": "security_type"
+              },
+              "view": "calendar"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "Example Dashboard - Version 6.0.0",
+    "description": "The v6.0.0 Rita stage: a small board Rita can see and rearrange for you. Set the Rita URL and turn on Context sharing in AI Library \u25b8 Agents so Rita can see these cards, then ask it to work the board \u2014 \"add a note summarising the day\", \"rename this dashboard to Markets\", \"move the clock to the top\", \"add a markdown widget\". Every widget is a built-in, so no backend is needed.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "rita": {
+        "id": "rita",
+        "name": "Rita",
+        "layout": [
+          {
+            "i": "markdown",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 10,
+            "state": {
+              "params": {
+                "text": "# Rita can work this board\n\nWith **Context Sharing** on (AI Library \u25b8 Agents), Rita sees every card here and can author the dashboard for you. Try asking it to:\n\n- **Add a note** \u2014 \"add a note summarising today's session\" (Rita writes a markdown card).\n- **Rename** \u2014 \"rename this dashboard to Markets\", or \"call the clock card World Clock\".\n- **Rearrange** \u2014 \"move the clock to the top\", \"make this note full width\".\n- **Add a tab** \u2014 \"add a Rates tab\".\n- **Add a widget** \u2014 \"add a clock\" (Rita finds it with search_widgets, then adds it).\n\nRita only sees the board while Context Sharing is on, and never sees a Keys widget. Everything it does is one **Undo** away."
+              }
+            }
+          },
+          {
+            "i": "clock",
+            "x": 0,
+            "y": 10,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo",
+                "layout": "vertical",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          },
+          {
+            "i": "note",
+            "x": 20,
+            "y": 10,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "text": "## Scratch\nA plain note for Rita to rename, move, or replace. Ask it: \"tidy this board.\""
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  }
+]

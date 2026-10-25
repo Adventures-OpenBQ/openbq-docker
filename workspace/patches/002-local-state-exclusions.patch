@@ -1,0 +1,22 @@
+# Patch to OpenBB Workspace (https://github.com/OpenBB-finance/workspace),
+# Copyright (c) OpenBB Inc., licensed under the Apache License, Version 2.0.
+# Patch Copyright 2026 SecretoftheUniverse.com LLC.
+# SPDX-License-Identifier: Apache-2.0
+--- a/.dockerignore
++++ b/.dockerignore
+@@ -33,3 +33,15 @@
+ publish.sh
+ README.md
+ README-ENDUSER.md
++
++# Never bake local deployment state into a source-built image.
++**/ts.env
++**/runtime.env
++**/credentials.env
++**/credentials*.json
++**/ts-state
++**/local-rehearsal
++**/*.pem
++**/*.key
++**/*.crt
++**/backups
