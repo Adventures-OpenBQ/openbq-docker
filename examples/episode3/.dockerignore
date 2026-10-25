@@ -1,0 +1,9 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+__pycache__
+*.pyc
+*.env
+*.key
+*.pem
+README.md
+test_server.py

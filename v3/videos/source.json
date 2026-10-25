@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/bdobb-dev/openbb-docker.git",
+  "branch": "claude/video-library",
+  "commit": "13816e1b6b5725d6fe50ce1c2bf29d1f16d482ba",
+  "directory": "openbb-videos",
+  "after": "v8.0.3 (775354f)",
+  "version": "3.0.1",
+  "license": "Apache-2.0; portions adapted from OpenBB-finance/backends-for-openbb getting-started/reference-backend/widgets_youtube.py, MIT (notice in openbb_videos/router.py)",
+  "changes": "pyproject.toml builds with hatchling (the image's pinned wheel builder) instead of setuptools; license as an SPDX string"
+}

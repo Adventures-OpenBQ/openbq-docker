@@ -1,0 +1,63 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+*.env
+!*.env.example
+# Public demo keys only (tests/test_credentials_demo.py).
+!credentials.demo.env
+ts-state/
+__pycache__/
+*.pyc
+
+.docker/
+source.tgz
+build.log
+
+*.tgz
+*.log
+._*
+
+.DS_Store
+
+# Private runtime state and local evidence
+local-rehearsal/
+.env*
+!*.env.example
+*.env.*
+!*.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.db
+*.sqlite*
+*.zip
+*.tar*
+backups/
+.superpowers/
+
+scripts/scrub-private-patterns.txt
+
+credentials*.json
+!credentials.example.json
+user_settings.json
+certs/
+secrets/
+
+# Python demo runtime caches
+__pycache__/
+*.pyc
+
+# key-maint admin socket directory (host-only, 0700)
+key-maint-admin/
+
+# Gateway dependencies (installed by npm ci; never committed)
+funnel-gateway/node_modules/
+
+# funnel-gateway (web profile) runtime configuration (settings.json holds the real tailnet origin)
+gateway-config/
+
+# Task-owned local native table build and private operator configuration.
+table-source/
+table-config/
+table-build.env
