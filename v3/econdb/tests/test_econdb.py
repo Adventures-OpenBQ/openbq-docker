@@ -12,6 +12,9 @@ from fastapi.testclient import TestClient
 from openbb_core.api.rest_api import app
 from openbb_econdb.utils import helpers
 from openbb_platform_api.utils.widgets import build_json
+from openbb_core.provider.utils.errors import OpenBBError, UnauthorizedError
+
+real_create_token = helpers.create_token
 
 ROUTE = "/api/v1/econdb/economy/indicators"
 SERIES = [{
@@ -24,6 +27,8 @@ SERIES = [{
 class EconDbTest(unittest.TestCase):
     def setUp(self):
         self.calls = []
+        self.response_status = 200
+        self.response_payload = {"results": SERIES, "next": None}
 
         async def token(use_cache=True):
             self.calls.append("token")
@@ -31,13 +36,15 @@ class EconDbTest(unittest.TestCase):
 
         async def request(url, response_callback=None, **kwargs):
             self.calls.append(url)
+            status, payload = self.response_status, self.response_payload
 
             class Response:
-                status, reason = 200, "OK"
+                reason = "Upstream response"
 
                 async def json(self):
-                    return {"results": SERIES, "next": None}
+                    return payload
 
+            Response.status = status
             return await response_callback(Response(), None)
 
         for name, stub in (("create_token", token), ("amake_request", request)):
@@ -65,6 +72,32 @@ class EconDbTest(unittest.TestCase):
         query = EconDbEconomicIndicatorsQueryParams(symbol="RGDP", country="US", frequency=None)
         self.assertEqual(query.frequency, "quarter")
 
+    def test_upstream_unauthorized_is_not_reported_as_empty_data(self):
+        self.response_status = 401
+        self.response_payload = {"detail": "Unauthorized"}
+        r = self.client.get(ROUTE, params={"provider": "econdb", "symbol": "RGDP", "country": "US", "use_cache": False})
+        self.assertEqual(r.status_code, 502, r.text)
+        self.assertIn("HTTP 401", r.text)
+
+    def test_refused_temporary_token_returns_a_gateway_error(self):
+        self.response_status = 403
+        self.response_payload = {"code": "access_denied"}
+        with mock.patch.object(helpers, "create_token", real_create_token):
+            r = self.client.get(ROUTE, params={"provider": "econdb", "symbol": "RGDP", "country": "US", "use_cache": False})
+        self.assertEqual(r.status_code, 502, r.text)
+        self.assertIn("HTTP 403", r.text)
+
+    def test_unrecognized_series_response_is_not_empty_data(self):
+        self.response_payload = {"detail": "Service unavailable"}
+        r = self.client.get(ROUTE, params={"provider": "econdb", "symbol": "RGDP", "country": "US", "use_cache": False})
+        self.assertEqual(r.status_code, 400, r.text)
+        self.assertIn("series response", r.text)
+
+    def test_a_valid_empty_series_response_stays_empty_data(self):
+        self.response_payload = {"results": [], "next": None}
+        r = self.client.get(ROUTE, params={"provider": "econdb", "symbol": "RGDP", "country": "US", "use_cache": False})
+        self.assertEqual(r.status_code, 204)
+
     def test_a_symbol_without_a_country_is_a_client_error(self):
         r = self.client.get(ROUTE, params={"provider": "econdb", "symbol": "RGDP"})
         self.assertEqual(r.status_code, 422)
@@ -83,6 +116,29 @@ class EconDbTest(unittest.TestCase):
         self.assertEqual((w["endpoint"], w["type"]), (ROUTE, "table"))
         self.assertLessEqual({"symbol", "country", "start_date", "end_date", "transform"},
                              {p["paramName"] for p in w["params"]})
+
+
+class TemporaryTokenTests(unittest.IsolatedAsyncioTestCase):
+    async def token(self, status, payload):
+        async def request(url, response_callback, **kwargs):
+            class Response:
+                async def json(self):
+                    return payload
+            Response.status = status
+            return await response_callback(Response(), None)
+        with mock.patch.object(helpers, "amake_request", request):
+            return await helpers.create_token(use_cache=False)
+
+    async def test_refused_temporary_token_is_an_explicit_error(self):
+        with self.assertRaisesRegex(UnauthorizedError, "HTTP 403"):
+            await self.token(403, {"code": "access_denied"})
+
+    async def test_missing_temporary_token_is_an_explicit_error(self):
+        with self.assertRaisesRegex(OpenBBError, "usable API key"):
+            await self.token(200, {})
+
+    async def test_valid_temporary_token_still_works(self):
+        self.assertEqual(await self.token(200, {"api_key": "EXAMPLE_TOKEN"}), "EXAMPLE_TOKEN")
 
 
 if __name__ == "__main__":

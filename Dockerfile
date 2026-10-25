@@ -32,7 +32,8 @@ COPY examples/bdobb/apps.json /workspace/bdobb_apps.json
 # BDOBB's logo, served without auth at /openbq/bdobb-logo.svg (the examples' img; examples/bdobb/README.md).
 COPY examples/episode3/assets/bdobb-logo.svg /workspace/bdobb-logo.svg
 COPY lanes/openbb.toml /workspace/openbb.toml
-HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=5 CMD curl -fsS http://127.0.0.1:6900/widgets.json > /dev/null || exit 1
+COPY scripts/healthcheck.py /usr/local/bin/openbq-healthcheck.py
+HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=5 CMD ["python", "/usr/local/bin/openbq-healthcheck.py", "http://127.0.0.1:6900/widgets.json"]
 CMD ["openbb-api", "--host", "0.0.0.0", "--port", "6900"]
 
 # Stage v3, the stack's API image (docker-compose.yml builds it): the original Apache-2.0 yfinance
