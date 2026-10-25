@@ -36,5 +36,7 @@
   "openbb_sec/models/institutions_search.py": "7b956df6e68ad218c6ad64fc12e93795461ae603d058386feea8242dd6f78fb5",
   "openbb_tmx/routers/equity.py": "2dc08ad4738b2bdff2d402608e0600a10dd75c7dea9a650411eeb14c248680ff",
   "openbb_us_eia/eia_router.py": "5e34022b0085c74fa36c835084857884b69d7132ea4389b53a851f4bb70a8b0e",
-  "openbb_government_us/usda/models/weather_bulletin_download.py": "b12ea04f2427a87d8c5cce94edb55882d715ac46a47b260f3de5bf9db0b64045"
+  "openbb_government_us/usda/models/weather_bulletin_download.py": "b12ea04f2427a87d8c5cce94edb55882d715ac46a47b260f3de5bf9db0b64045",
+  "openbb_federal_reserve/regional/new_york.py": "01bcb593fd90dfd7865b5bb6fcefd265d54a2e64c0eba52928cd1a6e681a3c4d",
+  "openbb_federal_reserve/assets/regional/ny_widgets.json": "f8e776868bc77f99b1cace63263d07979c1df138eeb952e6bafbceea786c9e54"
 }
