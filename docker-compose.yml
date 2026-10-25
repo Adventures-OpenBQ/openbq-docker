@@ -1,0 +1,123 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+name: openbq-stack
+# The two Tailscale sidecars (the stack's node and the Workspace's) differ only in name and paths.
+x-tailscale: &tailscale
+  image: tailscale/tailscale:v1.98.9@sha256:f15d5d3f4a68773a853180b72496f70ba614b64de0878c43fe3da39fe0afba47
+  restart: unless-stopped
+  devices: [/dev/net/tun:/dev/net/tun]
+  cap_add: [NET_ADMIN, NET_RAW]
+x-tailscale-env: &tailscale-env
+  TS_AUTH_ONCE: "true"
+  TS_USERSPACE: "false"
+  TS_STATE_DIR: /var/lib/tailscale
+  TS_SERVE_CONFIG: /config/serve.json
+services:
+  tailscale:
+    <<: *tailscale
+    hostname: openbq
+    env_file: [./ts.env]
+    environment: {<<: *tailscale-env, TS_HOSTNAME: openbq}
+    volumes:
+      - ./ts-state:/var/lib/tailscale
+      - ./ts-config:/config:ro
+    networks: [openbq-internal]
+  openbq-api:
+    build: {context: ., target: api}
+    image: openbq-local:2.0.0-candidate
+    restart: unless-stopped
+    # Hard cap: if the API outgrows it, the kernel kills the API, not the host's other services.
+    mem_limit: 16g
+    # Public demo keys first, then your own: a key in credentials.env overrides its demo value.
+    env_file:
+      - path: ./credentials.demo.env
+        required: true
+      - path: ./credentials.env
+        required: false
+    volumes:
+      - openbq-data:/root/.openbb_platform
+      - openbq-user-data:/root/OpenBBUserData
+    networks: [openbq-internal]
+  # Optional Workspace server (Episode 2). Start with --profile workspace; it
+  # keeps its own tailnet node (openbq-workspace), network and data volume.
+  workspace:
+    profiles: [workspace]
+    image: openbq-workspace-local:2.0.0
+    restart: unless-stopped
+    env_file: [./workspace/runtime.env]
+    environment:
+      WORKERS: "1"
+      BACKEND_URL: /api
+      AI_COPILOT_ENABLED: "false"
+      AI_COPILOT_OPENBB_COPILOT: "false"
+      AI_COPILOT_AI_ENHANCEMENTS: "false"
+      UI_SHOW_COMPANION_MCP_MODE: "false"
+      UI_SHOW_COPILOT_SWITCHER: "false"
+      UI_SHOW_CHANGELOG: "false"
+      MCP_DEFAULT_SERVER_ENABLED: "false"
+      DATA_ALLOW_HTML_JS_EXECUTION: "false"
+    volumes: [workspace-data:/data]
+    networks: [workspace-internal]
+  workspace-tailscale:
+    <<: *tailscale
+    profiles: [workspace]
+    hostname: openbq-workspace
+    env_file: [./workspace/ts.env]
+    environment: {<<: *tailscale-env, TS_HOSTNAME: openbq-workspace}
+    volumes:
+      - ./workspace/ts-state:/var/lib/tailscale
+      - ./workspace/ts-config:/config:ro
+    networks: [workspace-internal]
+  # Optional public door (the `web` profile): BDOBB's browser preview reaches the API, the
+  # reference backend and /state through it on Funnel port 10000. See funnel-gateway/README.md.
+  funnel-gateway:
+    profiles: [web]
+    build: ./funnel-gateway
+    image: openbq-funnel-gateway:3.0.0
+    restart: unless-stopped
+    expose: ["8091"]
+    depends_on: [openbq-api]
+    env_file:
+      # GATEWAY_TOKEN plus the API's Basic pair. Required: there is no
+      # configuration in which the door exists and the lock does not.
+      - path: ./gateway.env
+        required: true
+    read_only: true
+    user: "${GATEWAY_UID:-1000}:${GATEWAY_GID:-1000}"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 64
+    volumes:
+      - type: bind
+        source: ./gateway-config
+        target: /run/bdobb
+        read_only: true
+        bind: {create_host_path: false}
+      # The web preview's per-user configuration (/state); inert until
+      # settings.json names "stateDir": "/var/lib/bdobb/state".
+      - gateway-state:/var/lib/bdobb/state
+    tmpfs:
+      - "/tmp:size=16m,noexec,nosuid"
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+    # openbq-internal also carries the v3 overlay's reference (alias openbq-reference),
+    # which the gateway's /ref routes forward to.
+    networks: [openbq-internal]
+networks:
+  openbq-internal:
+    driver: bridge
+  workspace-internal:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1500"
+volumes:
+  openbq-data:
+  openbq-user-data:
+  gateway-state:
+  # Named as the former standalone project's volume so existing Workspace
+  # accounts and dashboards carry over.
+  workspace-data:
+    name: openbq-episode2_workspace-data

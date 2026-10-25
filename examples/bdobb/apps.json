@@ -1,0 +1,311 @@
+[
+  {
+    "name": "Built-in widgets",
+    "description": "Every built-in widget on its own tab, plus a Grouping tab showing two Parameter echo cards sharing a Ticker group. Nothing here needs a backend, a key or a sign-up -- it opens and works the moment you import it.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "note": {
+        "id": "note",
+        "name": "Note",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 10,
+            "state": {
+              "params": {
+                "text": "This is a Note card. Its text is a hidden parameter, so it does not clutter the header's controls row and it travels with the dashboard on export. Click anywhere in the body to edit; Escape throws a draft away."
+              }
+            }
+          }
+        ]
+      },
+      "markdown": {
+        "id": "markdown",
+        "name": "Markdown",
+        "layout": [
+          {
+            "i": "markdown",
+            "x": 0,
+            "y": 0,
+            "w": 26,
+            "h": 16,
+            "state": {
+              "params": {
+                "text": "# Markdown card\n\nA rich-text note with a formatting toolbar. Edits save on their own about half a second after you stop typing.\n\n## What it can show\n\n- Headings, like the two above\n- A bulleted list, like this one\n- **Bold**, *italic*, and a [link to the Workspace docs](https://docs.openbb.co/workspace)\n\n```\nconst example = \"a fenced code block\";\n```\n"
+              }
+            }
+          }
+        ]
+      },
+      "clock": {
+        "id": "clock",
+        "name": "Clock",
+        "layout": [
+          {
+            "i": "clock",
+            "x": 0,
+            "y": 0,
+            "w": 18,
+            "h": 16,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo",
+                "layout": "vertical",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          },
+          {
+            "i": "clock",
+            "x": 18,
+            "y": 0,
+            "w": 22,
+            "h": 8,
+            "state": {
+              "params": {
+                "zones": "America/New_York,Europe/London,Asia/Tokyo",
+                "layout": "horizontal",
+                "hourCycle": "24",
+                "face": "dots"
+              }
+            }
+          }
+        ]
+      },
+      "website": {
+        "id": "website",
+        "name": "Website",
+        "layout": [
+          {
+            "i": "website",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 24,
+            "state": {
+              "params": {
+                "url": "https://docs.openbb.co/workspace"
+              }
+            }
+          }
+        ]
+      },
+      "rss": {
+        "id": "rss",
+        "name": "RSS",
+        "layout": [
+          {
+            "i": "rss",
+            "x": 0,
+            "y": 0,
+            "w": 22,
+            "h": 20,
+            "state": {
+              "params": {
+                "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+                "limit": "20"
+              }
+            }
+          }
+        ]
+      },
+      "grouping": {
+        "id": "grouping",
+        "name": "Grouping",
+        "layout": [
+          {
+            "i": "note",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 8,
+            "state": {
+              "params": {
+                "text": "The two Parameter echo cards below share a Ticker group: the chain-link beside each card's Ticker control opens the Groups menu, the numbered badge shows which group a control is in, and editing either card's Ticker moves both."
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 0,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Ticker"
+            ],
+            "state": {
+              "params": {
+                "date": "$currentDate"
+              }
+            }
+          },
+          {
+            "i": "param_echo",
+            "x": 14,
+            "y": 8,
+            "w": 14,
+            "h": 6,
+            "groups": [
+              "Ticker"
+            ],
+            "state": {
+              "params": {
+                "date": "$currentDate"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [
+      {
+        "name": "Ticker",
+        "type": "param",
+        "paramName": "ticker",
+        "defaultValue": "AAPL"
+      }
+    ],
+    "prompts": []
+  },
+  {
+    "name": "Demo providers",
+    "description": "One card per data provider that answers on the openbq-docker v3 stack without a sign-up of your own. BLS, CFTC, EconDB and Nasdaq need no key; EIA and Congress.gov use the providers' public demo keys from credentials.demo.env, and a key of your own in credentials.env takes their place. Demo keys are rate-limited, so answers can vary between runs.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "demo-providers": {
+        "id": "demo-providers",
+        "name": "Demo providers",
+        "layout": [
+          {
+            "i": "eia_short_term_energy_outlook_eia_obb",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "uscongress_bills_congress_gov_obb",
+            "x": 20,
+            "y": 0,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "congress": "119"
+              }
+            }
+          },
+          {
+            "i": "bls_search_bls_obb",
+            "x": 0,
+            "y": 12,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "category": "cpi",
+                "query": "CUUR0000SA0"
+              }
+            }
+          },
+          {
+            "i": "cftc_cot_cftc_obb",
+            "x": 20,
+            "y": 12,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "code": "067651",
+                "start_date": "2025-01-01"
+              }
+            }
+          },
+          {
+            "i": "econdb_economy_indicators_econdb_obb",
+            "x": 0,
+            "y": 24,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "RGDP",
+                "country": "US"
+              }
+            }
+          },
+          {
+            "i": "nasdaq_equity_fundamental_historical_eps_nasdaq_obb",
+            "x": 20,
+            "y": 24,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "symbol": "IBM"
+              }
+            }
+          },
+          {
+            "i": "videos_video_custom_obb",
+            "x": 0,
+            "y": 36,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "video_name": "OpenBB Workspace Demo"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  },
+  {
+    "name": "Video Library",
+    "description": "One card: the Video Library, a YouTube card served by openbq-docker v3's openbb-videos extension. Pick one of two sample videos and the card plays it.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "video-library": {
+        "id": "video-library",
+        "name": "Video Library",
+        "layout": [
+          {
+            "i": "videos_video_custom_obb",
+            "x": 0,
+            "y": 0,
+            "w": 20,
+            "h": 12,
+            "state": {
+              "params": {
+                "video_name": "OpenBB Workspace Demo"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": [],
+    "prompts": []
+  }
+]
