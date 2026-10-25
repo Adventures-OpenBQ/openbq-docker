@@ -1,3 +1,6 @@
+# Copyright 2026 Art Cashin.
+# SPDX-License-Identifier: AGPL-3.0-only
+
 """What an existing v8 deployment experiences on upgrade: the user tables go,
 the feed knobs go, URLs are canonicalised, articles keep their history."""
 

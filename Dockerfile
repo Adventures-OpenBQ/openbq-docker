@@ -44,7 +44,8 @@ COPY examples/episode3/assets/bdobb-logo.svg /workspace/bdobb-logo.svg
 # v5: fixture widgets served by the lanes hook (synthetic_cash_flow; v5/fixtures/README.md).
 COPY v5/fixtures /workspace/openbq-fixtures
 COPY lanes/openbb.toml /workspace/openbb.toml
-HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=5 CMD curl -fsS http://127.0.0.1:6900/widgets.json > /dev/null || exit 1
+COPY scripts/healthcheck.py /usr/local/bin/openbq-healthcheck.py
+HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=5 CMD ["python", "/usr/local/bin/openbq-healthcheck.py", "http://127.0.0.1:6900/widgets.json"]
 CMD ["openbb-api", "--host", "0.0.0.0", "--port", "6900"]
 
 # Stage v3, the stack's API image (docker-compose.yml builds it): the original Apache-2.0 yfinance

@@ -339,7 +339,13 @@ class KdbSession:
         if self._conn is None:
             try:
                 self._conn = self._connect(self.config.bind_host)
-                self.endpoint = "loopback"
+                # Link 2 may now cross the private Compose network. Keep the
+                # legacy label only for the default loopback address; health
+                # must not call a service-host connection loopback.
+                self.endpoint = (
+                    "loopback" if self.config.bind_host == "127.0.0.1"
+                    else f"{self.config.bind_host}:{self.config.port}"
+                )
             except Exception as exc:  # noqa: BLE001
                 errors.append(f"loopback: {exc}")
 

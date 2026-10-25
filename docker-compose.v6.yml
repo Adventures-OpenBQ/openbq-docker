@@ -36,12 +36,17 @@ services:
   # resolve the tailnet model name), hence its own port; nothing serves it on the tailnet, and
   # only the door (on openbq-internal, gateway-config "rita": true) is meant to call it.
   openbq-rita-door:
+    profiles: [web]
     image: openbq-rita:6.0.0
     pull_policy: never
     restart: unless-stopped
     network_mode: "service:tailscale"
     depends_on: [tailscale]
-    env_file: [./rita-door.env]
+    # Named live-grid/gateway operations do not use Rita. An explicit door start
+    # still fails its endpoint guard below if no private configuration is supplied.
+    env_file:
+      - path: ./rita-door.env
+        required: false
     environment:
       PORT: "7778"
       ANTHROPIC_API_KEY: ""

@@ -140,7 +140,7 @@ widget.
 
 ## Acknowledgements
 
-rss-feedhandler is MIT and is built on FastAPI, uvicorn, httpx, feedparser and
+This distribution of rss-feedhandler is AGPL-3.0-only (see LICENSE); its earlier MIT grant is preserved in LICENSE.upstream. It is built on FastAPI, uvicorn, httpx, feedparser and
 PyYAML. Every distribution in the image is listed with its licence text in
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), generated from the built
 image.
@@ -159,3 +159,7 @@ openbq-docker's compose builds this directory as the local image
 Docs: [base design](docs/superpowers/specs/2026-07-21-rss-news-ticker-design.md) ·
 [user-agnostic rework](docs/superpowers/specs/2026-09-01-user-agnostic-rework-design.md) ·
 [implementation plan](docs/superpowers/plans/2026-09-03-user-agnostic-rework.md)
+
+## License
+
+AGPL-3.0-only for this first-party component. See [licensing](LICENSING.md), including preserved earlier grants and third-party notices.

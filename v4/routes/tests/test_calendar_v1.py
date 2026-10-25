@@ -143,3 +143,15 @@ def test_calendar_v1_routes_remain_documented_but_are_not_workspace_widgets():
     paths = app.openapi()["paths"]
     for path in (CALENDARS_ROUTE, BUNDLE):
         assert paths[path]["get"].get("widget_config") == {"exclude": True}, path
+
+
+def test_legacy_route_preserves_lowercase_supplier_calendar_name():
+    import json
+    from openbq_routes.calendar import trading
+
+    response = asyncio.run(trading("us_futures", 2025))
+    assert response.status_code == 200
+    assert json.loads(response.body)["data"]["Code"] == "us_futures"
+    response = asyncio.run(trading("xnys", 2025))
+    assert response.status_code == 200
+    assert json.loads(response.body)["data"]["Code"] == "XNYS"

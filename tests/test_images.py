@@ -116,7 +116,7 @@ class ApiImages(unittest.TestCase):
         # key agent-rita reads, other than the Spark's OpenAI-compatible endpoint, is blanked.
         overlay = dockerfile("docker-compose.v6.yml")
         door = overlay.split("  openbq-rita-door:\n", 1)[1].split("\n  openbq-mcp:", 1)[0]
-        self.assertIn("env_file: [./rita-door.env]", door)
+        self.assertIn("path: ./rita-door.env", door)
         self.assertIn('PORT: "7778"', door)
         for key in ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "OPENROUTER_API_KEY", "GROQ_API_KEY", "OLLAMA_BASE_URL"):
             self.assertIn(f'{key}: ""', door, key)

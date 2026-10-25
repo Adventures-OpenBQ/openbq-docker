@@ -364,7 +364,8 @@ def test_chain_tries_loopback_before_the_external_host(monkeypatch):
     assert s.endpoint == "loopback"
 
 
-def test_link_two_follows_bind_host_off_loopback(monkeypatch):
+@pytest.mark.parametrize("bind_host, port", [("kdb", 5000), ("openbq-kdb", 5011)])
+def test_link_two_follows_bind_host_off_loopback(monkeypatch, bind_host, port):
     # Once services no longer share one network namespace, link 2 has to try
     # wherever the spawning sibling's KDB_BIND_HOST actually put q -- not a
     # hardcoded "127.0.0.1" that stops being reachable.
@@ -375,9 +376,10 @@ def test_link_two_follows_bind_host_off_loopback(monkeypatch):
         return FakeConn()
 
     monkeypatch.setattr(KdbSession, "_connect", fake_connect)
-    s = KdbSession(cfg(may_spawn=False, bind_host="kdb", host="host.docker.internal"))
+    s = KdbSession(cfg(may_spawn=False, bind_host=bind_host, port=port, host="host.docker.internal"))
     s.connection()
-    assert tried == ["kdb"]
+    assert tried == [bind_host]
+    assert s.endpoint == f"{bind_host}:{port}"
 
 
 def test_chain_falls_through_to_the_external_host(monkeypatch):
