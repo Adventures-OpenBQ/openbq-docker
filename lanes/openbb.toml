@@ -1,0 +1,6 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+# Read by openbb-api from its working directory (/workspace).
+[middleware]
+# D8: CFTC and FINRA bond routes run in a worker process (openbq_lanes.py).
+hooks = ["openbq_lanes:middleware"]

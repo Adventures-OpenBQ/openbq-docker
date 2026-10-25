@@ -1,0 +1,10 @@
+#!/bin/sh
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+# Scan only the history this push sends. Git gives one line per ref on stdin:
+# "<local ref> <local sha> <remote ref> <remote sha>"; an all-zero local sha is a delete.
+revs=$(awk '$2 !~ /^0+$/ {print $2}')
+[ -n "$revs" ] || exec python3 scripts/check-public.py
+exec python3 scripts/check-public.py --history $revs

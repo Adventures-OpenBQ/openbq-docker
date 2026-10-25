@@ -1,0 +1,13 @@
+openbb-econdb for OpenBQ
+
+openbb_econdb/ is the EconDB provider extension of the OpenBB Platform
+(https://github.com/OpenBB-finance/OpenBB, openbb_platform/providers/econdb) at
+commit 174d7e69d3ee2d1b46078386c9b57b13f40c5110 (2024-05-14), the last commit
+before that repository moved from the MIT License to AGPL-3.0 (c61d10d6).
+Copyright (c) 2021-2023 OpenBB Inc. MIT License: see LICENSE.
+
+Modifications Copyright 2026 SecretoftheUniverse.com LLC, licensed under the
+Apache License, Version 2.0: the port to openbb-core 2.0.1 (__init__.py,
+economic_indicators.py, utils/helpers.py, utils/main_indicators.py, each marked in its header), the new
+openbb_econdb/econdb_router.py and pyproject.toml. Later OpenBB releases of
+openbb-econdb (1.1.0 and up, AGPL-3.0-only) are not used.
