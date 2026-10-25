@@ -1,5 +1,5 @@
-# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
-# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the GNU Affero General Public License, version 3 only.
+# SPDX-License-Identifier: AGPL-3.0-only
 
 """Parser must replicate docker compose v2.29 dotenv behavior as observed on the NAS
 (2026-08-04 incident): leading whitespace after '=' is trimmed; an inline

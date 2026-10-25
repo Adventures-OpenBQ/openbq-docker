@@ -20,3 +20,9 @@ Still keyless on 2026-10-14, so nothing for them goes in the file:
 
 A key set in `credentials.env` always overrides its demo value. No provider in this stack now needs a
 key it did not need before.
+
+## October 25 prerelease recheck
+
+The Congress 119 bills card returned 100 rows. The installed provider uses GovInfo BILLSTATUS bulk data for Congress 108 onward, so this card does not exercise the Congress.gov API demo key. Older Congress queries can use the API instead.
+
+EconDB's temporary-token endpoint returned HTTP 403 with no API key. A subsequent series request without a token returned HTTP 401. The adapter now reports these upstream failures explicitly rather than presenting an empty table. A successful temporary token or a usable personal EconDB key is required; the historical October 14 token response above is not a promise of present availability.
