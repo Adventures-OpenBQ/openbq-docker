@@ -1,0 +1,86 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+name: openbq-stack
+services:
+  tailscale:
+    image: tailscale/tailscale:v1.98.9@sha256:f15d5d3f4a68773a853180b72496f70ba614b64de0878c43fe3da39fe0afba47
+    hostname: openbq
+    restart: unless-stopped
+    env_file: [./ts.env]
+    environment:
+      TS_HOSTNAME: openbq
+      TS_AUTH_ONCE: "true"
+      TS_USERSPACE: "false"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - ./ts-state:/var/lib/tailscale
+      - ./ts-config:/config:ro
+    networks: [openbq-internal]
+    devices: [/dev/net/tun:/dev/net/tun]
+    cap_add: [NET_ADMIN, NET_RAW]
+  openbq-api:
+    build: .
+    image: openbq-local:2.0.0
+    restart: unless-stopped
+    # Hard cap: if the API outgrows it, the kernel kills the API, not the host's other services.
+    mem_limit: 16g
+    env_file:
+      - path: ./credentials.env
+        required: false
+    volumes:
+      - openbq-data:/root/.openbb_platform
+      - openbq-user-data:/root/OpenBBUserData
+    networks: [openbq-internal]
+  # Optional Workspace server (Episode 2). Start with --profile workspace; it
+  # keeps its own tailnet node (openbq-workspace), network and data volume.
+  workspace:
+    profiles: [workspace]
+    image: openbq-workspace-local:2.0.0
+    restart: unless-stopped
+    env_file: [./workspace/runtime.env]
+    environment:
+      WORKERS: "1"
+      BACKEND_URL: /api
+      AI_COPILOT_ENABLED: "false"
+      AI_COPILOT_OPENBB_COPILOT: "false"
+      AI_COPILOT_AI_ENHANCEMENTS: "false"
+      UI_SHOW_COMPANION_MCP_MODE: "false"
+      UI_SHOW_COPILOT_SWITCHER: "false"
+      UI_SHOW_CHANGELOG: "false"
+      MCP_DEFAULT_SERVER_ENABLED: "false"
+      DATA_ALLOW_HTML_JS_EXECUTION: "false"
+    volumes: [workspace-data:/data]
+    networks: [workspace-internal]
+  workspace-tailscale:
+    profiles: [workspace]
+    image: tailscale/tailscale:v1.98.9@sha256:f15d5d3f4a68773a853180b72496f70ba614b64de0878c43fe3da39fe0afba47
+    hostname: openbq-workspace
+    restart: unless-stopped
+    env_file: [./workspace/ts.env]
+    environment:
+      TS_HOSTNAME: openbq-workspace
+      TS_AUTH_ONCE: "true"
+      TS_USERSPACE: "false"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - ./workspace/ts-state:/var/lib/tailscale
+      - ./workspace/ts-config:/config:ro
+    devices: [/dev/net/tun:/dev/net/tun]
+    cap_add: [NET_ADMIN, NET_RAW]
+    networks: [workspace-internal]
+networks:
+  openbq-internal:
+    driver: bridge
+  workspace-internal:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1500"
+volumes:
+  openbq-data:
+  openbq-user-data:
+  # Named as the former standalone project's volume so existing Workspace
+  # accounts and dashboards carry over.
+  workspace-data:
+    name: openbq-episode2_workspace-data
