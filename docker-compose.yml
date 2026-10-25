@@ -1,0 +1,36 @@
+name: openbq-stack
+services:
+  tailscale:
+    image: tailscale/tailscale:v1.98.9@sha256:f15d5d3f4a68773a853180b72496f70ba614b64de0878c43fe3da39fe0afba47
+    hostname: openbq
+    restart: unless-stopped
+    env_file: [./ts.env]
+    environment:
+      TS_HOSTNAME: openbq
+      TS_AUTH_ONCE: "true"
+      TS_USERSPACE: "false"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - ./ts-state:/var/lib/tailscale
+      - ./ts-config:/config:ro
+    networks: [openbq-internal]
+    devices: [/dev/net/tun:/dev/net/tun]
+    cap_add: [NET_ADMIN, NET_RAW]
+  openbq-api:
+    build: .
+    image: openbq-local:1.0.0
+    restart: unless-stopped
+    env_file:
+      - path: ./credentials.env
+        required: false
+    volumes:
+      - openbq-data:/root/.openbb_platform
+      - openbq-user-data:/root/OpenBBUserData
+    networks: [openbq-internal]
+networks:
+  openbq-internal:
+    driver: bridge
+volumes:
+  openbq-data:
+  openbq-user-data:

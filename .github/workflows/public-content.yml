@@ -1,0 +1,17 @@
+name: Public content
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  public-content:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan current files and reachable history
+        run: python3 scripts/check-public.py --history HEAD
+      - name: Verify backend packaging scripts
+        run: |
+          sh -n scripts/nas-docker.sh scripts/verify-isolation.sh
+          python3 -m py_compile scripts/smoke.py scripts/check-public.py
