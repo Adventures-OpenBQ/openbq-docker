@@ -1,0 +1,59 @@
+{
+  "TCP": {
+    "443": {
+      "HTTPS": true
+    },
+    "8443": {
+      "HTTPS": true
+    },
+    "8088": {
+      "HTTPS": true
+    }
+  },
+  "Web": {
+    "${TS_CERT_DOMAIN}:443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://openbq-api:6900"
+        }
+      }
+    },
+    "${TS_CERT_DOMAIN}:8443": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://openbq-reference:17783"
+        }
+      }
+    },
+    "${TS_CERT_DOMAIN}:8088": {
+      "Handlers": {
+        "/": {
+          "Proxy": "http://rss-ticker:8088"
+        }
+      }
+    }
+  },
+  "AllowFunnel": {
+    "${TS_CERT_DOMAIN}:443": false,
+    "${TS_CERT_DOMAIN}:8443": false,
+    "${TS_CERT_DOMAIN}:8088": false
+  },
+  "Services": {
+    "svc:openbq-keys": {
+      "TCP": {
+        "443": {
+          "HTTPS": true
+        }
+      },
+      "Web": {
+        "openbq-keys.<your-tailnet>.ts.net:443": {
+          "Handlers": {
+            "/": {
+              "Proxy": "http://key-maint:8447"
+            }
+          }
+        }
+      }
+    }
+  }
+}

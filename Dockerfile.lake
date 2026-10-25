@@ -1,0 +1,26 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+#
+# openbq-lake: the `live` profile's Delta Lake image (v10). It runs the nightly
+# eod-dump flush (scripts/eod_dump.py) and the one-shot bucket init
+# (scripts/s3_init.py). It is this line's counterpart of the donor's
+# `openbb-local` image for eod-dump (bdobb-dev/openbb-docker, the donor line), kept
+# SEPARATE from openbq-api's image so the default stack is unchanged.
+#
+# OpenBB Platform 5.0: openbb-core and every shared dependency come from this
+# repository's requirements.lock (openbb-core 2.0.1); openbb-deltalake is the
+# donor line's package at afda165 (openbb-deltalake/). No MinIO software, no KX
+# software, no licence and no key is in this image; eod-dump runs PyKX
+# unlicensed (PYKX_UNLICENSED=true in compose), which covers its q IPC read.
+FROM python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+COPY requirements.lock /tmp/requirements.lock
+RUN python -m pip install --constraint /tmp/requirements.lock \
+        openbb-core==2.0.1 pandas numpy pyarrow python-dateutil \
+        deltalake==1.6.6 pykx==4.1.0
+COPY openbb-deltalake /tmp/openbb-deltalake
+RUN python -m pip install --no-deps /tmp/openbb-deltalake && rm -rf /tmp/openbb-deltalake \
+    && python -m pip check
+COPY scripts/eod_dump.py scripts/s3_init.py /opt/
+WORKDIR /opt
+CMD ["python", "/opt/eod_dump.py", "--dry-run"]

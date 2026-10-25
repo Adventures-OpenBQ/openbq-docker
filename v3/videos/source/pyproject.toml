@@ -1,0 +1,36 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+# openbq-docker: hatchling, as the image's pinned wheel builder (Dockerfile); upstream used setuptools.
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openbb-videos"
+version = "3.0.1"
+description = "OpenBB Platform router serving the Video Library YouTube widget"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+# The video list is data in this package, so openbb-core is the only
+# dependency, and it is already in the image; naming it keeps the import honest
+# for anyone installing the package elsewhere.
+dependencies = [
+    "openbb-core",
+]
+
+[project.optional-dependencies]
+# httpx is FastAPI TestClient's transport; the image does not ship it.
+dev = ["pytest", "httpx"]
+
+# openbb_core's RouterLoader mounts every router in this group at
+# /<entry-point name> under the API prefix, so the name `videos` IS the
+# /api/v1/videos path segment.
+[project.entry-points.openbb_core_extension]
+videos = "openbb_videos.router:router"
+
+[tool.hatch.build.targets.wheel]
+packages = ["openbb_videos"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

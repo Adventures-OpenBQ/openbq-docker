@@ -1,0 +1,36 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+name: Public content
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  public-content:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan current files and reachable history
+        run: python3 scripts/check-public.py --history HEAD
+      - name: Verify source assembly and privacy checks
+        run: python3 -m unittest discover -s workspace/tests
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test the key-mode settings, dashboard and app sync routes
+        run: |
+          python3 -m pip install --quiet pytest starlette==1.7.0 httpx==0.28.1 anyio==4.15.1
+          python3 -m pytest v3/tests -q -p no:cacheprovider
+      - name: Test the web profile's compose and Serve configs
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 -m pytest tests -q -p no:cacheprovider
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test the funnel-gateway route contract, server and preflights
+        working-directory: funnel-gateway
+        run: |
+          npm ci --ignore-scripts
+          npm test

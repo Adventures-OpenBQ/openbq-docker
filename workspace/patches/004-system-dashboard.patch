@@ -1,0 +1,258 @@
+# Patch to OpenBB Workspace (https://github.com/OpenBB-finance/workspace),
+# Copyright (c) OpenBB Inc., licensed under the Apache License, Version 2.0.
+# Patch Copyright 2026 SecretoftheUniverse.com LLC.
+# SPDX-License-Identifier: Apache-2.0
+# openbq-docker v8: BDOBB's hidden docks dashboard in login mode, the same contract as
+# key mode (v3/openbq_settings.py): GET, PUT and DELETE /pro/dash/sync/system/docks.
+
+--- /dev/null
++++ b/backend/alembic/versions/1791763200-add_system_dashboard.py
+@@ -0,0 +1,42 @@
++"""add system_dashboard (openbq-docker: BDOBB's hidden docks dashboard)
++
++Revision ID: 9b1d0c5e7a42
++Revises: 0d4a342f4c26
++Create Date: 2026-10-11
++
++"""
++
++import sqlalchemy as sa
++from sqlalchemy_utils import UUIDType
++
++import api.models.model_helpers
++from alembic import op  # type: ignore
++
++revision = "9b1d0c5e7a42"
++down_revision = "0d4a342f4c26"
++branch_labels = None
++depends_on = None
++
++
++def upgrade():
++    if "system_dashboard" in sa.inspect(op.get_bind()).get_table_names():
++        return
++    op.create_table(
++        "system_dashboard",
++        sa.Column("owner_uuid", UUIDType(), nullable=False),
++        sa.Column("system_id", sa.String(length=32), nullable=False),
++        sa.Column("revision", sa.BigInteger(), nullable=False),
++        sa.Column("content", api.models.model_helpers.GzipJsonLongType(), nullable=True),
++        sa.Column("uuid", UUIDType(), nullable=False),
++        sa.Column("created_date", api.models.model_helpers.AwareDateTime(), nullable=True),
++        sa.Column("updated_date", api.models.model_helpers.AwareDateTime(), nullable=True),
++        sa.ForeignKeyConstraint(["owner_uuid"], ["user.uuid"], ondelete="CASCADE"),
++        sa.PrimaryKeyConstraint("uuid"),
++        sa.UniqueConstraint("owner_uuid", "system_id", name="uq_system_dashboard_owner_system_id"),
++    )
++    with op.batch_alter_table("system_dashboard", schema=None) as batch_op:
++        batch_op.create_index("ix_system_dashboard_owner_uuid", ["owner_uuid"], unique=False)
++
++
++def downgrade():
++    op.drop_table("system_dashboard")
+
+--- a/backend/api/models/__init__.py
++++ b/backend/api/models/__init__.py
+@@ -29,6 +29,7 @@
+     SingleWidget,
+     StoredFile,
+     StoredFileShare,
++    SystemDashboard,
+     TradingView,
+     UserApp,
+     UserAppShare,
+
+--- a/backend/api/models/tauri_models.py
++++ b/backend/api/models/tauri_models.py
+@@ -5,6 +5,7 @@
+ 
+ from pydantic import BaseModel
+ from sqlalchemy import (
++    BigInteger,
+     Boolean,
+     CheckConstraint,
+     ColumnElement,
+@@ -58,6 +59,26 @@
+     is_shared: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+ 
+ 
++class SystemDashboard(Base, UUIDMixin, DateMixin):
++    """A hidden dashboard a client keeps on a reserved id, one per owner and id.
++
++    Kept out of dashboard_item on purpose: no owned, shared, entity or version
++    listing reads this table, so Workspace's own app never shows one.
++    """
++
++    __tablename__ = "system_dashboard"
++    __table_args__ = (
++        UniqueConstraint("owner_uuid", "system_id", name="uq_system_dashboard_owner_system_id"),
++    )
++
++    owner_uuid: Mapped[UUID] = mapped_column(
++        UUIDType, ForeignKey("user.uuid", ondelete="CASCADE"), index=True
++    )
++    system_id: Mapped[str] = mapped_column(String(32))
++    revision: Mapped[int] = mapped_column(BigInteger)
++    content: Mapped[str | None] = mapped_column(GzipJsonLongType)
++
++
+ class DashboardSave(Base, UUIDMixin):
+     """Stores one version of a dashboard
+ 
+
+--- a/backend/routers/pro/dash.py
++++ b/backend/routers/pro/dash.py
+@@ -1,11 +1,14 @@
+ import asyncio
++import json
++from datetime import UTC
+ from time import time
+ from uuid import UUID
+ 
+ from fastapi import APIRouter, Depends, HTTPException, Request
++from fastapi.responses import JSONResponse
+ from loguru import logger
+ from sqlalchemy import insert, not_, or_, select, update
+-from sqlalchemy.exc import SQLAlchemyError
++from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+ from sqlalchemy.ext.asyncio import AsyncSession
+ 
+ from api import auth_helpers, crud, schemas
+@@ -16,6 +19,7 @@
+     DashboardSave,
+     DashboardShare,
+     PermissionsEntityMap,
++    SystemDashboard,
+     User,
+ )
+ from api.rate_limit import LIMIT_DEFAULT, exempt_user_agent, limiter
+@@ -192,6 +196,129 @@
+     return {"success": True}
+ 
+ 
++# openbq-docker: BDOBB's hidden system dashboards, the same contract as openbq-docker's key mode
++# (v3/openbq_settings.py). One per owner and reserved id, kept in system_dashboard, which no
++# listing reads; PUT and DELETE carry the client's revision and the newest one wins.
++SYSTEM_DASHBOARD_IDS = {"docks"}
++SYSTEM_DASHBOARD_MAX_BYTES = 5_000_000
++
++
++def _system_date(value):
++    if value.tzinfo is None:
++        value = value.replace(tzinfo=UTC)
++    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
++
++
++def _system_record(row: SystemDashboard, user: User) -> dict:
++    return {"id": row.system_id, "hidden": True, "revision": row.revision, "creator": True,
++            "content": row.content, "created_date": _system_date(row.created_date),
++            "updated_date": _system_date(row.updated_date), "created_by": user.email, "is_shared": False}
++
++
++async def _system_row(db: AsyncSession, user: User, system_id: str, lock: bool = False):
++    query = select(SystemDashboard).where(
++        SystemDashboard.owner_uuid == user.uuid, SystemDashboard.system_id == system_id
++    )
++    return (await db.execute(query.with_for_update() if lock else query)).scalar_one_or_none()
++
++
++def _system_newer(row: SystemDashboard, user: User) -> JSONResponse:
++    return JSONResponse({"detail": "A newer revision is stored.", "dashboard": _system_record(row, user)},
++                        status_code=409)
++
++
++def _system_unknown(system_id: str) -> None:
++    if system_id not in SYSTEM_DASHBOARD_IDS:
++        raise HTTPException(status_code=404, detail="No such system dashboard.")
++
++
++@router.get("/sync/system/{system_id}")
++async def get_system_dashboard(
++    system_id: str,
++    db: AsyncSession = Depends(aget_write_db),
++    user: User = Depends(auth_helpers.GetCurrentUser(["uuid", "email"], pro=True)),
++):
++    _system_unknown(system_id)
++    row = await _system_row(db, user, system_id)
++    return JSONResponse({"dashboard": _system_record(row, user) if row else None})
++
++
++@router.put("/sync/system/{system_id}")
++async def put_system_dashboard(
++    system_id: str,
++    request: Request,
++    db: AsyncSession = Depends(aget_write_db),
++    user: User = Depends(auth_helpers.GetCurrentUser(["uuid", "email"], pro=True)),
++):
++    _system_unknown(system_id)
++    raw = await request.body()
++    if len(raw) > SYSTEM_DASHBOARD_MAX_BYTES:
++        return JSONResponse({"detail": "The body exceeds 5 MB."}, status_code=413)
++    try:
++        body = json.loads(raw)
++    except ValueError:
++        body = None
++    revision = body.get("revision") if isinstance(body, dict) else None
++    if (not isinstance(body, dict) or set(body) != {"revision", "content"} or not isinstance(body["content"], dict)
++            or type(revision) is not int or not 0 <= revision < 2**63):
++        return JSONResponse({"detail": "The body must be {revision: non-negative integer, content: object}."},
++                            status_code=400)
++    row = await _system_row(db, user, system_id, lock=True)
++    if row is not None and row.revision > revision:
++        newer = _system_newer(row, user)  # before the rollback expires the row
++        await db.rollback()
++        return newer
++    if row is None:
++        row = SystemDashboard(owner_uuid=user.uuid, system_id=system_id, revision=revision, content=body["content"])
++        db.add(row)
++    else:
++        row.revision, row.content = revision, body["content"]
++    try:
++        await db.commit()
++    except IntegrityError:
++        # A concurrent first write won the unique (owner, id) row: re-read it under lock and decide
++        # as if it had been read first -- 409 only when it is newer, else this write updates it.
++        await db.rollback()
++        row = await _system_row(db, user, system_id, lock=True)
++        if row is None:
++            # ...and a DELETE removed it again before this re-read: insert after all.
++            row = SystemDashboard(owner_uuid=user.uuid, system_id=system_id, revision=revision, content=body["content"])
++            db.add(row)
++        elif row.revision > revision:
++            newer = _system_newer(row, user)  # before the rollback expires the row
++            await db.rollback()
++            return newer
++        else:
++            row.revision, row.content = revision, body["content"]
++        await db.commit()
++    await db.refresh(row)
++    return JSONResponse({"success": True, "dashboard": _system_record(row, user)})
++
++
++@router.delete("/sync/system/{system_id}")
++async def delete_system_dashboard(
++    system_id: str,
++    request: Request,
++    db: AsyncSession = Depends(aget_write_db),
++    user: User = Depends(auth_helpers.GetCurrentUser(["uuid", "email"], pro=True)),
++):
++    _system_unknown(system_id)
++    params = request.query_params
++    raw = params.getlist("revision")
++    if (len(raw) != 1 or set(params) != {"revision"} or not raw[0].isascii() or not raw[0].isdigit()
++            or len(raw[0]) > 18):
++        return JSONResponse({"detail": "DELETE takes exactly ?revision=<non-negative integer>."}, status_code=400)
++    row = await _system_row(db, user, system_id, lock=True)
++    if row is not None and row.revision > int(raw[0]):
++        newer = _system_newer(row, user)  # before the rollback expires the row
++        await db.rollback()
++        return newer
++    if row is not None:
++        await db.delete(row)
++        await db.commit()
++    return JSONResponse({"success": True})
++
++
+ @router.get("/{dashboard_uuid}/versions", response_model=list[schemas.DashboardSave])
+ async def dashboard_versions(
+     dashboard_uuid: UUID,

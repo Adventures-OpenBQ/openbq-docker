@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "findings": [
+    {
+      "blob_oid": "9485d02399a321f1c92212abde414ddc3be58c0b",
+      "path": "funnel-gateway/temporal.test.mjs",
+      "kind": "filled JSON credential",
+      "reason": "synthetic-test-fixture"
+    },
+    {
+      "blob_oid": "9485d02399a321f1c92212abde414ddc3be58c0b",
+      "path": "funnel-gateway/temporal.test.mjs",
+      "kind": "tailnet host",
+      "reason": "synthetic-test-fixture"
+    },
+    {
+      "blob_oid": "141fe6567bdda601ae76a8c4e46e06abbd6f59c8",
+      "path": "funnel-gateway/temporal.test.mjs",
+      "kind": "tailnet host",
+      "reason": "synthetic-test-fixture"
+    },
+    {
+      "blob_oid": "1aa14796583002968f69dc9bb442bc0d612436d0",
+      "path": "key-maint/app/server.py",
+      "kind": "private address",
+      "reason": "synthetic-network"
+    },
+    {
+      "blob_oid": "e24cb71c0715affeceebdcbe3282c349be8b22c3",
+      "path": "key-maint/app/server.py",
+      "kind": "private address",
+      "reason": "synthetic-network"
+    },
+    {
+      "blob_oid": "e45a8929130547898b12467d2bed61ba98cb8682",
+      "path": "key-maint/app/server.py",
+      "kind": "private address",
+      "reason": "synthetic-network"
+    },
+    {
+      "blob_oid": "9d41db4c44b0b8e85b4d1fd8f3ca94464b7a15ab",
+      "path": "key-maint/app/server.py",
+      "kind": "private address",
+      "reason": "synthetic-network"
+    },
+    {
+      "blob_oid": "63601923a138fc9fe46a4a3806b1fc68aa5c0a24",
+      "path": "scripts/check-public.py",
+      "kind": "private address",
+      "reason": "synthetic-network"
+    },
+    {
+      "blob_oid": "20c7b76d2c04317234d2f38492019b1f8e4eac2c",
+      "path": "scripts/check-public.py",
+      "kind": "private address",
+      "reason": "synthetic-network"
+    },
+    {
+      "blob_oid": "906c55c7d39da53db30f7f5456dbfea682d2458d",
+      "path": "scripts/check-public.py",
+      "kind": "private address",
+      "reason": "synthetic-network"
+    },
+    {
+      "blob_oid": "ef8b1048041a4c2d9251faeab78170f0c60cda68",
+      "path": "scripts/check-public.py",
+      "kind": "private address",
+      "reason": "synthetic-network"
+    },
+    {
+      "blob_oid": "0c99d536098011a02734136c2caf7e6d66bf1816",
+      "path": "scripts/check-public.py",
+      "kind": "private address",
+      "reason": "synthetic-network"
+    },
+    {
+      "blob_oid": "eef7cdb6de5ea027a39f5bbf9e44aec38d92be24",
+      "path": "scripts/check-public.py",
+      "kind": "private address",
+      "reason": "synthetic-network"
+    },
+    {
+      "blob_oid": "28e7f5e6583d07cb52a11d182ed9281731702219",
+      "path": "tests/test_credentials_demo.py",
+      "kind": "filled JSON credential",
+      "reason": "published-provider-demo-key"
+    }
+  ]
+}

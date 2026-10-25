@@ -1,0 +1,28 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+# Official OpenBQ-stewarded OpenBB V5 packages; headless Episode 1 scope.
+openbb-core[pandas]==2.0.1
+openbb-platform-api==2.0.1
+openbb-bls==2.0.0
+openbb-cboe==2.0.0
+openbb-cftc==2.0.0
+openbb-deribit==2.0.0
+openbb-ecb==2.0.0
+openbb-us-eia==2.0.0
+openbb-famafrench==2.0.0
+openbb-federal-reserve==2.0.0
+openbb-finra==2.0.0
+openbb-fred==2.0.0
+openbb-government-us==2.0.0
+openbb-imf==3.0.0
+openbb-jodi==2.0.0
+openbb-nasdaq==2.0.0
+openbb-oecd==2.0.0
+openbb-sec==2.0.0
+openbb-tmx==2.0.0
+openbb-news==2.0.0
+openbb-econometrics==2.0.0
+openbb-quantitative==2.0.0
+openbb-technical==2.0.1
+# v4 trading-calendar route (openbq_routes); already resolved in requirements.lock.
+exchange_calendars==4.13.2

@@ -1,0 +1,472 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+name: openbq-stack
+# The two Tailscale sidecars (the stack's node and the Workspace's) differ only in name and paths.
+x-tailscale: &tailscale
+  image: tailscale/tailscale:v1.98.9@sha256:f15d5d3f4a68773a853180b72496f70ba614b64de0878c43fe3da39fe0afba47
+  restart: unless-stopped
+  devices: [/dev/net/tun:/dev/net/tun]
+  cap_add: [NET_ADMIN, NET_RAW]
+x-tailscale-env: &tailscale-env
+  TS_AUTH_ONCE: "true"
+  TS_USERSPACE: "false"
+  TS_STATE_DIR: /var/lib/tailscale
+  TS_SERVE_CONFIG: /config/serve.json
+services:
+  tailscale:
+    <<: *tailscale
+    hostname: openbq
+    env_file: [./ts.env]
+    environment: {<<: *tailscale-env, TS_HOSTNAME: openbq}
+    volumes:
+      - ./ts-state:/var/lib/tailscale
+      - ./ts-config:/config:ro
+    networks: [openbq-internal]
+  openbq-api:
+    # The full API image (Dockerfile stage v3): ODP, the Episode 3 yfinance extension, BDOBB's
+    # settings API and the v4 trading-calendar and fiscal-year routes. This file alone builds it.
+    build: {context: ., target: v3}
+    image: openbq-local:10.0.0
+    restart: unless-stopped
+    # Hard cap: if the API outgrows it, the kernel kills the API, not the host's other services.
+    mem_limit: 16g
+    # Public demo keys first, then your own: a key in credentials.env overrides its demo value.
+    env_file:
+      - path: ./credentials.demo.env
+        required: true
+      - path: ./credentials.env
+        required: false
+    volumes:
+      - openbq-data:/root/.openbb_platform
+      - openbq-user-data:/root/OpenBBUserData
+    networks: [openbq-internal]
+  # Optional Workspace server (Episode 2). Start with --profile workspace; it
+  # keeps its own tailnet node (openbq-workspace), network and data volume.
+  workspace:
+    profiles: [workspace]
+    image: openbq-workspace-local:2.0.0
+    restart: unless-stopped
+    env_file: [./workspace/runtime.env]
+    environment:
+      WORKERS: "1"
+      BACKEND_URL: /api
+      AI_COPILOT_ENABLED: "false"
+      AI_COPILOT_OPENBB_COPILOT: "false"
+      AI_COPILOT_AI_ENHANCEMENTS: "false"
+      UI_SHOW_COMPANION_MCP_MODE: "false"
+      UI_SHOW_COPILOT_SWITCHER: "false"
+      UI_SHOW_CHANGELOG: "false"
+      MCP_DEFAULT_SERVER_ENABLED: "false"
+      DATA_ALLOW_HTML_JS_EXECUTION: "false"
+    volumes: [workspace-data:/data]
+    networks: [workspace-internal]
+  workspace-tailscale:
+    <<: *tailscale
+    profiles: [workspace]
+    hostname: openbq-workspace
+    env_file: [./workspace/ts.env]
+    environment: {<<: *tailscale-env, TS_HOSTNAME: openbq-workspace}
+    volumes:
+      - ./workspace/ts-state:/var/lib/tailscale
+      - ./workspace/ts-config:/config:ro
+    networks: [workspace-internal]
+  # BDOBB's web preview door (v8, opt-in): `docker compose --profile web up -d`
+  # starts these two; plain `docker compose up -d` never does. Ported from
+  # openbb-docker v8.0.3 with /api, /state and /news only (no /ai), plus the
+  # managed-table routes that came down to v4 (docs/v4/gateway-down.md), from v3 the
+  # reference backend under /ref with its socket, /ref/live_grid_ws, and v10 adds the
+  # /grid family (live-grid, the `live` profile) from v10.1.7. See
+  # funnel-gateway/README.md, docs/v8/news-relay-and-hidden-dashboards.md and
+  # docs/v10/live-grid-kdb-port.md.
+  #
+  # rss-ticker: a shared feed pool with NO authentication, so reachability is its
+  # whole access control. Build it from ./rss-ticker (rss-feedhandler v8.3.1) as the local
+  # image openbq-rss-ticker:10.0.0; nothing is pulled:
+  #   docker compose --profile web build rss-ticker
+  # On the bridge only; every ts-config/serve*.json publishes it on tailnet port 8088
+  # (a 502 there until the web profile runs), never funneled.
+  #   cp rss-ticker-config/config.yaml.example rss-ticker-config/config.yaml
+  rss-ticker:
+    profiles: [web]
+    build: ./rss-ticker
+    image: openbq-rss-ticker:10.0.0
+    restart: unless-stopped
+    volumes:
+      - ./rss-ticker-config:/config:ro
+      - rss-ticker-data:/data
+    networks: [openbq-internal]
+  # funnel-gateway: the only service Funnel may publish (port 10000, after the
+  # deliberate swap to ts-config/serve-funnel.json, or to serve-v3-funnel.json with
+  # the v3 overlay; see funnel-gateway/README.md). It admits nothing without
+  # GATEWAY_TOKEN, checks Host and Origin, meters every request, and forwards
+  # only funnel-gateway/policy.mjs's routes, injecting the API's Basic pair.
+  #   cp gateway.env.example gateway.env && chmod 600 gateway.env
+  #   mkdir -p gateway-config && cp funnel-gateway/settings.example.json gateway-config/settings.json
+  funnel-gateway:
+    profiles: [web]
+    build: {context: ./funnel-gateway, additional_contexts: {lanes: ./lanes}}
+    image: openbq-funnel-gateway:10.0.0
+    restart: unless-stopped
+    expose: ["8091"]
+    depends_on: [openbq-api]
+    env_file:
+      # GATEWAY_TOKEN plus the API's Basic pair. Required: there is no
+      # configuration in which the door exists and the lock does not.
+      - path: ./gateway.env
+        required: true
+    read_only: true
+    user: "${GATEWAY_UID:-1000}:${GATEWAY_GID:-1000}"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 64
+    volumes:
+      - type: bind
+        source: ./gateway-config
+        target: /run/bdobb
+        read_only: true
+        bind: {create_host_path: false}
+      # The web preview's per-user configuration (/state); inert until
+      # settings.json names "stateDir": "/var/lib/bdobb/state".
+      - gateway-state:/var/lib/bdobb/state
+    tmpfs:
+      - "/tmp:size=16m,noexec,nosuid"
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+    # openbq-internal also carries the v3 overlay's reference (alias openbq-reference),
+    # which the gateway's /ref routes forward to.
+    networks: [openbq-internal, table-private]
+  # Local, exact-source build only; table-service/README.md documents preparation.
+  table-service:
+    profiles: [table]
+    build:
+      context: "${TABLE_SOURCE_CONTEXT:-./table-source}"
+      dockerfile: deploy/table-service/Dockerfile
+      args:
+        BDOBB_SOURCE_REVISION: "${TABLE_SOURCE_REVISION:-unset}"
+        BDOBB_SOURCE_TREE: "${TABLE_SOURCE_TREE:-unset}"
+    image: bdobb-table-service:local
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: "${TABLE_MEMORY_LIMIT:-8g}"
+    cpus: "${TABLE_CPUS:-2}"
+    pids_limit: 128
+    environment:
+      TABLE_SERVICE_CONFIG: /private/settings.json
+    volumes:
+      - type: bind
+        source: ./table-config
+        target: /private
+        read_only: true
+        bind: {create_host_path: false}
+      - table-sources:/var/lib/table-service
+    tmpfs: ["/tmp:size=64m,noexec,nosuid"]
+    networks: [table-private, table-egress]
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+  # The live tape (v10, opt-in): `docker compose --profile live up -d` starts these two;
+  # plain `docker compose up -d` never does. Ported from bdobb-dev/openbb-docker v10.1.7
+  # (d606169); see docs/v10/live-grid-kdb-port.md and live-grid/README.md.
+  #
+  # openbq-kdb: the kdb+ tick cache live-grid records into and reads back (/ticks, the tick seam of
+  # /series, /chart and /ta_chart). This repository ships NO KX software and NO licence:
+  # the image is the operator's own KDB-X build, and kc.lic goes in ./kdb-license/ by default.
+  # KDB_LICENSE_DIR (shell or .env) points kdb and live-grid at another directory
+  # instead, e.g. a private checkout kept beside this one (KDB_LICENSE_DIR=../openbb-kdb/<dir>),
+  # so the licence never has to be copied into this repository.
+  # (git-ignored, mounted read-only). Without a licence q exits and live-grid runs without
+  # ticks.
+  #
+  # Crash recovery is always on: q runs the repository's v10/kdb/source/q/startup.q, which loads
+  # v10/kdb/source/q/persist.q (both mounted read-only; no copying by hand). persist.q is the classic
+  # tickerplant log: every upd is appended to /data/logs/tlog_<UTC date> on the named volume
+  # `kdb-data`, which survives `docker compose down`/`up` and container recreation; on boot,
+  # with `trades` empty, the logs of today and the 2 days before are replayed with -11! (a torn
+  # tail is first cut back to its last whole chunk), so a restarted q comes back with live-grid's
+  # 48 h window. Logs roll at the UTC date change and are deleted after 7 days. `docker compose down
+  # -v` deletes the volume and with it the logs.
+  # q executes arbitrary q code and authenticates nothing: it has no host port and no Serve or
+  # Funnel entry, and it is on live-private only (internal: no egress), which live-grid and the
+  # lake jobs join. funnel-gateway, openbq-api and the sidecar share no network with it.
+  openbq-kdb:
+    profiles: [live]
+    # The default is the maintainer's PRIVATE image (kdb+ is proprietary: KX's licence does not
+    # permit redistributing q, so no kdb image is ever published), pinned by digest and built
+    # for linux/amd64 only. Anyone else sets KDB_IMAGE, or builds their own from their licensed
+    # KDB-X with compose.kdb-build.yml (amd64 or arm64; recipe in kdb-x/).
+    image: ${KDB_IMAGE:-ghcr.io/artcashin/kdb-x:amd64@sha256:013490f90a166e0863651f2c8a7f5d24e8d1beec68d2e3e541c1a2281653a77c}
+    restart: unless-stopped
+    environment:
+      # No host part: q listens on this container's bridge interface (live-grid dials openbq-kdb:5000).
+      KX_PORT: "5000"
+      QLIC: /opt/kx-license
+      # startup.q's last line loads this file (the donor's default is /data/persist.q).
+      KDB_PERSIST_Q: /opt/openbq-kdb/persist.q
+    volumes:
+      # The tick logs (/data/logs) live here: a named volume, so recreating the container
+      # keeps them.
+      - kdb-data:/data
+      - ${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro
+      - ./v10/kdb/source/q/startup.q:/opt/openbq-kdb/startup.q:ro
+      - ./v10/kdb/source/q/persist.q:/opt/openbq-kdb/persist.q:ro
+    # The kdb-x entrypoint runs `q <args> -p $KX_PORT`.
+    command: ["/opt/openbq-kdb/startup.q"]
+    # q closes the open log handle in .z.exit on SIGTERM; give it time before SIGKILL.
+    stop_grace_period: 30s
+    networks: [live-private]
+  # live-grid: the live_grid widget backend (EODHD websocket quotes, symbol metadata, bars,
+  # the tick chart). No host port and no Serve entry: BDOBB's web preview reaches it through
+  # the funnel-gateway's /grid family (the `web` profile, with "liveGrid": true in
+  # gateway-config/settings.json). It loads credentials.env for EODHD_API_KEY and the API's
+  # Basic pair, which it both presents to openbq-api and enforces on every one of its own
+  # routes when OPENBB_API_AUTH=true. Without kdb it still serves quotes and history.
+  # live-grid-perms: one-shot, before live-grid (Q1). live-grid runs as uid 10001 with cap_drop
+  # ALL, so it can neither write nor chown a live-grid-data volume an earlier root-run image
+  # created. This gives every path in it to 10001:10001, as root with no network, touching only
+  # what is wrong, so a restart costs nothing. Reuses the live-grid image; no extra image.
+  live-grid-perms:
+    profiles: [live]
+    build:
+      context: .
+      dockerfile: live-grid/Dockerfile
+    image: openbq-live-grid:10.0.0
+    restart: "no"
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        find /data ! -user 10001 -exec chown 10001:10001 {} +
+    volumes:
+      - live-grid-data:/data
+    network_mode: none
+  live-grid:
+    profiles: [live]
+    build:
+      context: .
+      dockerfile: live-grid/Dockerfile
+    image: openbq-live-grid:10.0.0
+    restart: unless-stopped
+    depends_on:
+      live-grid-perms:
+        condition: service_completed_successfully
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "6903"]
+    env_file:
+      # Public demo keys first (EODHD's "demo" covers only its demo symbols), then your own.
+      - path: ./credentials.demo.env
+        required: true
+      - path: ./credentials.env
+        required: false
+      # DELTA_S3_* for the chart seam's read-back of flushed days (below).
+      - path: ./rustfs.env
+        required: false
+    environment:
+      LIVE_GRID_CHART: "true"
+      # 48 h (D3): eod-dump reads a whole UTC day at 00:05 and retries hourly up to 20 times,
+      # so the window must hold the day until 20:05 the next day (24 h + 5 min + 20 h + the
+      # 60 s prune lag). A 24 h window cut every flushed day's first minutes.
+      LIVE_TICK_WINDOW_SECONDS: "172800"
+      # kdb is its own service; live-grid never spawns q (exactly one owner of :5000).
+      KDB_EMBEDDED: "false"
+      KDB_BIND_HOST: openbq-kdb
+      KDB_PORT: "5000"
+      QLIC: /opt/kx-license
+      # History comes from openbq-api's EODHD namespace (/api/v1/eodhd/...): this line has
+      # no standard routers and no openbb-kdb provider.
+      OPENBB_URL: http://openbq-api:6900
+      OPENBB_HISTORY_NAMESPACE: eodhd
+      TA_PUSH_INTERVAL_MS: "1000"
+      TA_EODHD_MIN_REFETCH_S: "60"
+      # The chart seam reads whole past UTC days back from the Delta store eod-dump
+      # writes (app/lake.py). Off by itself when DELTA_S3_* is not set.
+      LIVE_GRID_LAKE_READBACK: "true"
+      LIVE_GRID_LAKE_LIBRARY: ticks_live
+      LIVE_GRID_LAKE_MAX_DAYS: "10"
+      # The Subscriptions iframe widget needs an absolute URL. Empty (the default), live-grid
+      # names it by the scheme and host each request came in on, so a direct connection
+      # (tailnet Serve, a local relay) gets an address it can load; through the gateway the
+      # endpoint is rewritten to the gateway's own /grid/subscriptions (funnel-gateway
+      # server.mjs, V10-P5). Set LIVE_GRID_PUBLIC_URL in .env (compose interpolation;
+      # credentials.env's value is overridden here) only to pin one address for every client.
+      LIVE_GRID_PUBLIC_URL: ${LIVE_GRID_PUBLIC_URL:-}
+      # The tick spool (user ruling 2026-10-12, docs/v10/live-grid-kdb-port.md "Tick spool
+      # and fast reconnect"): ticks kdb does not acknowledge are appended here, on the
+      # live-grid-data volume, and replayed into kdb in order, before newer ticks, once it
+      # answers again -- and at startup, so a killed live-grid loses nothing it spooled.
+      LIVE_GRID_SPOOL_DIR: /data/spool
+      # Cap on the spool's files. Past it new ticks are dropped and counted in /health's
+      # ticks.dropped; it never fills the disk. 256 MB is ~44 h at the drill's 24 ticks/s.
+      LIVE_GRID_SPOOL_MAX_MB: "256"
+      # fsync cadence for spool appends: a host crash can cost at most ~this long; a killed
+      # live-grid loses nothing (every append is written through to the OS at once).
+      LIVE_GRID_SPOOL_FSYNC_S: "1"
+      # Reconnect backoff after kdb stops answering: 1 s, doubling, capped at 15 s (was a
+      # fixed 60 s latch). Calls inside the window fail fast; nothing hammers the port.
+      KDB_RETRY_INITIAL_S: "1"
+      KDB_RETRY_MAX_S: "15"
+    volumes:
+      - ${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro
+      # The durable watchlist (/data/watchlist.json) and the tick spool (/data/spool).
+      - live-grid-data:/data
+    # The image runs as 10001:10001 (D21); only /data (the volume) and /tmp are writable.
+    read_only: true
+    tmpfs: ["/tmp:size=64m,noexec,nosuid"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    # openbq-internal for openbq-api, the gateway and EODHD egress; live-private for q and RustFS.
+    networks: [openbq-internal, live-private]
+  # The S3 tier (v10 by user ruling; from the donor line, bdobb-dev/openbb-docker 78c7af9):
+  # the kdb day is flushed nightly into a Delta Lake store on S3, and live-grid's chart seam
+  # reads flushed days back. Same opt-in `live` profile; the default stack is unchanged.
+  # Needs rustfs.env (cp rustfs.env.example rustfs.env && chmod 600 rustfs.env); without
+  # it rustfs refuses to start, the bucket is never made, eod-dump never runs, and kdb and
+  # live-grid carry on without the store. See docs/v10/live-grid-kdb-port.md.
+  #
+  # rustfs: the S3 store. RustFS (Apache-2.0), used as its upstream image, unmodified
+  # (user ruling 2026-10-12: RustFS is the S3 store). On live-private only: no host port,
+  # no Serve, no Funnel, no tailnet node, so no certificate and no cert-sync. Plain HTTP,
+  # path-style. The console is off.
+  # rustfs-perms: one-shot, before rustfs. The RustFS image runs as uid/gid 10001, and a
+  # host directory is created by root (or by the operator), so rustfs could not write to it.
+  # This makes the data directory exist and belong to 10001:10001; it changes ownership only
+  # when it is wrong, so a restart costs nothing. Reuses the lake image; no extra image.
+  rustfs-perms:
+    profiles: [live]
+    build:
+      context: .
+      dockerfile: Dockerfile.lake
+    image: openbq-lake:10.0.0
+    restart: "no"
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        mkdir -p /data
+        [ "$$(stat -c %u:%g /data)" = 10001:10001 ] || chown -R 10001:10001 /data
+        chmod 0750 /data
+    volumes:
+      - ${RUSTFS_DATA_DIR:-./rustfs-data}:/data
+    network_mode: none
+  rustfs:
+    profiles: [live]
+    image: rustfs/rustfs:1.0.1@sha256:1803faef57627e2d9c2e7d89d655d712ddded5389040054987163043fecb6a3c
+    restart: unless-stopped
+    env_file:
+      - path: ./rustfs.env
+        required: false
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ENABLE: "false"
+    # Fail closed: no store with an empty or public-default root pair. The refusal idles rather
+    # than exiting (D22): with unless-stopped an exit 1 was a restart loop logging the refusal
+    # every second. Idle, it logs once, the health check keeps failing (so rustfs-init and
+    # eod-dump never start), and SIGTERM still ends it at once. Fill rustfs.env and run
+    # `docker compose --profile live up -d` again; the changed env recreates it.
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        case "$${RUSTFS_ACCESS_KEY:-}:$${RUSTFS_SECRET_KEY:-}" in
+          :*|*:|rustfsadmin:*|*:rustfsadmin)
+            echo "rustfs: set RUSTFS_ACCESS_KEY and RUSTFS_SECRET_KEY in rustfs.env (not empty, not the default); idle, no store" >&2
+            trap 'exit 1' TERM INT
+            while :; do sleep 3600 & wait $$!; done ;;
+        esac
+        exec /entrypoint.sh rustfs
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      rustfs-perms:
+        condition: service_completed_successfully
+    volumes:
+      # Persistent on the host, not in a Docker volume: the store survives container
+      # recreation, image upgrades and `docker compose down -v`, and can be backed up or
+      # moved to another disk as a plain directory. Default ./rustfs-data (git-ignored);
+      # set RUSTFS_DATA_DIR in the shell or in .env to put it elsewhere.
+      - ${RUSTFS_DATA_DIR:-./rustfs-data}:/data
+    networks: [live-private]
+  # rustfs-init: one-shot. Delta Lake does not create its own bucket; this makes it over
+  # the plain S3 API (scripts/s3_init.py, pyarrow), idempotently. No vendor S3 client.
+  rustfs-init:
+    profiles: [live]
+    build:
+      context: .
+      dockerfile: Dockerfile.lake
+    image: openbq-lake:10.0.0
+    restart: "no"
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    env_file:
+      - path: ./rustfs.env
+        required: false
+    command: ["python", "/opt/s3_init.py"]
+    networks: [live-private]
+  # eod-dump: the kdb day cycle's .u.end as a sidecar. At 00:05 UTC it reads the UTC day
+  # that just ended out of kdb over IPC on live-private and writes one Delta table per
+  # (symbol, day) to the `ticks_live` library -- the HDB. It does not purge kdb's RAM
+  # (live-grid's rolling window does). On start it also flushes yesterday, so a host that
+  # was down at 00:05 catches up. The donor's NAS-side flush over HTTP is not carried.
+  eod-dump:
+    profiles: [live]
+    build:
+      context: .
+      dockerfile: Dockerfile.lake
+    image: openbq-lake:10.0.0
+    restart: unless-stopped
+    depends_on:
+      rustfs-init:
+        condition: service_completed_successfully
+    entrypoint: ["python", "/opt/eod_dump.py", "--loop"]
+    env_file:
+      - path: ./rustfs.env
+        required: false
+      - path: ./eod.env
+        required: false
+    environment:
+      KDB_HOST: openbq-kdb
+      KDB_PORT: "5000"
+      # PyKX unlicensed (Q2): the flush only speaks q IPC and converts the result, which PyKX
+      # does without a licence. eod-dump is on live-private with no egress, so a kc.lic that
+      # calls KX's licence daemon would fail every flush; it gets no licence at all.
+      PYKX_UNLICENSED: "true"
+    networks: [live-private]
+networks:
+  table-private:
+    internal: true
+  table-egress:
+    driver: bridge
+  openbq-internal:
+    driver: bridge
+  # The `live` profile's q and S3 store (D1): no egress and no peer but live-grid and the lake jobs.
+  live-private:
+    internal: true
+  workspace-internal:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1500"
+volumes:
+  table-sources:
+  openbq-data:
+  openbq-user-data:
+  rss-ticker-data:
+  gateway-state:
+  # The `live` profile's watchlist (live-grid).
+  live-grid-data:
+  # The `live` profile's kdb tick logs (v10/kdb/source/q/persist.q writes /data/logs/tlog_<date>).
+  kdb-data:
+  # (The `live` profile's S3 store is a host directory, not a volume: see rustfs.)
+  # Named as the former standalone project's volume so existing Workspace
+  # accounts and dashboards carry over.
+  workspace-data:
+    name: openbq-episode2_workspace-data

@@ -1,0 +1,32 @@
+{
+  "repository": "https://github.com/Adventures-OpenBQ/openbq-eodhd.git",
+  "tag": "v9.0.1",
+  "commit": "59603cc1957b01af98b75be257520b0f48a637fc",
+  "version": "9.0.1",
+  "sdk": "vendored at openbq_eodhd/_vendor/eodhd from https://github.com/EodHistoricalData/EODHD-APIs-Python-Financial-Library at f98e69d797140ca03f16fa7451046d84aab9643e",
+  "sdk_license": "MIT",
+  "license": "Apache-2.0",
+  "donor": {
+    "repository": "https://github.com/bdobb-dev/openbb-docker.git",
+    "directory": "openbb-eodhd",
+    "base": {
+      "tag": "v9.6.3",
+      "commit": "99864f2"
+    },
+    "fixes_through": {
+      "tag": "v9.6.6",
+      "commit": "68afaa7"
+    },
+    "donor_commits": [
+      "99864f2",
+      "bbd67cd",
+      "9068e36",
+      "73d0c92",
+      "498d317",
+      "eb73012",
+      "564e5ee",
+      "cd0aaeb"
+    ],
+    "version": "9.6.3"
+  }
+}

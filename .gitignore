@@ -1,0 +1,81 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+*.env
+!*.env.example
+# Public demo keys only (tests/test_credentials_demo.py).
+!credentials.demo.env
+ts-state/
+__pycache__/
+*.pyc
+
+.docker/
+source.tgz
+build.log
+
+*.tgz
+*.log
+._*
+
+.DS_Store
+
+# Private runtime state and local evidence
+local-rehearsal/
+.env*
+!*.env.example
+*.env.*
+!*.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.db
+*.sqlite*
+*.zip
+*.tar*
+backups/
+.superpowers/
+
+scripts/scrub-private-patterns.txt
+
+credentials*.json
+!credentials.example.json
+user_settings.json
+certs/
+secrets/
+
+# Python demo runtime caches
+__pycache__/
+*.pyc
+
+# key-maint admin socket directory (host-only, 0700)
+key-maint-admin/
+
+# Gateway dependencies (installed by npm ci; never committed)
+funnel-gateway/node_modules/
+
+# funnel-gateway (web profile) runtime configuration (settings.json holds the real tailnet origin)
+gateway-config/
+rss-ticker-config/config.yaml
+
+# The v10 `live` profile. Bring your own kdb+ licence and q startup scripts; never commit
+# a licence or a key. kdb-license/ keeps only its .gitkeep.
+kdb-license/*
+!kdb-license/.gitkeep
+kdb-data/
+live-grid-data/
+*.lic
+*.egg-info/
+.pytest_cache/
+
+# The v10 `live` profile's S3 tier (RustFS) and the nightly flush. Never commit the
+# store's data or its credentials (rustfs.env and eod.env are covered by *.env above).
+rustfs-data/
+minio-data/
+rustfs.env
+eod.env
+
+# Task-owned local native table build and private operator configuration.
+table-source/
+table-config/
+table-build.env

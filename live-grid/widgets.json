@@ -1,0 +1,483 @@
+{
+ "subscriptions": {
+  "name": "Subscriptions",
+  "description": "Manage the EODHD live subscription list: add and remove symbols, grouped by feed, against the 50-symbol budget. Symbols leased by kdb quotes are shown but expire on their own.",
+  "category": "Live",
+  "type": "iframe",
+  "endpoint": "subscriptions",
+  "gridData": {
+   "w": 20,
+   "h": 14
+  }
+ },
+ "live_grid": {
+  "name": "Live quotes",
+  "description": "Real-time EODHD prices: US equities, crypto and forex in one watchlist. Type symbols into the widget.",
+  "category": "Live",
+  "type": "live_grid",
+  "endpoint": "live_grid",
+  "wsEndpoint": "live_grid_ws",
+  "gridData": {
+   "w": 40,
+   "h": 12
+  },
+  "data": {
+   "wsRowIdColumn": "symbol",
+   "table": {
+    "showAll": false,
+    "columnsDefs": [
+     {
+      "field": "logo_url",
+      "headerName": "",
+      "renderFn": [
+       "logo"
+      ],
+      "width": 40,
+      "enableCellChangeWs": false
+     },
+     {
+      "field": "symbol",
+      "width": 72,
+      "headerName": "Symbol",
+      "pinned": "left"
+     },
+     {
+      "field": "price",
+      "width": 88,
+      "headerName": "Last",
+      "renderFn": [
+       "showCellChange"
+      ],
+      "renderFnParams": {
+       "colorValueKey": "change"
+      },
+      "align": "right",
+      "abbreviate": false
+     },
+     {
+      "field": "change",
+      "width": 84,
+      "headerName": "Chg",
+      "renderFn": [
+       "greenRed"
+      ],
+      "align": "right"
+     },
+     {
+      "field": "change_percent",
+      "width": 84,
+      "headerName": "% Chg",
+      "renderFn": [
+       "greenRed"
+      ],
+      "formatterFn": "normalizedPercent",
+      "align": "right"
+     },
+     {
+      "field": "day_low",
+      "width": 84,
+      "headerName": "Day Low",
+      "enableCellChangeWs": false,
+      "align": "right",
+      "abbreviate": false
+     },
+     {
+      "field": "day_range",
+      "width": 64,
+      "headerName": "Day",
+      "renderFn": [
+       "rangeBar"
+      ],
+      "renderFnParams": {
+       "lowKey": "day_low",
+       "highKey": "day_high",
+       "palette": "day"
+      },
+      "enableCellChangeWs": false
+     },
+     {
+      "field": "day_high",
+      "width": 84,
+      "headerName": "Day High",
+      "enableCellChangeWs": false,
+      "align": "left",
+      "abbreviate": false
+     },
+     {
+      "field": "week52_low",
+      "width": 84,
+      "headerName": "52w Low",
+      "enableCellChangeWs": false,
+      "align": "right",
+      "abbreviate": false
+     },
+     {
+      "field": "week52_range",
+      "width": 64,
+      "headerName": "52 Week",
+      "renderFn": [
+       "rangeBar"
+      ],
+      "renderFnParams": {
+       "lowKey": "week52_low",
+       "highKey": "week52_high",
+       "palette": "week52"
+      },
+      "enableCellChangeWs": false
+     },
+     {
+      "field": "week52_high",
+      "width": 84,
+      "headerName": "52w High",
+      "enableCellChangeWs": false,
+      "align": "left",
+      "abbreviate": false
+     },
+     {
+      "field": "volume",
+      "width": 88,
+      "headerName": "Volume",
+      "enableCellChangeWs": false
+     },
+     {
+      "field": "bid",
+      "width": 84,
+      "headerName": "Bid",
+      "hide": true,
+      "abbreviate": false
+     },
+     {
+      "field": "ask",
+      "width": 84,
+      "headerName": "Ask",
+      "hide": true,
+      "abbreviate": false
+     },
+     {
+      "field": "last_size",
+      "width": 80,
+      "headerName": "Last Size",
+      "hide": true
+     },
+     {
+      "field": "updated_at",
+      "width": 132,
+      "headerName": "Updated",
+      "hide": true
+     },
+     {
+      "field": "updated_ts",
+      "width": 180,
+      "headerName": "Updated (UTC)",
+      "formatterFn": "none",
+      "hide": true
+     },
+     {
+      "field": "stream_volume",
+      "width": 120,
+      "headerName": "Stream volume",
+      "hide": true
+     },
+     {
+      "field": "day_open",
+      "width": 88,
+      "headerName": "Open",
+      "hide": true,
+      "abbreviate": false
+     }
+    ]
+   }
+  },
+  "params": [
+   {
+    "paramName": "symbol",
+    "type": "text",
+    "value": "AAPL,MSFT,TSLA,BTC-USD,ETH-USD,EURUSD",
+    "label": "Symbols",
+    "description": "Comma-separated watchlist: US equities (AAPL), crypto (BTC-USD), forex (EURUSD)",
+    "multiSelect": true
+   }
+  ],
+  "source": [
+   "EODHD"
+  ]
+ },
+ "kdb_ticks": {
+  "name": "Tick History",
+  "description": "Recent trades for one symbol out of the kdb+ tick cache: a rolling window (48 hours in the stack's compose file) that survives a restart, since kdb replays its daily logs on boot.",
+  "category": "Live",
+  "type": "table",
+  "endpoint": "ticks",
+  "gridData": {
+   "w": 20,
+   "h": 12
+  },
+  "params": [
+   {
+    "paramName": "symbol",
+    "value": "AAPL",
+    "label": "Symbol",
+    "type": "text"
+   },
+   {
+    "paramName": "limit",
+    "value": "200",
+    "label": "Rows",
+    "type": "number"
+   }
+  ],
+  "data": {
+   "dataKey": "ticks",
+   "table": {
+    "showAll": false,
+    "columnsDefs": [
+     {
+      "field": "time",
+      "headerName": "Time",
+      "formatterFn": "none"
+     },
+     {
+      "field": "price",
+      "headerName": "Price",
+      "abbreviate": false
+     },
+     {
+      "field": "size",
+      "headerName": "Size",
+      "formatterFn": "none"
+     }
+    ]
+   }
+  },
+  "source": [
+   "kdb+"
+  ]
+ },
+ "kdb_cache_chart": {
+  "name": "Cached Price Chart",
+  "description": "Historical prices from EODHD through openbq-api (kdb+ caches no history), joined to live bars built from the kdb+ tick cache",
+  "category": "Equity",
+  "type": "chart",
+  "endpoint": "chart",
+  "gridData": {
+   "w": 20,
+   "h": 12
+  },
+  "params": [
+   {
+    "paramName": "symbol",
+    "value": "AAPL",
+    "label": "Symbol",
+    "type": "text"
+   },
+   {
+    "paramName": "interval",
+    "value": "1d",
+    "label": "Interval",
+    "type": "text",
+    "options": [
+     {
+      "label": "1 day",
+      "value": "1d"
+     },
+     {
+      "label": "1 hour",
+      "value": "1h"
+     },
+     {
+      "label": "5 min",
+      "value": "5m"
+     }
+    ]
+   }
+  ]
+ },
+ "sector_map": {
+  "name": "S&P 500 Sector Map",
+  "description": "S&P 500 sectors sized by their weight in SPY (EODHD, Morningstar sectors) and coloured by the day change of each sector's SPDR ETF (XLK, XLF, ...), live from the grid's feed. Sector buckets follow Morningstar, the ETFs follow GICS, so a few companies sit in different buckets.",
+  "category": "Equity",
+  "type": "chart",
+  "endpoint": "sector_map",
+  "refetchInterval": 15000,
+  "gridData": {
+   "w": 20,
+   "h": 12
+  },
+  "params": []
+ },
+ "live_chart": {
+  "name": "Live Chart",
+  "description": "Live price chart seeded from the kdb+ cache, extended tick by tick over the live quote stream.",
+  "category": "Live",
+  "type": "live_chart",
+  "endpoint": "series",
+  "wsEndpoint": "live_grid_ws",
+  "gridData": {
+   "w": 40,
+   "h": 16
+  },
+  "params": [
+   {
+    "paramName": "symbol",
+    "type": "text",
+    "value": "AAPL",
+    "label": "Symbols",
+    "description": "Comma-separated: US equities, crypto (BTC-USD), forex (EURUSD)",
+    "multiSelect": true
+   },
+   {
+    "paramName": "interval",
+    "type": "text",
+    "value": "1m",
+    "label": "Interval",
+    "options": [
+     {
+      "label": "1 second",
+      "value": "1s"
+     },
+     {
+      "label": "1 minute",
+      "value": "1m"
+     },
+     {
+      "label": "5 min",
+      "value": "5m"
+     },
+     {
+      "label": "15 min",
+      "value": "15m"
+     },
+     {
+      "label": "30 min",
+      "value": "30m"
+     },
+     {
+      "label": "1 hour",
+      "value": "1h"
+     },
+     {
+      "label": "1 day",
+      "value": "1d"
+     }
+    ]
+   }
+  ],
+  "source": [
+   "EODHD",
+   "kdb+"
+  ]
+ },
+ "ta_chart": {
+  "name": "Technical Chart",
+  "description": "Indicators over cached OHLCV in stacked panes. Pick a macro for a saved layout, or build one from the indicator list.",
+  "category": "Equity",
+  "type": "chart",
+  "endpoint": "ta_chart",
+  "wsEndpoint": "ta_chart_ws",
+  "gridData": {
+   "w": 40,
+   "h": 20
+  },
+  "params": [
+   {
+    "paramName": "symbol",
+    "value": "AAPL",
+    "label": "Symbol",
+    "type": "text"
+   },
+   {
+    "paramName": "interval",
+    "value": "1d",
+    "label": "Interval",
+    "type": "text",
+    "options": [
+     {
+      "label": "1 day",
+      "value": "1d"
+     },
+     {
+      "label": "1 hour",
+      "value": "1h"
+     },
+     {
+      "label": "5 min",
+      "value": "5m"
+     },
+     {
+      "label": "1 min",
+      "value": "1m"
+     }
+    ]
+   },
+   {
+    "paramName": "start",
+    "value": "",
+    "label": "Start",
+    "type": "date",
+    "description": "First date charted, e.g. 2020-03-02. Blank: a year ago."
+   },
+   {
+    "paramName": "end",
+    "value": "",
+    "label": "End",
+    "type": "date",
+    "description": "Last date charted, e.g. 2020-05-29. Blank: today."
+   },
+   {
+    "paramName": "show_seam",
+    "value": false,
+    "label": "Show seam",
+    "type": "boolean",
+    "description": "Shade which bars came from the history provider, the lake and kdb ticks, and mark where history ends and live begins."
+   },
+   {
+    "paramName": "macro",
+    "value": "classic-momentum",
+    "label": "Macro",
+    "type": "text",
+    "description": "A saved pane layout. Options are filled in from the macro directory.",
+    "options": [
+     {
+      "label": "None",
+      "value": "none"
+     }
+    ]
+   },
+   {
+    "paramName": "indicators",
+    "value": "",
+    "label": "Extra indicators",
+    "type": "text",
+    "description": "Comma separated, e.g. rsi:period=14,avwap:anchor=2026-08-28T14:30"
+   },
+   {
+    "paramName": "anchor",
+    "value": "",
+    "label": "AVWAP anchor",
+    "type": "text",
+    "description": "Anchor an AVWAP (trade-true, from recorded ticks) at this time, ISO 8601 e.g. 2026-08-28T14:30. Shorthand for indicators=avwap:anchor=..."
+   },
+   {
+    "paramName": "source",
+    "value": "local",
+    "label": "Source",
+    "type": "text",
+    "description": "local computes here; eodhd uses their pre-calculated values (5 API calls per indicator, refreshed on bar close)",
+    "options": [
+     {
+      "label": "Local",
+      "value": "local"
+     },
+     {
+      "label": "EODHD",
+      "value": "eodhd"
+     }
+    ]
+   }
+  ],
+  "source": [
+   "EODHD",
+   "kdb+"
+  ]
+ }
+}

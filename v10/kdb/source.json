@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/Adventures-OpenBQ/openbq-kdb.git",
+  "tag": "v10.0.0",
+  "commit": "6d2035bf58007b33d950f8c272fd0b718c432ac5",
+  "version": "10.0.0",
+  "license": "Apache-2.0",
+  "donor": {
+    "repository": "https://github.com/bdobb-dev/openbb-docker.git",
+    "directories": [
+      "kdb-store",
+      "kdb-ws"
+    ],
+    "tag": "v10.1.7",
+    "commit": "d606169",
+    "ledger": "docs/v10/live-grid-kdb-port.md"
+  }
+}
