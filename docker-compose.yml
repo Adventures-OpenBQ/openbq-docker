@@ -1,0 +1,191 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+name: openbq-stack
+# The two Tailscale sidecars (the stack's node and the Workspace's) differ only in name and paths.
+x-tailscale: &tailscale
+  image: tailscale/tailscale:v1.98.9@sha256:f15d5d3f4a68773a853180b72496f70ba614b64de0878c43fe3da39fe0afba47
+  restart: unless-stopped
+  devices: [/dev/net/tun:/dev/net/tun]
+  cap_add: [NET_ADMIN, NET_RAW]
+x-tailscale-env: &tailscale-env
+  TS_AUTH_ONCE: "true"
+  TS_USERSPACE: "false"
+  TS_STATE_DIR: /var/lib/tailscale
+  TS_SERVE_CONFIG: /config/serve.json
+services:
+  tailscale:
+    <<: *tailscale
+    hostname: openbq
+    env_file: [./ts.env]
+    environment: {<<: *tailscale-env, TS_HOSTNAME: openbq}
+    volumes:
+      - ./ts-state:/var/lib/tailscale
+      - ./ts-config:/config:ro
+    networks: [openbq-internal]
+  openbq-api:
+    # The full API image (Dockerfile stage v3): ODP, the Episode 3 yfinance extension, BDOBB's
+    # settings API and the v4 trading-calendar and fiscal-year routes. This file alone builds it.
+    build: {context: ., target: v3}
+    image: openbq-local:8.0.0
+    restart: unless-stopped
+    # Hard cap: if the API outgrows it, the kernel kills the API, not the host's other services.
+    mem_limit: 16g
+    # Public demo keys first, then your own: a key in credentials.env overrides its demo value.
+    env_file:
+      - path: ./credentials.demo.env
+        required: true
+      - path: ./credentials.env
+        required: false
+    volumes:
+      - openbq-data:/root/.openbb_platform
+      - openbq-user-data:/root/OpenBBUserData
+    networks: [openbq-internal]
+  # Optional Workspace server (Episode 2). Start with --profile workspace; it
+  # keeps its own tailnet node (openbq-workspace), network and data volume.
+  workspace:
+    profiles: [workspace]
+    image: openbq-workspace-local:2.0.0
+    restart: unless-stopped
+    env_file: [./workspace/runtime.env]
+    environment:
+      WORKERS: "1"
+      BACKEND_URL: /api
+      AI_COPILOT_ENABLED: "false"
+      AI_COPILOT_OPENBB_COPILOT: "false"
+      AI_COPILOT_AI_ENHANCEMENTS: "false"
+      UI_SHOW_COMPANION_MCP_MODE: "false"
+      UI_SHOW_COPILOT_SWITCHER: "false"
+      UI_SHOW_CHANGELOG: "false"
+      MCP_DEFAULT_SERVER_ENABLED: "false"
+      DATA_ALLOW_HTML_JS_EXECUTION: "false"
+    volumes: [workspace-data:/data]
+    networks: [workspace-internal]
+  workspace-tailscale:
+    <<: *tailscale
+    profiles: [workspace]
+    hostname: openbq-workspace
+    env_file: [./workspace/ts.env]
+    environment: {<<: *tailscale-env, TS_HOSTNAME: openbq-workspace}
+    volumes:
+      - ./workspace/ts-state:/var/lib/tailscale
+      - ./workspace/ts-config:/config:ro
+    networks: [workspace-internal]
+  # BDOBB's web preview door (v8, opt-in): `docker compose --profile web up -d`
+  # starts these two; plain `docker compose up -d` never does. Ported from
+  # openbb-docker v8.0.3 with /api, /state and /news only (no /ai), plus the
+  # managed-table routes that came down to v4 (docs/v4/gateway-down.md) and, from v3,
+  # the reference backend under /ref with its socket, /ref/live_grid_ws. See
+  # funnel-gateway/README.md and docs/v8/news-relay-and-hidden-dashboards.md.
+  #
+  # rss-ticker: a shared feed pool with NO authentication, so reachability is its
+  # whole access control. Build it from ./rss-ticker (rss-feedhandler v8.3.1) as the local
+  # image openbq-rss-ticker:8.0.0; nothing is pulled:
+  #   docker compose --profile web build rss-ticker
+  # On the bridge only; every ts-config/serve*.json publishes it on tailnet port 8088
+  # (a 502 there until the web profile runs), never funneled.
+  #   cp rss-ticker-config/config.yaml.example rss-ticker-config/config.yaml
+  rss-ticker:
+    profiles: [web]
+    build: ./rss-ticker
+    image: openbq-rss-ticker:8.0.0
+    restart: unless-stopped
+    volumes:
+      - ./rss-ticker-config:/config:ro
+      - rss-ticker-data:/data
+    networks: [openbq-internal]
+  # funnel-gateway: the only service Funnel may publish (port 10000, after the
+  # deliberate swap to ts-config/serve-funnel.json, or to serve-v3-funnel.json with
+  # the v3 overlay; see funnel-gateway/README.md). It admits nothing without
+  # GATEWAY_TOKEN, checks Host and Origin, meters every request, and forwards
+  # only funnel-gateway/policy.mjs's routes, injecting the API's Basic pair.
+  #   cp gateway.env.example gateway.env && chmod 600 gateway.env
+  #   mkdir -p gateway-config && cp funnel-gateway/settings.example.json gateway-config/settings.json
+  funnel-gateway:
+    profiles: [web]
+    build: {context: ./funnel-gateway, additional_contexts: {lanes: ./lanes}}
+    image: openbq-funnel-gateway:8.0.0
+    restart: unless-stopped
+    expose: ["8091"]
+    depends_on: [openbq-api]
+    env_file:
+      # GATEWAY_TOKEN plus the API's Basic pair. Required: there is no
+      # configuration in which the door exists and the lock does not.
+      - path: ./gateway.env
+        required: true
+    read_only: true
+    user: "${GATEWAY_UID:-1000}:${GATEWAY_GID:-1000}"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 64
+    volumes:
+      - type: bind
+        source: ./gateway-config
+        target: /run/bdobb
+        read_only: true
+        bind: {create_host_path: false}
+      # The web preview's per-user configuration (/state); inert until
+      # settings.json names "stateDir": "/var/lib/bdobb/state".
+      - gateway-state:/var/lib/bdobb/state
+    tmpfs:
+      - "/tmp:size=16m,noexec,nosuid"
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+    # openbq-internal also carries the v3 overlay's reference (alias openbq-reference),
+    # which the gateway's /ref routes forward to.
+    networks: [openbq-internal, table-private]
+  # Local, exact-source build only; table-service/README.md documents preparation.
+  table-service:
+    profiles: [table]
+    build:
+      context: "${TABLE_SOURCE_CONTEXT:-./table-source}"
+      dockerfile: deploy/table-service/Dockerfile
+      args:
+        BDOBB_SOURCE_REVISION: "${TABLE_SOURCE_REVISION:-unset}"
+        BDOBB_SOURCE_TREE: "${TABLE_SOURCE_TREE:-unset}"
+    image: bdobb-table-service:local
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: "${TABLE_MEMORY_LIMIT:-8g}"
+    cpus: "${TABLE_CPUS:-2}"
+    pids_limit: 128
+    environment:
+      TABLE_SERVICE_CONFIG: /private/settings.json
+    volumes:
+      - type: bind
+        source: ./table-config
+        target: /private
+        read_only: true
+        bind: {create_host_path: false}
+      - table-sources:/var/lib/table-service
+    tmpfs: ["/tmp:size=64m,noexec,nosuid"]
+    networks: [table-private, table-egress]
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+networks:
+  table-private:
+    internal: true
+  table-egress:
+    driver: bridge
+  openbq-internal:
+    driver: bridge
+  workspace-internal:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1500"
+volumes:
+  table-sources:
+  openbq-data:
+  openbq-user-data:
+  rss-ticker-data:
+  gateway-state:
+  # Named as the former standalone project's volume so existing Workspace
+  # accounts and dashboards carry over.
+  workspace-data:
+    name: openbq-episode2_workspace-data

@@ -1,0 +1,65 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+# Optional Episode 3 services; use together with docker-compose.yml.
+services:
+  tailscale:
+    environment:
+      TS_SERVE_CONFIG: /config/serve-v3.json
+  episode3-demo:
+    build: ./examples/episode3
+    image: openbq-episode3-demo:8.0.0
+    restart: unless-stopped
+    env_file:
+      - path: ./v3.env
+        required: false
+    networks:
+      openbq-internal:
+        aliases: [openbq-reference]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:17783/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+  # key-maint: the provider key status widget (Episode 3), BDOBB's Settings ▸
+  # Provider API Keys. One process, two servers: the network server on :8447
+  # (tailnet via the openbq-keys Tailscale Service, see key-maint/README.md;
+  # localhost only on this host) and an admin server on a unix socket in
+  # ./key-maint-admin, whose 0700 host directory is what allows writing keys.
+  # Auth follows the API: open while OPENBB_API_AUTH is off, the API's Basic
+  # auth when it is on.
+  key-maint:
+    build: ./key-maint
+    image: openbq-key-maint:8.0.0
+    restart: unless-stopped
+    depends_on: [openbq-api]
+    environment:
+      KEYMAINT_NETWORK_HOST: 0.0.0.0
+      # :8447 is published on the host loopback only, so a direct caller is the
+      # host itself: live tests (tier 2), never key values.
+      KEYMAINT_DIRECT_TIER: "2"
+      OPENBB_API_URL: http://openbq-api:6900
+      PYTHONDONTWRITEBYTECODE: "1"
+    ports: ["127.0.0.1:8447:8447"]
+    volumes:
+      # rw: writing a key (admin socket only) rewrites this file in place.
+      - ./credentials.env:/config/credentials.env
+      # One-time: mkdir -p key-maint-admin && chmod 700 key-maint-admin
+      - ./key-maint-admin:/config/admin
+    networks: [openbq-internal]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, python, -c, "import socket; socket.create_connection(('127.0.0.1', 8447), 5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+networks:
+  openbq-internal:
+    driver_opts:
+      com.docker.network.driver.mtu: "1500"

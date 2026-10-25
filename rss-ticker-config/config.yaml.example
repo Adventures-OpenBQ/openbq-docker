@@ -1,0 +1,41 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+
+# rss-ticker (the local image openbq-rss-ticker:8.0.0, built from ./rss-ticker) for the `web` profile, from
+# openbb-docker v8.0.3. A user-agnostic shared feed pool: BDOBB's News widget subscribes
+# feed URLs over the websocket, and nothing here names a feed, a user or a key. The
+# server refuses to start on any other key.
+#
+#   cp rss-ticker-config/config.yaml.example rss-ticker-config/config.yaml
+
+# Articles a feed no longer lists are kept this long after they were last seen.
+retention_days: 7
+
+# Every feed polls at this interval. Publishers monitor, and an over-eager poller gets
+# throttled. 90 suits a pool of wires; 300 suits blogs and newsletters.
+default_poll_interval_s: 90
+
+max_concurrent_polls: 8
+
+# 0.0.0.0 on the openbq-internal bridge: nothing is published to the host, and the bridge
+# is what decides who can reach the port. There is no authentication.
+bind_host: 0.0.0.0
+
+# Live TV, off until you list channels. Uncomment and edit: each channel is a YouTube
+# @handle whose /live page the server checks on demand (cached 5 minutes). The first is
+# the widget's default. With channels listed, /widgets.json publishes one "Live TV"
+# youtube widget; connect this server as a backend (https://openbq.YOUR-TAILNET.ts.net:8088)
+# to add it. Only these handles are ever fetched.
+# live_tv:
+#   - key: bloomberg-tv
+#     label: Bloomberg TV
+#     handle: "@markets"
+#   - key: yahoo-finance
+#     label: Yahoo Finance
+#     handle: "@YahooFinance"
+#   - key: schwab-network
+#     label: Schwab Network
+#     handle: "@SchwabNetwork"
+#   - key: cnbc-television
+#     label: CNBC Television
+#     handle: "@CNBCtelevision"   # events only: off-air between shows

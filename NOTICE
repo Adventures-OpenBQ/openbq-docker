@@ -1,0 +1,77 @@
+Copyright 2026 SecretoftheUniverse.com LLC.
+
+Original repository-authored code, documentation, configurations and assets are licensed under Apache-2.0 (see LICENSE). Third-party components retain their original copyrights and licenses; dependency licenses are not replaced.
+
+Third-party code in this repository
+-----------------------------------
+
+OpenBB Platform (https://github.com/OpenBB-finance/OpenBB)
+Copyright (c) 2021-2026 OpenBB Inc. Licensed under the Apache License, Version 2.0.
+The files below (provider-fixes/openbb_*) are modified copies of OpenBB Platform files, with modifications Copyright 2026 SecretoftheUniverse.com LLC. Each Python file carries that notice in its header; the JSON assets cannot carry comments, so this list is their notice:
+  provider-fixes/openbb_bls/bls_router.py
+  provider-fixes/openbb_bls/routers/ces.py
+  provider-fixes/openbb_bls/routers/cpi.py
+  provider-fixes/openbb_bls/routers/jolts.py
+  provider-fixes/openbb_bls/routers/ppi.py
+  provider-fixes/openbb_bls/routers/productivity.py
+  provider-fixes/openbb_bls/routers/realer.py
+  provider-fixes/openbb_bls/routers/ximpim.py
+  provider-fixes/openbb_cboe/utils/helpers.py
+  provider-fixes/openbb_cftc/utils/fx_valuation.py
+  provider-fixes/openbb_core/api/app_loader.py
+  provider-fixes/openbb_core/api/exception_handlers.py
+  provider-fixes/openbb_core/api/router/commands.py
+  provider-fixes/openbb_core/app/command_runner.py
+  provider-fixes/openbb_core/app/provider_interface.py
+  provider-fixes/openbb_deribit/assets/apps.json
+  provider-fixes/openbb_famafrench/utils/constants.py
+  provider-fixes/openbb_federal_reserve/assets/ffiec/widgets.json
+  provider-fixes/openbb_federal_reserve/federal_reserve_router.py
+  provider-fixes/openbb_federal_reserve/ffiec.py
+  provider-fixes/openbb_federal_reserve/models/institution_structure.py
+  provider-fixes/openbb_federal_reserve/models/list_of_banks_peer_group.py
+  provider-fixes/openbb_federal_reserve/models/regional/dallas_bcs.py
+  provider-fixes/openbb_federal_reserve/models/regional/dallas_igrea.py
+  provider-fixes/openbb_federal_reserve/models/regional/kansas_city_ag_credit_survey.py
+  provider-fixes/openbb_federal_reserve/models/regional/kansas_city_ag_finance.py
+  provider-fixes/openbb_federal_reserve/models/regional/kansas_city_ag_rates.py
+  provider-fixes/openbb_finra/models/bond_list.py
+  provider-fixes/openbb_fred/models/tips_yields.py
+  provider-fixes/openbb_government_us/usda/models/weather_bulletin_download.py
+  provider-fixes/openbb_government_us/usda/utils/ers_farm_household_income_and_characteristics.py
+  provider-fixes/openbb_government_us/usda/utils/ers_livestock_and_meat_domestic_data.py
+  provider-fixes/openbb_government_us/usda/utils/ers_vegetables_and_pulses.py
+  provider-fixes/openbb_nasdaq/models/calendar_splits.py
+  provider-fixes/openbb_sec/models/institutions_search.py
+  provider-fixes/openbb_tmx/routers/equity.py
+  provider-fixes/openbb_tmx/tmx_router.py
+  provider-fixes/openbb_us_eia/eia_router.py
+
+OpenBB Workspace (https://github.com/OpenBB-finance/workspace, commit recorded in workspace/source.json)
+Copyright (c) OpenBB Inc. Licensed under the Apache License, Version 2.0.
+workspace/patches/*.patch are patches to OpenBB Workspace, Copyright 2026 SecretoftheUniverse.com LLC.
+
+OpenBQ reference backend (https://github.com/openbq-org/backends-for-openbb, commit and directory recorded in examples/episode3/source.json)
+Copyright (c) 2024 OpenBB. Licensed under the MIT License (examples/episode3/LICENSE.upstream).
+examples/episode3 assembles it at build time; the upstream code is not stored in this repository. The series additions in examples/episode3 are Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0.
+
+OpenBQ yfinance (v3/yfinance/source)
+Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0; see v3/yfinance/source/NOTICE. It uses yfinance (Ran Aroussi and contributors, Apache-2.0) as a dependency.
+
+Video Library extension (v3/videos/source, openbb-videos 3.0.1)
+Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0, vendored from bdobb-dev/openbb-docker 13816e1 (v3/videos/source.json). The two sample videos, the widget definition and its parameter in openbb_videos/router.py are adapted from OpenBB's reference backend (https://github.com/OpenBB-finance/backends-for-openbb, getting-started/reference-backend/widgets_youtube.py), Copyright (c) 2024 OpenBB, MIT License; that notice is reproduced in the file.
+
+EconDB provider (v3/econdb/source, openbb-econdb 1.0.0+openbq.1)
+The OpenBB Platform's openbb_platform/providers/econdb at commit 174d7e69 (2024-05-14), Copyright (c) 2021-2023 OpenBB Inc., MIT License (v3/econdb/source/LICENSE), the last commit before that repository moved to AGPL-3.0. Its port to openbb-core 2 and the router are Copyright 2026 SecretoftheUniverse.com LLC, Apache-2.0 (v3/econdb/source/NOTICE, v3/econdb/source.json).
+
+Third-party components used at build or run time (not included in this repository)
+-----------------------------------------------------------------------------------
+
+- OpenBB Platform packages (openbb-core, openbb-platform-api and provider extensions), Copyright OpenBB Inc., Apache-2.0. These and the other Python dependencies are pinned in requirements.lock and keep their own licenses.
+- Python, python:3.12-slim image (Python Software Foundation License; Debian packages under their own licenses).
+- Tailscale, tailscale/tailscale image (BSD-3-Clause, Tailscale Inc. and contributors).
+- OpenBB Workspace image build (workspace/): OpenBB Workspace (Apache-2.0) on node:22 (Node.js, MIT), python:3.13-slim (PSF License) and oven/bun (Bun, MIT) images. Its dependencies are pinned in workspace/resolved-poetry.lock and the upstream bun.lock and keep their own licenses.
+- The reference backend image's Python dependencies are pinned in examples/episode3/requirements.lock and keep their own licenses.
+- MCP image build (mcp/): openbb-mcp-server 2.0.1 from PyPI (Apache-2.0, OpenBB Inc.; provenance openbq-org/OpenBB develop ae0268771f761b036996d81bd21522ce79d95415, openbb_platform/extensions/mcp_server), installed on this repository's API image. Its dependencies are pinned in requirements.lock and keep their own licenses.
+- Rita image (docker-compose.v6.yml): built by Adventures-OpenBQ/agent-rita-bdobb from openbq-org/agent-rita (MIT) plus that recipe's patches; not included in this repository.
+- rss-ticker image build (rss-ticker/): rss-feedhandler v8.3.1 (7e3014a9216a254557ef5df9e464435f41eb3f30), Copyright (c) 2026 Art Cashin, MIT License (rss-ticker/LICENSE), vendored with local changes (subscribed-only delivery, idle feeds kept by the sweep, a 16 KiB favicon cap) and one test value changed; its own dependencies are pinned in rss-ticker/uv.lock and listed in rss-ticker/THIRD_PARTY_NOTICES.md.
