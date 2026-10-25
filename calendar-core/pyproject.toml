@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openbq-calendar"
+version = "0.1.0"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = ["exchange_calendars==4.13.2", "pydantic==2.13.5"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["openbq_calendar"]
