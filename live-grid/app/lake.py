@@ -233,31 +233,73 @@ def join(history: list[dict], lake_rows: list[dict], lake_spans: list[tuple],
     return sorted(kept + list(lake_rows) + list(tick_rows), key=lambda r: _row_dt(r["date"]))
 
 
+def _day_bars(lake, symbol: str, day: date, interval: str):
+    """One flushed day's bars cut to its `day_span`, and that span; None if not flushed."""
+    ticks = lake.read_day(symbol, day)
+    if ticks is None:
+        return None
+    lo, hi = day_span(ticks, interval)
+    return [r for r in bars(ticks, interval) if lo <= r["date"] < hi], (lo, hi)
+
+
+async def lake_bars(lake, symbol: str, interval: str, start: str, end: str, today: date):
+    """Bars from the flushed days in [start, end] before `today`, each day cut to its
+    `day_span`: (rows, spans, days). Each day is read and aggregated off the event loop.
+    A store failure raises; the caller decides."""
+    import asyncio
+
+    rows: list[dict] = []
+    spans: list[tuple] = []
+    days: list[date] = []
+    for day in lake.wanted_days(start, end, today):
+        got = await asyncio.to_thread(_day_bars, lake, symbol, day, interval)
+        if got is None:
+            continue
+        kept, (lo, hi) = got
+        if kept:
+            days.append(day)
+            spans.append((lo, hi))
+            rows.extend(kept)
+    return rows, spans, days
+
+
+async def kdb_bars(store, symbol: str, interval: str, after: datetime | None, until: datetime):
+    """kdb's bars from the first bucket its ticks fully cover (never before `after`)
+    to the earlier of its last tick and `until`: (rows, boundary, span). `span` is
+    tick_span's (first, last), or None when kdb holds nothing for the symbol (then
+    rows is [] and boundary None). Both IPC calls run off the event loop; a failure
+    raises, and the caller decides."""
+    import asyncio
+
+    from openbq_kdb.aggregate import aggregate_ticks
+
+    from app.series import seam_boundary
+
+    span = await asyncio.to_thread(store.tick_span, symbol)
+    if span is None:
+        return [], None, None
+    boundary = seam_boundary(span[0], interval)
+    if after is not None:
+        boundary = max(boundary, after)
+    hi = min(span[1], until)
+    if hi < boundary:
+        return [], boundary, span
+    rows = await asyncio.to_thread(aggregate_ticks, store, symbol, interval, boundary, hi)
+    return rows, boundary, span
+
+
 async def series_with_lake(symbol, interval, start, end, recorder, window, history, meta, lake,
                            today: date | None = None):
     """build_series' path when the store is configured (see the module docstring)."""
-    import asyncio
     from datetime import timezone
 
-    from app.series import seam_boundary, tick_capable, window_end
+    from app.series import tick_capable, window_end
 
     today = today or datetime.now(timezone.utc).date()
     meta["rows_from_lake"] = 0
     meta["lake_days"] = []
-    lake_rows: list[dict] = []
-    spans: list[tuple] = []
-    days: list[date] = []
     try:
-        for day in lake.wanted_days(start, end, today):
-            ticks = await asyncio.to_thread(lake.read_day, symbol, day)
-            if ticks is None:
-                continue
-            lo, hi = day_span(ticks, interval)
-            rows = [r for r in bars(ticks, interval) if lo <= r["date"] < hi]
-            if rows:
-                days.append(day)
-                spans.append((lo, hi))
-                lake_rows.extend(rows)
+        lake_rows, spans, days = await lake_bars(lake, symbol, interval, start, end, today)
     except Exception as exc:  # noqa: BLE001 - a store outage degrades to kdb + history
         log.warning("lake read-back unavailable for %s: %s", symbol, exc)
         lake_rows, spans, days = [], [], []
@@ -266,17 +308,9 @@ async def series_with_lake(symbol, interval, start, end, recorder, window, histo
     boundary = None
     if recorder is not None and tick_capable(interval, window):
         try:
-            from openbq_kdb.aggregate import aggregate_ticks
-
-            span = await asyncio.to_thread(recorder.store.tick_span, symbol)
-            if span is not None:
-                boundary = seam_boundary(span[0], interval)
-                if spans:
-                    boundary = max(boundary, max(hi for _, hi in spans))
-                hi = min(span[1], window_end(end))
-                if hi >= boundary:
-                    tick_rows = await asyncio.to_thread(
-                        aggregate_ticks, recorder.store, symbol, interval, boundary, hi)
+            after = max((hi for _, hi in spans), default=None)
+            tick_rows, boundary, _ = await kdb_bars(recorder.store, symbol, interval, after,
+                                                    window_end(end))
         except Exception as exc:  # noqa: BLE001 - the chart still works without ticks
             log.warning("tick aggregation unavailable for %s: %s", symbol, exc)
             tick_rows = []
