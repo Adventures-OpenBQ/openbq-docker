@@ -360,7 +360,8 @@ def test_through_the_app_health_reports_spooled_then_replayed(host, tmp_path, ap
         assert ticks["spooled"] == 0
         assert ticks["dropped"] == 0
         assert ticks["written"] == 30
-        assert ticks["endpoint"] == "loopback"
+        # The restored connection retains the configured Compose host and port.
+        assert ticks["endpoint"] == "kdb:5000"
         assert len(client.get("/ticks?symbol=BTC-USD&limit=1000").json()["ticks"]) == 15
     _assert_exactly_once_in_order(host, feed)
 

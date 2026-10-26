@@ -107,7 +107,8 @@ def test_a_restarted_live_grid_reads_the_day_back_from_kdb(host, api):
         body = client.get(f"/series?symbol=AAPL&interval=1m&start={start}&end={end}").json()
         assert body["cache"]["rows_from_ticks"] == 5
         assert body["cache"]["seam"] == T0.isoformat()
-        assert client.get("/health").json()["ticks"]["endpoint"] == "loopback"
+        # The configured endpoint is the Compose host, not loopback.
+        assert client.get("/health").json()["ticks"]["endpoint"] == "kdb:5000"
 
 
 def test_both_restart_kdb_first_then_live_grid(host, api):
