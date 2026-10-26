@@ -907,14 +907,33 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         }
 
     @app.get("/ticks")
-    async def ticks(symbol: str, limit: int = 200):
+    async def ticks(symbol: str, limit: int = 200, interval: str | None = None,
+                    start: str | None = None):
         """The newest ticks held in the kdb cache for one symbol, newest first.
 
         kdb is in-memory at this version: a restarted store holds nothing, and
         a deployment may carry no store at all. Both answer an empty list with
         a 200 -- the widget then reads as "no ticks" rather than as an error
         card, which is the honest rendering of an empty cache.
+
+        With `interval` (and optional `start`), bars instead: app/tick_bars.py.
+        `limit` is ignored there. Unlike the raw form, a kdb or lake read failure
+        is a 503, not an empty 200: an empty answer means "no ticks held", and a
+        caller would draw a gap where it should fall back to its own history.
         """
+        if interval is not None:
+            from app.tick_bars import TicksRequestError, tick_bars
+
+            sym = symbol.strip().upper()
+            if not sym:
+                raise HTTPException(status_code=422, detail="symbol must be a non-empty string")
+            try:
+                return await tick_bars(sym, interval.strip(), start, recorder, lake)
+            except TicksRequestError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from None
+            except Exception as exc:  # noqa: BLE001 - the caller falls back to its history
+                log.warning("tick bars unavailable for %s: %s", sym, exc)
+                raise HTTPException(status_code=503, detail="tick store unavailable") from None
         if limit < 1:
             raise HTTPException(status_code=422, detail="limit must be a positive integer")
         # Capped rather than 422'd: a caller asking for more than a card can

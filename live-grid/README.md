@@ -56,6 +56,12 @@ a chart that joins cached history to bars built from the live feed.
   chart over cached OHLCV in stacked panes, the Workspace `ta_chart` widget.
 - `GET /ticks?symbol=AAPL&limit=200` — the newest ticks held in the kdb+ tick
   cache for one symbol, newest first; the Workspace `kdb_ticks` widget.
+- `GET /ticks?symbol=AAPL&interval=1m&start=` — instead, `{symbol, interval, bars, span}`:
+  bars built from the ticks alone (kdb+, plus days flushed to the lake for a `start` before
+  kdb's window), never provider history. `start` is an ISO date or datetime (UTC unless it
+  carries an offset); `span` is kdb+'s `{first, last}` tick (ISO UTC) or `null`. An interval
+  the ticks cannot build, a bad `start` or more than 20,000 bars is a `422`; a kdb+ or lake
+  read failure a `503`. arts_charts' live charts read the current session here.
 - `GET /subscriptions` — the subscriptions management page (see
   `POST /subscribe` below).
 - `GET /demo` — a standalone scroll page for the chart, moved here from the
