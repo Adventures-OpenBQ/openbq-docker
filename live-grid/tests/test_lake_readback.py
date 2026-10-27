@@ -217,3 +217,75 @@ def test_read_back_over_s3_with_the_rustfs_contract(monkeypatch):
         assert reader.read_day("AAPL", D1) is None
     finally:
         server.stop()
+
+
+# -- the tick half, on its own (GET /ticks?interval= reuses it) ------------------------
+
+async def test_lake_bars_are_the_flushed_days_cut_to_their_spans(tmp_path):
+    _flush(str(tmp_path), D2, _ticks(D2))  # 14:30-14:32
+    rows, spans, days = await lake_mod.lake_bars(LakeTicks(str(tmp_path), {}), "AAPL", "1m",
+                                                 D1.isoformat(), TODAY.isoformat(), TODAY)
+    assert days == [D2]
+    assert spans == [(datetime(2026, 10, 10, 14, 30), datetime(2026, 10, 10, 14, 33))]
+    assert [r["date"].strftime("%H:%M") for r in rows] == ["14:30", "14:31", "14:32"]
+
+
+async def test_lake_bars_raise_on_a_store_failure(tmp_path):
+    class Broken(LakeTicks):
+        def read_day(self, symbol, day):
+            raise OSError("connection refused")
+
+    with pytest.raises(OSError):
+        await lake_mod.lake_bars(Broken(str(tmp_path), {}), "AAPL", "1m", D1.isoformat(),
+                                 TODAY.isoformat(), TODAY)
+
+
+class _SpanStore:
+    def __init__(self, span):
+        self.span, self.calls = span, []
+
+    def tick_span(self, symbol):
+        if isinstance(self.span, Exception):
+            raise self.span
+        return self.span
+
+
+@pytest.fixture
+def recorded_aggregate(monkeypatch):
+    def aggregate(store, symbol, interval, start, end):
+        store.calls.append((start, end))
+        return [{"date": start}]
+    monkeypatch.setattr("openbq_kdb.aggregate.aggregate_ticks", aggregate)
+
+
+async def test_kdb_bars_start_at_the_first_fully_covered_bucket(recorded_aggregate):
+    store = _SpanStore((datetime(2026, 10, 12, 14, 0, 30), datetime(2026, 10, 12, 14, 3, 10)))
+    rows, boundary, span = await lake_mod.kdb_bars(store, "AAPL", "1m", None, datetime.max)
+    assert boundary == datetime(2026, 10, 12, 14, 1) and span == store.span
+    assert store.calls == [(datetime(2026, 10, 12, 14, 1), datetime(2026, 10, 12, 14, 3, 10))]
+    assert rows == [{"date": datetime(2026, 10, 12, 14, 1)}]
+
+
+async def test_kdb_bars_never_start_before_after_or_run_past_until(recorded_aggregate):
+    store = _SpanStore((datetime(2026, 10, 12, 14, 0, 30), datetime(2026, 10, 12, 14, 3, 10)))
+    await lake_mod.kdb_bars(store, "AAPL", "1m", datetime(2026, 10, 12, 14, 2),
+                            datetime(2026, 10, 12, 14, 2, 30))
+    assert store.calls == [(datetime(2026, 10, 12, 14, 2), datetime(2026, 10, 12, 14, 2, 30))]
+
+
+async def test_kdb_bars_with_nothing_after_the_boundary_do_not_aggregate(recorded_aggregate):
+    store = _SpanStore((datetime(2026, 10, 12, 14, 0, 30), datetime(2026, 10, 12, 14, 3, 10)))
+    rows, boundary, span = await lake_mod.kdb_bars(store, "AAPL", "1m", None,
+                                                   datetime(2026, 10, 12, 14, 0, 50))
+    assert rows == [] and boundary == datetime(2026, 10, 12, 14, 1) and store.calls == []
+
+
+async def test_kdb_bars_on_an_empty_store_are_nothing(recorded_aggregate):
+    assert await lake_mod.kdb_bars(_SpanStore(None), "AAPL", "1m", None, datetime.max) == (
+        [], None, None)
+
+
+async def test_kdb_bars_raise_on_an_ipc_failure(recorded_aggregate):
+    with pytest.raises(ConnectionError):
+        await lake_mod.kdb_bars(_SpanStore(ConnectionError("down")), "AAPL", "1m", None,
+                                datetime.max)
