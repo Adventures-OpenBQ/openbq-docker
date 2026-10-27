@@ -193,6 +193,15 @@ GitHub session) signs a ticket and the browser opens
   `/`) never verifies as a desktop ticket, nor the reverse. Desktop tickets need no
   `previewOrigin`. The gateway logs neither the ticket nor the token.
 
+## `/charts` and `/ntfy` (v12)
+
+Opt-in: `"charts": true` in settings.json (and `"ntfyTopic"` for `/ntfy`), with the `charts-v12` profile running and `v12/compose.gateway.yaml` applied. `policy.mjs` is unchanged; the contract is `charts-policy.mjs`, the same additive shape as `temporal-policy.mjs`. Unset, every charts-shaped request gets exactly what it got before.
+
+- Door paths are arts-charts' own paths at the door's root, forwarded verbatim (`/charts`, `/charts/{id}`, `/charts/events`, `/charts/mcp`, snapshots, `/series`, `/ta_registry`, `/ta_macros`, `/ta_snapshot`, `/inbox`, `/watches`, `/schedules`, and the `/ta_series_ws` socket with `/charts/ws_ticket`). Each needs the gateway token; the gateway presents the stack's Basic pair on the bridge. Queries are re-serialised from the pairs that passed.
+- Three token-only routes carry a signed token instead of the gateway token and are forwarded with no credential: `GET /inbox/{id}?t=`, `GET /inbox/{id}/snapshots/{n}.png?t=` and `POST /watches/action`.
+- Only JSON bodies and the statuses 200 201 202 204 400 401 404 409 413 415 422 428 429 503 are relayed; anything else, including arts-charts' non-JSON 401 for a forged token, is a 502. `/charts/mcp` is limited to 600 calls an hour per principal.
+- `/ntfy/<topic>/json` and `/ntfy/<topic>/ws` (GET only) are matched before the lock and forward the caller's single Authorization header to ntfy, which holds the account; the door injects nothing. Publishing stays on the bridge. ntfy sees every door caller as the gateway's address (one visitor).
+
 ## Configuration
 
 - `gateway.env` (from `gateway.env.example`, `chmod 600`): `GATEWAY_TOKEN` (32–256 base64url;

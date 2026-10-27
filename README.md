@@ -164,6 +164,17 @@ v11 adds [TemporalDB](https://github.com/Adventures-OpenBQ/temporalDB-docker): d
 
 PostgreSQL and S3 are yours to provision. Build, setup (migrations, runtime archive, catalogs) and qualification are covered step by step in [v11/RUNBOOK.md](v11/RUNBOOK.md); [v11/MIGRATION.md](v11/MIGRATION.md) records what the recovery rehearsal does and does not cover. BDOBB v11's query library and query widget use this service.
 
+## Art's Charts (v12, opt-in)
+
+v12 adds [Art's Charts](v12/arts-charts.lock.json): saved charts, studies, watches and schedules with ntfy pushes to the phone. Everything is additive overlays under `v12/`; the default stack and the gateway's `policy.mjs` are unchanged.
+
+- `v12/compose.charts.yaml` (profile `charts-v12`) runs `arts-charts`, its worker and a deny-all `ntfy`. No host port is published. Settings come from `v12/charts.env` (from `v12/charts.env.example`).
+- `v12/compose.gateway.yaml` gives the funnel gateway the `/charts` and `/ntfy` families (`"charts": true`, `"ntfyTopic"` in settings.json) in a separately named image ([funnel-gateway/README.md](funnel-gateway/README.md#charts-and-ntfy-v12)).
+- `v12/compose.tailnet.yaml` and `ts-config/serve-v12.json` add the Tailscale Services `svc:openbq-charts` and `svc:openbq-ntfy` on top of v11's names.
+- `v12/verify-charts.sh [--postgres]` runs the whole path on a throwaway project with a fake ODP and a local ntfy: no key, no NAS, no upstream.
+
+The image carries arts-charts-openbq under BUSL-1.1, its own `LICENSE` in `v12/arts-charts/source`. Build, settings, the ntfy account, gateway, tailnet names and the pending phone check are in [v12/RUNBOOK.md](v12/RUNBOOK.md).
+
 ## Public repository checks
 
 Enable the local gates after cloning:

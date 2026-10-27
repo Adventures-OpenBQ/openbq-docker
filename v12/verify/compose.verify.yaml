@@ -1,0 +1,13 @@
+# v12/verify/compose.verify.yaml
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+# verify-charts.sh only: a fake ODP on the bridge. Never used for a real stack.
+services:
+  fake-odp:
+    profiles: [charts-v12]
+    image: openbq-arts-charts:12.0.0
+    pull_policy: never
+    command: [python, /verify/fake_odp.py]
+    volumes: [./v12/verify:/verify:ro]
+    read_only: true
+    networks: [openbq-internal]
