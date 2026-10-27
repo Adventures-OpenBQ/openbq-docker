@@ -24,6 +24,7 @@ import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONS
 import { requestState as remoteState } from "./state-store.mjs";
 
 import { temporalRoute, temporalStatus } from "./temporal-policy.mjs";
+import { chartsRoute, chartsTokenRoute, chartsSocketTarget, chartsStatus } from "./charts-policy.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
 // The root manifests are static catalogue documents, not data: openbq-api's widgets.json is
@@ -601,6 +602,43 @@ function ritaPrincipal(req) {
  * travel, both ways, and a session id only to the principal whose initialize opened it.
  */
 const MCP_BODY_MAX = 1024 * 1024, MCP_REPLY_MAX = 8 * 1024 * 1024, MCP_MS = 120000, MCP_SESSIONS = 5000;
+// Art's Charts (v12). A snapshot may wait behind four renders of 20 s each (arts_charts
+// snapshots.QUEUE/TIMEOUT), so PNGs get 110 s; MCP tools can render too, so 120 s like /mcp.
+const CHARTS_BODY_MAX = 1048576, CHARTS_JSON_MAX = 8 * 1048576, CHARTS_PNG_MAX = 16 * 1048576;
+const CHARTS_PNG_MS = 110000, CHARTS_MCP_MS = 120000, CHARTS_MCP_PER_HOUR = 600;
+// An intraday study chart's first /ta_series_ws frame is far past MAX_SOCKET.
+const CHARTS_FRAME_MAX = 4 * 1048576;
+const IF_MATCH_RE = /^"?[0-9]{1,9}"?$/;
+const noBody = req => !req.headers["transfer-encoding"] && (!req.headers["content-length"] || req.headers["content-length"] === "0");
+
+/** One bounded arts-charts exchange: {status, type, revision, body}, or a throw (the caller's 502). */
+function sendCharts(method, path, body, headers, config, signal, max) {
+  return new Promise((resolve, rejectPromise) => {
+    // Concatenated on the fixed origin, never resolved: the host can only be arts-charts.
+    const request = httpRequest(new URL(config.chartsOrigin + path), { method, headers, signal }, response => {
+      const type = (response.headers["content-type"] ?? "").split(";")[0].trim().toLowerCase();
+      let size = 0; const parts = [];
+      response.on("data", chunk => {
+        size += chunk.length;
+        if (size > max) { response.destroy(); rejectPromise(new Error("Body limit")); } else parts.push(chunk);
+      });
+      response.on("error", rejectPromise);
+      response.on("end", () => resolve({ status: response.statusCode, type,
+        revision: response.headers["x-chart-revision"], body: Buffer.concat(parts) }));
+    });
+    request.once("error", rejectPromise);
+    request.end(body);
+  });
+}
+
+/** arts-charts' study socket, the query chartsSocketTarget re-serialised, behind the pair. */
+export function connectCharts(config, target) {
+  const url = new URL(config.chartsOrigin + target); url.protocol = "ws:";
+  return new WebSocket(url, {
+    headers: { Authorization: config.apiAuthorization, Origin: config.chartsOrigin },
+    handshakeTimeout: 10000, followRedirects: false, maxPayload: CHARTS_FRAME_MAX, perMessageDeflate: false,
+  });
+}
 /** Who an MCP message is charged to: X-Preview-Principal github:<id> once, or the desktop's bucket. */
 function previewPrincipal(req) {
   const count = req.rawHeaders.filter((v, i) => i % 2 === 0 && v.toLowerCase() === "x-preview-principal").length;
@@ -611,7 +649,7 @@ function previewPrincipal(req) {
 
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openNews = connectNews,
-  openGrid = connectGrid, openRef = connectRef, sendSubscription = sendGrid, fetchPage = getGridPage,
+  openGrid = connectGrid, openCharts = connectCharts, openRef = connectRef, sendSubscription = sendGrid, fetchPage = getGridPage,
   requestState = remoteState, postQuery = postRita, now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
   let inflight = 0, controlInflight = 0, sockets = 0;
   // Rita's limits: turns open now (all, and whose), and each principal's query times this hour.
@@ -768,6 +806,79 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       return message ? reply(res, answer.status, { detail: message }) : reply(res, 502);
     } finally { inflight--; }
   }
+  const chartsMcpUse = new Map();
+  /** One /charts exchange. `credential` false = a token-only route: no Authorization at all. */
+  async function handleCharts(req, res, route, credential) {
+    if (route.kind === "sse") return relayChartsEvents(req, res);
+    const ifMatch = req.headers["if-match"], version = req.headers["mcp-protocol-version"];
+    if (ifMatch !== undefined && !IF_MATCH_RE.test(ifMatch)) return reply(res, 400);
+    if (route.kind === "mcp" && version !== undefined && !MCP_VERSION_RE.test(version)) return reply(res, 400);
+    const principal = route.kind === "mcp" ? previewPrincipal(req) : undefined;
+    if (principal === null) return reply(res, 400);
+    const hour = () => (chartsMcpUse.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
+    if (principal && hour().length >= CHARTS_MCP_PER_HOUR) return reply(res, 429);
+    if (inflight >= config.maxConcurrent) return reply(res, 429);
+    let body;
+    if (route.body) {
+      body = await jsonBody(req, route.kind === "mcp" ? MCP_BODY_MAX : CHARTS_BODY_MAX);
+      if (typeof body === "number") { if (body === 413) res.setHeader("Connection", "close"); return reply(res, body); }
+    } else if (!noBody(req)) return reply(res, 405);
+    // Reading the body yields: re-check the slot and the hour.
+    if (inflight >= config.maxConcurrent) return reply(res, 429);
+    if (principal) {
+      const charged = hour();
+      if (charged.length >= CHARTS_MCP_PER_HOUR) { chartsMcpUse.set(principal, charged); return reply(res, 429); }
+      if (chartsMcpUse.size > 1000) for (const [who, times] of chartsMcpUse) if (!times.some(at => now() - at < RITA_HOUR_MS)) chartsMcpUse.delete(who);
+      chartsMcpUse.set(principal, [...charged, now()]);
+    }
+    const headers = { Accept: route.kind === "png" ? "image/png, application/json"
+      : route.kind === "mcp" ? "application/json, text/event-stream" : "application/json" };
+    if (credential) headers.Authorization = config.apiAuthorization;
+    if (ifMatch !== undefined) headers["If-Match"] = ifMatch;
+    if (version !== undefined && route.kind === "mcp") headers["MCP-Protocol-Version"] = version;
+    if (body !== undefined) { headers["Content-Type"] = "application/json"; headers["Content-Length"] = String(body.length); }
+    inflight++;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(),
+      route.kind === "png" ? CHARTS_PNG_MS : route.kind === "mcp" ? CHARTS_MCP_MS : requestMs);
+    const disconnect = () => { if (!res.writableEnded) controller.abort(); };
+    res.once("close", disconnect);
+    try {
+      const answer = await sendCharts(req.method, route.path, body, headers, config, controller.signal,
+        route.kind === "png" ? CHARTS_PNG_MAX : CHARTS_JSON_MAX);
+      const status = chartsStatus(answer.status);
+      if (status === 202 || status === 204) { res.writeHead(status, COMMON); return res.end(); }
+      if (status === 200 && route.kind === "png" && answer.type === "image/png") {
+        res.writeHead(200, { ...COMMON, "Content-Type": "image/png", "Content-Security-Policy": "sandbox; default-src 'none'",
+          ...(/^[0-9]{1,9}$/.test(answer.revision ?? "") ? { "X-Chart-Revision": answer.revision } : {}) });
+        return res.end(answer.body);
+      }
+      if (status === 502 || answer.type !== "application/json") return reply(res, 502);
+      return reply(res, status, JSON.parse(answer.body.toString("utf8")));
+    } finally { clearTimeout(timer); res.off("close", disconnect); inflight--; }
+  }
+  /** /charts/events: a long-lived SSE stream, one maxSockets slot while open. */
+  function relayChartsEvents(req, res) {
+    if (!noBody(req)) return reply(res, 405);
+    if (sockets >= config.maxSockets) return reply(res, 429);
+    sockets++;
+    let held = true;
+    const release = () => { if (held) { held = false; sockets--; } };
+    const upstream = httpRequest(new URL(config.chartsOrigin + "/charts/events"), { method: "GET",
+      headers: { Authorization: config.apiAuthorization, Accept: "text/event-stream" } }, response => {
+      if (response.statusCode !== 200 || !/^text\/event-stream(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
+        response.destroy(); release(); return reply(res, 502);
+      }
+      res.writeHead(200, { ...COMMON, "Content-Type": "text/event-stream; charset=utf-8", "X-Accel-Buffering": "no" });
+      response.on("data", chunk => { if (!res.write(chunk)) response.pause(); });
+      res.on("drain", () => response.resume());
+      response.on("end", () => res.end());
+      response.on("error", () => res.destroy());
+    });
+    upstream.once("error", () => { release(); if (!res.headersSent) reply(res, 502); else res.destroy(); });
+    res.once("close", () => { release(); upstream.destroy(); });
+    upstream.end();
+  }
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_SOCKET, perMessageDeflate: false });
   const server = createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000,
     keepAliveTimeout: 5000 }, async (req, res) => {
@@ -788,6 +899,14 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         return replyPage(res, await subscriptionsPage());
       }
       // The lock precedes route discovery, health, Host and Origin validation.
+      // Art's Charts' token routes (v12): an ntfy push's link, picture and buttons carry their
+      // own signed token, verified by arts-charts. They pass without the lock, on this door's
+      // own Host, and are forwarded with NO credential (charts-policy.mjs).
+      if (config.chartsOrigin) {
+        const open = requestUrl(req, config);
+        const route = open && chartsTokenRoute(open, req.method);
+        if (route) return await handleCharts(req, res, route, false);
+      }
       if (!authorized(req, config)) return reply(res, 401);
       const url = requestUrl(req, config);
       if (!url) return reply(res, 421);
@@ -854,6 +973,20 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
           const answer = await sendTemporal(req.method, route.path, body, config, controller.signal);
           return reply(res, temporalStatus(answer.status), answer.json);
         } finally { clearTimeout(timer); res.off("close", disconnect); inflight--; }
+      }
+      if (config.chartsOrigin) {
+        // The desktop's study-socket ticket: /grid/ws_ticket's contract, for /ta_series_ws.
+        if (url.pathname === "/charts/ws_ticket") {
+          if (req.method !== "GET" || !noBody(req)) return reply(res, 405);
+          if (!DESKTOP_ORIGINS.has(origin)) return reply(res, 403);
+          const keys = [...url.searchParams.keys()];
+          const target = keys.length === 1 && keys[0] === "target"
+            ? chartsSocketTarget(url.searchParams.get("target"), config.origin) : null;
+          if (!target) return reply(res, 404);
+          return reply(res, 200, { ticket: socketTicket(config.token, origin + target, now()) });
+        }
+        const route = chartsRoute(url, req.method);
+        if (route) return await handleCharts(req, res, route, true);
       }
       // Off ("rita" unset), /ai is what it always was here: unmatched, its POST a 405.
       if (config.ritaUpstream && url.pathname.startsWith("/ai/")) return await handleRita(req, res, url);
@@ -951,12 +1084,14 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     // and ws would otherwise have to negotiate it. Anything unmatched is 404, before any
     // upstream is consulted.
     const target = req.method === "GET" && req.headers["sec-websocket-protocol"] === undefined
-      ? socketTarget(want, config.origin) : null;
+      ? socketTarget(want, config.origin) ?? (config.chartsOrigin ? chartsSocketTarget(want, config.origin) : null) : null;
+
     if (!target) return reject(socket, 404);
     const route = target.split("?")[0];
     const ta = route === "/grid/ta_chart_ws";
     const grid = ta || route === "/grid/live_grid_ws";
     const ref = route === "/ref/live_grid_ws";
+    const charts = route === "/ta_series_ws";
     // Nothing to subscribe to: the operator has approved no feeds, so there is no wire socket
     // to open. 503, not 404 -- the route exists, the upstream is simply not configured, which
     // is what verify.mjs's own probe distinguishes. The grid has the same state here: on
@@ -995,15 +1130,16 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
        */
       const connect = () => {
         try {
-          upstream = grid ? openGrid(config, target.slice("/grid".length)) : ref ? openRef(config) : openNews(config);
+          upstream = charts ? openCharts(config, target) : grid ? openGrid(config, target.slice("/grid".length)) : ref ? openRef(config) : openNews(config);
         } catch { close(); return false; }
         upstream.on("message", (message, isBinary) => {
-          if (isBinary || message.length > MAX_SOCKET || client.readyState !== WebSocket.OPEN ||
-              client.bufferedAmount > 262144) return close();
+          const cap = charts ? CHARTS_FRAME_MAX : MAX_SOCKET;
+          if (isBinary || message.length > cap || client.readyState !== WebSocket.OPEN ||
+              client.bufferedAmount > (charts ? 2 * CHARTS_FRAME_MAX : 262144)) return close();
           // The door is the only trust boundary for the wire: rss-ticker is unauthenticated on
           // the tailnet, so the door forwards the {"feeds"} reply and approved-feed articles,
           // nothing else. The grid and the reference relay as they are.
-          if (!grid && !ref) {
+          if (!grid && !ref && !charts) {
             let out;
             try { out = JSON.parse(message.toString()); } catch { return close(); }
             if (!(out && Object.keys(out).join() === "feeds" || approvedIds.has(out?.feed_id))) return;
@@ -1020,7 +1156,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       // socketTarget validated -- and any frame a client does send closes the relay below:
       // live-grid would ignore it, and a door that silently swallows a frame is a door that
       // lies about its contract.
-      if (ta) { clearTimeout(initial); if (!connect()) return; }
+      if (ta || charts) { clearTimeout(initial); if (!connect()) return; }
       client.on("message", (data, binary) => {
         // The wire: one subscription frame, ever -- its protocol needs no second one, so a
         // second frame is a client doing something the contract does not describe. The grid:
@@ -1032,7 +1168,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         // reference's socket (v3) speaks the grid's protocol -- a params frame on open and on
         // every symbol change, re-validated each time -- but it is a keyless local fixture, so
         // no vendor meter applies: FRAME_CAP bounds it.
-        if (binary || ta || (!grid && !ref && subscribed)) return close();
+        if (binary || ta || charts || (!grid && !ref && subscribed)) return close();
         const frame = grid ? liveGridSubscription(data) : ref ? refSubscription(data) : newsSubscription(data, config);
         if (!frame) return close();
         // FRAME_CAP is the one per-socket bound left (the daily and per-minute budgets were

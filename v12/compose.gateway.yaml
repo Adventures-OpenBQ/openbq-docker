@@ -1,0 +1,9 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+# Opt-in v12 gateway: the /charts family (funnel-gateway/charts-policy.mjs) when settings.json has
+# "charts": true and the charts-v12 profile runs. Apply after docker-compose.yml (and any v11
+# overlays). A separately named image; policy.mjs is unchanged.
+services:
+  funnel-gateway:
+    image: openbq-funnel-gateway:12.0.0-charts
+    build: {context: ./funnel-gateway, additional_contexts: {lanes: ./lanes}}
