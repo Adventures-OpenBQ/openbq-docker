@@ -24,7 +24,7 @@ import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONS
 import { requestState as remoteState } from "./state-store.mjs";
 
 import { temporalRoute, temporalStatus } from "./temporal-policy.mjs";
-import { chartsRoute, chartsTokenRoute, chartsSocketTarget, chartsStatus } from "./charts-policy.mjs";
+import { chartsRoute, chartsTokenRoute, chartsSocketTarget, chartsStatus, ntfyRoute } from "./charts-policy.mjs";
 
 const MAX_BODY = 2 * 1024 * 1024;
 // The root manifests are static catalogue documents, not data: openbq-api's widgets.json is
@@ -647,9 +647,18 @@ function previewPrincipal(req) {
   return count === 1 && /^github:[1-9][0-9]{0,19}$/.test(value ?? "") ? value : null;
 }
 
+/** The phone's own ntfy credential: exactly one Authorization header, Basic or Bearer, or null. */
+function ntfyAuthorization(req) {
+  const count = req.rawHeaders.filter((v, i) => i % 2 === 0 && v.toLowerCase() === "authorization").length;
+  const value = req.headers.authorization;
+  return count === 1 && /^(?:Basic|Bearer) [A-Za-z0-9+/=._-]{1,512}$/.test(value ?? "") ? value : null;
+}
+const connectNtfy = (url, authorization) => new WebSocket(url, { headers: { Authorization: authorization },
+  handshakeTimeout: 10000, followRedirects: false, maxPayload: MAX_SOCKET, perMessageDeflate: false });
+
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openNews = connectNews,
-  openGrid = connectGrid, openCharts = connectCharts, openRef = connectRef, sendSubscription = sendGrid, fetchPage = getGridPage,
+  openGrid = connectGrid, openCharts = connectCharts, openNtfy = connectNtfy, openRef = connectRef, sendSubscription = sendGrid, fetchPage = getGridPage,
   requestState = remoteState, postQuery = postRita, now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
   let inflight = 0, controlInflight = 0, sockets = 0;
   // Rita's limits: turns open now (all, and whose), and each principal's query times this hour.
@@ -907,6 +916,32 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         const route = open && chartsTokenRoute(open, req.method);
         if (route) return await handleCharts(req, res, route, false);
       }
+      if (config.ntfyOrigin) {
+        const open = requestUrl(req, config);
+        if (open?.pathname.startsWith("/ntfy/")) {
+          const route = ntfyRoute(open, req.method, config.ntfyTopic);
+          if (!route || route.kind !== "json") return reply(res, 404);
+          const authorization = ntfyAuthorization(req);
+          if (!authorization) return reply(res, 401);
+          if (!noBody(req)) return reply(res, 405);
+          if (sockets >= config.maxSockets) return reply(res, 429);
+          sockets++;
+          let held = true; const release = () => { if (held) { held = false; sockets--; } };
+          const upstream = httpRequest(new URL(config.ntfyOrigin + route.path), { method: "GET",
+            headers: { Authorization: authorization, Accept: "application/x-ndjson" } }, response => {
+            if (![200, 401, 403].includes(response.statusCode)) { response.destroy(); release(); return reply(res, 502); }
+            if (response.statusCode !== 200) { response.destroy(); release(); return reply(res, response.statusCode); }
+            res.writeHead(200, { ...COMMON, "Content-Type": "application/x-ndjson; charset=utf-8", "X-Accel-Buffering": "no" });
+            response.on("data", chunk => { if (!res.write(chunk)) response.pause(); });
+            res.on("drain", () => response.resume());
+            response.on("end", () => res.end());
+            response.on("error", () => res.destroy());
+          });
+          upstream.once("error", () => { release(); if (!res.headersSent) reply(res, 502); else res.destroy(); });
+          res.once("close", () => { release(); upstream.destroy(); });
+          return upstream.end();
+        }
+      }
       if (!authorized(req, config)) return reply(res, 401);
       const url = requestUrl(req, config);
       if (!url) return reply(res, 421);
@@ -1043,6 +1078,28 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     socket.on("error", () => {});
     socket.setTimeout(10000, () => socket.destroy());
     const url = requestUrl(req, config);
+    if (url && config.ntfyOrigin && url.pathname.startsWith("/ntfy/")) {
+      const route = ntfyRoute(url, req.method, config.ntfyTopic);
+      const authorization = ntfyAuthorization(req);
+      if (!route || route.kind !== "ws" || req.headers["sec-websocket-protocol"] !== undefined) return reject(socket, 404);
+      if (!authorization) return reject(socket, 401);
+      if (sockets >= config.maxSockets) return reject(socket, 429);
+      return wss.handleUpgrade(req, socket, head, client => {
+        sockets++; socket.setTimeout(0);
+        const target = new URL(config.ntfyOrigin + route.path); target.protocol = "ws:";
+        const upstream = openNtfy(target, authorization);
+        const close = () => { client.terminate(); upstream.terminate(); };
+        let alive = true; client.on("pong", () => { alive = true; });
+        const heartbeat = setInterval(() => { if (!alive) return close(); alive = false; client.ping(); }, pingMs);
+        client.once("close", () => { sockets--; clearInterval(heartbeat); upstream.terminate(); });
+        client.on("error", close); client.on("message", close);          // push-only
+        upstream.on("message", (message, isBinary) => {
+          if (isBinary || message.length > MAX_SOCKET || client.bufferedAmount > 262144) return close();
+          client.send(message, { binary: false });
+        });
+        upstream.on("error", close); upstream.once("close", close);
+      });
+    }
     const tickets = url?.searchParams.getAll("ticket") ?? [];
     let want, nonce = null;
     if (tickets.length && !req.headers.authorization) {

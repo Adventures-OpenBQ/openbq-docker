@@ -9,7 +9,7 @@ import { createServer, request } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 import { validateConfig } from "./config.mjs";
 import { createGateway } from "./server.mjs";
-import { chartsRoute, chartsTokenRoute, chartsSocketTarget, chartsStatus } from "./charts-policy.mjs";
+import { chartsRoute, chartsTokenRoute, chartsSocketTarget, chartsStatus, ntfyRoute } from "./charts-policy.mjs";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const id2 = "22222222-2222-4222-8222-222222222222";
@@ -251,4 +251,53 @@ test("timeouts: a PNG waits 110 s, an MCP message 120 s, other JSON requestMs", 
   assert.ok(delays.includes(120000));
   await call(port, "/charts");
   assert.ok(delays.includes(4321));
+});
+
+test("/ntfy: the one topic's subscribe endpoints only", () => {
+  assert.deepEqual(ntfyRoute(u("/ntfy/alerts/json?poll=1&since=all"), "GET", "alerts"), { kind: "json", path: "/alerts/json?poll=1&since=all" });
+  assert.deepEqual(ntfyRoute(u("/ntfy/alerts/ws?since=abcdefABCDEF"), "GET", "alerts"), { kind: "ws", path: "/alerts/ws?since=abcdefABCDEF" });
+  for (const [method, path, topic] of [["GET", "/ntfy/other/json", "alerts"], ["POST", "/ntfy/alerts", "alerts"],
+    ["PUT", "/ntfy/alerts/json", "alerts"], ["GET", "/ntfy/alerts/sse", "alerts"], ["GET", "/ntfy/v1/account", "alerts"],
+    ["GET", "/ntfy/alerts/json?auth=x", "alerts"], ["GET", "/ntfy/alerts/json?poll=2", "alerts"],
+    ["GET", "/ntfy/alerts/json/", "alerts"], ["GET", "/ntfy/alerts/json", null]])
+    assert.equal(ntfyRoute(u(path), method, topic), null, `${method} ${path}`);
+});
+
+test("ntfyTopic needs charts and a topic-shaped name", () => {
+  assert.equal(validateConfig({ ...settings, charts: true, ntfyTopic: "alerts" }, secrets).ntfyOrigin, "http://ntfy:2586");
+  assert.equal(validateConfig({ ...settings, charts: true }, secrets).ntfyOrigin, null);
+  for (const change of [{ ntfyTopic: "alerts" }, { charts: true, ntfyTopic: "a/b" }, { charts: true, ntfyTopic: "" }])
+    assert.throws(() => validateConfig({ ...settings, ...change }, secrets), JSON.stringify(change));
+});
+
+test("/ntfy JSON stream: no gateway token, the caller's Authorization forwarded, nothing injected, slot freed", async t => {
+  const seen = [];
+  const upstream = createServer((req, res) => { seen.push(req); res.writeHead(200, { "Content-Type": "application/x-ndjson" });
+    res.write('{"event":"open"}\n'); if (req.url.includes("poll=1")) res.end(); });
+  const ntfyOrigin = await listen(upstream); t.after(() => { upstream.closeAllConnections(); return new Promise(r => upstream.close(r)); });
+  const gateway = createGateway({ ...validateConfig({ ...settings, charts: true, ntfyTopic: "alerts", maxSockets: 1 }, secrets), ntfyOrigin });
+  await listen(gateway); t.after(() => gateway.closeGateway()); const port = gateway.address().port;
+  const phone = "Basic " + Buffer.from("phone:pw").toString("base64");
+  const first = request({ hostname: "127.0.0.1", port, path: "/ntfy/alerts/json", headers: { host: new URL(ORIGIN).host, authorization: phone } });
+  first.end(); const [response] = await once(first, "response"); assert.equal(response.statusCode, 200);
+  assert.equal(seen[0].url, "/alerts/json"); assert.equal(seen[0].headers.authorization, phone);
+  assert.equal((await call(port, "/ntfy/alerts/json", { bearer: false, headers: { authorization: phone } })).status, 429);
+  first.destroy(); await new Promise(r => setTimeout(r, 50));
+  assert.equal((await call(port, "/ntfy/alerts/json?poll=1", { bearer: false, headers: { authorization: phone } })).status, 200);
+  assert.equal((await call(port, "/ntfy/alerts/json", { bearer: false })).status, 401);   // no account: refused at the door
+  assert.equal((await call(port, "/ntfy/other/json", { bearer: false, headers: { authorization: phone } })).status, 404);
+});
+
+test("/ntfy websocket: the caller's Authorization goes upstream, a client frame closes it", async t => {
+  const heard = [];
+  const wss = new WebSocketServer({ port: 0, host: "127.0.0.1" }); await once(wss, "listening");
+  wss.on("connection", (s, req) => { heard.push(req); s.send('{"event":"open"}'); });
+  t.after(() => new Promise(r => wss.close(r)));
+  const gateway = createGateway({ ...validateConfig({ ...settings, charts: true, ntfyTopic: "alerts" }, secrets), ntfyOrigin: "http://127.0.0.1:" + wss.address().port });
+  await listen(gateway); t.after(() => gateway.closeGateway());
+  const phone = "Bearer tk_phonetokenfixture000000000";
+  const client = new WebSocket(`ws://127.0.0.1:${gateway.address().port}/ntfy/alerts/ws`, { headers: { host: new URL(ORIGIN).host, authorization: phone } });
+  await once(client, "message");
+  assert.equal(heard[0].headers.authorization, phone); assert.equal(heard[0].url, "/alerts/ws");
+  client.send("x"); await once(client, "close");
 });

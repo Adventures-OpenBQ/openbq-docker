@@ -96,3 +96,22 @@ export function chartsSocketTarget(raw, origin) {
 export function chartsStatus(status) {
   return [200, 201, 202, 204, 400, 401, 404, 409, 413, 415, 422, 428, 429, 503].includes(status) ? status : 502;
 }
+
+/**
+ * The /ntfy family (v12): the phone app's subscribe endpoints for the ONE topic, JSON stream
+ * and websocket. ntfy's own deny-all account protects it; the door injects nothing and
+ * forwards the caller's single Authorization header. Publishing stays on the bridge (the
+ * worker); no publish, account or web-app path is ever matched.
+ */
+const SINCE = /^(?:all|latest|none|[0-9]{1,12}[smhd]?|[A-Za-z0-9]{12})$/;
+export function ntfyRoute(url, method, topic) {
+  if (!topic || method !== "GET" || url.hash) return null;
+  const found = /^\/ntfy\/([A-Za-z0-9_-]{1,64})\/(json|ws)$/.exec(url.pathname);
+  if (!found || found[1] !== topic) return null;
+  const pairs = [...url.searchParams];
+  if (new Set(pairs.map(([key]) => key)).size !== pairs.length) return null;
+  for (const [key, value] of pairs) {
+    if (!(key === "since" && SINCE.test(value)) && !(key === "poll" && value === "1")) return null;
+  }
+  return { kind: found[2], path: `/${topic}/${found[2]}` + (pairs.length ? "?" + url.searchParams.toString() : "") };
+}

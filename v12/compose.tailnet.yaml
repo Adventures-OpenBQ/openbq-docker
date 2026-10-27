@@ -1,0 +1,9 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+# Opt-in tailnet names for v12, after v12/compose.charts.yaml (and v11/compose.tailnet.yaml when
+# TemporalDB runs). ts-config/serve-v12.json is serve-v11.json plus svc:openbq-charts and
+# svc:openbq-ntfy; create all seven Services in the admin console first (v12/RUNBOOK.md).
+services:
+  tailscale:
+    environment:
+      TS_SERVE_CONFIG: /config/serve-v12.json

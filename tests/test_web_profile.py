@@ -88,7 +88,7 @@ def test_the_v11_config_is_the_v6_services_config_plus_two_temporaldb_services()
 def test_every_serve_config_publishes_the_pool_on_tailnet_8088_and_never_funnels_it():
     # A News card dials :8088 whichever Serve file is live, the key-maint ones included.
     names = sorted(p.name for p in (ROOT / 'ts-config').glob('serve*.json'))
-    assert len(names) == 9, names  # serve-v6-services.json (v6 opt-in Service names) and serve-v11.json
+    assert len(names) == 10, names  # serve-v6-services.json, serve-v11.json and serve-v12.json
     for name in names:
         serve = _serve(name)
         assert serve['TCP']['8088'] == {'HTTPS': True}, name
@@ -130,3 +130,16 @@ def test_the_services_config_is_the_keys_config_plus_rita_and_mcp():
         assert host == f"{svc[4:]}.<your-tailnet>.ts.net:443", svc
         assert handlers == web['${TS_CERT_DOMAIN}:' + port], svc
     assert not any(services.get('AllowFunnel', {}).values())
+
+
+def test_the_v12_config_is_the_v11_config_plus_charts_and_ntfy():
+    v11, v12 = _serve('serve-v11.json'), _serve('serve-v12.json')
+    services, base = v12.pop('Services'), v11.pop('Services')
+    assert v12 == v11
+    assert {name: services.pop(name) for name in base} == base
+    assert {name: s['Web'] for name, s in services.items()} == {
+        'svc:openbq-charts': {'openbq-charts.<your-tailnet>.ts.net:443': {'Handlers': {'/': {'Proxy': 'http://arts-charts:8000'}}}},
+        'svc:openbq-ntfy': {'openbq-ntfy.<your-tailnet>.ts.net:443': {'Handlers': {'/': {'Proxy': 'http://ntfy:2586'}}}},
+    }
+    assert not any(v12['AllowFunnel'].values())
+    assert 'serve-v12.json' in (ROOT / 'v12/compose.tailnet.yaml').read_text()

@@ -40,7 +40,7 @@ function tailnetAddress(value) {
 // (see the bottom of validateConfig), never a setting. `liveGrid` (openbq-docker v10) is the
 // one switch: live-grid is the opt-in `live` compose profile here, so the door must be told
 // it runs, and /grid answers 503 until it is.
-const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs", "ssrmTimeoutMs", "temporalDB", "apiUpstream", "stateStorage", "rita", "ritaModel", "ritaPerHour", "mcp", "mcpPerHour", "charts"]);
+const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs", "ssrmTimeoutMs", "temporalDB", "apiUpstream", "stateStorage", "rita", "ritaModel", "ritaPerHour", "mcp", "mcpPerHour", "charts", "ntfyTopic"]);
 
 // lanes/ssrm_widgets.json as door paths: the image copies it to /lanes beside /app (Dockerfile).
 const DEFAULT_SSRM_ROUTES = JSON.parse(readFileSync(new URL("../lanes/ssrm_widgets.json", import.meta.url), "utf8"))
@@ -123,6 +123,10 @@ export function validateConfig(settings, secrets) {
   // fixed compose service name, like apiOrigin and gridOrigin, never a setting.
   const charts = settings.charts === undefined ? false : settings.charts;
   if (typeof charts !== "boolean") throw new Error("charts must be true or false");
+  const ntfyTopic = settings.ntfyTopic ?? null;
+  if (ntfyTopic !== null && (!charts || typeof ntfyTopic !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(ntfyTopic))) {
+    throw new Error("ntfyTopic needs charts: true and a topic name");
+  }
   const apiUpstream = settings.apiUpstream === undefined ? "v10" : settings.apiUpstream;
   if (apiUpstream !== "v10" && apiUpstream !== "v11") throw new Error("apiUpstream must be v10 or v11");
   const stateStorage = settings.stateStorage === undefined ? "file" : settings.stateStorage;
@@ -168,6 +172,7 @@ export function validateConfig(settings, secrets) {
     // arts-charts on openbq-internal, behind the same Basic pair. null = every /charts route is
     // unmatched, exactly as at v11 (charts-policy.mjs).
     chartsOrigin: charts ? "http://arts-charts:8000" : null,
+    ntfyTopic, ntfyOrigin: ntfyTopic ? "http://ntfy:2586" : null,
     stateStorage, apiUpstream, temporalDB, temporalOrigin: temporalDB ? "http://temporaldb-api:8080" : null,
     temporalAuthorization: temporalDB ? "Bearer " + secrets.temporalToken : null,
     tableOrigin: tableService ? "http://table-service:8080" : null,
