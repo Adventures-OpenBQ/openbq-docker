@@ -4,8 +4,8 @@
 """Vendor an arts-charts-openbq snapshot into v12/arts-charts/source and record it in
 v12/arts-charts.lock.json. Reads the arts-charts repository with `git archive` only.
 
-    python3 v12/arts-charts/vendor.py --repo <arts-charts checkout> --commit <sha>
-    python3 v12/arts-charts/vendor.py --repo <arts-charts checkout> --tag v0.1.0
+    uv run --no-project --python 3.12 python v12/arts-charts/vendor.py --repo <arts-charts checkout> --commit <sha>
+    uv run --no-project --python 3.12 python v12/arts-charts/vendor.py --repo <arts-charts checkout> --tag v0.1.0
 """
 import argparse
 import hashlib

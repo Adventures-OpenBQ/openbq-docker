@@ -151,6 +151,23 @@ test("token-only routes forward no credential, need no gateway token, and nothin
   assert.equal(seen.length, count);
 });
 
+test("an empty-body upstream 401 is a 401 on a token-only route and a 502 on a credentialed one", async t => {
+  const { port } = await stack(t, (req, res) => { res.writeHead(401); res.end(); });
+  assert.equal((await call(port, `/inbox/${id}?t=${LINK}`, { bearer: false })).status, 401);
+  assert.equal((await call(port, `/inbox/${id}/snapshots/0.png?t=${LINK}`, { bearer: false })).status, 401);
+  assert.equal((await call(port, `/inbox/${id}`)).status, 502);
+});
+
+test("the token-only POST /watches/action is capped at 8 KiB; credentialed routes keep 1 MiB", async t => {
+  const { port, seen } = await stack(t, (req, res) => json(res, 200, { ok: true }));
+  const post = (path, size, bearer) => call(port, path, { method: "POST", bearer,
+    body: JSON.stringify({ token: "x".repeat(size) }), headers: { "content-type": "application/json" } });
+  assert.equal((await post("/watches/action", 8 * 1024 - 64, false)).status, 200);
+  assert.equal((await post("/watches/action", 8 * 1024, false)).status, 413);
+  assert.equal(seen.length, 1);
+  assert.equal((await post("/charts", 100 * 1024, true)).status, 200);
+});
+
 test("a PNG is relayed as image/png with its revision; a slow PNG outlives requestMs", async t => {
   const { port } = await stack(t, (req, res) => setTimeout(() => {
     res.writeHead(200, { "Content-Type": "image/png", "X-Chart-Revision": "7" }); res.end(Buffer.alloc(3 * 1024 * 1024, 1));

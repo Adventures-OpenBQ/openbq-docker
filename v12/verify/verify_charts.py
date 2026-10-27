@@ -130,9 +130,9 @@ check('G link-token PNG without the gateway token', picture.status_code == 200 a
 item_path = link.path.rsplit('/snapshots/', 1)[0]
 check('G link-token inbox item', anon.get(item_path + '?' + link.query).status_code == 200)
 forged_path = item_path + '?t=' + link.query[2:-4] + 'AAAA'
-# arts-charts answers a forged link token 401 with an empty body; the door relays only JSON, so it shows 502.
+# arts-charts answers a forged link token 401 with an empty body; on a token-only route the door relays it as 401.
 check('D forged link token is 401', httpx.get(DIRECT + forged_path, timeout=60).status_code == 401)
-check('G forged link token is 502', anon.get(forged_path).status_code == 502)
+check('G forged link token is 401', anon.get(forged_path).status_code == 401)
 check('G no token is 401', anon.get('/charts').status_code == 401)
 check('G trailing slash is 404', g.get('/charts/').status_code == 404)
 print('verify-charts: all checks passed')

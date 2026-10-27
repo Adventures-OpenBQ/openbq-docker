@@ -604,7 +604,7 @@ function ritaPrincipal(req) {
 const MCP_BODY_MAX = 1024 * 1024, MCP_REPLY_MAX = 8 * 1024 * 1024, MCP_MS = 120000, MCP_SESSIONS = 5000;
 // Art's Charts (v12). A snapshot may wait behind four renders of 20 s each (arts_charts
 // snapshots.QUEUE/TIMEOUT), so PNGs get 110 s; MCP tools can render too, so 120 s like /mcp.
-const CHARTS_BODY_MAX = 1048576, CHARTS_JSON_MAX = 8 * 1048576, CHARTS_PNG_MAX = 16 * 1048576;
+const CHARTS_BODY_MAX = 1048576, CHARTS_ACTION_BODY_MAX = 8192, CHARTS_JSON_MAX = 8 * 1048576, CHARTS_PNG_MAX = 16 * 1048576;
 const CHARTS_PNG_MS = 110000, CHARTS_MCP_MS = 120000, CHARTS_MCP_PER_HOUR = 600;
 // An intraday study chart's first /ta_series_ws frame is far past MAX_SOCKET.
 const CHARTS_FRAME_MAX = 4 * 1048576;
@@ -829,7 +829,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     if (inflight >= config.maxConcurrent) return reply(res, 429);
     let body;
     if (route.body) {
-      body = await jsonBody(req, route.kind === "mcp" ? MCP_BODY_MAX : CHARTS_BODY_MAX);
+      body = await jsonBody(req, route.kind === "mcp" ? MCP_BODY_MAX : credential ? CHARTS_BODY_MAX : CHARTS_ACTION_BODY_MAX);
       if (typeof body === "number") { if (body === 413) res.setHeader("Connection", "close"); return reply(res, body); }
     } else if (!noBody(req)) return reply(res, 405);
     // Reading the body yields: re-check the slot and the hour.
@@ -862,6 +862,9 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
           ...(/^[0-9]{1,9}$/.test(answer.revision ?? "") ? { "X-Chart-Revision": answer.revision } : {}) });
         return res.end(answer.body);
       }
+      // A forged or expired push link: arts-charts answers 401 with an empty body. On a token-only route
+      // that is the caller's own token being refused, so it shows as 401, not as a broken upstream.
+      if (!credential && status === 401 && answer.type !== "application/json") return reply(res, 401);
       if (status === 502 || answer.type !== "application/json") return reply(res, 502);
       return reply(res, status, JSON.parse(answer.body.toString("utf8")));
     } finally { clearTimeout(timer); res.off("close", disconnect); inflight--; }

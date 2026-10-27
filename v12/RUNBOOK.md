@@ -94,7 +94,7 @@ Three routes are token-only: they carry a signed token instead of the gateway to
 forwarded with no credential: `GET /inbox/{id}?t=`, `GET /inbox/{id}/snapshots/{n}.png?t=`
 (an ntfy push's click and picture links) and `POST /watches/action` (the push buttons). A
 forged button token is refused with a JSON 401, which the door relays. A forged link token is
-refused by arts-charts with an empty-body 401; the door relays only JSON bodies, so it shows 502.
+refused by arts-charts with an empty-body 401; on these token-only routes the door relays that as 401, so an expired or forged push link shows as unauthorized. (On credentialed routes an empty-body 401 still shows as 502.) The `POST /watches/action` body is capped at 8 KiB.
 
 ## 6. Tailnet names
 
@@ -128,12 +128,12 @@ Re-pinning moves the vendored tree to a new arts-charts commit or tag. Update `s
 
 ## 10. Coordination and limits
 
-- OpenPort's sidecar shares `openbq-internal`: keep service names unique there.
+- OpenPort's sidecar shares `openbq-internal`: keep service names unique there. It can therefore reach `arts-charts:8000` and `ntfy:2586` directly. That is acceptable: arts-charts demands the stack pair and ntfy is deny-all.
 - ntfy counts every door caller as one visitor, the gateway's address. A flood of
   bad-credential requests at `/ntfy/...` can use up ntfy's per-visitor budget and lock the
   phone out too. If the phone stops receiving, check ntfy's logs for rate limiting and
   restart ntfy; keep the door reachable only over the tailnet or Funnel you trust.
-- A forged link token (`/inbox/...?t=`) is shown as 502 at the door, not 401. A forged button token (`/watches/action`) is a 401.
+- A forged or expired link token (`/inbox/...?t=`) and a forged button token (`/watches/action`) are both a 401 at the door.
 
 ## 11. Pending: phone check (plan Q8, Task 4 step 8)
 
