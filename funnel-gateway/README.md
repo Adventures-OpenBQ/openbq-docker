@@ -199,7 +199,7 @@ Opt-in: `"charts": true` in settings.json (and `"ntfyTopic"` for `/ntfy`), with 
 
 - Door paths are arts-charts' own paths at the door's root, forwarded verbatim (`/charts`, `/charts/{id}`, `/charts/events`, `/charts/mcp`, snapshots, `/series`, `/ta_registry`, `/ta_macros`, `/ta_snapshot`, `/inbox`, `/watches`, `/schedules`, and the `/ta_series_ws` socket with `/charts/ws_ticket`). Each needs the gateway token; the gateway presents the stack's Basic pair on the bridge. Queries are re-serialised from the pairs that passed.
 - Three token-only routes carry a signed token instead of the gateway token and are forwarded with no credential: `GET /inbox/{id}?t=`, `GET /inbox/{id}/snapshots/{n}.png?t=` and `POST /watches/action`.
-- Only JSON bodies and the statuses 200 201 202 204 400 401 404 409 413 415 422 428 429 503 are relayed; anything else, including arts-charts' non-JSON 401 for a forged token, is a 502. `/charts/mcp` is limited to 600 calls an hour per principal.
+- Only JSON bodies and the statuses 200 201 202 204 400 401 404 409 413 415 422 428 429 503 are relayed; anything else, including arts-charts' empty-body 401 for a forged link token, is a 502 (a forged button token's JSON 401 is relayed). `/charts/mcp` is limited to 600 calls an hour per principal.
 - `/ntfy/<topic>/json` and `/ntfy/<topic>/ws` (GET only) are matched before the lock and forward the caller's single Authorization header to ntfy, which holds the account; the door injects nothing. Publishing stays on the bridge. ntfy sees every door caller as the gateway's address (one visitor).
 
 ## Configuration

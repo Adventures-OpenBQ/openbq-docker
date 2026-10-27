@@ -110,27 +110,29 @@ watch = d.post('/watches', json={'chart_id': chart, 'condition': 'close > 1'}).j
 action = sign(E['ARTS_CHARTS_SECRET'], 'action', 600, watch=watch, action='snapshot')
 pressed = anon.post('/watches/action', json={'token': action})
 check('G POST /watches/action without the gateway token', pressed.status_code == 200)
+forged_action = anon.post('/watches/action', json={'token': action[:-4] + 'AAAA'})
+check('G forged action token is 401', forged_action.status_code == 401)
 got = {}
 deadline = time.time() + 150
 while time.time() < deadline and len(got) < 2:
     try:
         base, message = pushes.get(timeout=5)
-        got[base] = message
     except queue.Empty:
-        pass
-check('ntfy push received through the door and directly', len(got) == 2)
-message = next(iter(got.values()))
-if 'attachment' not in message:
-    print('push without a picture:', message, flush=True)
-link = urlsplit(message['attachment']['url'])  # ntfy reports a published attach as attachment.url
-check('push links use ARTS_CHARTS_PUBLIC_URL', f'{link.scheme}://{link.netloc}' == ORIGIN)
+        continue
+    if 'attachment' in message:  # the push that carries the picture, not an earlier plain alert
+        got[base] = message
+check('ntfy push with a picture received through the door and directly', len(got) == 2)
+for base, message in got.items():
+    link = urlsplit(message['attachment']['url'])  # ntfy reports a published attach as attachment.url
+    check(f'push link uses ARTS_CHARTS_PUBLIC_URL ({'door' if base.startswith(GW) else 'direct'})', f'{link.scheme}://{link.netloc}' == ORIGIN)
 picture = anon.get(link.path + '?' + link.query)
 check('G link-token PNG without the gateway token', picture.status_code == 200 and picture.content[:4] == b'\x89PNG')
 item_path = link.path.rsplit('/snapshots/', 1)[0]
 check('G link-token inbox item', anon.get(item_path + '?' + link.query).status_code == 200)
-forged = anon.get(item_path + '?t=' + link.query[2:-4] + 'AAAA')
-# arts-charts answers 401 with a non-JSON body; the door relays only JSON bodies, so it shows 502. Either way: refused.
-check('G forged link token is refused (401 from arts-charts, relayed as 502)', forged.status_code in (401, 502))
+forged_path = item_path + '?t=' + link.query[2:-4] + 'AAAA'
+# arts-charts answers a forged link token 401 with an empty body; the door relays only JSON, so it shows 502.
+check('D forged link token is 401', httpx.get(DIRECT + forged_path, timeout=60).status_code == 401)
+check('G forged link token is 502', anon.get(forged_path).status_code == 502)
 check('G no token is 401', anon.get('/charts').status_code == 401)
 check('G trailing slash is 404', g.get('/charts/').status_code == 404)
 print('verify-charts: all checks passed')

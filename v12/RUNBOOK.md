@@ -41,9 +41,10 @@ ntfy runs deny-all with one account and one topic. Start ntfy once so it creates
 file, then:
 
 ```sh
+TOPIC=<topic>   # the topic name chosen below
 read -rs NTFY_PASSWORD; export NTFY_PASSWORD
 docker compose -f docker-compose.yml -f v12/compose.charts.yaml --profile charts-v12 up -d ntfy
-docker compose ... exec -T -e NTFY_PASSWORD="$NTFY_PASSWORD" ntfy ntfy user add charts
+docker compose ... exec -T -e NTFY_PASSWORD ntfy ntfy user add charts
 docker compose ... exec -T ntfy ntfy access charts "$TOPIC" rw
 docker compose ... exec -T ntfy ntfy token add charts      # prints tk_...: ARTS_CHARTS_NTFY_TOKEN
 ```
@@ -92,8 +93,8 @@ checked in `funnel-gateway/charts-policy.mjs`:
 Three routes are token-only: they carry a signed token instead of the gateway token and are
 forwarded with no credential: `GET /inbox/{id}?t=`, `GET /inbox/{id}/snapshots/{n}.png?t=`
 (an ntfy push's click and picture links) and `POST /watches/action` (the push buttons). A
-forged token is refused by arts-charts; the door shows that refusal as 502, because it relays
-only JSON error bodies.
+forged button token is refused with a JSON 401, which the door relays. A forged link token is
+refused by arts-charts with an empty-body 401; the door relays only JSON bodies, so it shows 502.
 
 ## 6. Tailnet names
 
@@ -116,8 +117,9 @@ v12/verify-charts.sh --postgres   # PostgreSQL
 ```
 
 Both end with `verify-charts: all checks passed`. The script uses a throwaway project, fresh
-secrets, a fake ODP, a local ntfy with no upstream and no key; it never touches a running
-stack and removes everything it made. Set `VERIFY_PROJECT=<prefix>` to name its compose
+secrets, a fake ODP, a local ntfy with no upstream and no key; it does not touch a running
+stack's containers, volumes or networks and removes everything it created, but it does rebuild
+the image tags `openbq-arts-charts:12.0.0` and `openbq-funnel-gateway:12.0.0-charts` on the host. Set `VERIFY_PROJECT=<prefix>` to name its compose
 project and containers.
 
 ## 9. Re-pin
@@ -131,7 +133,7 @@ Re-pinning moves the vendored tree to a new arts-charts commit or tag. Update `s
   bad-credential requests at `/ntfy/...` can use up ntfy's per-visitor budget and lock the
   phone out too. If the phone stops receiving, check ntfy's logs for rate limiting and
   restart ntfy; keep the door reachable only over the tailnet or Funnel you trust.
-- A forged link or button token is shown as 502 at the door, not 401.
+- A forged link token (`/inbox/...?t=`) is shown as 502 at the door, not 401. A forged button token (`/watches/action`) is a 401.
 
 ## 11. Pending: phone check (plan Q8, Task 4 step 8)
 

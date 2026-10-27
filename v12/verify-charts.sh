@@ -26,7 +26,9 @@ cleanup() {
   dc down -v --remove-orphans >/dev/null 2>&1 || true
   rm -rf "$TMP"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # The gateway insists on a <name>.<tailnet>.ts.net origin; spelled in parts so the public-content scan
 # sees no tailnet host. It is only a Host header here: nothing resolves it.
@@ -51,11 +53,19 @@ if [ "${1:-}" = --postgres ]; then
   PGPASS=$(rand)
   docker run -d --name "$PG" --network "${P}_openbq-internal" -p "127.0.0.1:$PORT:5432" \
     -e POSTGRES_USER=charts -e POSTGRES_PASSWORD="$PGPASS" -e POSTGRES_DB=charts postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b >/dev/null
-  until docker exec "$PG" pg_isready -U charts >/dev/null 2>&1; do sleep 1; done
+  tries=0
+  until docker exec "$PG" pg_isready -U charts >/dev/null 2>&1; do
+    tries=$((tries + 1)); [ "$tries" -lt 120 ] || { echo "verify-charts: postgres not ready after 120s" >&2; exit 1; }
+    sleep 1
+  done
   printf 'ARTS_CHARTS_DB=postgresql://charts:%s@%s:5432/charts\n' "$PGPASS" "$PG" >> "$TMP/charts.env"
 fi
 
-until dc exec -T ntfy test -f /var/lib/ntfy/user.db >/dev/null 2>&1; do sleep 1; done  # the server creates the auth file at start
+tries=0  # the server creates the auth file at start
+until dc exec -T ntfy test -f /var/lib/ntfy/user.db >/dev/null 2>&1; do
+  tries=$((tries + 1)); [ "$tries" -lt 120 ] || { echo "verify-charts: ntfy auth file missing after 120s" >&2; exit 1; }
+  sleep 1
+done
 dc exec -T -e NTFY_PASSWORD="$NTFY_PASS" ntfy ntfy user add charts >/dev/null
 dc exec -T ntfy ntfy access charts "$TOPIC" rw >/dev/null
 NTFY_TOKEN=$(dc exec -T ntfy ntfy token add charts | grep -o 'tk_[A-Za-z0-9]*' | head -1)
