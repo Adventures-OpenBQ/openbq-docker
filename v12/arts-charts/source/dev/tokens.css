@@ -1,0 +1,122 @@
+/* Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Business Source License 1.1. */
+/* SPDX-License-Identifier: BUSL-1.1 */
+
+:root {
+  --bg: #12161d;
+  --bg-panel: #1a1f28;
+  --bg-card: #1e242e;
+  --border: #2b323d;
+  --text: #dfe4ec;
+  --text-muted: #8b94a3;
+  --accent: #22c99b;
+  --error: #d9695f;
+  /* A partial answer, not an error: the pivot's incomplete-period count, and
+     the pivot panel's "Choose"/⚠. The Workspace's stale orange. */
+  --warning: #c5804f;
+  --picker-hover: #2a3340;
+  --clock-green: #39ff14;
+  /* The advanced chart's canvas colours (v12.3.0). Read at chart creation by
+     src/lib/chart/createChartTheme.ts through getComputedStyle, never named
+     in component code. Up and down are the same in both themes: a candle's
+     direction must read identically whatever the chrome around it. */
+  --up: #0e9f6e;
+  --down: #e0393e;
+  /* A hairline: the grid inside the plot and the pane separators. */
+  --line-soft: #232a35;
+  /* The accent at rest: a selected chip's fill, the separator on hover. */
+  --accent-soft: #123a30;
+  --rail-width: 48px;
+  --rail-width-expanded: 240px;
+  /* Fallback only. App's ResizeObserver publishes the real value (the tab
+     bar's bottom edge) on .dashboard-area itself, which wins by specificity
+     of the cascade origin -- an element style beats this. Declared here so a
+     maximized card is still laid out against the viewport top, rather than
+     against an invalid `inset` that drops the whole shorthand, in the frames
+     before that observer has measured (and under any environment that never
+     runs it). */
+  --dashboard-top: 0px;
+  /* Fallback for --card-dock-top's sticky offset -- same App ResizeObserver, container-relative. */
+  --tab-bar-height: 0px;
+  /* The in-card file rail: the same idiom as the left rail, at a card's scale. */
+  --file-rail-width: 28px;
+  --file-rail-width-expanded: 260px;
+  --font-size-base: 14px;
+  /* Derived from --font-size-base, not hardcoded: recomputes automatically
+     under :root[data-font-size="large"] below, same as every site that used
+     to spell out calc(var(--font-size-base) * N / 14) by hand. */
+  /* Every font-size in this file MUST use one of these tokens (or --font-size-base). A bare px value silently opts that element out of the Font size setting. */
+  --font-size-10: calc(var(--font-size-base) * 10 / 14);
+  --font-size-11: calc(var(--font-size-base) * 11 / 14);
+  --font-size-12: calc(var(--font-size-base) * 12 / 14);
+  --font-size-13: calc(var(--font-size-base) * 13 / 14);
+  --font-size-16: calc(var(--font-size-base) * 16 / 14);
+  --font-size-20: calc(var(--font-size-base) * 20 / 14);
+  --font-size-28: calc(var(--font-size-base) * 28 / 14);
+  --font-size-32: calc(var(--font-size-base) * 32 / 14);
+}
+
+/* Specificity (0,2,0), not source order, is what beats pdf_viewer.css's bare
+   :root { color-scheme: light dark }. */
+:root:not([data-theme="light"]) {
+  color-scheme: dark;
+}
+
+/* What makes the app paint correctly BEFORE any JavaScript has run. The
+   palette above reads "dark unless explicitly light", so an unstamped
+   document painted dark whatever the OS said; index.html used to close that
+   gap with a blocking inline script, which `script-src 'self'` now refuses
+   (src-tauri/tauri.conf.json, pinned by src/lib/csp.test.ts). This layer does
+   the same job in the cascade instead, with nothing to execute.
+
+   It must come AFTER :root:not([data-theme="light"]) and its selector is the
+   mirror of it: both are specificity (0,2,0), so source order is what decides
+   an unstamped document on a light Mac. App's own effect still stamps
+   data-theme afterwards, which is what keeps an explicit choice
+   authoritative -- an explicit "dark" is excluded here by :not(), and an
+   explicit "light" is carried by the block below.
+
+   CSS cannot alias a declaration block across an @media boundary, so the
+   light tokens are spelled out twice. src/lib/themeFlash.test.ts asserts the
+   two blocks declare an identical set of property names, because nothing in
+   the language stops them drifting. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #eef1f5;
+    --bg-panel: #ffffff;
+    --bg-card: #ffffff;
+    --border: #d7dce3;
+    --text: #1a1f28;
+    --text-muted: #6b7280;
+    --accent: #16a67f;
+    --error: #c0392b;
+    /* --warning, darker so it reads on white; see the dark block. */
+    --warning: #a15c1f;
+    --picker-hover: #e5e9f0;
+    --clock-green: #1a9e4a;
+    --up: #0e9f6e;
+    --down: #e0393e;
+    --line-soft: #e5e9f0;
+    --accent-soft: #d7f1e8;
+    color-scheme: light;
+  }
+}
+
+:root[data-theme="light"] {
+  --bg: #eef1f5;
+  --bg-panel: #ffffff;
+  --bg-card: #ffffff;
+  --border: #d7dce3;
+  --text: #1a1f28;
+  --text-muted: #6b7280;
+  --accent: #16a67f;
+  --error: #c0392b;
+  /* --warning, darker so it reads on white; see the dark block. */
+  --warning: #a15c1f;
+  --picker-hover: #e5e9f0;
+  --clock-green: #1a9e4a;
+  --up: #0e9f6e;
+  --down: #e0393e;
+  --line-soft: #e5e9f0;
+  --accent-soft: #d7f1e8;
+  color-scheme: light;
+}

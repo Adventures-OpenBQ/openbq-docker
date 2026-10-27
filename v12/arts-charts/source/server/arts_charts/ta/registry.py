@@ -1,0 +1,1403 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Business Source License 1.1.
+# SPDX-License-Identifier: BUSL-1.1
+
+"""Indicator definitions.
+
+Every entry states its own conventions rather than inheriting a library's.
+That is not pedantry: pandas_ta and EODHD *both* return slow %K under the name
+"k" (spec S4, S6), and EODHD computes RSI and Bollinger on adjusted close but
+ATR on raw OHLC (spec S5). An indicator that does not say which it means is an
+indicator that is silently wrong somewhere.
+"""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any
+
+import polars as pl
+
+from arts_charts.ta.exprs import Base, price_col
+
+
+@dataclass(frozen=True)
+class Req:
+    """One indicator with its parameters fully resolved.
+
+    `source` (v12.3.0) is the request's own Local/EODHD choice, or None to
+    take the chart-wide default; it is part of the request's identity, so
+    the same SMA asked of both sources is two requests, not one.
+
+    `units` (v12.3.0) says which parameters were asked for in something other
+    than bars: `{"period": "bd"}` is `period=50bd`, fifty BUSINESS DAYS. The
+    unit is kept beside the value rather than folded into it because the
+    number still has to reach an indicator's build() as a number -- what the
+    unit changes is the FRAME the indicator is computed on (see
+    arts_charts.ta.session.session_closes), not the arithmetic. It is part of the
+    request's identity for the same reason `source` is: 50 bars and 50
+    sessions are two different lines.
+
+    A plain dict, exactly like `params`: this dataclass is frozen for intent
+    rather than for hashing (nothing hashes a Req -- panes._key builds a
+    tuple), and a second idiom for the same kind of field would be one more
+    thing to remember.
+    """
+
+    name: str
+    params: dict[str, Any]
+    source: str | None = None
+    units: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class EodhdMap:
+    """How to ask EODHD for this indicator and read its answer.
+
+    `params` maps EODHD query parameter -> our parameter name.
+    `fields`  maps EODHD response field  -> our output column name.
+    """
+
+    function: str
+    params: dict[str, str]
+    fields: dict[str, str]
+    price_basis: str
+    note: str
+    # Some EODHD windows are off by one from ours: their `period` counts
+    # intervals where ours counts bars. Measured for stddev -- their period=20
+    # equals our period=21, to 1.4e-14. Applied when building the query.
+    offsets: dict[str, int] = field(default_factory=dict)
+
+
+# EODHD's Technical Indicators endpoint supports exactly this function set
+# (confirmed 2026-08-27 via retrieve_description_by_id(type=2, id=53), its own
+# endpoint reference): splitadjusted, avgvol, avgvolccy, sma, ema, wma,
+# volatility, stochastic, rsi, stddev, stochrsi, slope, dmi, adx, macd, atr,
+# cci, sar, beta, bbands, format_amibroker. An indicator with no function in
+# that list gets no `eodhd=` -- there is nothing to query, not an oversight.
+
+
+@dataclass(frozen=True)
+class Indicator:
+    name: str
+    label: str
+    params: dict[str, Any]
+    pane: str                      # "price" | "own"
+    price_basis: str               # "adjusted" | "raw"
+    convention: str
+    deps: Callable[[dict], list[Base]]
+    build: Callable[[dict, dict[str, Base]], list[pl.Expr]]
+    render: dict[str, dict]
+    # Studies-picker metadata (v12.3.1): which of the nine picker groups this
+    # indicator sits under, its conventional long name, the one-line `desc`
+    # the picker's list shows under that name, longer plain-language help
+    # text written for this project (never copied from Wikipedia or anywhere
+    # else), and the Wikipedia article backing it -- or None where no
+    # dedicated article exists. `param_labels` and `param_steps` are the same
+    # story one level down: the human label the editor puts on a parameter,
+    # and the spinner increment for a float one (an int steps by 1). The
+    # client never hardcodes any of this; it renders whatever catalog() below
+    # projects, and degrades gracefully (group "Other", title = label, no
+    # help text) against an older backend that omits these fields entirely.
+    group: str = ""
+    full: str = ""
+    desc: str = ""
+    description: str = ""
+    wiki: str | None = None
+    param_labels: dict[str, str] = field(default_factory=dict)
+    param_steps: dict[str, float] = field(default_factory=dict)
+    # Which of this indicator's parameters count BARS -- a lookback window --
+    # as opposed to a multiplier, a step or a plot offset. Only a window may
+    # wear a unit (`period=50bd`), and because the unit moves the WHOLE
+    # request onto the session frame (arts_charts.ta.sources._is_bd), every window of
+    # a request wears it or none does. Declared per indicator because one
+    # name is not one thing: `stoch`'s `k` is a 14-bar lookback while
+    # `bbands`' `k` is a standard-deviation multiple. Empty means this
+    # indicator has no window at all and so takes no unit.
+    windows: tuple[str, ...] = ()
+    # A BANDED indicator's fill defaults (one whose render names a `_up` and a
+    # `_lo` output): the shade colour, its opacity, and the pattern the
+    # client paints it with -- "solid", "diagonal", "cross" or "dots". None
+    # leaves the client's own defaults (the series colour at 0.15) in place.
+    # A per-OUTPUT pen -- "solid", "dotted", "dashed", "large-dashed",
+    # "sparse-dotted" -- and width (1 to 4) are `pen` and `width` keys on
+    # that output's render dict, next to its colour, so a macro's `style` can
+    # override them the same way.
+    shade: str | None = None
+    fill_opacity: float | None = None
+    fill_pattern: str = "solid"
+    guides: list[float] = field(default_factory=list)
+    repaints: bool = False
+    iterative: bool = False
+    # A sessioned indicator's `build` runs against a once-per-session,
+    # already-shifted frame instead of the bar frame. Distinct from avwap's
+    # anchor: that is ONE anchor chosen once and run cumulatively forward;
+    # this is a RECURRING boundary, every session independent of the last.
+    sessioned: bool = False
+    session_agg: Callable[[dict], dict] | None = None
+    eodhd: EodhdMap | None = None
+
+
+REGISTRY: dict[str, Indicator] = {}
+
+
+def register(ind: Indicator) -> Indicator:
+    if ind.name in REGISTRY:
+        raise ValueError(f"indicator {ind.name!r} is already registered")
+    REGISTRY[ind.name] = ind
+    return ind
+
+
+def get(name: str) -> Indicator:
+    try:
+        return REGISTRY[name]
+    except KeyError:
+        raise KeyError(f"unknown indicator {name!r}") from None
+
+
+def resolve(name: str, source: str | None = None,
+            units: dict[str, str] | None = None, **overrides: Any) -> Req:
+    """Defaults from the registry, overridden by keyword. Unknown keys raise.
+
+    `style` is accepted for every indicator: it is per-series presentation
+    carried from a macro, not an indicator parameter, so it is not in
+    `Indicator.params`. `source` is the same kind of thing one level up -- a
+    routing choice, not a parameter -- so it is a named argument rather than
+    an override, and never reaches `params`. `units` is the third of these:
+    grammar attached to a parameter's value, not a parameter of its own.
+    """
+    ind = get(name)
+    # Validated HERE and not only in parse_indicators: the macro loader calls
+    # resolve(name, **spec) straight from YAML, so a `source:` key in a macro
+    # binds this argument without ever passing the query-string parser. An
+    # unchecked value would reach col_suffix and name a column after a source
+    # that does not exist.
+    if source not in (None, "local", "eodhd"):
+        raise ValueError(f"source must be 'local' or 'eodhd', got {source!r}")
+    style = overrides.pop("style", None)
+    if style is not None and not isinstance(style, dict):
+        raise ValueError(f"style must be a mapping, got {style!r}")
+    for key in overrides:
+        if key not in ind.params:
+            raise ValueError(
+                f"unknown parameter {key!r} for {name!r}; "
+                f"expected one of {sorted(ind.params)}"
+            )
+    # A unit is written on one parameter but acts on the whole request: `bd`
+    # moves every window of it onto the session frame (arts_charts.ta.sources._is_bd).
+    # So the grammar has to match the effect. Without these two rules
+    # `macd:fast=12bd:slow=26` computes slow and signal on SESSIONS while the
+    # legend, the column name and the wire echo all say bars, and
+    # `bbands:k=2bd` asks for two business-day standard deviations -- neither
+    # is refused anywhere else, and neither is visible in the output. Checked
+    # here rather than in parse_indicators for the reason `source` is: a macro
+    # reaches resolve() without passing the query-string parser.
+    units = dict(units or {})
+    stray = sorted(set(units) - set(ind.windows))
+    if stray:
+        raise ValueError(
+            f"{stray[0]!r} counts no bars for {name!r}, so it takes no unit; "
+            f"a unit belongs on {sorted(ind.windows) or 'no parameter of this indicator'}"
+        )
+    bare = sorted(set(ind.windows) - set(units)) if units else []
+    if bare:
+        raise ValueError(
+            f"a unit applies to all of {name!r} or none of it: "
+            f"{bare} must wear the same unit as {sorted(units)}"
+        )
+    return Req(name, {**ind.params, "style": style, **overrides}, source, units)
+
+
+def col_suffix(req: Req) -> str:
+    """The parameter signature appended to this request's output columns.
+
+    Columns were named per indicator while requests dedup per (indicator,
+    params), so two periods of one indicator collapsed onto a single column
+    and the second was silently dropped as a duplicate.
+
+    An EXPLICIT source is part of that signature for the same reason
+    (v12.3.0): request identity now includes it, so `sma:period=50:source=eodhd`
+    and `sma:period=50` are two requests -- and without the suffix they are
+    one column. The vendor's join would then land in `sma|period=50_right`,
+    which nothing reads, and the eodhd-labelled series would ship the local
+    numbers. A request that names NO source keeps the historic column name
+    exactly, so nothing already on the wire moves.
+
+    A parameter's UNIT is part of the signature too: `period=50bd` (fifty
+    sessions) and `period=50` (fifty bars) are different lines and must land
+    in different columns, or the second collapses onto the first.
+
+    A key starting with `_` is NOT part of the signature (anchor resolution):
+    `_anchor_at` rides alongside `anchor` on a `dataclasses.replace`d Req so
+    the resolved instant reaches `_avwap_build` without going through
+    `resolve()`, which raises on any name the registry did not declare. If
+    it counted here, resolving an anchor would rename the column out from
+    under the panes/series that were built from the request BEFORE
+    resolution, and the client's series would stop matching its study.
+    """
+    parts = [f"{k}={v}{req.units.get(k, '')}" for k, v in sorted(req.params.items())
+             if k != "style" and v is not None and not k.startswith("_")]
+    if req.source is not None:
+        parts.append(f"source={req.source}")
+    return "|" + ",".join(parts) if parts else ""
+
+
+def catalog() -> list[dict]:
+    """The registry as the widget's catalog (studies addendum §3): every
+    field a picker or an editor needs, none of the compute callables. The
+    frontend never hardcodes this; if the two disagree the registry wins
+    and the catalog is regenerated -- which this function is."""
+    out = []
+    for ind in REGISTRY.values():
+        if ind.name == "volume":            # raw bar data, not a study
+            continue
+        outputs = list(ind.render)
+        types = {r.get("type", "line") for r in ind.render.values()}
+        out.append({
+            "name": ind.name, "label": ind.label, "pane": ind.pane,
+            "price_basis": ind.price_basis, "convention": ind.convention,
+            # Studies-picker metadata (v12.3.1): the long name falls back to
+            # the short label so an indicator that somehow ships without one
+            # still renders a real name rather than an empty string. "title"
+            # is the same string under the older key, kept for one release
+            # so a client built against B1's projection keeps working.
+            "group": ind.group, "full": ind.full or ind.label,
+            "title": ind.full or ind.label, "desc": ind.desc,
+            "description": ind.description, "wiki": ind.wiki,
+            # "float" travels alongside the value: the client re-renders an
+            # expression as text and must print a float default with its
+            # trailing `.0` (BBANDS(20, 2.0), studies addendum S2.4), but a
+            # JSON number loses the int/float distinction crossing into JS
+            # (2.0 and 2 both decode to `2`) -- so the registry says it here.
+            # "window" is the same story for `ind.windows` (v12.3.0): the
+            # client's parser has to normalise a `bd` unit onto every window
+            # parameter and refuse it on a non-window (resolve()'s stray/bare
+            # checks above), so it needs the same yes/no per parameter here
+            # rather than re-deriving it. "windows" alongside it names the
+            # set directly, since a client comparing parameter names against
+            # it is simpler than filtering the per-param flag -- both are
+            # sent so the client can use whichever is easier, not because the
+            # information differs.
+            "windows": list(ind.windows),
+            # "label" is the editor's human name for the parameter, falling
+            # back to the raw name; "step" is the spinner increment and is
+            # sent for float parameters only -- an int steps by 1 and the
+            # client needs no instruction for that.
+            "params": [{"name": k, "default": v, "text": v is None or isinstance(v, str),
+                        "float": isinstance(v, float), "window": k in ind.windows,
+                        "label": ind.param_labels.get(k, k),
+                        **({"step": ind.param_steps[k]} if isinstance(v, float) and k in ind.param_steps else {})}
+                       for k, v in ind.params.items()],
+            "guides": list(ind.guides),
+            "band": any(o.endswith("_up") for o in outputs) and any(o.endswith("_lo") for o in outputs),
+            "render": "dots" if "scatter" in types else "bar" if "bar" in types else "line",
+            "colors": {o: r.get("color") for o, r in ind.render.items()},
+            # The per-output pen and the band's fill defaults, for the picker
+            # to seed from; the pen also rides each series' own `render` on
+            # the wire, which is what the chart draws by.
+            "pens": {o: r.get("pen", "solid") for o, r in ind.render.items()},
+            "widths": {o: r.get("width", 1) for o, r in ind.render.items()},
+            "shade": ind.shade, "fill_opacity": ind.fill_opacity,
+            "fill_pattern": ind.fill_pattern,
+            # Sessioned studies render as steps (addendum §6): the client
+            # needs to know, and the registry is the only place that does.
+            "sessioned": ind.sessioned,
+            # A repainting indicator's history can change after the fact
+            # (spec D10); the Charts MCP shows it on each study's capability
+            # so a model knows not to trust an old value of one.
+            "repaints": ind.repaints,
+            "eodhd": None if ind.eodhd is None else {"function": ind.eodhd.function, "note": ind.eodhd.note},
+        })
+    return out
+
+
+def _line(color: str | None = None) -> dict:
+    return {"type": "line", "color": color}
+
+
+# --- Simple moving average -------------------------------------------------
+
+register(Indicator(
+    name="sma", label="SMA", params={"period": 50},
+    group="Moving averages", full="Simple moving average",
+    desc="Arithmetic mean of adjusted close over N bars.",
+    param_labels={"period": 'Length'},
+    description="Averages price over a fixed number of bars, smoothing out day-to-day noise so the underlying trend stands out. Price crossing above or below the line is often read as a shift in trend direction.",
+    wiki="https://www.investopedia.com/terms/s/sma.asp",
+    windows=("period",), pane="price",
+    price_basis="adjusted",
+    convention="Arithmetic mean of adjusted close over `period` bars.",
+    deps=lambda p: [Base("sma", price_col("adjusted"), p["period"])],
+    build=lambda p, b: [
+        pl.col(b[f"sma:adj_close:{p['period']}"].key).alias("sma"),
+    ],
+    render={"sma": _line("#4c9be8")},
+    eodhd=EodhdMap("sma", {"period": "period"}, {"sma": "sma"}, "adjusted",
+                   "EODHD sma is computed on adjusted close."),
+))
+
+# --- Exponential moving average --------------------------------------------
+
+register(Indicator(
+    name="ema", label="EMA", params={"period": 50},
+    group="Moving averages", full="Exponential moving average",
+    desc="Weights recent bars most heavily; α = 2/(N+1).",
+    param_labels={"period": 'Length'},
+    description="Averages price over a lookback window like a simple moving average, but weights recent bars more heavily so it turns with price faster. Traders read it the same way as an SMA, as a trend line, but it reacts sooner to new moves.",
+    wiki="https://www.investopedia.com/terms/e/ema.asp",
+    windows=("period",), pane="price",
+    price_basis="adjusted",
+    convention="EMA with alpha = 2/(period+1), adjust=False, on adjusted close.",
+    deps=lambda p: [Base("ewm", price_col("adjusted"), p["period"])],
+    build=lambda p, b: [
+        pl.col(b[f"ewm:adj_close:{p['period']}"].key).alias("ema"),
+    ],
+    render={"ema": _line("#e8b923")},
+    eodhd=EodhdMap("ema", {"period": "period"}, {"ema": "ema"}, "adjusted",
+                   "EODHD ema is computed on adjusted close."),
+))
+
+# --- Relative strength index -----------------------------------------------
+
+
+def _rsi_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    n = p["period"]
+    col = price_col("adjusted")
+    delta = pl.col(col).diff()
+    gain = pl.when(delta > 0).then(delta).otherwise(0.0)
+    loss = pl.when(delta < 0).then(-delta).otherwise(0.0)
+    wilder = {"alpha": 1 / n, "adjust": False, "ignore_nulls": True}
+    rs = gain.ewm_mean(**wilder) / loss.ewm_mean(**wilder)
+    # Bar 0 has no previous close, so gain and loss are both 0 and rs is 0/0.
+    # Null is what every rolling indicator already uses for its warmup; NaN
+    # would be a second, inconsistent spelling of "undefined". This also
+    # covers a genuinely flat window, e.g. a halted ticker.
+    return [(100 - 100 / (1 + rs)).fill_nan(None).alias("rsi")]
+
+
+register(Indicator(
+    name="rsi", label="RSI", params={"period": 14},
+    group="Momentum", full="Relative Strength Index",
+    desc="Wilder smoothed gain/loss ratio, 0–100.",
+    param_labels={"period": 'Length'},
+    description="Compares the size of recent gains to recent losses on a 0-100 scale to gauge whether a security has moved too far too fast. Readings above roughly 70 are read as overbought and below 30 as oversold, though strong trends can hold at extremes for a while.",
+    wiki="https://www.investopedia.com/terms/r/rsi.asp",
+    windows=("period",), pane="own",
+    price_basis="adjusted", guides=[30.0, 70.0],
+    convention=(
+        "Wilder's RSI: gains and losses smoothed with alpha=1/period "
+        "(not span=period), on adjusted close. Matches EODHD to 1.5e-5."
+    ),
+    deps=lambda p: [],  # its smoothing is of derived gain/loss, not a shared Base
+    build=_rsi_build,
+    render={"rsi": _line("#8ed081")},
+    eodhd=EodhdMap("rsi", {"period": "period"}, {"rsi": "rsi"}, "adjusted",
+                   "EODHD rsi matches Wilder-on-adjusted-close at 1.5e-5 (spec S5)."),
+))
+
+# --- Bollinger bands --------------------------------------------------------
+
+
+def _bbands_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    n, k = p["period"], p["k"]
+    mid = pl.col(f"sma:adj_close:{n}")
+    sd = pl.col(f"std:adj_close:{n}")
+    return [
+        mid.alias("bb_mid"),
+        (mid + k * sd).alias("bb_up"),
+        (mid - k * sd).alias("bb_lo"),
+    ]
+
+
+register(Indicator(
+    name="bbands", label="Bollinger Bands", params={"period": 20, "k": 2.0},
+    group="Bands & channels", full="Bollinger Bands",
+    desc="Mid = SMA(N); bands = mid ± k · population σ.",
+    param_labels={"period": 'Length', "k": 'StdDev multiplier'},
+    param_steps={"k": 0.5},
+    description="A moving average with two bands plotted a multiple of standard deviation above and below it, so the band width expands and contracts with volatility. Price pressing against or beyond a band is read as a stretched, possibly overextended move relative to its recent range.",
+    wiki="https://www.investopedia.com/terms/b/bollingerbands.asp",
+    windows=("period",),
+    pane="price", price_basis="adjusted",
+    convention=(
+        "Middle = SMA(period) of adjusted close. Bands = mid +/- k * population "
+        "standard deviation (ddof=0). Matches EODHD to 1.2e-7."
+    ),
+    deps=lambda p: [Base("sma", price_col("adjusted"), p["period"]),
+                    Base("std", price_col("adjusted"), p["period"])],
+    build=_bbands_build,
+    render={"bb_mid": _line("#9aa0a6"), "bb_up": _line("#c678dd"),
+            "bb_lo": _line("#c678dd")},
+    eodhd=EodhdMap("bbands", {"period": "period"},
+                   {"uband": "bb_up", "mband": "bb_mid", "lband": "bb_lo"},
+                   "adjusted",
+                   "EODHD bbands is adjusted-close with ddof=0 (spec S5)."),
+))
+
+# --- Average true range -----------------------------------------------------
+
+register(Indicator(
+    name="atr", label="ATR", params={"period": 14},
+    group="Volatility", full="Average True Range",
+    desc="Wilder true-range mean, raw OHLC.",
+    param_labels={"period": 'Length'},
+    description="Averages the true range, the largest of the day's own range and any gap from the prior close, to give a single measure of how much a security typically moves per bar. It is read as a gauge of volatility, useful for sizing stops or targets rather than for direction.",
+    wiki="https://www.investopedia.com/terms/a/atr.asp",
+    windows=("period",), pane="own",
+    price_basis="raw",
+    convention=(
+        "Wilder's average of true range on RAW OHLC. EODHD's atr matches raw, "
+        "not adjusted -- feeding adjusted close here is a 96% error (spec S5)."
+    ),
+    deps=lambda p: [Base("tr", "raw", 0)],
+    build=lambda p, b: [
+        pl.col("tr:raw:0")
+          .ewm_mean(alpha=1 / p["period"], adjust=False, ignore_nulls=True)
+          .alias("atr"),
+    ],
+    render={"atr": _line("#e06c75")},
+    eodhd=EodhdMap("atr", {"period": "period"}, {"atr": "atr"}, "raw",
+                   "EODHD atr is raw OHLC (spec S5)."),
+))
+
+# --- Weighted moving average ------------------------------------------------
+
+register(Indicator(
+    name="wma", label="WMA", params={"period": 50},
+    group="Moving averages", full="Weighted moving average",
+    desc="Linear weighting — newest bar counts N×, oldest 1×.",
+    param_labels={"period": 'Length'},
+    description="Weights each bar in the lookback window in proportion to how recent it is, so the most recent price counts several times as much as the oldest. It sits between the SMA and EMA in responsiveness and is read the same way, as a trend line.",
+    wiki="https://www.investopedia.com/ask/answers/071414/whats-difference-between-moving-average-and-weighted-moving-average.asp",
+    windows=("period",), pane="price",
+    price_basis="adjusted",
+    convention="Linearly weighted mean of adjusted close; weight i = i for i in 1..period.",
+    deps=lambda p: [],
+    build=lambda p, b: [
+        pl.col(price_col("adjusted"))
+          .rolling_mean(p["period"],
+                        weights=[float(i) for i in range(1, p["period"] + 1)])
+          .alias("wma"),
+    ],
+    render={"wma": _line("#56b6c2")},
+    eodhd=EodhdMap("wma", {"period": "period"}, {"wma": "wma"}, "adjusted",
+                   "EODHD wma is adjusted close."),
+))
+
+# --- Hull moving average ----------------------------------------------------
+
+
+def _wma_expr(expr: pl.Expr, length: int) -> pl.Expr:
+    # rolling_mean(weights=...) panics on any null in the array (not just the
+    # window) as of polars 1.44 -- fine for a raw price column, not for a
+    # nested WMA-of-WMA input that is null through its own warmup. Fill nulls
+    # so it doesn't panic, then null the result wherever the window itself
+    # wasn't fully covered by real values -- identical output to a direct
+    # weighted rolling_mean whenever the input has no nulls.
+    weights = [float(i) for i in range(1, length + 1)]
+    weighted = expr.fill_null(0.0).rolling_mean(length, weights=weights)
+    enough = expr.is_not_null().cast(pl.Int32).rolling_sum(length) == length
+    return pl.when(enough).then(weighted).otherwise(None)
+
+
+def _hma_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    n = p["period"]
+    price = pl.col(price_col("adjusted"))
+    raw = 2 * _wma_expr(price, max(round(n / 2), 1)) - _wma_expr(price, n)
+    return [_wma_expr(raw, max(round(math.sqrt(n)), 1)).alias("hma")]
+
+
+register(Indicator(
+    name="hma", label="Hull Moving Average", params={"period": 9},
+    group="Moving averages", full="Hull moving average",
+    desc="Halves WMA lag: WMA of (2·WMA(n/2) − WMA(n)) over √n bars.",
+    param_labels={"period": 'Length'},
+    description="Combines two weighted moving averages of different lengths to cancel out lag while keeping the line smooth, so it tracks price closely without the choppiness of a plain fast average. A turn in its slope is read as an early trend-change signal.",
+    wiki=None,
+    windows=("period",), pane="price",
+    price_basis="adjusted",
+    convention=(
+        "WMA(2*WMA(adj_close, round(n/2)) - WMA(adj_close, n), round(sqrt(n))). "
+        "Both derived lengths are rounded to nearest, not truncated."
+    ),
+    deps=lambda p: [],  # a rolling mean OF a rolling mean is not a flat Base
+    build=_hma_build,
+    render={"hma": _line("#56b6c2")},
+    # No eodhd map: no Hull Moving Average function on EODHD's endpoint.
+))
+
+# --- TRIX --------------------------------------------------------------------
+
+
+def _trix_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    alpha = 2 / (p["period"] + 1)  # matches the plain `ema` indicator
+    smoothed = pl.col(price_col("adjusted"))
+    for _ in range(3):
+        smoothed = smoothed.ewm_mean(alpha=alpha, adjust=False, ignore_nulls=True)
+    # A zero-price frame (a synthetic fixture, a delisted symbol) makes
+    # pct_change divide 0/0 -> NaN. Unlike uo/chop/vortex there is no
+    # zero-numerator or zero-denominator invariant to lean on here -- any
+    # prior EMA can be exactly zero -- so this is a plain fill_nan, not a
+    # guarded expression.
+    return [(100 * smoothed.pct_change(1)).fill_nan(None).alias("trix")]
+
+
+register(Indicator(
+    name="trix", label="TRIX", params={"period": 18},
+    group="Momentum", full="TRIX",
+    desc="1-bar % change of a triple EMA.",
+    param_labels={"period": 'Length'},
+    description="The percentage rate of change of a price average that has been smoothed three times over, which strips out short-term noise more aggressively than a single moving average. Crossing above or below zero is read as a shift in the longer-term trend's direction.",
+    wiki="https://www.investopedia.com/terms/t/trix.asp",
+    windows=("period",), pane="own",
+    price_basis="adjusted", guides=[0.0],
+    convention=(
+        "1-bar percent change of a triple EMA(period) on adjusted close, "
+        "alpha = 2/(period+1) matching the plain `ema` indicator. "
+        "fill_nan(None): the EMA can be exactly zero, making the percent "
+        "change 0/0."
+    ),
+    deps=lambda p: [],  # EMA-of-EMA-of-EMA is not a flat Base
+    build=_trix_build,
+    render={"trix": _line("#c678dd")},
+    # No eodhd map: no TRIX function on EODHD's endpoint.
+))
+
+# --- Keltner channels -------------------------------------------------------
+
+
+def _keltner_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    mid = pl.col(f"ewm:adj_close:{p['period']}")
+    atr = pl.col("tr:raw:0").ewm_mean(
+        alpha=1 / p["atr_period"], adjust=False, ignore_nulls=True
+    )
+    return [mid.alias("kc_mid"),
+            (mid + p["mult"] * atr).alias("kc_up"),
+            (mid - p["mult"] * atr).alias("kc_lo")]
+
+
+register(Indicator(
+    name="keltner", label="Keltner Channels",
+    group="Bands & channels", full="Keltner Channels",
+    desc="EMA ± mult · Wilder ATR, on raw OHLC range.",
+    param_labels={"period": 'EMA length', "mult": 'ATR multiplier', "atr_period": 'ATR length'},
+    param_steps={"mult": 0.5},
+    description="An average price line with bands set a multiple of average true range above and below it, so the channel width tracks volatility directly instead of standard deviation. Price breaking outside the channel is often read as the start of a stronger directional move.",
+    wiki="https://www.investopedia.com/terms/k/keltnerchannel.asp",
+    params={"period": 20, "mult": 2.0, "atr_period": 10},
+    windows=("period", "atr_period"), pane="price",
+    price_basis="adjusted",
+    convention="EMA(period) of adjusted close +/- mult * Wilder ATR(atr_period) of raw OHLC.",
+    deps=lambda p: [Base("ewm", price_col("adjusted"), p["period"]), Base("tr", "raw", 0)],
+    build=_keltner_build,
+    render={"kc_mid": _line("#9aa0a6"), "kc_up": _line("#61afef"),
+            "kc_lo": _line("#61afef")},
+    # No eodhd map: no Keltner Channel function exists on their endpoint.
+))
+
+# --- Price channels (Donchian) ---------------------------------------------
+
+register(Indicator(
+    name="donchian", label="Price Channels", params={"period": 20},
+    group="Bands & channels", full="Price Channels",
+    desc="Upper = N-bar highest high, lower = lowest low.",
+    param_labels={"period": 'Length'},
+    description="Plots the highest high and lowest low over the lookback window as a channel, with the midpoint drawn between them. A new high or low pushing against the edge of the channel is read as a breakout from the recent trading range.",
+    wiki="https://www.investopedia.com/terms/d/donchianchannels.asp",
+    windows=("period",), pane="price",
+    price_basis="raw",
+    convention="Highest high and lowest low of raw OHLC over `period` bars; mid is their mean.",
+    deps=lambda p: [Base("max", "high", p["period"]), Base("min", "low", p["period"])],
+    build=lambda p, b: [
+        pl.col(f"max:high:{p['period']}").alias("dc_up"),
+        pl.col(f"min:low:{p['period']}").alias("dc_lo"),
+        ((pl.col(f"max:high:{p['period']}") + pl.col(f"min:low:{p['period']}")) / 2)
+        .alias("dc_mid"),
+    ],
+    render={"dc_up": _line("#98c379"), "dc_lo": _line("#98c379"),
+            "dc_mid": _line("#9aa0a6")},
+    # No eodhd map: no Donchian/price-channel function exists on their endpoint.
+))
+
+# --- VWAP -------------------------------------------------------------------
+
+register(Indicator(
+    name="vwap", label="VWAP", params={}, pane="price", price_basis="raw",
+    group="Anchored & volume", full="Volume-weighted avg price",
+    desc="Cumulative typical-price-weighted mean of the window.",
+    param_labels={},
+    description="Tracks the average price paid for the security, weighted by how much volume traded at each price, accumulated from the start of the visible window. Price above VWAP suggests buyers are paying a premium to the session's average cost; price below suggests a discount.",
+    wiki="https://www.investopedia.com/terms/v/vwap.asp",
+    convention=(
+        "Cumulative typical-price-weighted mean over the whole window "
+        "(not session-anchored). Typical price = (H+L+C)/3 on raw OHLC."
+    ),
+    deps=lambda p: [],
+    build=lambda p, b: [
+        (((pl.col("high") + pl.col("low") + pl.col("close")) / 3 * pl.col("volume")).cum_sum()
+         / pl.col("volume").cum_sum()).alias("vwap"),
+    ],
+    render={"vwap": _line("#d19a66")},
+    # No eodhd map: no VWAP function exists on their endpoint.
+))
+
+# --- Anchored VWAP ----------------------------------------------------------
+
+
+def _avwap_anchor(raw: Any) -> datetime:
+    """ISO 8601 -> naive datetime in the bars' own timezone (UTC for ticks)."""
+    dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _avwap_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    # Trade-true only: each tick-derived bar carries its real trade-weighted
+    # vwap (size wavg price in q), so cumsum(vwap*volume)/cumsum(volume) IS
+    # sum(price*size)/sum(size) over the actual trades. Bars with no trade
+    # data (vendor history, all-zero-size buckets) contribute nothing and
+    # render null -- never the (H+L+C)/3 approximation.
+    valid = pl.col("vwap").is_not_null() & pl.col("vwap").is_not_nan() & (pl.col("volume") > 0)
+    # `_anchor_at` is the resolved instant (an anchor expression's `anchor`
+    # param travels raw, e.g. "OBS-2" -- polars has no way to compute that,
+    # only the caller's server-side resolver does) and wins whenever it is
+    # present; `anchor` itself still works when the client sent a plain ISO
+    # instant and no resolution step ran at all (e.g. the studies module).
+    anchor = p.get("_anchor_at") or p.get("anchor")
+    if anchor:
+        # cast, not compare in place: fixture/daily frames carry pl.Date, tick
+        # frames pl.Datetime, and Date >= datetime raises
+        valid = valid & (
+            pl.col("date").cast(pl.Datetime) >= pl.lit(_avwap_anchor(anchor))
+        )
+    num = pl.when(valid).then(pl.col("vwap") * pl.col("volume")).otherwise(0.0).cum_sum()
+    den = pl.when(valid).then(pl.col("volume")).otherwise(0.0).cum_sum()
+    return [pl.when(valid & (den > 0)).then(num / den).otherwise(None).alias("avwap")]
+
+
+register(Indicator(
+    name="avwap", label="Anchored VWAP", params={"anchor": None}, pane="price",
+    group="Anchored & volume", full="Anchored VWAP",
+    desc="Trade-weighted mean from an anchored timestamp.",
+    param_labels={"anchor": 'Anchor'},
+    description="The same volume-weighted average as VWAP, but the running average starts fresh from a timestamp the trader chooses rather than from the start of the chart. It is read as the average cost basis of everyone who has traded since that anchor, useful for judging whether a specific event still supports the price.",
+    wiki=None,
+    price_basis="raw",
+    convention=(
+        "Cumulative TRADE-weighted mean from the anchor timestamp forward: "
+        "sum(price*size)/sum(size) over actual trades, via each tick-derived "
+        "bar's own vwap column (size wavg price in q). Bars without trade "
+        "data -- vendor history, bars before the anchor -- are null; this "
+        "never falls back to a typical-price approximation. Anchor is ISO "
+        "8601, read as naive in the bars' own timezone (UTC for tick-derived "
+        "bars). No anchor = cumulative from the first bar with trade data."
+    ),
+    deps=lambda p: [],
+    build=_avwap_build,
+    render={"avwap": _line("#e5c07b")},
+    # No eodhd map: no anchored-VWAP function exists on their endpoint.
+))
+
+# --- Volume -----------------------------------------------------------------
+
+register(Indicator(
+    name="volume", label="Volume", params={}, pane="own", price_basis="raw",
+    convention="Raw bar volume, drawn as bars.",
+    deps=lambda p: [],
+    build=lambda p, b: [pl.col("volume").alias("volume_bar")],
+    render={"volume_bar": {"type": "bar", "color": "#5c6370"}},
+    # No eodhd map: this is the bar's own raw volume field, not a derived
+    # indicator -- there is nothing to reconcile against a technical-
+    # indicator endpoint (their avgvol/avgvolccy are rolling averages, a
+    # different quantity).
+))
+
+# --- MACD -------------------------------------------------------------------
+
+
+def _macd_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    line = pl.col(f"ewm:adj_close:{p['fast']}") - pl.col(f"ewm:adj_close:{p['slow']}")
+    signal = line.ewm_mean(span=p["signal"], adjust=False)
+    return [line.alias("macd"), signal.alias("macd_signal"),
+            (line - signal).alias("macd_hist")]
+
+
+register(Indicator(
+    name="macd", label="MACD", params={"fast": 12, "slow": 26, "signal": 9},
+    group="Momentum", full="MACD",
+    desc="EMA(fast) − EMA(slow); signal is its EMA.",
+    param_labels={"fast": 'Fast EMA', "slow": 'Slow EMA', "signal": 'Signal'},
+    description="Tracks the gap between a fast and a slow moving average, plus a signal line that smooths that gap, to show shifts in trend momentum. A crossover between the MACD and signal lines is read as a possible turn, and the histogram's height shows how fast that momentum is building or fading.",
+    wiki="https://www.investopedia.com/terms/m/macd.asp",
+    windows=("fast", "slow", "signal"),
+    pane="own", price_basis="adjusted", guides=[0.0],
+    convention="EMA(fast) - EMA(slow) on adjusted close; signal is EMA(signal) of that line.",
+    deps=lambda p: [Base("ewm", price_col("adjusted"), p["fast"]),
+                    Base("ewm", price_col("adjusted"), p["slow"])],
+    build=_macd_build,
+    render={"macd": _line("#61afef"), "macd_signal": _line("#e06c75"),
+            "macd_hist": {"type": "bar", "color": "#5c6370"}},
+    eodhd=EodhdMap("macd", {"fast_period": "fast", "slow_period": "slow",
+                            "signal_period": "signal"},
+                   {"macd": "macd", "signal": "macd_signal",
+                    "divergence": "macd_hist"},
+                   "adjusted",
+                   "EODHD returns macd/signal/divergence -- NOT macd_signal or "
+                   "macd_hist. Verified against the live API."),
+))
+
+# --- Stochastic oscillator --------------------------------------------------
+
+
+def _stoch_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    hh = pl.col(f"max:high:{p['k']}")
+    ll = pl.col(f"min:low:{p['k']}")
+    raw = 100 * (pl.col("close") - ll) / (hh - ll)
+    # A flat window makes hh == ll and the ratio 0/0. Null, not NaN.
+    # Fill immediately after the division, before %D's rolling mean averages it.
+    k = raw.fill_nan(None)
+    k = k if p["smooth_k"] <= 1 else k.rolling_mean(p["smooth_k"])
+    return [k.alias("stoch_k"), k.rolling_mean(p["d"]).alias("stoch_d")]
+
+
+register(Indicator(
+    name="stoch", label="Stochastic", params={"k": 14, "smooth_k": 1, "d": 3},
+    group="Momentum", full="Stochastic",
+    desc="Close position in the N-bar high–low range.",
+    param_labels={"k": '%K period', "smooth_k": '%K smoothing', "d": '%D period'},
+    description="Compares the latest close to the high-low range over the lookback window, on a 0-100 scale, to show where price sits within its recent range. Readings near the top are read as overbought and readings near the bottom as oversold; a crossover of its two lines is often read as a timing signal.",
+    wiki="https://www.investopedia.com/terms/s/stochasticoscillator.asp",
+    windows=("k", "smooth_k", "d"),
+    pane="own", price_basis="raw", guides=[20.0, 80.0],
+    convention=(
+        "smooth_k=1 is FAST %K, 3 is SLOW, anything else is FULL. Raw OHLC. "
+        "EODHD and pandas_ta both return SLOW under the bare name 'k' "
+        "(spec S4, S6) -- this default is fast, and stated."
+    ),
+    deps=lambda p: [Base("max", "high", p["k"]), Base("min", "low", p["k"])],
+    build=_stoch_build,
+    render={"stoch_k": _line("#61afef"), "stoch_d": _line("#e06c75")},
+    eodhd=EodhdMap("stochastic",
+                   {"period": "k", "slow_kperiod": "smooth_k", "slow_dperiod": "d"},
+                   {"k_values": "stoch_k", "d_values": "stoch_d"}, "raw",
+                   "EODHD returns SLOW %K (smooth_k=3) on raw close (spec S6)."),
+))
+
+# --- Stochastic RSI ---------------------------------------------------------
+
+
+def _stochrsi_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    n = p["period"]
+    delta = pl.col(price_col("adjusted")).diff()
+    wilder = {"alpha": 1 / n, "adjust": False, "ignore_nulls": True}
+    gain = pl.when(delta > 0).then(delta).otherwise(0.0).ewm_mean(**wilder)
+    loss = pl.when(delta < 0).then(-delta).otherwise(0.0).ewm_mean(**wilder)
+    rsi = 100 - 100 / (1 + gain / loss)
+    lo, hi = rsi.rolling_min(p["stoch_period"]), rsi.rolling_max(p["stoch_period"])
+    # Two 0/0 routes here: the inline RSI at bar 0, and hi == lo on a flat
+    # window. Both resolve to null.
+    return [(100 * (rsi - lo) / (hi - lo)).fill_nan(None).alias("stochrsi")]
+
+
+register(Indicator(
+    name="stochrsi", label="StochRSI",
+    group="Momentum", full="StochRSI",
+    desc="Stochastic formula applied to RSI.",
+    param_labels={"period": 'RSI length', "stoch_period": 'Stoch period'},
+    description="Applies the same overbought/oversold calculation used by the stochastic oscillator to RSI values instead of price, producing a more sensitive, faster-moving 0-100 reading. It is read the same way as RSI or stochastics, but reaches its extremes more often and sooner.",
+    wiki="https://www.investopedia.com/terms/s/stochrsi.asp",
+    params={"period": 14, "stoch_period": 14},
+    windows=("period", "stoch_period"), pane="own",
+    price_basis="adjusted", guides=[20.0, 80.0],
+    convention="Stochastic of Wilder RSI(period) over stoch_period bars, scaled 0-100, on adjusted close.",
+    deps=lambda p: [],
+    build=_stochrsi_build,
+    render={"stochrsi": _line("#c678dd")},
+    eodhd=EodhdMap("stochrsi", {"period": "period"}, {"fastkline": "stochrsi"},
+                   "adjusted",
+                   "EODHD returns fastkline/fastdline, NOT a 'stochrsi' key -- "
+                   "verified against the live API; scale matches ours exactly."),
+))
+
+# --- ADX and directional movement -------------------------------------------
+
+
+def _adx_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    n = p["period"]
+    wilder = {"alpha": 1 / n, "adjust": False, "ignore_nulls": True}
+    up = pl.col("high").diff()
+    down = -pl.col("low").diff()
+    plus_dm = pl.when((up > down) & (up > 0)).then(up).otherwise(0.0)
+    minus_dm = pl.when((down > up) & (down > 0)).then(down).otherwise(0.0)
+    atr = pl.col("tr:raw:0").ewm_mean(**wilder)
+    di_plus = 100 * plus_dm.ewm_mean(**wilder) / atr
+    di_minus = 100 * minus_dm.ewm_mean(**wilder) / atr
+    # Fill BEFORE the smoothing, not after. NaN is not null: ewm_mean skips
+    # nulls but PROPAGATES NaN, so the single bar-0 NaN in dx would contaminate
+    # every later value and a trailing fill would then null the entire series.
+    # Measured: filling after gives 0/912 finite values; filling here gives
+    # 910/912, and matches EODHD to a median of 1.2e-06.
+    dx = (100 * (di_plus - di_minus).abs() / (di_plus + di_minus)).fill_nan(None)
+    return [dx.ewm_mean(**wilder).alias("adx"),
+            di_plus.fill_nan(None).alias("di_plus"),
+            di_minus.fill_nan(None).alias("di_minus")]
+
+
+register(Indicator(
+    name="adx", label="ADX / DMI", params={"period": 14},
+    group="Trend strength", full="ADX / DMI",
+    desc="Wilder trend strength with ±DI direction.",
+    param_labels={"period": 'Length'},
+    description="Measures how strongly price is trending, regardless of direction, alongside two companion lines showing whether buyers or sellers currently have the upper hand. A rising main line is read as a strengthening trend, while a low reading suggests a directionless, choppy market.",
+    wiki="https://www.investopedia.com/terms/a/adx.asp",
+    windows=("period",), pane="own",
+    price_basis="raw", guides=[20.0, 25.0],
+    convention=(
+        "Wilder's ADX on raw OHLC: +DM/-DM smoothed with alpha=1/period, "
+        "divided by Wilder ATR, then DX smoothed again."
+    ),
+    deps=lambda p: [Base("tr", "raw", 0)],
+    build=_adx_build,
+    render={"adx": _line("#e5c07b"), "di_plus": _line("#98c379"),
+            "di_minus": _line("#e06c75")},
+    eodhd=EodhdMap("adx", {"period": "period"}, {"adx": "adx"}, "raw",
+                   "EODHD adx is raw OHLC; +DI/-DI come from function=dmi."),
+))
+
+# --- Commodity channel index ------------------------------------------------
+
+
+def _cci_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    n = p["period"]
+    tp = (pl.col("high") + pl.col("low") + pl.col("close")) / 3
+    sma_tp = tp.rolling_mean(n)
+    # Mean absolute deviation about the rolling mean. Polars has no rolling MAD,
+    # so this is the explicit form rather than a clever one.
+    mad = (tp - sma_tp).abs().rolling_mean(n)
+    # MAD is zero on a flat window, giving 0/0.
+    return [((tp - sma_tp) / (0.015 * mad)).fill_nan(None).alias("cci")]
+
+
+register(Indicator(
+    name="cci", label="CCI", params={"period": 20},
+    group="Momentum", full="Commodity Channel Index",
+    desc="Typical price vs its SMA, in MAD units.",
+    param_labels={"period": 'Length'},
+    description="Measures how far the typical price has strayed from its recent average, scaled by typical deviation, so it reads similarly across different securities and price levels. Large positive or negative readings are read as a price move stretched well beyond its normal range.",
+    wiki="https://www.investopedia.com/terms/c/commoditychannelindex.asp",
+    windows=("period",), pane="own",
+    price_basis="raw", guides=[-100.0, 100.0],
+    convention=(
+        "(typical price - SMA) / (0.015 * mean absolute deviation), raw OHLC. "
+        "MAD is taken about the rolling mean, not the rolling median."
+    ),
+    deps=lambda p: [],
+    build=_cci_build,
+    render={"cci": _line("#d19a66")},
+    # No eodhd map, deliberately. EODHD's CCI disagrees with the standard
+    # definition by a median of 28.5% across 754 bars, and the ratio is not
+    # constant (0.21-1.24), so it is not the 0.015 divisor. No period offset
+    # (19-22, 40) and no MAD/stddev denominator variant reconciles it. Spec D6
+    # requires that toggling `source` not move the line; here it would move it
+    # by a quarter. So CCI is local-only and says so in the legend.
+))
+
+# --- Williams %R ------------------------------------------------------------
+
+register(Indicator(
+    name="willr", label="Williams %R", params={"period": 14},
+    group="Momentum", full="Williams %R",
+    desc="Inverted 0…−100 close-in-range oscillator.",
+    param_labels={"period": 'Length'},
+    description="Compares the latest close to the high-low range over the lookback window, similar to the stochastic oscillator but plotted upside down on a 0 to -100 scale. Readings near zero are read as overbought and readings near -100 as oversold.",
+    wiki="https://www.investopedia.com/terms/w/williamsr.asp",
+    windows=("period",), pane="own",
+    price_basis="raw", guides=[-80.0, -20.0],
+    convention="-100 * (highest high - close) / (highest high - lowest low), raw OHLC.",
+    deps=lambda p: [Base("max", "high", p["period"]), Base("min", "low", p["period"])],
+    build=lambda p, b: [
+        (-100 * (pl.col(f"max:high:{p['period']}") - pl.col("close"))
+         / (pl.col(f"max:high:{p['period']}") - pl.col(f"min:low:{p['period']}")))
+        .fill_nan(None)  # hh == ll on a flat window
+        .alias("willr"),
+    ],
+    render={"willr": _line("#56b6c2")},
+    # No eodhd map: no Williams %R function exists on their endpoint.
+))
+
+# --- Rate of change ---------------------------------------------------------
+
+register(Indicator(
+    name="roc", label="Rate of Change", params={"period": 12},
+    group="Momentum", full="Rate of Change",
+    desc="Percent change vs N bars ago.",
+    param_labels={"period": 'Length'},
+    description="The plain percentage change in price from a fixed number of bars ago to now, a direct measure of how fast price is moving. Crossing above or below zero is read as momentum turning positive or negative.",
+    wiki="https://www.investopedia.com/terms/p/pricerateofchange.asp",
+    windows=("period",), pane="own",
+    price_basis="adjusted", guides=[0.0],
+    convention="Percent change of adjusted close over `period` bars.",
+    deps=lambda p: [],
+    build=lambda p, b: [
+        (pl.col(price_col("adjusted")).pct_change(p["period"]) * 100).alias("roc"),
+    ],
+    render={"roc": _line("#98c379")},
+    # No eodhd map: no Rate of Change function exists on their endpoint.
+))
+
+# --- On balance volume ------------------------------------------------------
+
+register(Indicator(
+    name="obv", label="On Balance Volume", params={}, pane="own",
+    group="Volume", full="On Balance Volume",
+    desc="Running sum of signed volume.",
+    param_labels={},
+    description="A running total of volume that adds the bar's volume on an up day and subtracts it on a down day, tracking whether volume is flowing with buyers or sellers. A rising line alongside rising price is read as buying pressure confirming the trend; a divergence between the two is read as a warning sign.",
+    wiki="https://www.investopedia.com/terms/o/onbalancevolume.asp",
+    price_basis="adjusted",
+    convention="Running sum of signed volume; sign from the adjusted close change.",
+    deps=lambda p: [],
+    build=lambda p, b: [
+        (pl.col(price_col("adjusted")).diff().sign() * pl.col("volume"))
+        .cum_sum().alias("obv"),
+    ],
+    render={"obv": _line("#61afef")},
+    # No eodhd map: no On Balance Volume function exists on their endpoint.
+))
+
+# --- Standard deviation -----------------------------------------------------
+
+register(Indicator(
+    name="stddev", label="Standard Deviation", params={"period": 20},
+    group="Volatility", full="Standard Deviation",
+    desc="Population σ of closes.",
+    param_labels={"period": 'Length'},
+    description="The statistical spread of price around its recent average, computed the same way as the width used inside the Bollinger Bands. A rising value is read as expanding volatility and a falling value as price settling into a tighter range.",
+    wiki="https://www.investopedia.com/terms/s/standarddeviation.asp",
+    windows=("period",), pane="own",
+    price_basis="adjusted",
+    convention="Population standard deviation (ddof=0) of adjusted close.",
+    deps=lambda p: [Base("std", price_col("adjusted"), p["period"])],
+    build=lambda p, b: [pl.col(f"std:adj_close:{p['period']}").alias("stddev")],
+    render={"stddev": _line("#c678dd")},
+    eodhd=EodhdMap("stddev", {"period": "period"}, {"stddev": "stddev"},
+                   "adjusted",
+                   "EODHD's period counts intervals, not bars: their period=20 "
+                   "equals our 21 (matched to 1.4e-14). Hence the -1 offset.",
+                   offsets={"period": -1}),
+))
+
+# --- %B and BandWidth: both reuse the Bollinger bases ------------------------
+
+register(Indicator(
+    name="pct_b", label="%B", params={"period": 20, "k": 2.0},
+    group="Volatility", full="%B",
+    desc="Close position within the Bollinger bands.",
+    param_labels={"period": 'Length', "k": 'StdDev multiplier'},
+    param_steps={"k": 0.5},
+    description="Shows where the current price sits between the Bollinger Bands, expressed as a fraction from 0 at the lower band to 1 at the upper band. Readings above 1 or below 0 mean price has pushed outside the bands entirely, read as an extreme move.",
+    wiki="https://en.wikipedia.org/wiki/Bollinger_Bands",
+    windows=("period",), pane="own",
+    price_basis="adjusted", guides=[0.0, 1.0],
+    convention="(close - lower) / (upper - lower), on adjusted close. Shares Bollinger's bases exactly.",
+    deps=lambda p: [Base("sma", price_col("adjusted"), p["period"]),
+                    Base("std", price_col("adjusted"), p["period"])],
+    build=lambda p, b: [
+        ((pl.col(price_col("adjusted"))
+          - (pl.col(f"sma:adj_close:{p['period']}")
+             - p["k"] * pl.col(f"std:adj_close:{p['period']}")))
+         / (2 * p["k"] * pl.col(f"std:adj_close:{p['period']}")))
+        .fill_nan(None)  # zero stddev on a flat window
+        .alias("pct_b"),
+    ],
+    render={"pct_b": _line("#e5c07b")},
+    # No eodhd map: no %B function exists on their endpoint -- their bbands
+    # returns the three bands only, not this derived ratio.
+))
+
+register(Indicator(
+    name="bandwidth", label="Bollinger BandWidth",
+    group="Volatility", full="Bollinger BandWidth",
+    desc="(upper − lower) ÷ mid — squeeze gauge.",
+    param_labels={"period": 'Length', "k": 'StdDev multiplier'},
+    param_steps={"k": 0.5},
+    description="The width of the Bollinger Bands expressed as a percentage of the middle band, so it rises when volatility expands and falls when it contracts. A sustained low reading is often read as a volatility squeeze that tends to precede a bigger move.",
+    wiki="https://en.wikipedia.org/wiki/Bollinger_Bands",
+    params={"period": 20, "k": 2.0},
+    windows=("period",), pane="own", price_basis="adjusted",
+    convention="(upper - lower) / middle * 100, on adjusted close. Shares Bollinger's bases exactly.",
+    deps=lambda p: [Base("sma", price_col("adjusted"), p["period"]),
+                    Base("std", price_col("adjusted"), p["period"])],
+    build=lambda p, b: [
+        (2 * p["k"] * pl.col(f"std:adj_close:{p['period']}")
+         / pl.col(f"sma:adj_close:{p['period']}") * 100).alias("bandwidth"),
+    ],
+    render={"bandwidth": _line("#d19a66")},
+    # No eodhd map: same limitation as %B -- no BandWidth function, and their
+    # bbands returns the bands only.
+))
+
+# --- Parabolic SAR: a recurrence, handled by iterative.py --------------------
+
+register(Indicator(
+    name="sar", label="Parabolic SAR",
+    group="Trend", full="Parabolic SAR",
+    desc="Wilder stop-and-reverse dots. Path-dependent.",
+    param_labels={"acceleration": 'Accel. step', "maximum": 'Accel. max'},
+    param_steps={"acceleration": 0.01, "maximum": 0.01},
+    description="Plots a series of dots that trail below price in an uptrend and above it in a downtrend, accelerating toward price the longer the trend runs. When price crosses the dots, it flips to the other side and is commonly read as a signal to reverse position.",
+    wiki="https://www.investopedia.com/terms/p/parabolicindicator.asp",
+    params={"acceleration": 0.02, "maximum": 0.2}, pane="price",
+    price_basis="raw", iterative=True,
+    convention=(
+        "Wilder's Parabolic SAR on raw OHLC. Path-dependent: the value at each "
+        "bar carries the extreme point and acceleration factor forward, so it "
+        "cannot be a Polars expression."
+    ),
+    deps=lambda p: [],
+    build=lambda p, b: [],  # produced by iterative.parabolic_sar
+    render={"sar": {"type": "scatter", "mode": "markers", "color": "#abb2bf"}},
+    eodhd=EodhdMap("sar", {"acceleration": "acceleration", "maximum": "maximum"},
+                   {"sar": "sar"}, "raw", "EODHD sar is raw OHLC."),
+))
+
+# --- Supertrend: a recurrence, handled by iterative.py ----------------------
+
+register(Indicator(
+    name="supertrend", label="Supertrend",
+    group="Trend", full="Supertrend",
+    desc="ATR-banded trailing stop; flips on close-through.",
+    param_labels={"period": 'ATR length', "multiplier": 'ATR multiplier'},
+    param_steps={"multiplier": 0.5},
+    description="A single trailing line set a multiple of average true range away from price, holding steady on one side until price closes through it. A flip in which side of price the line sits on is read as a change in trend direction.",
+    wiki="https://www.investopedia.com/supertrend-indicator-7976167",
+    params={"period": 10, "multiplier": 3.0},
+    windows=("period",), pane="price",
+    price_basis="raw", iterative=True,
+    convention=(
+        "Wilder ATR(period)-banded trailing stop on raw OHLC. The band only "
+        "tightens until close crosses it, then the side flips. Path-dependent "
+        "like Parabolic SAR, so it runs in the iterative pass."
+    ),
+    deps=lambda p: [Base("tr", "raw", 0)],
+    build=lambda p, b: [],  # produced by iterative.supertrend
+    # st_direction is deliberately NOT here. It is internal state, not a
+    # plotted study, and a width-0 line would still ship an invisible series
+    # to the client. The column is computed and stays addressable in tests
+    # via col("supertrend", "st_direction").
+    render={"supertrend": _line("#98c379")},
+    # No eodhd map: no Supertrend function on EODHD's endpoint.
+))
+
+# --- Awesome oscillator -----------------------------------------------------
+
+register(Indicator(
+    name="ao", label="Awesome Oscillator", params={}, pane="own",
+    group="Momentum", full="Awesome Oscillator",
+    desc="SMA(HL2,5) − SMA(HL2,34).",
+    param_labels={},
+    description="The difference between a short and a long simple average of the midpoint of each bar's high and low, plotted as a histogram around zero. Bars switching from below to above zero, or a change in the bars' color, are read as a shift in short-term momentum.",
+    wiki=None,
+    price_basis="raw", guides=[0.0],
+    convention="SMA(HL2, 5) - SMA(HL2, 34) on raw high/low. Fixed periods (Bill Williams).",
+    deps=lambda p: [],
+    build=lambda p, b: [
+        (((pl.col("high") + pl.col("low")) / 2).rolling_mean(5)
+         - ((pl.col("high") + pl.col("low")) / 2).rolling_mean(34)).alias("ao"),
+    ],
+    render={"ao": {"type": "bar", "color": "#98c379"}},
+    # No eodhd map: no Awesome Oscillator function on EODHD's endpoint.
+))
+
+# --- Money flow index -------------------------------------------------------
+
+
+def _mfi_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    n = p["period"]
+    typical = (pl.col("high") + pl.col("low") + pl.col("close")) / 3
+    flow = typical * pl.col("volume")
+    moved = typical.diff()
+    positive = pl.when(moved > 0).then(flow).otherwise(0.0).rolling_sum(n)
+    negative = pl.when(moved < 0).then(flow).otherwise(0.0).rolling_sum(n)
+    total = positive + negative
+    # A flat window has no flow in either bucket: 0/0. Null it here rather
+    # than letting a NaN reach the response boundary.
+    return [pl.when(total > 0).then(100 * positive / total)
+              .otherwise(None).alias("mfi")]
+
+
+register(Indicator(
+    name="mfi", label="Money Flow Index", params={"period": 14},
+    group="Volume", full="Money Flow Index",
+    desc="Volume-weighted RSI.",
+    param_labels={"period": 'Length'},
+    description="Combines price and volume into a single 0-100 oscillator, similar to RSI but weighting each bar's contribution by how much volume traded on it. High readings are read as overbought and low readings as oversold, with more weight given to heavy-volume moves.",
+    wiki="https://www.investopedia.com/terms/m/mfi.asp",
+    windows=("period",), pane="own",
+    price_basis="raw", guides=[20.0, 80.0],
+    convention=(
+        "Typical price (H+L+C)/3, raw money flow = TP*volume, bucketed by the "
+        "sign of TP.diff() and summed over `period` bars. A window with no "
+        "typical-price movement is null, not 0 and not NaN."
+    ),
+    deps=lambda p: [],
+    build=_mfi_build,
+    render={"mfi": _line("#d19a66")},
+    # No eodhd map: no Money Flow Index function on EODHD's endpoint.
+))
+
+# --- Chaikin money flow -----------------------------------------------------
+
+
+def _cmf_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    n = p["period"]
+    span = pl.col("high") - pl.col("low")
+    # A flat bar (high == low) contributes zero flow. Dividing would be 0/0
+    # and would poison every window it touches.
+    multiplier = pl.when(span > 0).then(
+        (2 * pl.col("close") - pl.col("high") - pl.col("low")) / span
+    ).otherwise(0.0)
+    volume_sum = pl.col("volume").rolling_sum(n)
+    return [pl.when(volume_sum > 0)
+              .then((multiplier * pl.col("volume")).rolling_sum(n) / volume_sum)
+              .otherwise(None).alias("cmf")]
+
+
+register(Indicator(
+    name="cmf", label="Chaikin Money Flow", params={"period": 20},
+    group="Volume", full="Chaikin Money Flow",
+    desc="Money-flow volume ÷ volume over N bars.",
+    param_labels={"period": 'Length'},
+    description="Measures whether volume over the lookback window is concentrated on bars that closed near their high or near their low, summed and scaled by total volume. Sustained positive readings are read as accumulation and sustained negative readings as distribution.",
+    wiki=None,
+    windows=("period",), pane="own",
+    price_basis="raw", guides=[0.0],
+    convention=(
+        "Sum of money-flow multiplier * volume over `period` bars, divided by "
+        "summed volume. Flat bars (high == low) contribute 0, not NaN."
+    ),
+    deps=lambda p: [],
+    build=_cmf_build,
+    render={"cmf": _line("#61afef")},
+    # No eodhd map: no Chaikin Money Flow function on EODHD's endpoint.
+))
+
+# --- Ultimate oscillator ----------------------------------------------------
+
+
+def _uo_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    buying = pl.col("close") - pl.min_horizontal(pl.col("low"), pl.col("close").shift(1))
+    true_range = pl.col("tr:raw:0")
+
+    def ratio(n: int) -> pl.Expr:
+        # Ratio of sums, NOT mean of ratios: the two agree only when true
+        # range is constant, and it never is.
+        return buying.rolling_sum(n) / true_range.rolling_sum(n)
+
+    blended = 100 * (4 * ratio(p["fast"]) + 2 * ratio(p["mid"]) + ratio(p["slow"])) / 7
+    return [blended.fill_nan(None).alias("uo")]
+
+
+register(Indicator(
+    name="uo", label="Ultimate Oscillator",
+    group="Momentum", full="Ultimate Oscillator",
+    desc="Weighted BP/TR blend across 3 windows.",
+    param_labels={"fast": 'Fast window', "mid": 'Mid window', "slow": 'Slow window'},
+    description="Blends buying pressure measured over three different lookback lengths into one 0-100 reading, weighting the shortest window most heavily so it reacts quickly while still reflecting the longer-term picture. High readings are read as overbought and low readings as oversold.",
+    wiki="https://www.investopedia.com/terms/u/ultimateoscillator.asp",
+    params={"fast": 7, "mid": 14, "slow": 28},
+    windows=("fast", "mid", "slow"), pane="own",
+    price_basis="raw", guides=[30.0, 70.0],
+    convention=(
+        "Weighted blend of buying-pressure / true-range sum-ratios at three "
+        "windows, weights 4:2:1, divisor 7. BP = close - min(low, prior close). "
+        "Ratio of sums, not mean of ratios. fill_nan(None) suffices here: "
+        "TR_t == 0 forces close_t == close_{t-1}, which forces buying_t == 0 "
+        "too, so a zero-TR window is always 0/0 (NaN), never x/0."
+    ),
+    deps=lambda p: [Base("tr", "raw", 0)],
+    build=_uo_build,
+    render={"uo": _line("#e5c07b")},
+    # No eodhd map: no Ultimate Oscillator function on EODHD's endpoint.
+))
+
+# --- Vortex indicator -------------------------------------------------------
+
+
+def _vortex_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    n = p["period"]
+    total = pl.col("tr:raw:0").rolling_sum(n)
+    up = (pl.col("high") - pl.col("low").shift(1)).abs().rolling_sum(n)
+    down = (pl.col("low") - pl.col("high").shift(1)).abs().rolling_sum(n)
+    # up/down read the PRIOR bar's low/high, not the prior close, so a window
+    # with zero summed true range can still have a nonzero numerator here --
+    # unlike uo and chop, x/0 with x != 0 is +inf, which fill_nan cannot
+    # catch. Guard the denominator directly, like chop does.
+    return [pl.when(total > 0).then(up / total).otherwise(None).alias("vi_plus"),
+            pl.when(total > 0).then(down / total).otherwise(None).alias("vi_minus")]
+
+
+register(Indicator(
+    name="vortex", label="Vortex Indicator", params={"period": 14},
+    group="Trend strength", full="Vortex Indicator",
+    desc="VI+/VI− crossover marks trend starts.",
+    param_labels={"period": 'Length'},
+    description="Compares how far price has moved up against the prior bar's low to how far it has moved down against the prior bar's high, plotted as two lines. Whichever line crosses above the other is read as the currently dominant trend direction.",
+    wiki="https://www.investopedia.com/terms/v/vortex-indicator-vi.asp",
+    windows=("period",), pane="own",
+    price_basis="raw",
+    convention=(
+        "VM+ = |high - prior low|, VM- = |low - prior high|, each summed over "
+        "`period` bars and divided by summed true range. The tr base is "
+        "period-independent, keyed tr:raw:0."
+    ),
+    deps=lambda p: [Base("tr", "raw", 0)],
+    build=_vortex_build,
+    render={"vi_plus": _line("#98c379"), "vi_minus": _line("#e06c75")},
+    # No eodhd map: no Vortex Indicator function on EODHD's endpoint.
+))
+
+# --- Choppiness index -------------------------------------------------------
+
+
+def _chop_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    n = p["period"]
+    span = pl.col(f"max:high:{n}") - pl.col(f"min:low:{n}")
+    ratio = pl.col("tr:raw:0").rolling_sum(n) / span
+    return [pl.when(span > 0)
+              .then(100 * ratio.log(base=10) / math.log10(n))
+              .otherwise(None).alias("chop")]
+
+
+register(Indicator(
+    name="chop", label="Choppiness Index", params={"period": 14},
+    group="Trend strength", full="Choppiness Index",
+    desc="Range vs trend gauge, not directional.",
+    param_labels={"period": 'Length'},
+    description="Measures whether price is trending or moving sideways by comparing the sum of daily ranges to the overall range of the lookback window, scaled between zero and one hundred. A high reading is read as a choppy, non-trending market, while a low reading suggests a sustained directional move.",
+    wiki=None,
+    windows=("period",), pane="own",
+    price_basis="raw", guides=[38.2, 61.8],
+    convention=(
+        "100 * log10(sum(TR, n) / (highest high - lowest low)) / log10(n) on "
+        "raw OHLC. A range/trendiness gauge, not a directional one -- high is "
+        "choppy, low is trending. span == 0 forces every in-window bar to the "
+        "same price, so span > 0 implies the summed true range is too -- the "
+        "`span > 0` guard fully closes the divide-by-zero case."
+    ),
+    deps=lambda p: [Base("tr", "raw", 0), Base("max", "high", p["period"]),
+                    Base("min", "low", p["period"])],
+    build=_chop_build,
+    render={"chop": _line("#d19a66")},
+    # No eodhd map: no Choppiness Index function on EODHD's endpoint.
+))
+
+# --- Ichimoku cloud ---------------------------------------------------------
+
+
+def _midpoint(period: int) -> pl.Expr:
+    return (pl.col(f"max:high:{period}") + pl.col(f"min:low:{period}")) / 2
+
+
+def _ichimoku_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
+    conversion = _midpoint(p["conversion"])
+    base = _midpoint(p["base"])
+    # No .shift() anywhere: the displacement is a plotting property, declared
+    # per series as render["time_offset"] and applied by panes.shift_times.
+    return [
+        conversion.alias("ichi_conversion"),
+        base.alias("ichi_base"),
+        ((conversion + base) / 2).alias("ichi_span_a"),
+        _midpoint(p["span_b"]).alias("ichi_span_b"),
+        pl.col("close").alias("ichi_chikou"),
+    ]
+
+
+register(Indicator(
+    name="ichimoku", label="Ichimoku Cloud",
+    group="Trend", full="Ichimoku Cloud",
+    desc="Displaced cloud — rendered server-side in this build.",
+    param_labels={"conversion": 'Conversion', "base": 'Base', "span_b": 'Span B', "displacement": 'Displacement'},
+    description="A cluster of lines built from rolling highs and lows at three different lengths, plus the current close and a shaded cloud between two of the lines. Price relative to the cloud is read as the trend's direction, and the cloud's thickness is read as the strength of support or resistance ahead.",
+    wiki="https://www.investopedia.com/terms/i/ichimoku-cloud.asp",
+    params={"conversion": 9, "base": 26, "span_b": 52, "displacement": 26},
+    windows=("conversion", "base", "span_b"),
+    pane="price", price_basis="raw",
+    convention=(
+        "Tenkan/Kijun/Senkou B from rolling high-low midpoints on raw OHLC. "
+        "Values sit at the row they are COMPUTED from; the leading spans and "
+        "Chikou are displaced via render['time_offset'], never by shifting "
+        "the column. That offset is fixed at the default `displacement` "
+        "(26) -- a non-default `displacement` moves the midpoint windows but "
+        "plots the result at the same default offset (see render below)."
+    ),
+    deps=lambda p: [
+        Base("max", "high", p["conversion"]), Base("min", "low", p["conversion"]),
+        Base("max", "high", p["base"]), Base("min", "low", p["base"]),
+        Base("max", "high", p["span_b"]), Base("min", "low", p["span_b"]),
+    ],
+    build=_ichimoku_build,
+    # `render` is a static, frozen-dataclass field shared by every request
+    # for this indicator, so these offsets cannot read the resolved
+    # `displacement` param -- they are pinned to its default. Fixing that
+    # needs Indicator.render to become a callable of params, a signature
+    # change across the whole registry, not a one-off patch here; nobody has
+    # asked for a non-default displacement yet, so it stays a known gap.
+    render={
+        "ichi_conversion": _line("#4c9be8"),
+        "ichi_base": _line("#e06c75"),
+        "ichi_span_a": {**_line("#8ed081"), "time_offset": 26},
+        "ichi_span_b": {**_line("#e5c07b"), "time_offset": 26},
+        "ichi_chikou": {**_line("#9aa0a6"), "time_offset": -26},
+    },
+    # No eodhd map: no Ichimoku function on EODHD's endpoint.
+))
+
+# --- Pivot points (classic / floor) -----------------------------------------
+
+
+def _pivots_session_agg(p: dict) -> dict:
+    return {"H": pl.col("high").max(), "L": pl.col("low").min(),
+            "C": pl.col("close").last()}
+
+
+def _pivots_build(p: dict, b: dict) -> list[pl.Expr]:
+    # Runs against the collapsed, already-shifted session frame, so H/L/C here
+    # are the PRIOR session's.
+    pivot = (pl.col("H") + pl.col("L") + pl.col("C")) / 3
+    return [
+        pivot.alias("PP"),
+        (2 * pivot - pl.col("L")).alias("R1"),
+        (2 * pivot - pl.col("H")).alias("S1"),
+        (pivot + (pl.col("H") - pl.col("L"))).alias("R2"),
+        (pivot - (pl.col("H") - pl.col("L"))).alias("S2"),
+        (pl.col("H") + 2 * (pivot - pl.col("L"))).alias("R3"),
+        (pl.col("L") - 2 * (pl.col("H") - pivot)).alias("S3"),
+    ]
+
+
+register(Indicator(
+    name="pivots_standard", label="Pivot Points Standard",
+    group="Session levels", full="Pivot Points Standard",
+    desc="Prior-session floor pivots, held flat — server-side.",
+    param_labels={"anchor": 'Session cadence', "session_shift": 'Sessions back'},
+    description="Projects support and resistance levels for the current session from the prior session's high, low, and close, drawn as flat lines. Price approaching one of these levels is read as a likely area where the move may pause or reverse.",
+    wiki="https://www.investopedia.com/terms/p/pivotpoint.asp",
+    params={"anchor": "1d", "session_shift": 1}, pane="price", price_basis="raw",
+    convention=(
+        "Classic floor pivots from the PRIOR session's high/low/close, held "
+        "flat across the current session. group_by_dynamic(every=anchor) -> "
+        "shift(session_shift) -> join_asof(backward). The first session has no "
+        "prior and is null, not zero."
+    ),
+    deps=lambda p: [],
+    build=_pivots_build,
+    sessioned=True,
+    session_agg=_pivots_session_agg,
+    render={name: _line("#9aa0a6")
+            for name in ("PP", "R1", "S1", "R2", "S2", "R3", "S3")},
+    # No eodhd map: no Pivot Points function on EODHD's endpoint.
+))

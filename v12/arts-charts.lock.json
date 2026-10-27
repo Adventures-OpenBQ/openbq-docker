@@ -1,0 +1,25 @@
+{
+  "service": "arts-charts",
+  "image": "openbq-arts-charts:12.0.0",
+  "source_repository": "https://github.com/Adventures-OpenBQ/arts-charts-openbq",
+  "tag": null,
+  "source_commit": "002b766006faaa8c65f29944316b84ec37163fd0",
+  "source_tree_sha256": "3eb56bd6e93305970efc991b53bc27ff39c5c8a756632d2a8eed5e1e87351643",
+  "license": "BUSL-1.1",
+  "paths": [
+    "LICENSE",
+    "server/pyproject.toml",
+    "server/arts_charts",
+    "client/package.json",
+    "client/pnpm-lock.yaml",
+    "client/tsconfig.json",
+    "client/vite.render.config.ts",
+    "client/render",
+    "client/src",
+    "client/LICENSE",
+    "client/ARTS_CHARTS_TERMS.md",
+    "client/THIRD_PARTY_NOTICES.md",
+    "dev/tokens.css"
+  ],
+  "repin": "pending: re-run vendor.py --tag v0.1.0 once the user tags arts-charts-openbq"
+}
