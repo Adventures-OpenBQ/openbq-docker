@@ -1,0 +1,70 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+# Art's Charts (v12, opt-in): `--profile charts-v12`, after docker-compose.yml. Additive like v11's
+# TemporalDB overlays; the default stack is unchanged. No host port and no Funnel: the gateway's
+# /charts family (v12/compose.gateway.yaml, "charts": true) and the tailnet names
+# (v12/compose.tailnet.yaml) are the ways in. With ARTS_CHARTS_TEMPORAL_URL set, apply this after
+# v11/compose.gateway.yaml or v11/compose.tailnet.yaml, which put temporaldb-api on openbq-internal.
+#   cp v12/charts.env.example v12/charts.env && chmod 600 v12/charts.env
+x-arts-charts: &arts-charts
+  profiles: [charts-v12]
+  build: {context: ./v12/arts-charts}
+  image: openbq-arts-charts:12.0.0
+  restart: unless-stopped
+  env_file:
+    # The stack's Basic pair (OPENBB_API_AUTH/USERNAME/PASSWORD): demanded on every arts-charts
+    # route and presented to ODP and live-grid. Then the charts settings. Both required.
+    - path: ${ARTS_CHARTS_STACK_ENV:-./credentials.env}
+      required: true
+    - path: ${ARTS_CHARTS_ENV:-./v12/charts.env}
+      required: true
+  # SQLite at /data/arts-charts.db (image default) unless charts.env sets ARTS_CHARTS_DB.
+  volumes: [arts-charts-data:/data]
+  read_only: true
+  tmpfs: ["/tmp:size=256m,nosuid"]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  networks: [openbq-internal]
+services:
+  arts-charts:
+    <<: *arts-charts
+    # Chromium (snapshots) needs more than Docker's 64 MB /dev/shm.
+    shm_size: 256m
+    command: [uvicorn, --factory, arts_charts.app:create_app, --host, 0.0.0.0, --port, "8000"]
+  arts-charts-worker:
+    <<: *arts-charts
+    # Never migrates: it waits for arts-charts to (worker.run).
+    command: [python, -m, arts_charts.worker]
+    environment:
+      ARTS_CHARTS_API_URL: http://arts-charts:8000
+      ARTS_CHARTS_NTFY_URL: http://ntfy:2586
+    depends_on: [arts-charts, ntfy]
+  ntfy:
+    profiles: [charts-v12]
+    image: binwiederhier/ntfy:v2.34.0@sha256:901e14503d3f605f445be0e68f2ac71f0aa73391897ce6ceb599f8c48d8b3792
+    command: [serve]
+    restart: unless-stopped
+    # Deny-all, one account, one topic (v12/RUNBOOK.md). Publishing is the worker's alone, on
+    # this bridge; the phone subscribes through the gateway's /ntfy family or svc:openbq-ntfy.
+    # NTFY_BASE_URL / NTFY_UPSTREAM_BASE_URL come from .env: set both for iOS delivery via
+    # ntfy.sh, neither for a stack that must never call out (verification leaves them empty).
+    environment:
+      NTFY_LISTEN_HTTP: ":2586"
+      NTFY_BASE_URL: ${NTFY_BASE_URL:-}
+      NTFY_UPSTREAM_BASE_URL: ${NTFY_UPSTREAM_BASE_URL:-}
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_AUTH_FILE: /var/lib/ntfy/user.db
+      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
+      NTFY_ENABLE_SIGNUP: "false"
+      NTFY_ENABLE_LOGIN: "false"
+      NTFY_WEB_ROOT: disable
+    volumes: [ntfy-data:/var/lib/ntfy]
+    read_only: true
+    tmpfs: ["/tmp:size=16m,noexec,nosuid"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [openbq-internal]
+volumes:
+  arts-charts-data:
+  ntfy-data:
