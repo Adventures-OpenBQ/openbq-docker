@@ -19,6 +19,12 @@ live-grid covers the symbol, replaces the current session with live-grid's bars:
   bar, yfinance's prepost 16:00). A crypto or forex day is one segment.
 - For a covered symbol no history request reaches the current session (the
   quota guard, ruling L9): history ends the day before.
+- An intraday chart whose session is not `regular` (extended, 24hr) takes its history
+  from the provider's extended source when it has one -- yfinance asked with
+  `prepost=true` (user ruling 2026-10-26, step 1 Q5) -- so earlier days carry pre-market
+  and after-hours bars, stamped in the same three segments as today's live bars (step 1
+  F8). EODHD has none: its history is unchanged. The pacer is keyed on that choice, so a
+  regular and an extended chart never share an answer.
 - live-grid restarted mid-session (its span starts after the seam, or it holds
   nothing past the open): live-grid's bars start at the first bar the span
   fully covers, the chart shows a gap before it, and `meta.live` is "partial".
@@ -31,6 +37,19 @@ live-grid covers the symbol, replaces the current session with live-grid's bars:
 - Not covered, not configured, down, refusing, without the §4 route, a
   non-session day, a window that ends before today, or a `5d` interval:
   history alone, `meta.live` false. Never an error.
+
+`meta.live_reason` says why `live` is false (user ruling 2026-10-26), and is None when it
+is true or "partial" (a late span is partial's one cause): "no_session" -- today is not a
+session this chart shows live (a non-session day, a window without today, `5d`);
+"unavailable" -- live-grid is not configured, down, refusing, without the §4 route or
+answering a malformed tape; "not_covered" -- live-grid answered and does not hold the
+symbol. Checked in that order, so a weekend reads "no_session" whatever live-grid says.
+
+`meta.live_volume` is "venue" when today's bars are live-grid's (`live` true or "partial";
+a covered week or month too): live-grid's feed is one venue's trades (its EODHD socket is
+EDGX-only), so today's volume is a small fraction of the consolidated volume history
+carries. The bars keep it -- the price is right -- and the flag lets the card and Rita say
+so (user ruling 2026-10-26). None otherwise.
 
 `meta.forming` is the last bar's stamp (as the snapshot payload's candle time
 spells it) while that bar is still forming, else None. History is paced per
@@ -112,8 +131,10 @@ def fold(minutes: list[dict], interval: str, segments: list[tuple[datetime, date
 class ComposedBars:
     def __init__(self, history: dict[str, BarSource], live: LiveGridBars | None = None,
                  calendar: ExchangeCalendar | None = None,
-                 now: Callable[[], datetime] | None = None):
+                 now: Callable[[], datetime] | None = None,
+                 extended: dict[str, BarSource] | None = None):
         self._history, self._live, self._calendar = history, live, calendar
+        self._extended = extended or {}  # provider -> its source with pre and after hours
         self._now = now or (lambda: datetime.now(timezone.utc))
         self._sessions = UsEquitySessions(classify, calendar)
         self._pacers: dict[tuple, HistoryPacer] = {}
@@ -128,35 +149,39 @@ class ComposedBars:
         if provider == "temporaldb" and interval not in TEMPORAL_INTERVALS:
             raise NotConfigured(DAILY_ONLY)
 
-    async def _history_of(self, symbol, interval, start, end, provider, fresh):
-        key = (symbol, interval, start, end, provider)
+    async def _history_of(self, symbol, interval, start, end, provider, fresh, extended=False):
+        key = (symbol, interval, start, end, provider, extended)
         pacer = self._pacers.get(key)
         if pacer is None:
             if len(self._pacers) >= MAX_KEYS:
                 self._pacers.clear()
-            source = self._history[provider]
+            source = (self._extended if extended else self._history)[provider]
             pacer = self._pacers[key] = HistoryPacer(
                 lambda s, i, a, b, _p: source(s, i, a, b))
         if fresh:
             pacer.invalidate()
         return await pacer(symbol, interval, start, end, provider)
 
-    async def _live_of(self, symbol, interval, start, end, session, now, fresh) -> Live | None:
+    async def _live_of(self, symbol, interval, start, end, session, now, fresh) -> Live | str:
+        """Today's live bars, or why there are none (meta.live_reason)."""
         daily = interval == "1d" or interval in PERIODS  # today's bar is the regular session
-        if self._live is None or not (is_intraday(interval) or daily):
-            return None
+        if not (is_intraday(interval) or daily):
+            return "no_session"
         sessions = self._sessions
         day = now.astimezone(ZoneInfo(sessions.zone(symbol))).date()
         if not (start[:10] <= day.isoformat() <= end[:10]) or not sessions.is_open(symbol, day):
-            return None
-        if not await self._live.covers(symbol):
-            return None
+            return "no_session"
+        if self._live is None:
+            return "unavailable"
+        covered = await self._live.covers(symbol)
+        if not covered:
+            return "unavailable" if covered is None else "not_covered"
         tz = timezone.utc
         extended = [t.astimezone(tz) for t in sessions.extended_open_close(symbol, day)]
         regular = [t.astimezone(tz) for t in sessions.open_close(symbol, day)]
         tape = await self._live.tape(symbol, extended[0], fresh)
         if tape is None:
-            return None
+            return "unavailable"
         if daily:
             segments = [tuple(regular)]
         else:  # pre-market, regular, after hours; one segment where they coincide (UTC day)
@@ -187,11 +212,16 @@ class ComposedBars:
         now = self._now()
         if self._calendar:
             await self._calendar.load_around(XNYS, now)
-        live = await self._live_of(symbol, interval, start, end, session, now, fresh)
+        found = await self._live_of(symbol, interval, start, end, session, now, fresh)
+        live = found if isinstance(found, Live) else None
+        reason = None if live else found
         history_end = end
         if live is not None:  # partial too: a gap, never an ODP call for the session (L9)
             history_end = (live.day - timedelta(days=1)).isoformat()
-        history = (await self._history_of(symbol, interval, start, history_end, provider, fresh)
+        extended = (session != "regular" and is_intraday(interval)
+                    and provider in self._extended)
+        history = (await self._history_of(symbol, interval, start, history_end, provider, fresh,
+                                          extended)
                    if start[:10] <= history_end[:10] else NO_HISTORY)
         rows, meta = history
         days = NO_HISTORY
@@ -210,11 +240,12 @@ class ComposedBars:
         tape, partial = (live.tape, live.partial) if live else (None, None)
         held = self._memo.get(key)
         if (held is not None and held[0] is history and held[1] is days and held[2] is tape
-                and held[3:5] == (partial, forming)):
-            return held[5]
+                and held[3:6] == (partial, forming, reason)):
+            return held[6]
         state = False if live is None else ("partial" if live.partial else True)
-        answer = (rows, {**meta, "live": state, "forming": forming})
+        answer = (rows, {**meta, "live": state, "live_reason": reason,
+                         "live_volume": None if live is None else "venue", "forming": forming})
         if len(self._memo) >= MAX_KEYS:
             self._memo.clear()
-        self._memo[key] = (history, days, tape, partial, forming, answer)
+        self._memo[key] = (history, days, tape, partial, forming, reason, answer)
         return answer

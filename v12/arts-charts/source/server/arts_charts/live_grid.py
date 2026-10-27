@@ -6,7 +6,7 @@ Two calls, both under live-grid's Basic-auth middleware with the stack's pair:
 
 - `GET /api/subscriptions` -> `{pinned, leased, ...}`: the symbols live-grid
   holds at the vendor. Their union is what is covered, kept 60 s (a failure
-  is "nothing covered", kept as long).
+  is "unknown", None, kept as long).
 - `GET /ticks?symbol=&interval=1m&start=` -> `{symbol, interval, bars, span}`:
   the merged route of the live-composed-bars spec §4, kdb + lake only. Always
   `1m`, from the session's extended open: ComposedBars folds the minutes into
@@ -62,7 +62,7 @@ class LiveGridBars:
                  clock: Callable[[], float] = time.monotonic):
         self._base = base_url.rstrip("/")
         self._auth, self._transport, self._clock = auth, transport, clock
-        self._covered: frozenset[str] = frozenset()
+        self._covered: frozenset[str] | None = frozenset()  # None: unknown, live-grid failed
         self._covered_until = float("-inf")
         # ponytail: one pacer per symbol, never evicted -- bounded by the symbols charts ask for.
         self._pacers: dict[str, HistoryPacer] = {}
@@ -75,16 +75,20 @@ class LiveGridBars:
             response.raise_for_status()
             return response.json()
 
-    async def covers(self, symbol: str) -> bool:
+    async def covers(self, symbol: str) -> bool | None:
+        """Whether live-grid holds `symbol` at the vendor; None when its subscriptions cannot
+        be read (down, refusing, unreachable)."""
         if self._clock() >= self._covered_until:
             try:
                 payload = await self._get("/api/subscriptions")
                 self._covered = frozenset(str(s).strip().upper() for s in
                                           [*payload["pinned"], *payload["leased"]])
-            except Exception as exc:  # noqa: BLE001 - live-grid down: nothing is covered
+            except Exception as exc:  # noqa: BLE001 - live-grid down: coverage unknown
                 log.warning("live-grid subscriptions unavailable (%s)", _brief(exc))
-                self._covered = frozenset()
+                self._covered = None
             self._covered_until = self._clock() + COVERAGE_S
+        if self._covered is None:
+            return None
         return symbol.strip().upper() in self._covered
 
     async def _tape(self, symbol, interval, start, _end, _provider) -> Tape:

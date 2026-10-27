@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 export { ArtsChartsRenderer } from "./components/renderers/ArtsChartsRenderer";
 export { ArtsChartsInbox } from "./components/inbox/ArtsChartsInbox";
+export { ArtsChartsSnapshot } from "./components/snapshot/ArtsChartsSnapshot";
 export { configureArtsCharts } from "./host";
 export type {
   AnchorChipsProps, ArtsChartsHost, ChartsFetch, DatetimePickerProps, GroupActions, GroupLinkProps, HostDialog, HostFs,

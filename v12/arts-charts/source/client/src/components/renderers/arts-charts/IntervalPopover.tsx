@@ -83,7 +83,7 @@ export function IntervalPopover({ interval, onApply, onClose }: {
           <button key={ex} type="button" onClick={() => setTyped(ex)}>{ex}</button>
         ))}
       </div>
-      <p id={`${id}-help`} className="chart-interval-help">min = minutes; m / mo = months. A single duration; a month or longer is served by the provider, not bucketed.</p>
+      <p id={`${id}-help`} className="chart-interval-help">min = minutes; m / mo = months. A single duration; 1w and 1mo (or 1M) are the weekly and monthly bars, served by the provider, not bucketed.</p>
       {/* The live reading, in the reference's card: the resolved duration when
           it is one, the parser's own refusal otherwise. The refusal text is the
           parser's verbatim -- `5m` reads as five MONTHS and names the `5min`

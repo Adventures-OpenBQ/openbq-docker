@@ -64,7 +64,8 @@ import { isBusinessDays, type CatalogEntry } from "../../lib/chart/studyExpressi
 import { anchorResolver, exchangeFor, type AssetClass } from "../../lib/chart/exchangeFor";
 import { attachBandFill, DEFAULT_SHADE_OPACITY } from "../../lib/chart/bandFill";
 import { sessionBars } from "../../lib/chart/sessionFilter";
-import { liveCandles, liveNote, liveToday, streamOnGrid } from "../../lib/chart/liveBars";
+import { liveCandles, liveNote, streamOnGrid, volumeNote } from "../../lib/chart/liveBars";
+import { studySocketUrl } from "../../lib/chartServer";
 import { bundledCalendar, weekdayCalendar } from "../../lib/tradingCalendar";
 import { snapToBar } from "../../lib/chart/magnet";
 import { measureBetween } from "../../lib/chart/measure";
@@ -583,12 +584,19 @@ function ChartCard({
   // empty provider is omitted on the wire, so the client names no vendor.
   const httpBars = eodhd || tickUrl === null;
   const barsProvider = eodhd ? "eodhd" : (params.provider ?? "");
-  // Live composed bars §5: a card the host added live (`live: "true"`) on a
-  // tick backend, with a chart server, takes its completed bars from the
-  // server's composed /series -- the bars Rita and the watches read -- and only
-  // the forming bar from the stream. Every other card is the card it was.
+  // Live composed bars §5: a card the host added live (`live: "true"`), with a
+  // chart server, asks the server's composed /series -- the bars Rita and the
+  // watches read -- every LIVE_POLL_MS. On a tick backend only the forming bar
+  // comes from the stream; with no tick socket (v12 BDOBB, ruling B7) /series'
+  // own forming bar is drawn as it stands. Not on the EODHD plane, whose bars
+  // are EODHD's; every other card is the card it was.
   const charts = getHost().chartsFetch;
-  const liveCard = params.live === "true" && !httpBars && charts !== undefined;
+  const liveCard = params.live === "true" && !eodhd && charts !== undefined;
+  // Its studies come from the chart server's /ta_series_ws, over those same
+  // composed bars, when the host says where that socket is (user ruling
+  // 2026-10-26); without it, from the backend's study socket, as before.
+  const chartsSocket = getHost().chartsSocketUrl;
+  const liveStudies = liveCard && chartsSocket !== undefined;
 
   // Exactly one plane is ever connected. `url: null` keeps the tick socket
   // idle in EODHD mode rather than streaming kdb's bars under EODHD's
@@ -653,7 +661,8 @@ function ChartCard({
     () => (liveCard ? liveCandles(cardBars.candles, forming, tick.candles, onGrid) : null),
     [liveCard, cardBars.candles, forming, tick.candles, onGrid],
   );
-  const liveText = liveCard ? liveNote(symbol, cardBars.meta?.live ?? null, liveToday(interval, start, end, calendar)) : null;
+  const liveText = liveCard ? liveNote(symbol, cardBars.meta?.live ?? null, cardBars.meta?.liveReason ?? null) : null;
+  const volumeText = liveCard ? volumeNote(cardBars.meta?.liveVolume ?? null) : null;
   // Regular FILTERS the bars (user ruling 2026-09-24, reversing "dims, never
   // deletes"): every series below is fed only the in-session bars, so the
   // time scale is built without the extended hours and the axis omits them.
@@ -982,13 +991,17 @@ function ChartCard({
       // not widen it, and make the lookback worse on exactly the cards that
       // are fine today.
       ...(params.start === undefined || params.start === "" ? {} : { start: studyStart }),
-      ...(httpBars ? { provider: barsProvider, start: studyStart, end } : {}),
+      // A live card's studies socket is the chart server's: the window and the
+      // provider its /series is asked for, as on the EODHD plane.
+      ...(httpBars || liveStudies ? { provider: barsProvider, start: studyStart, end } : {}),
     }),
-    [params, symbol, interval, basis, state.series, state.studies, series, wireResolver, regular, exchange, source, httpBars, barsProvider, studyStart, end],
+    [params, symbol, interval, basis, state.series, state.studies, series, wireResolver, regular, exchange, source, httpBars, liveStudies, barsProvider, studyStart, end],
   );
   const studyUrl = useMemo(
-    () => buildWidgetWsUrl(backend, widget, studyParams),
-    [backend, widget, studyParams],
+    () => (liveCard && chartsSocket !== undefined
+      ? studySocketUrl(chartsSocket("/ta_series_ws"), studyParams)
+      : buildWidgetWsUrl(backend, widget, studyParams)),
+    [liveCard, chartsSocket, backend, widget, studyParams],
   );
   const { panes } = useStudySeries({ url: studyUrl });
 
@@ -3661,7 +3674,7 @@ function ChartCard({
       </div>
       {clippedTo === undefined ? null : <div className="chart-range-note" role="status">Range limited to {clippedTo} at this interval</div>}
       {/* Mounted on every live card, empty or not, so a screen reader announces the note that arrives in it. */}
-      {liveCard ? <div className="chart-live-note" role="status">{liveText}</div> : null}
+      {liveCard ? <div className="chart-live-note" role="status">{liveText}{volumeText === null ? null : <div>{volumeText}</div>}</div> : null}
       {(state.levels ?? []).some((level) => level.origin !== undefined) && (
         <div role="group" aria-label="Proposed levels">
           {(state.levels ?? []).map((level, index) =>

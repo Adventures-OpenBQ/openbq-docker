@@ -89,14 +89,27 @@ export type ArtsChartsHost = {
    * step 1b). Absent: no server, and every card is the card it always was.
    */
   chartsFetch?: ChartsFetch;
+  /**
+   * The chart server's WebSocket URL (`ws:` or `wss:`, no query) for a
+   * server-relative path (`/ta_series_ws`); the card adds its own parameters.
+   * A live card (`live: "true"`, below) takes its studies from there, computed
+   * over the same composed bars as its `/series` and Rita's describe_chart.
+   * The URL carries no credentials: a browser cannot set the Basic header on a
+   * WebSocket, so at v12 the gateway in front of the chart server adds the
+   * stack's pair to the upgrade request (user ruling 2026-10-26). Absent: a
+   * live card's studies come from the backend's study socket, as before.
+   */
+  chartsSocketUrl?: (path: string) => string;
   /** Show the card bound to this chart document: focus one already open, else open one (the inbox's Open chart). Absent: no Open chart. */
   openChart?: (chartId: string) => void;
   /**
    * Add a chart card to the dashboard in view (spec §4, Add to dashboard). Absent: no Add buttons.
    * Without options: params `{ chart_id }`, as before. With `{ live: true }` (live composed bars
    * §5, Add as live chart): params `{ chart_id, live: "true" }` on the host's live backend -- one
-   * with a `tickUrl`, or the managed `/grid` relay -- where the card streams the forming bar; it
-   * reads its completed bars from `chartsFetch`'s `/series`. The document does not change (L2).
+   * with a `tickUrl`, or the managed `/grid` relay, where the card streams the forming bar -- or,
+   * with neither, on the chart server's own connection, where the forming bar is `/series`' own at
+   * each 5 s poll. Either way it reads its bars from `chartsFetch`'s `/series`. The document does
+   * not change (L2).
    */
   addToDashboard?: (chartId: string, options?: { live?: boolean }) => void;
   components: {

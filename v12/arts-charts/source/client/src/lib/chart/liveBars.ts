@@ -4,13 +4,13 @@
 /**
  * A live card (live composed bars §5, a card the host added with
  * `{ live: true }`): its completed bars come from the chart server's composed
- * `/series`, the same bars Rita and the watches read, and only the forming bar
- * from the backend's tick stream. Stitching history to the session is the
- * server's (L7); the card only lays the stream's newest bars over its answer.
+ * `/series`, the same bars Rita and the watches read, and on a tick backend
+ * only the forming bar from the stream (with none, /series' forming bar is
+ * drawn as it stands). Stitching history to the session is the server's (L7);
+ * the card only lays the stream's newest bars over its answer.
  */
-import { fromDate, toCalendarDate } from "@internationalized/date";
 import type { Candle } from "../../hooks/useTickCache";
-import { isOpen, type ExchangeCalendar } from "../tradingCalendar";
+import type { SeriesMeta } from "../../hooks/useSeriesBars";
 
 /** `/series`' `cache.live`, or null when the answer does not say. */
 export type LiveState = true | "partial" | false | null;
@@ -49,27 +49,24 @@ export function liveCandles(series: Candle[], forming: number | null, stream: Ca
 }
 
 /**
- * Whether the server could have served today live for this card -- the
- * calendar half of composed.py's `_live_of`: today (the exchange's zone, UTC
- * without a calendar) is a session day inside the card's window, at an interval
- * that composes (every one but 5d).
+ * The live card's note, or null, worded from the server's `live_reason`
+ * (composed.py): nothing for `no_session` (today is not a session this chart
+ * shows live: a weekend, a holiday, a window without today), nor when the
+ * answer gives no reason.
  */
-export function liveToday(interval: string, start: string, end: string, calendar: ExchangeCalendar | null, now = new Date()): boolean {
-  if (interval === "5d") return false;
-  const day = toCalendarDate(fromDate(now, calendar?.timezone ?? "UTC"));
-  const d = day.toString();
-  return start.slice(0, 10) <= d && d <= end.slice(0, 10) && (calendar === null || isOpen(calendar, day));
+export function liveNote(symbol: string, live: LiveState, reason: SeriesMeta["liveReason"]): string | null {
+  if (live === "partial") return `Partly live: ${symbol}'s live data starts after today's open, so earlier bars today are missing`;
+  if (live !== false) return null;
+  if (reason === "not_covered") return `Not live: ${symbol} isn't on the live watchlist`;
+  if (reason === "unavailable") return `Not live: live data is unavailable right now, so ${symbol} shows history only`;
+  return null;
 }
 
 /**
- * The live card's note, or null. The server says `live: false` on a weekend
- * too, so "not on the watchlist" is said only when it could have been live.
- * ponytail: a live-grid the server cannot reach also reads as "not on the
- * watchlist" -- `meta.live` does not say why. Upgrade path: a reason beside
- * `live` in the server's meta.
+ * The live card's volume line, or null: live-grid's feed is one venue's
+ * trades, so today's volume reads low against history's consolidated volume.
+ * The bars keep it; the card says so (user ruling 2026-10-26).
  */
-export function liveNote(symbol: string, live: LiveState, couldBeLive: boolean): string | null {
-  if (live === "partial") return `Partly live: ${symbol}'s live data starts after today's open, so earlier bars today are missing`;
-  if (live === false && couldBeLive) return `Not live: ${symbol} isn't on the live watchlist`;
-  return null;
+export function volumeNote(liveVolume: SeriesMeta["liveVolume"]): string | null {
+  return liveVolume === "venue" ? "Today's volume counts one venue's trades only, so it reads low against earlier days" : null;
 }

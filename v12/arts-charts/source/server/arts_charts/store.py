@@ -126,6 +126,15 @@ MIGRATIONS: list[list[str]] = [
             PRIMARY KEY (schedule_id, occurrence)
         )""",
     ],
+    [  # v12 part 3: the PNG snapshot_chart rendered for a chat, served by id
+        """CREATE TABLE chart_snapshots (
+            id TEXT PRIMARY KEY,
+            chart_id TEXT NOT NULL,
+            revision INTEGER NOT NULL,
+            png BYTEA NOT NULL,
+            created_at TEXT NOT NULL
+        )""",
+    ],
 ]
 
 #: A watch's columns, in the order _watch reads them.
@@ -487,9 +496,30 @@ class Store:
         return bytes(row[0])
 
     def purge_snapshots(self, before: str) -> int:
-        """Drop snapshot PNGs made before `before` (spec §4: kept 30 days); items keep their text."""
+        """Drop snapshot PNGs made before `before` (spec §4: kept 30 days) -- the inbox's and
+        the chat's; items keep their text. How many went, both tables together."""
         with self._tx() as run:
-            return run("DELETE FROM inbox_snapshots WHERE created_at < ?", (before,)).rowcount
+            return (run("DELETE FROM inbox_snapshots WHERE created_at < ?", (before,)).rowcount
+                    + run("DELETE FROM chart_snapshots WHERE created_at < ?", (before,)).rowcount)
+
+    def add_chart_snapshot(self, chart_id: str, revision: int, png: bytes) -> dict:
+        """Keep a PNG snapshot_chart rendered: {id, chart_id, revision, created_at}."""
+        shot = {"id": str(uuid.uuid4()), "chart_id": chart_id, "revision": revision,
+                "created_at": _now()}
+        with self._tx() as run:
+            run("INSERT INTO chart_snapshots (id, chart_id, revision, png, created_at)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (shot["id"], chart_id, revision, png, shot["created_at"]))
+        return shot
+
+    def chart_snapshot_png(self, chart_id: str, snapshot_id: str) -> bytes:
+        """A kept PNG; NotFound when it is gone (purged) or belongs to another chart."""
+        with self._tx() as run:
+            row = run("SELECT png FROM chart_snapshots WHERE id = ? AND chart_id = ?",
+                      (snapshot_id, chart_id)).fetchone()
+        if row is None:
+            raise NotFound(f"{chart_id} snapshot {snapshot_id}")
+        return bytes(row[0])
 
     def add_push(self, payload: dict, now: str, since: str, cap: int) -> str | None:
         """Queue a push unless `cap` pushes were queued since `since`; its id, or None.

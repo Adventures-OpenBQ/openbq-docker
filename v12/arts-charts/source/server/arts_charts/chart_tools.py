@@ -15,6 +15,7 @@ does, as for describe_table) and nothing here needs escaping.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from dataclasses import dataclass
@@ -28,7 +29,7 @@ from arts_charts.chart_body import indicators
 from arts_charts.chart_ops import OpError, apply
 from arts_charts.documents import WAKE_BY
 from arts_charts.snapshots import HEIGHT, WIDTH, SnapshotError, Snapshots
-from arts_charts.store import is_chart_id
+from arts_charts.store import Store, is_chart_id
 from arts_charts.ta.registry import catalog
 from arts_charts.ta.session import has_regular_session, is_intraday
 from arts_charts.tokens import TokenError, verify
@@ -128,8 +129,9 @@ def compute_query(body: dict, today: date | None = None) -> dict:
 
 def readout(snapshot: dict) -> dict:
     """The last bar and each study output's latest value, from a /ta_snapshot payload, and
-    the bar source's `live` (true, "partial" or false) and whether that last bar is still
-    forming (`meta.forming` names it, as the candle time spells it)."""
+    the bar source's `live` (true, "partial" or false), why it is false (`live_reason`),
+    whether today's volume is one venue's (`live_volume`), and whether that last bar is
+    still forming (`meta.forming` names it, as the candle time spells it)."""
     candles = snapshot.get("candles") or []
     meta = snapshot.get("meta") or {}
     studies = []
@@ -141,6 +143,7 @@ def readout(snapshot: dict) -> dict:
                             "req": series.get("req"), "time": last["time"], "value": last["value"]})
     last = candles[-1] if candles else None
     return {"last_bar": last, "studies": studies, "live": meta.get("live", False),
+            "live_reason": meta.get("live_reason"), "live_volume": meta.get("live_volume"),
             "forming": last is not None and last["time"] == meta.get("forming")}
 
 
@@ -217,8 +220,28 @@ async def _json(response: httpx.Response, *ok: int,
                   else f"arts-charts answered {response.status_code}")
 
 
-def chart_mcp(api: httpx.AsyncClient, snapshots: Snapshots) -> MCPServer:
-    """The chart tools over `api`, an httpx client on this app's own routes."""
+#: The schema of an arts_chart_snapshot artifact's content (v12 part 3).
+SNAPSHOT_SCHEMA = "arts-chart-snapshot/1"
+
+
+def snapshot_artifact(doc: dict, shot: dict, meta: dict) -> dict:
+    """The agent-rita artifact item for a kept snapshot (v12 part 3 R1-R3): ids and
+    numbers only -- the client fetches the PNG by the two ids, never by a URL."""
+    body = doc["body"]
+    return {"$rita_kind": "artifact", "artifact": {
+        "type": "arts_chart_snapshot", "uuid": shot["id"],
+        "name": f"{body['symbol']} · {body['interval']}",
+        "description": f"Art's Charts snapshot, revision {shot['revision']}",
+        "content": {"schema": SNAPSHOT_SCHEMA, "chart_id": doc["id"], "snapshot_id": shot["id"],
+                    "revision": shot["revision"], "width": meta["width"],
+                    "height": meta["height"], "created_at": shot["created_at"],
+                    "title": doc["title"], "symbol": body["symbol"],
+                    "interval": body["interval"]}}}
+
+
+def chart_mcp(api: httpx.AsyncClient, snapshots: Snapshots, store: Store) -> MCPServer:
+    """The chart tools over `api`, an httpx client on this app's own routes; `store` keeps
+    the PNGs snapshot_chart renders for a chat."""
     tools = MCPServer("arts-charts", instructions=(
         "Art's Charts chart documents. Call describe_chart before changing a chart and pass "
         "its revision as expected_revision; a 'stale' status means someone saved first -- "
@@ -250,7 +273,11 @@ def chart_mcp(api: httpx.AsyncClient, snapshots: Snapshots) -> MCPServer:
         "A chart document and a readout of what its card shows: the last bar and each study "
         "output's latest value, computed exactly as the card's are, over `window`; `live` says "
         "whether today's bars are the live tick plane's (true, \"partial\" after a live-grid "
-        "restart, false: history only) and `forming` whether the last bar is still forming. Series "
+        "restart, false: history only), `live_reason` why it is false (not_covered: not on "
+        "the live watchlist; unavailable: the live plane cannot be reached; no_session: today "
+        "is not a session this chart shows live), `live_volume` \"venue\" when today's volume "
+        "counts one trading venue's trades only (far below earlier days' consolidated volume, "
+        "never a collapse in trading) and `forming` whether the last bar is still forming. Series "
         "are listed in document.body.series; a series' index there is its `series` in "
         "arrange_chart. Bulky fields are left out (and counted in `omitted`) when large."))
     async def describe_chart(ctx: Context, chart_id: str) -> str:
@@ -260,10 +287,12 @@ def chart_mcp(api: httpx.AsyncClient, snapshots: Snapshots) -> MCPServer:
     @tools.tool(structured_output=False, description=(
         "Render a chart as its card draws it and return the PNG's link (a path on this "
         "server) with the numbers the picture shows -- the same readout as describe_chart. "
+        "In a chat the picture is also shown to the user, beside your answer. "
         f"width {WIDTH} and height {HEIGHT} by default."))
     async def snapshot_chart(ctx: Context, chart_id: str, width: int = WIDTH,
-                             height: int = HEIGHT) -> str:
-        caller(ctx).check("snapshot_chart", _id(chart_id))
+                             height: int = HEIGHT) -> list[str]:
+        who = caller(ctx)
+        who.check("snapshot_chart", _id(chart_id))
         # One read: the picture and the numbers are of the same revision.
         doc = await _json(await api.get(f"/charts/{chart_id}"), 200)
         try:
@@ -272,8 +301,15 @@ def chart_mcp(api: httpx.AsyncClient, snapshots: Snapshots) -> MCPServer:
             raise Refused(exc.reason) from None
         described = await describe(api, doc)
         described.pop("document")
-        return _out({"link": f"/charts/{chart_id}/snapshot.png?width={width}&height={height}",
-                     **meta, "bytes": len(png), **described})
+        if who.charts is not None:
+            # A wake (R7): today's one item, nothing kept -- its reply goes to a push, where
+            # "already shown in the chat" would be false; the worker attaches its own PNGs.
+            return [_out({"link": f"/charts/{chart_id}/snapshot.png?width={width}&height={height}",
+                          **meta, "bytes": len(png), **described})]
+        shot = await asyncio.to_thread(store.add_chart_snapshot, chart_id, meta["revision"], png)
+        return [_out(snapshot_artifact(doc, shot, meta)),
+                _out({"link": f"/charts/{chart_id}/snapshots/{shot['id']}.png",
+                      **meta, "bytes": len(png), **described})]
 
     @tools.tool(structured_output=False, description=(
         "Create a chart in the library and return it. `studies` is a list of "

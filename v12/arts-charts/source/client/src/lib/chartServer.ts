@@ -188,6 +188,10 @@ export const listInbox = async (f: ChartsFetch, page: { limit?: number; before?:
   return json(await f(q.size === 0 ? "/inbox" : `/inbox?${q}`));
 };
 
+/** `GET /inbox/<id>`: one item wherever it sits in the list (a link's, C-3); a 404 is a ChartServerError with status 404. */
+export const getInboxItem = async (f: ChartsFetch, id: string): Promise<InboxItem> =>
+  json(await f(`/inbox/${encodeURIComponent(id)}`));
+
 export const markInboxRead = async (f: ChartsFetch, id: string): Promise<InboxItem> =>
   json(await f(`/inbox/${encodeURIComponent(id)}/read`, { method: "POST" }));
 
@@ -199,10 +203,12 @@ export async function deleteInboxItem(f: ChartsFetch, id: string): Promise<void>
 /**
  * A snapshot PNG as a `data:` URL -- an `<img src>` cannot carry the host's
  * credentials, so the bytes come through `chartsFetch` -- or null once the
- * server no longer keeps it (the 30-day purge). `url` is the item's own,
- * server-relative (`/inbox/<id>/snapshots/<n>.png`).
+ * server no longer keeps it (the 30-day purge). `url` is
+ * server-relative: an inbox item's own (`/inbox/<id>/snapshots/<n>.png`) or a
+ * kept chat snapshot's (`/charts/<id>/snapshots/<snapshot>.png`, built by
+ * ArtsChartsSnapshot).
  */
-export async function inboxSnapshot(f: ChartsFetch, url: string): Promise<string | null> {
+export async function snapshotDataUrl(f: ChartsFetch, url: string): Promise<string | null> {
   const response = await f(url);
   if (response.status === 404) return null;
   if (!response.ok) throw await refusal(response);
@@ -227,4 +233,22 @@ export const listWatches = async (f: ChartsFetch, chartId: string): Promise<Watc
 export async function getSeries(f: ChartsFetch, query: Record<string, string>): Promise<unknown> {
   const q = new URLSearchParams(Object.entries(query).filter(([, value]) => value !== ""));
   return json(await f(`/series?${q}`));
+}
+
+/** The query parameters `/ta_series_ws` reads (server/arts_charts/router.py). */
+const STUDY_SOCKET_KEYS = ["symbol", "interval", "source", "macro", "indicators", "anchor", "start", "end", "provider", "basis", "session", "warmup"];
+
+/**
+ * A live card's study socket on the chart server: `base` (the host's
+ * `chartsSocketUrl("/ta_series_ws")`) with the card's study parameters that
+ * the route reads. Empty values are left out, so no provider means the
+ * server's default; card-only parameters (`chart_id`, `live`) never go.
+ */
+export function studySocketUrl(base: string, params: Record<string, string>): string {
+  const url = new URL(base);
+  for (const key of STUDY_SOCKET_KEYS) {
+    const value = params[key];
+    if (value !== undefined && value !== "") url.searchParams.set(key, value);
+  }
+  return url.toString();
 }

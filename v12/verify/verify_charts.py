@@ -86,6 +86,13 @@ for client, door in ((g, 'G'), (d, 'D')):
     if png.status_code != 200:
         print(png.status_code, png.text[:300], flush=True)
     check(f'{door} snapshot.png', png.status_code == 200 and png.content[:4] == b'\x89PNG')
+    # snapshot_chart keeps its PNG; the stored picture is served by id (part 3).
+    shot = client.post('/charts/mcp', headers=rpc, json={'jsonrpc': '2.0', 'id': 3, 'method': 'tools/call', 'params': {
+        'name': 'snapshot_chart', 'arguments': {'chart_id': chart}}}).json()
+    links = [json.loads(c['text'])['link'] for c in shot['result']['content'] if '"link"' in c['text']]
+    kept = client.get(links[0]) if links else None
+    check(f'{door} stored snapshot PNG by id', kept is not None and '/snapshots/' in links[0]
+          and kept.status_code == 200 and kept.content[:4] == b'\x89PNG')
 
 with connect(f'ws://{HOST}/ta_series_ws?symbol=AAPL&interval=1d', sock=socket.create_connection((urlsplit(GW).hostname, urlsplit(GW).port)),
              additional_headers={'Authorization': BEARER['Authorization'], 'Origin': ORIGIN}, max_size=8 * 2**20) as ws:

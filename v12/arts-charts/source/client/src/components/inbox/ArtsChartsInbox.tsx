@@ -25,16 +25,24 @@
  *   offered only when the host has it, after a `GET /charts/<id>` that turns
  *   a deleted chart into a note instead. Live is offered whatever the symbol:
  *   only the server knows live-grid's watchlist, and the card says so itself.
+ * - `focusItem` (a link to one item, v12 part 2 C-3) opens the panel at that
+ *   item -- expanded, marked read as opening it marks it, scrolled to and
+ *   focused -- once per value: the host clears it (undefined) before the same
+ *   link can act again. An item older than the loaded pages is fetched by id
+ *   and shown first; one the server does not have is a note, and nothing else
+ *   changes.
  */
 import { useEffect, useId, useRef, useState } from "react";
 import { configureArtsCharts, getHost, type ArtsChartsHost, type ChartsFetch } from "../../host";
 import { Markdown } from "../../lib/markdown";
 import {
-  ChartServerError, deleteInboxItem, followFeed, getChart, inboxSnapshot, listInbox, markInboxRead, type InboxItem, type InboxPage,
+  ChartServerError, deleteInboxItem, followFeed, getChart, listInbox, markInboxRead, snapshotDataUrl, type InboxItem, type InboxPage,
 } from "../../lib/chartServer";
+import { getInboxItem } from "../../lib/chartServer";
 
 const KIND = { watch: "Watch", schedule: "Schedule", system: "Notice" } as const;
 const UNREACHABLE = "Chart server unreachable: showing the last inbox this device saw.";
+const NOT_KEPT = "That inbox item is no longer in the inbox.";
 
 const KEPT_DAYS = 30;
 /** The first page; the server's own ceiling is 200 (`limit=1..200`). */
@@ -48,7 +56,7 @@ function Snapshot({ f, url, n }: { f: ChartsFetch; url: string; n: number }) {
   const [src, setSrc] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     let active = true;
-    inboxSnapshot(f, url).then((s) => { if (active) setSrc(s); }, () => { if (active) setSrc(""); });
+    snapshotDataUrl(f, url).then((s) => { if (active) setSrc(s); }, () => { if (active) setSrc(""); });
     return () => { active = false; };
   }, [f, url]);
   if (src === undefined) return null;
@@ -57,16 +65,30 @@ function Snapshot({ f, url, n }: { f: ChartsFetch; url: string; n: number }) {
   return <img className="arts-inbox-snapshot" src={src} alt={`Snapshot of chart ${n}`} />;
 }
 
-function Entry({ f, item, onGone }: { f: ChartsFetch; item: InboxItem; onGone: (id: string) => void }) {
+function Entry({ f, item, onGone, focused, onFocused }: { f: ChartsFetch; item: InboxItem; onGone: (id: string) => void; focused: boolean; onFocused: () => void }) {
   const host = getHost();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const bodyId = useId();
+  const title = useRef<HTMLButtonElement | null>(null);
 
-  const expand = () => {
-    setOpen((was) => !was);
+  const markRead = () => {
     if (item.read_at === null) void markInboxRead(f, item.id).catch(() => {}); // the feed's event refreshes the badge
   };
+  const expand = () => {
+    setOpen((was) => !was);
+    markRead();
+  };
+  // A link's item: opened and read as a click would, then brought into view.
+  // Keyed on `focused` alone, so a refetch never reopens an item the user closed.
+  useEffect(() => {
+    if (!focused) return;
+    setOpen(true);
+    markRead();
+    title.current?.scrollIntoView?.({ block: "nearest" });
+    title.current?.focus();
+    onFocused(); // one-shot: a remount (panel reopened) must not act again
+  }, [focused]); // eslint-disable-line react-hooks/exhaustive-deps
   const act = async (chartId: string, action: (id: string) => void) => {
     try { await getChart(f, chartId); } catch (error) {
       if (error instanceof ChartServerError && error.status === 404) { setNote("This chart was deleted on the chart server."); return; }
@@ -83,7 +105,7 @@ function Entry({ f, item, onGone }: { f: ChartsFetch; item: InboxItem; onGone: (
 
   return (
     <li className="arts-inbox-item" data-inbox-id={item.id} data-unread={item.read_at === null ? "true" : undefined}>
-      <button type="button" className="arts-inbox-title" aria-expanded={open} aria-controls={bodyId} onClick={expand}>
+      <button ref={title} type="button" className="arts-inbox-title" aria-expanded={open} aria-controls={bodyId} onClick={expand}>
         {item.read_at === null ? <span className="arts-inbox-dot" role="img" aria-label="Unread" /> : null}
         <span>{item.title}</span>
         <span className="arts-inbox-meta">{KIND[item.kind] ?? item.kind} · {new Date(item.created_at).toLocaleString()}</span>
@@ -116,7 +138,7 @@ function Entry({ f, item, onGone }: { f: ChartsFetch; item: InboxItem; onGone: (
   );
 }
 
-export function ArtsChartsInbox({ host }: { host?: ArtsChartsHost }) {
+export function ArtsChartsInbox({ host, focusItem }: { host?: ArtsChartsHost; focusItem?: string }) {
   if (host !== undefined) configureArtsCharts(host);
   const f = getHost().chartsFetch;
   const [inbox, setInbox] = useState<InboxPage | null>(null);
@@ -132,6 +154,13 @@ export function ArtsChartsInbox({ host }: { host?: ArtsChartsHost }) {
   const shown = useRef(0);
   const generation = useRef(0);
   shown.current = inbox?.items.length ?? 0;
+  // focusItem: the id handled last (once per value), the Entry to focus, an
+  // item fetched because the loaded pages lack it, and the note for a miss.
+  const handled = useRef<string | undefined>(undefined);
+  const [focused, setFocused] = useState<string | null>(null);
+  const [linked, setLinked] = useState<InboxItem | null>(null);
+  const [missing, setMissing] = useState<string | null>(null);
+  const loaded = inbox !== null || error;
 
   useEffect(() => {
     if (f === undefined) return;
@@ -174,6 +203,25 @@ export function ArtsChartsInbox({ host }: { host?: ArtsChartsHost }) {
     } finally { setLoadingOlder(false); }
   };
 
+  useEffect(() => {
+    if (focusItem === undefined) { handled.current = undefined; setFocused(null); return; }
+    if (f === undefined || !loaded || handled.current === focusItem) return;
+    const id = focusItem;
+    handled.current = id;
+    setOpen(true);
+    setMissing(null);
+    setLinked(null);
+    setFocused(null);
+    if (inbox?.items.some((i) => i.id === id)) { setFocused(id); return; }
+    getInboxItem(f, id).then(
+      (item) => { if (handled.current === id) { setLinked(item); setFocused(item.id); } },
+      (e: unknown) => {
+        if (handled.current !== id) return;
+        setMissing(e instanceof ChartServerError && e.status === 404 ? NOT_KEPT : `That inbox item did not load: ${reason(e)}`);
+      },
+    );
+  }, [focusItem, f, loaded, inbox]);
+
   // The Load older button may have unmounted (the last page) or been the
   // focus: hand the keyboard to the first item that arrived.
   useEffect(() => {
@@ -185,9 +233,13 @@ export function ArtsChartsInbox({ host }: { host?: ArtsChartsHost }) {
 
   if (f === undefined) return null;
   const unread = inbox?.unread ?? 0;
-  const items = inbox?.items ?? [];
+  const loadedItems = inbox?.items ?? [];
+  const items = linked !== null && !loadedItems.some((i) => i.id === linked.id) ? [linked, ...loadedItems] : loadedItems;
   // A delete shows at once; the feed's event then refetches the truth.
-  const gone = (id: string) => setInbox((s) => s && { ...s, items: s.items.filter((i) => i.id !== id) });
+  const gone = (id: string) => {
+    setInbox((s) => s && { ...s, items: s.items.filter((i) => i.id !== id) });
+    setLinked((l) => (l?.id === id ? null : l));
+  };
   return (
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- Escape from anywhere in the inbox closes it; every action is a button.
     <div
@@ -214,9 +266,10 @@ export function ArtsChartsInbox({ host }: { host?: ArtsChartsHost }) {
       {open ? (
         <section id={panelId} className="arts-inbox-panel" aria-label="Inbox">
           {error ? <p className="arts-inbox-note" role="status">{UNREACHABLE}</p> : null}
+          {missing === null ? null : <p className="arts-inbox-note" role="status">{missing}</p>}
           {inbox !== null && items.length === 0 ? <p className="arts-inbox-note">Nothing in the inbox.</p> : null}
           <ul className="arts-inbox-list">
-            {items.map((item) => <Entry key={item.id} f={f} item={item} onGone={gone} />)}
+            {items.map((item) => <Entry key={item.id} f={f} item={item} onGone={gone} focused={item.id === focused} onFocused={() => setFocused(null)} />)}
           </ul>
           {/* Always mounted, so a screen reader announces the text that arrives in it. */}
           <div role="status">{olderError === null ? null : <p className="arts-inbox-note">{olderError}</p>}</div>

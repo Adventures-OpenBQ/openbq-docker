@@ -30,7 +30,10 @@ export const INTERVAL_WIRE_VALUES: readonly string[] = ["1s", "1m", "5m", "15m",
  * or a backend-declared one -- so a backend offering `5m` still shows `5min`,
  * and a value the rule does not touch (`2h`) shows as itself.
  */
-export const intervalLabel = (value: string): string => shownAs(value);
+export const intervalLabel = (value: string): string =>
+  // A one-month bar shows as `1mo`, the box's own spelling of it (shownAs would give the
+  // range's `1m`, which the box reads as a refusal), so opening Custom… on it round-trips.
+  value === "1M" ? "1mo" : shownAs(value);
 
 /** A parsed, servable duration (spec 2026-09-25, G6): the resolved seconds, the wire string the backend expects, and a human label for the preview. */
 export type IntervalDuration = { seconds: number; wire: string; label: string };
@@ -90,6 +93,20 @@ export function parseIntervalDuration(text: string): IntervalDuration | { error:
     return { error: "Type a single duration, e.g. 90min, 4h or 2d." };
   }
   const { amount, unit } = atom.offsets[0];
+  // A week or a month (user ruling 2026-10-26: "1 month should fall under custom"):
+  // one of each is a bar every provider serves (`1w`, `1M`), never bucketed here. A month
+  // is accepted only as `1mo` or `1M`: `1m` stays a refusal, because a minute is the
+  // likelier meaning of what was typed (G1).
+  if (unit === "w") {
+    return amount === 1
+      ? { seconds: 604_800, wire: "1w", label: "1 week" }
+      : { error: `${amount} weeks is not a bar interval — 1w is the weekly bar.` };
+  }
+  if (unit === "m" && amount === 1) {
+    return /(mo|M)$/i.test(trimmed) && !trimmed.endsWith("m")
+      ? { seconds: 2_592_000, wire: "1M", label: "1 month" }
+      : { error: "1m reads as a month — type 1min for minutes, or 1mo for a monthly bar." };
+  }
   if (!(unit in WIRE_SECONDS)) {
     // The grammar read a unit the wire cannot bucket. Months get the specific
     // line, because `3m` in the box would otherwise be mistaken for minutes.

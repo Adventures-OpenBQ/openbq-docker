@@ -26,7 +26,7 @@ import httpx
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, Response
 
-from arts_charts.store import is_chart_id
+from arts_charts.store import NotFound, Store, is_chart_id
 
 #: The page's origin. It never resolves: every request to it is answered by route().
 ORIGIN = "http://render.invalid"
@@ -229,5 +229,24 @@ def snapshot_router(snapshots: Snapshots) -> APIRouter:
             return JSONResponse({"detail": exc.reason}, status_code=exc.status)
         return Response(png, media_type="image/png", headers={
             "Cache-Control": "no-store", "X-Chart-Revision": str(meta["revision"])})
+
+    return api
+
+
+def kept_snapshot_router(store: Store) -> APIRouter:
+    """`GET /charts/{chart_id}/snapshots/{snapshot_id}.png`: a PNG snapshot_chart kept for a
+    chat, by id -- the picture Rita described, not a new render. 404 when either id is not
+    an id, the two do not belong together, or the purge took it."""
+    api = APIRouter()
+
+    @api.get("/charts/{chart_id}/snapshots/{snapshot_id}.png")
+    async def kept(chart_id: str, snapshot_id: str):
+        if not (is_chart_id(chart_id) and is_chart_id(snapshot_id)):
+            return JSONResponse({"detail": "no such snapshot"}, status_code=404)
+        try:
+            png = await asyncio.to_thread(store.chart_snapshot_png, chart_id, snapshot_id)
+        except NotFound:
+            return JSONResponse({"detail": "no such snapshot"}, status_code=404)
+        return Response(png, media_type="image/png", headers={"Cache-Control": "private, no-store"})
 
     return api

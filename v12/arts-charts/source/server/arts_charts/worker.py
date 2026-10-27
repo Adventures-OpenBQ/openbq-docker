@@ -23,7 +23,10 @@ named; a pack with none left disables its schedule with one notice.
 
 Pushes (spec §4): each delivered item is queued for ntfy with the item link,
 the snapshot as an attachment and two buttons, **Snapshot now** and **Mute 1
-day**, each carrying a token for that watch and action. At most
+day**, each carrying a token for that watch and action. With
+ARTS_CHARTS_APP_LINK set, every push also carries **Open in BDOBB**, a view
+action on that template with `{id}` the item's id (v12 ruling B13); a tap
+still opens the picture. At most
 ARTS_CHARTS_PUSH_CAP pushes are queued an hour; past it the item stays in the
 inbox only. A push is tried three times (at once, +30 s, +2 min) and dropped
 if it has not gone out within 15 minutes, so ntfy coming back never brings a
@@ -44,6 +47,8 @@ Run it: `python -m arts_charts.worker`. Settings, all from the environment:
   ARTS_CHARTS_NTFY_TOKEN    with NTFY_URL: the worker's ntfy access token
   ARTS_CHARTS_PUBLIC_URL    with NTFY_URL: the API as the phone reaches it (links, buttons)
   ARTS_CHARTS_PUSH_CAP      pushes an hour (default 12)
+  ARTS_CHARTS_APP_LINK      with NTFY_URL: a link template, {id} the inbox item's id
+                            (bdobb://inbox/{id}); set, each push gets Open in BDOBB
   ARTS_CHARTS_ODP_URL       openbq-docker's ODP API, for the XNYS holiday calendar; unset, every
                             weekday counts as a full session
   ARTS_CHARTS_ODP_USER      with ARTS_CHARTS_ODP_PASSWORD: that API's Basic credentials; unset, the
@@ -161,12 +166,13 @@ def _plain(watch: dict, values: dict) -> str:
 class Worker:
     def __init__(self, store: Store, api: httpx.AsyncClient, secret: str, *,
                  rita: Rita | None = None, mcp: Mcp | None = None, ntfy: Ntfy | None = None,
-                 public_url: str = "", push_cap: int = 12,
+                 public_url: str = "", push_cap: int = 12, app_link: str | None = None,
                  calendar: ExchangeCalendar | None = None,
                  clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc)):
         self.store, self.api, self.secret = store, api, secret
         self.rita, self.mcp, self.clock = rita, mcp, clock
         self.ntfy, self.public, self.push_cap = ntfy, public_url.rstrip("/"), push_cap
+        self.app_link = app_link
         #: When each watch is next looked at. In memory: a restart looks at once.
         self._due: dict[str, datetime] = {}
         self.calendar = calendar
@@ -460,6 +466,11 @@ class Worker:
         query = "?t=" + sign(self.secret, "link", ACTION_TTL, item=item["id"])
         message = {"title": item["title"], "message": "\n".join(lines)[:PUSH_CHARS],
                    "click": f"{self.public}/inbox/{item['id']}{query}"}
+        if self.app_link:
+            # ntfy shows three actions at most: a watch's two buttons and this one.
+            actions = [*(actions or []), {"action": "view", "label": "Open in BDOBB",
+                                          "url": self.app_link.replace("{id}", item["id"]),
+                                          "clear": True}]
         if actions:
             message["actions"] = actions
         if item["snapshots"]:
@@ -520,13 +531,17 @@ def settings(env) -> dict:
         assert cap >= 0
     except (ValueError, AssertionError):
         raise SystemExit("ARTS_CHARTS_PUSH_CAP is a whole number of pushes an hour") from None
+    app_link = env.get("ARTS_CHARTS_APP_LINK") or None
+    if app_link is not None and "{id}" not in app_link:
+        raise SystemExit("ARTS_CHARTS_APP_LINK is a link template: {id} marks where the inbox"
+                         " item's id goes")
     odp_user, odp_password = odp_credentials(env) or (None, None)
     return {"db": env.get("ARTS_CHARTS_DB", DEFAULT_URL), "secret": secret,
             "api_url": env.get("ARTS_CHARTS_API_URL", "http://127.0.0.1:8000"),
             "public_url": public, "rita_url": env.get("ARTS_CHARTS_RITA_URL"),
             "ntfy_url": ntfy_url, "ntfy_topic": topic,
             "ntfy_token": env.get("ARTS_CHARTS_NTFY_TOKEN"), "push_cap": cap,
-            "odp_url": env.get("ARTS_CHARTS_ODP_URL"), "odp_user": odp_user,
+            "app_link": app_link, "odp_url": env.get("ARTS_CHARTS_ODP_URL"), "odp_user": odp_user,
             "odp_password": odp_password}
 
 
@@ -547,7 +562,7 @@ async def run(config: dict) -> None:
         calendar = ExchangeCalendar(config["odp_url"], auth=auth) if config["odp_url"] else None
         worker = Worker(store, api, config["secret"], rita=rita, mcp=mcp, ntfy=ntfy,
                         public_url=config["public_url"], push_cap=config["push_cap"],
-                        calendar=calendar)
+                        app_link=config["app_link"], calendar=calendar)
         while True:
             try:
                 await worker.tick()

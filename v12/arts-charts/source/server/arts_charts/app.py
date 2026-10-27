@@ -55,7 +55,7 @@ from arts_charts.live_grid import LiveGridBars
 from arts_charts.odp_bars import OdpBars
 from arts_charts.router import BarSource, default_provider, router
 from arts_charts.schedules import schedules_router
-from arts_charts.snapshots import DEFAULT_RENDER_DIR, Snapshots, snapshot_router
+from arts_charts.snapshots import DEFAULT_RENDER_DIR, Snapshots, kept_snapshot_router, snapshot_router
 from arts_charts.store import DEFAULT_URL, Store
 from arts_charts.temporal_gold import DEFAULT_DATASET, TemporalGoldBars
 from arts_charts.watches import watches_router
@@ -77,10 +77,14 @@ def create_app(bars: BarSource | None = None, calendar: ExchangeCalendar | None 
     if bars is None:
         auth = odp_credentials(os.environ)
         url = os.environ["ARTS_CHARTS_ODP_URL"]
-        history = {p: OdpBars(url, auth=auth, provider=p) for p in ("yfinance", "eodhd")}
         calendar = ExchangeCalendar(url, auth=auth)
+        # The calendar restamps yfinance's months with their first trading day.
+        history = {p: OdpBars(url, auth=auth, provider=p, calendar=calendar)
+                   for p in ("yfinance", "eodhd")}
+        # An extended intraday chart's yfinance history carries pre and after hours.
+        extended = {"yfinance": OdpBars(url, auth=auth, provider="yfinance", prepost=True)}
     else:
-        history = {"yfinance": bars, "eodhd": bars}
+        history, extended = {"yfinance": bars, "eodhd": bars}, {}
     if temporal is None and os.environ.get("ARTS_CHARTS_TEMPORAL_URL"):
         token = os.environ.get("ARTS_CHARTS_TEMPORAL_TOKEN")
         if not token:
@@ -98,7 +102,7 @@ def create_app(bars: BarSource | None = None, calendar: ExchangeCalendar | None 
         raise SystemExit(f"ARTS_CHARTS_DEFAULT_PROVIDER must be one of {', '.join(history)}")
     if live is None and os.environ.get("ARTS_CHARTS_LIVE_GRID_URL"):
         live = LiveGridBars(os.environ["ARTS_CHARTS_LIVE_GRID_URL"], auth=StackAuth())
-    composed = ComposedBars(history, live, calendar, now)
+    composed = ComposedBars(history, live, calendar, now, extended)
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         async with tools.session_manager.run():
@@ -116,7 +120,7 @@ def create_app(bars: BarSource | None = None, calendar: ExchangeCalendar | None 
     api = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://arts-charts",
                             auth=StackAuth())
     snapshots = Snapshots(api, Path(os.environ.get("ARTS_CHARTS_RENDER_DIR", DEFAULT_RENDER_DIR)))
-    tools = chart_mcp(api, snapshots)
+    tools = chart_mcp(api, snapshots, store)
     # Mounted as a route at the exact path (a Mount would 307 `/charts/mcp` to
     # `/charts/mcp/` on the request's own Host), ahead of `/charts/{chart_id}`.
     # No Host check: like the REST routes beside it, the endpoint sits behind
@@ -127,6 +131,7 @@ def create_app(bars: BarSource | None = None, calendar: ExchangeCalendar | None 
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     ).routes)
     app.include_router(snapshot_router(snapshots))
+    app.include_router(kept_snapshot_router(store))
     feed = Feed()
     app.include_router(watches_router(store, feed))
     app.include_router(schedules_router(store, feed))

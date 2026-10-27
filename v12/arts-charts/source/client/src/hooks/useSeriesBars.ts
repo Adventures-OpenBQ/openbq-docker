@@ -70,6 +70,10 @@ export type SeriesMeta = {
    * `/series`; `forming` the forming bar's time (unix seconds), else null.
    */
   live: true | "partial" | false | null;
+  /** Why `live` is false (user ruling 2026-10-26), null when it is not or the answer does not say. */
+  liveReason: "not_covered" | "unavailable" | "no_session" | null;
+  /** `"venue"`: today's bars are live and their volume is one venue's trades only (user ruling 2026-10-26). */
+  liveVolume: "venue" | null;
   forming: number | null;
 };
 
@@ -83,6 +87,8 @@ function parseMeta(payload: unknown): SeriesMeta {
     vaultRefused: c.vault_refused === true,
     vaultDays: Array.isArray(c.vault_days) ? c.vault_days : [],
     live: c.live === true || c.live === false || c.live === "partial" ? c.live : null,
+    liveReason: c.live_reason === "not_covered" || c.live_reason === "unavailable" || c.live_reason === "no_session" ? c.live_reason : null,
+    liveVolume: c.live_volume === "venue" ? "venue" : null,
     forming: Number.isFinite(forming) ? forming : null,
   };
 }

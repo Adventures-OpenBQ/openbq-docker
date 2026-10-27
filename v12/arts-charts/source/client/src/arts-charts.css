@@ -861,3 +861,8 @@
   position: absolute; left: 8px; bottom: 28px; padding: 1px 6px; font-size: var(--font-size-10); color: var(--text);
   background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px;
 }
+
+/* A snapshot Rita took in a chat (v12 part 3): up to the chat column's width. */
+.arts-snapshot { margin: 6px 0; }
+.arts-snapshot img { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 4px; }
+.arts-snapshot figcaption, .arts-snapshot-note { margin: 4px 0; font-size: var(--font-size-11); color: var(--text-muted); }
