@@ -35,6 +35,9 @@ const STUDY = [...SERIES, "source", "macro", "indicators", "anchor", "basis", "w
 const ROUTES = [
   ["GET|POST", /^\/charts$/, [], "json"],
   ["GET", /^\/charts\/events$/, [], "sse"],
+  // BDOBB's companion widgets (v12 part 5): read-only GETs; only the bars take a query.
+  ["GET", /^\/charts\/widgets\.json$/, [], "json"],
+  ["GET", /^\/charts\/widgets\/bars$/, ["symbol", "interval", "session"], "json"],
   ["POST", /^\/charts\/mcp$/, [], "mcp"],
   ["GET|PUT|DELETE", exact(`/charts/${ID}`), [], "json"],
   ["GET", exact(`/charts/${ID}/history`), [], "json"],
