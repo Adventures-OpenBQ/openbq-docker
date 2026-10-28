@@ -48,6 +48,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from arts_charts.auth import BasicAuthMiddleware, StackAuth, odp_credentials
 from arts_charts.calendar import ExchangeCalendar
 from arts_charts.chart_tools import chart_mcp
+from arts_charts.companions import companions_router
 from arts_charts.composed import ComposedBars
 from arts_charts.documents import Feed, documents_router
 from arts_charts.inbox import inbox_router
@@ -114,6 +115,8 @@ def create_app(bars: BarSource | None = None, calendar: ExchangeCalendar | None 
     # router() loads the operator's custom studies into the registry, so it
     # is built first: the document API and the tools read that registry.
     app.include_router(router(composed, calendar, default))
+    # Before documents_router: /charts/{chart_id} would otherwise read `widgets.json` as an id.
+    app.include_router(companions_router(store))
     # The tools reach this app's own routes in-process: same validation,
     # revision checks and change feed as a card's request.
     # It passes through the auth middleware like any client, so it carries the pair.

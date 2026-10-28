@@ -20,9 +20,10 @@ from datetime import date, datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 import httpx
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
+from arts_charts import companions
 from arts_charts.anchors import resolve_anchor
 from arts_charts.calendar import XNYS, ExchangeCalendar, UsEquitySessions
 from arts_charts.classify import classify
@@ -339,6 +340,44 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
         except Exception as exc:  # noqa: BLE001
             log.warning("ta_series_ws ended for %s: %s", params.symbol, exc)
             return
+
+    @api.get("/charts/widgets/bars")
+    async def companion_bars(request: Request):
+        """The bars/studies companion widget (v12 part 5): /series' bars over the window
+        companions.window picks, three SMAs, one row per bar. Read-only. A refusal is a 400
+        or 422 with detail, an outage a 502; never partial rows."""
+        try:
+            q = companions.query(request, companions.BARS_KEYS)
+            session = q.get("session", "extended")
+            if session not in companions.SESSIONS:
+                raise ValueError(f"session is one of {', '.join(companions.SESSIONS)}")
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
+        symbol, interval = q.get("symbol", "AAPL"), q.get("interval", "1d")
+        start, end = companions.window(interval, date.today())
+        params = ChartParams(symbol=symbol, interval=interval, indicators=companions.INDICATORS,
+                             start=start, end=end, provider=default_provider, session=session)
+        try:
+            refuse(params)
+            bars.check(params.provider, interval)
+        except Refused as exc:
+            raise HTTPException(400, str(exc)) from None
+        except NotConfigured as exc:
+            raise HTTPException(422, str(exc)) from None
+        try:
+            answer: object = await fetch(symbol, interval, start, end, params.provider, session)
+        except Exception as exc:  # noqa: BLE001 - becomes the 502 below, never the upstream text
+            answer = exc
+        try:
+            _, frame, _, _, bars_error = await series_state(params, warmup_for(params), answer)
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(422, str(exc).strip("'\"")) from None
+        if bars_error is not None:
+            raise HTTPException(502, "bars unavailable")
+        try:
+            return {"rows": companions.bar_rows(frame, interval)}
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
 
     @api.get("/ta_snapshot")
     async def ta_snapshot(symbol: str = "AAPL", interval: str = "1d", source: str = "local",
