@@ -1,8 +1,8 @@
 // Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 // SPDX-License-Identifier: Apache-2.0
 
-// The /ai (Rita) family on the door: off by default, then her two routes, the rewrite on the
-// wire, the stream, and the per-user and global limits.
+// The /ai (Rita) family on the door: off by default, then her three routes, the rewrite on the
+// wire, the stream, the feedback relay, and the per-user and global limits.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -275,4 +275,117 @@ test("a stream past 16 MiB is cut, not ended as if complete", async t => {
     req.on("error", () => resolve("cut")); req.end(QUERY);
   });
   assert.equal(outcome, "cut");
+});
+
+const FEEDBACK = JSON.stringify({ vote: "thumbs_down", tags: ["Other"], user_comment: "c", ai_response: "r", user_prompt: "p", trace_id: "t-1", extra: "dropped" });
+const feedback = (port, headers = { "X-Rita-Principal": USER }, body = FEEDBACK) =>
+  call(port, "/ai/v1/feedback", { method: "POST", body, headers });
+const accepted = (_, res) => { res.writeHead(204); res.end(); };
+
+test("feedback reaches her rebuilt, with the caller's principal and nothing else of theirs", async t => {
+  const rita = await fakeRita(t, accepted);
+  const port = await door(t, rita);
+  assert.equal((await feedback(port, { "X-Rita-Principal": USER, Cookie: "a=b" })).status, 204);
+  assert.equal(rita.seen[0].url, "/v1/feedback");
+  assert.equal(rita.seen[0].headers["x-rita-principal"], USER);
+  for (const name of ["authorization", "cookie"]) assert.equal(rita.seen[0].headers[name], undefined, name);
+  assert.deepEqual(JSON.parse(rita.seen[0].body), { vote: "thumbs_down", tags: ["Other"], user_comment: "c", ai_response: "r", user_prompt: "p", trace_id: "t-1" });
+});
+
+test("agents.json keeps her feedback: true, so web users see the buttons", async t => {
+  const rita = await fakeRita(t, (_, res) => {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ openbb_agent_rita: { name: "Agent Rita", endpoints: { query: "/v1/query" }, features: { feedback: true } } }));
+  });
+  const port = await door(t, rita);
+  const answer = await call(port, "/ai/agents.json", { headers: { "X-Rita-Principal": USER } });
+  assert.equal(JSON.parse(answer.text).openbb_agent_rita.features.feedback, true);
+});
+
+test("the desktop's feedback names no principal", async t => {
+  const rita = await fakeRita(t, accepted);
+  const port = await door(t, rita);
+  assert.equal((await feedback(port, {})).status, 204);
+  assert.equal(rita.seen[0].headers["x-rita-principal"], undefined);
+});
+
+test("feedback is charged to the hour but takes no turn slot", async t => {
+  let release;
+  const held = new Promise(r => { release = r; });
+  const rita = await fakeRita(t, async (req, res) => {
+    if (req.url === "/v1/feedback") return accepted(req, res);
+    res.writeHead(200, { "Content-Type": "text/event-stream" });
+    res.write('data: {"type":"first"}\n\n');
+    await held; res.end();
+  });
+  const port = await door(t, rita, { ritaPerHour: 2 });
+  const turn = ask(port);
+  try {
+    const deadline = Date.now() + 5000;
+    while (!rita.seen.some(s => s.url === "/v1/query")) {
+      if (Date.now() > deadline) assert.fail("the query never reached her");
+      await new Promise(r => setTimeout(r, 10));
+    }
+    assert.equal((await feedback(port)).status, 204, "mid-turn, same principal");
+    assert.equal((await feedback(port)).status, 429, "the query and one vote are the hour's two");
+  } finally { release(); await turn; }
+});
+
+test("concurrent feedback votes whose bodies arrive late are charged one by one", async t => {
+  const rita = await fakeRita(t, accepted);
+  const port = await door(t, rita, { ritaPerHour: 2 });
+  // Headers first, the body 150 ms later: every vote is past its first check before any is charged.
+  const late = () => new Promise((resolve, reject) => {
+    const req = request({ host: "127.0.0.1", port, path: "/ai/v1/feedback", method: "POST",
+      headers: { ...HEADERS, "X-Rita-Principal": USER, "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(FEEDBACK) } }, res => {
+      res.resume(); res.on("end", () => resolve(res.statusCode));
+    });
+    req.on("error", reject);
+    req.flushHeaders();
+    setTimeout(() => req.end(FEEDBACK), 150);
+  });
+  const codes = await Promise.all([1, 2, 3, 4, 5].map(late));
+  assert.equal(codes.filter(c => c === 204).length, 2, JSON.stringify(codes));
+  assert.equal(codes.filter(c => c === 429).length, 3, JSON.stringify(codes));
+  assert.equal(rita.seen.length, 2);
+});
+
+test("a query whose body arrives late is charged on top of votes counted meanwhile", async t => {
+  const rita = await fakeRita(t, (req, res) => {
+    if (req.url === "/v1/feedback") return accepted(req, res);
+    res.writeHead(200, { "Content-Type": "text/event-stream" }); res.end();
+  });
+  const port = await door(t, rita, { ritaPerHour: 3 });
+  const slow = new Promise((resolve, reject) => {
+    const req = request({ host: "127.0.0.1", port, path: "/ai/v1/query", method: "POST",
+      headers: { ...HEADERS, "X-Rita-Principal": USER, "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(QUERY) } }, res => { res.resume(); res.on("end", () => resolve(res.statusCode)); });
+    req.on("error", reject);
+    req.flushHeaders();
+    setTimeout(() => req.end(QUERY), 300);
+  });
+  assert.equal((await feedback(port)).status, 204, "a vote lands while the query body is in flight");
+  assert.equal(await slow, 200);
+  assert.equal((await feedback(port)).status, 204, "the query and two votes make three");
+  assert.equal((await feedback(port)).status, 429);
+});
+
+test("feedback refuses a bad body, an oversized one, a GET, and a refusing Rita", async t => {
+  const rita = await fakeRita(t, accepted);
+  const port = await door(t, rita);
+  assert.equal((await feedback(port, undefined, JSON.stringify({ vote: "meh" }))).status, 400);
+  assert.equal((await feedback(port, undefined, JSON.stringify({ vote: "thumbs_up", ai_response: "x".repeat(70 * 1024) }))).status, 413);
+  assert.equal((await call(port, "/ai/v1/feedback", { headers: { "X-Rita-Principal": USER } })).status, 404);
+  assert.equal(rita.seen.length, 0);
+  const down = await fakeRita(t, (_, res) => { res.writeHead(500); res.end(); });
+  assert.equal((await feedback(await door(t, down))).status, 502);
+});
+
+test("any other /ai/v1 path stays 404, even as a POST, and never reaches her", async t => {
+  const rita = await fakeRita(t, accepted);
+  const port = await door(t, rita);
+  for (const path of ["/ai/v1/other", "/ai/v1/generate/code", "/ai/v1/feedback/x"])
+    assert.equal((await call(port, path, { method: "POST", body: FEEDBACK, headers: { "X-Rita-Principal": USER } })).status, 404, path);
+  assert.equal(rita.seen.length, 0);
 });
