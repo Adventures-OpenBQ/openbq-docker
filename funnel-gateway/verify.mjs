@@ -113,7 +113,7 @@ export async function verify(config, base = "http://127.0.0.1:8091") {
     // answers (it dials her, never a vendor, so it is not probed); her POST is the only other
     // route, so its GET, a query, her other routes and anything else under /ai stay refused.
     ...(config.ritaUpstream ? [] : ["/ai/agents.json"]),
-    "/ai/v1/query", "/ai/agents.json?x=1", "/ai/other", "/ai/v1/generate/code", "/ai/status",
+    "/ai/v1/query", "/ai/v1/feedback", "/ai/agents.json?x=1", "/ai/other", "/ai/v1/generate/code", "/ai/status",
     // The /api side forwards the whole catalogue, so the refusals to prove are
     // the SHAPE rules, not a provider allowlist: openbq-api's own interactive
     // surfaces, an uppercase route segment, and a control character in a value.

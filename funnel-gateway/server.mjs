@@ -17,7 +17,7 @@ import { promisify } from "node:util";
 import { gzip } from "node:zlib";
 import { once } from "node:events";
 import { WebSocket, WebSocketServer } from "ws";
-import { ritaRoute, ritaQuery, ritaAgents } from "./rita-policy.mjs";
+import { ritaRoute, ritaQuery, ritaAgents, ritaFeedback, RITA_FEEDBACK_MAX } from "./rita-policy.mjs";
 import { mcpRoute, mcpMessage, MCP_SESSION_RE, MCP_VERSION_RE } from "./mcp-policy.mjs";
 import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
 
@@ -546,6 +546,16 @@ export function postRita(body, config, signal) {
     request.end(body);
   });
 }
+/** Her feedback POST, charged to `principal`: a web user's github:<id> goes with it; the desktop's bucket sends none. */
+export function postRitaFeedback(body, principal, config, signal) {
+  return new Promise((resolve, rejectPromise) => {
+    const headers = { "Content-Type": "application/json", "Content-Length": body.length,
+      ...(principal.startsWith("github:") ? { "X-Rita-Principal": principal } : {}) };
+    const request = httpRequest(new URL("/v1/feedback", config.ritaUpstream), { method: "POST", signal, headers }, resolve);
+    request.once("error", rejectPromise);
+    request.end(body);
+  });
+}
 /**
  * Who a query is charged to: the web layer's verified GitHub id, sent once as X-Rita-Principal
  * (github:<id>), or the desktop's one shared bucket when absent. Behind the Bearer lock, so only
@@ -651,11 +661,25 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       const doc = ritaAgents(await getRitaAgents(config, AbortSignal.timeout(requestMs)), config.ritaModel);
       return doc ? reply(res, 200, doc) : reply(res, 502);
     }
-    if (ritaInflight >= RITA_CONCURRENT || ritaBusy.has(principal)) return reply(res, 429);
     // Only a token holder can name a principal, but it can name many: past 1000, sweep the hour.
     if (ritaUse.size > 1000) for (const [who, times] of ritaUse) if (!times.some(at => now() - at < RITA_HOUR_MS)) ritaUse.delete(who);
     const recent = (ritaUse.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
     if (recent.length) ritaUse.set(principal, recent); else ritaUse.delete(principal);
+    if (route === "feedback") {
+      // Charged to the hour like a query, but no turn slot: one small POST, not a stream.
+      if (recent.length >= config.ritaPerHour) return reply(res, 429);
+      const raw = await jsonBody(req, RITA_FEEDBACK_MAX);
+      if (typeof raw === "number") { if (raw === 413) res.setHeader("Connection", "close"); return reply(res, raw); }
+      const body = ritaFeedback(raw);
+      if (!body) return reply(res, 400);
+      ritaUse.set(principal, [...recent, now()]);
+      const upstream = await postRitaFeedback(Buffer.from(JSON.stringify(body)), principal, config, AbortSignal.timeout(requestMs));
+      upstream.resume();
+      if (upstream.statusCode !== 204) return reply(res, 502);
+      res.writeHead(204, COMMON);
+      return res.end();
+    }
+    if (ritaInflight >= RITA_CONCURRENT || ritaBusy.has(principal)) return reply(res, 429);
     if (recent.length >= config.ritaPerHour) return reply(res, 429);
     ritaInflight++; ritaBusy.add(principal);
     const controller = new AbortController();

@@ -3,7 +3,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ritaRoute, ritaQuery, ritaAgents, RITA_MODEL_RE } from "./rita-policy.mjs";
+import { ritaRoute, ritaQuery, ritaAgents, ritaFeedback, RITA_MODEL_RE } from "./rita-policy.mjs";
 
 const ORIGIN = "https://door.example.com";
 const at = path => new URL(path, ORIGIN);
@@ -128,4 +128,20 @@ test("the model setting names the OpenAI-compatible provider only", () => {
   for (const bad of ["anthropic:claude-opus-5-5", "qwen3.6-35b", "openai:", "openai:a b", "openai:x/../y"]) {
     assert.ok(!RITA_MODEL_RE.test(bad), bad);
   }
+});
+
+test("feedback is one more exact route", () => {
+  assert.equal(ritaRoute(at("/ai/v1/feedback"), "POST"), "feedback");
+  assert.equal(ritaRoute(at("/ai/v1/feedback"), "GET"), null);
+  assert.equal(ritaRoute(at("/ai/v1/feedback?x=1"), "POST"), null);
+});
+
+test("a feedback body is rebuilt from its six known fields, or refused", () => {
+  const fb = value => ritaFeedback(Buffer.from(JSON.stringify(value)));
+  assert.deepEqual(fb({ vote: "thumbs_up" }), { vote: "thumbs_up", tags: [], user_comment: "", ai_response: "", user_prompt: "", trace_id: "" });
+  assert.deepEqual(fb({ vote: "thumbs_down", tags: ["Other"], trace_id: "t", url: `http://${LAN}/`, extra: 1 }),
+    { vote: "thumbs_down", tags: ["Other"], user_comment: "", ai_response: "", user_prompt: "", trace_id: "t" });
+  for (const bad of [{}, { vote: "meh" }, { vote: "thumbs_up", tags: "Other" }, { vote: "thumbs_up", tags: [1] },
+    { vote: "thumbs_up", user_comment: 5 }, [], "x"]) assert.equal(fb(bad), null, JSON.stringify(bad));
+  assert.equal(ritaFeedback(Buffer.from("{")), null);
 });
