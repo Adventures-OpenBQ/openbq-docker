@@ -672,7 +672,10 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (typeof raw === "number") { if (raw === 413) res.setHeader("Connection", "close"); return reply(res, raw); }
       const body = ritaFeedback(raw);
       if (!body) return reply(res, 400);
-      ritaUse.set(principal, [...recent, now()]);
+      // The body may have arrived late: other votes may have been charged meanwhile, so re-read the hour.
+      const current = (ritaUse.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
+      if (current.length >= config.ritaPerHour) return reply(res, 429);
+      ritaUse.set(principal, [...current, now()]);
       const upstream = await postRitaFeedback(Buffer.from(JSON.stringify(body)), principal, config, AbortSignal.timeout(requestMs));
       upstream.resume();
       if (upstream.statusCode !== 204) return reply(res, 502);

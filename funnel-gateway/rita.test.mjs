@@ -1,8 +1,8 @@
 // Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 // SPDX-License-Identifier: Apache-2.0
 
-// The /ai (Rita) family on the door: off by default, then her two routes, the rewrite on the
-// wire, the stream, and the per-user and global limits.
+// The /ai (Rita) family on the door: off by default, then her three routes, the rewrite on the
+// wire, the stream, the feedback relay, and the per-user and global limits.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -320,10 +320,35 @@ test("feedback is charged to the hour but takes no turn slot", async t => {
   });
   const port = await door(t, rita, { ritaPerHour: 2 });
   const turn = ask(port);
-  while (!rita.seen.some(s => s.url === "/v1/query")) await new Promise(r => setTimeout(r, 10));
-  assert.equal((await feedback(port)).status, 204, "mid-turn, same principal");
-  assert.equal((await feedback(port)).status, 429, "the query and one vote are the hour's two");
-  release(); await turn;
+  try {
+    const deadline = Date.now() + 5000;
+    while (!rita.seen.some(s => s.url === "/v1/query")) {
+      if (Date.now() > deadline) assert.fail("the query never reached her");
+      await new Promise(r => setTimeout(r, 10));
+    }
+    assert.equal((await feedback(port)).status, 204, "mid-turn, same principal");
+    assert.equal((await feedback(port)).status, 429, "the query and one vote are the hour's two");
+  } finally { release(); await turn; }
+});
+
+test("concurrent feedback votes whose bodies arrive late are charged one by one", async t => {
+  const rita = await fakeRita(t, accepted);
+  const port = await door(t, rita, { ritaPerHour: 2 });
+  // Headers first, the body 150 ms later: every vote is past its first check before any is charged.
+  const late = () => new Promise((resolve, reject) => {
+    const req = request({ host: "127.0.0.1", port, path: "/ai/v1/feedback", method: "POST",
+      headers: { ...HEADERS, "X-Rita-Principal": USER, "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(FEEDBACK) } }, res => {
+      res.resume(); res.on("end", () => resolve(res.statusCode));
+    });
+    req.on("error", reject);
+    req.flushHeaders();
+    setTimeout(() => req.end(FEEDBACK), 150);
+  });
+  const codes = await Promise.all([1, 2, 3, 4, 5].map(late));
+  assert.equal(codes.filter(c => c === 204).length, 2, JSON.stringify(codes));
+  assert.equal(codes.filter(c => c === 429).length, 3, JSON.stringify(codes));
+  assert.equal(rita.seen.length, 2);
 });
 
 test("feedback refuses a bad body, an oversized one, a GET, and a refusing Rita", async t => {
