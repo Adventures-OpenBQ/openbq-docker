@@ -695,7 +695,10 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       const body = ritaQuery(raw, config.ritaModel);
       if (!body) return reply(res, 400);
       // Charged once the body is one she could be sent: a refused body costs nothing.
-      ritaUse.set(principal, [...recent, now()]);
+      // The body may have arrived late: votes may have been charged meanwhile, so re-read the hour.
+      const current = (ritaUse.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
+      if (current.length >= config.ritaPerHour) return reply(res, 429);
+      ritaUse.set(principal, [...current, now()]);
       const upstream = await postQuery(Buffer.from(JSON.stringify(body)), config, controller.signal);
       if (upstream.statusCode !== 200 || !/^text\/event-stream(?:\s*;|$)/i.test(upstream.headers["content-type"] ?? "")) {
         upstream.destroy(); return reply(res, 502);

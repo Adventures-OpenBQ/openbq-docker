@@ -351,6 +351,26 @@ test("concurrent feedback votes whose bodies arrive late are charged one by one"
   assert.equal(rita.seen.length, 2);
 });
 
+test("a query whose body arrives late is charged on top of votes counted meanwhile", async t => {
+  const rita = await fakeRita(t, (req, res) => {
+    if (req.url === "/v1/feedback") return accepted(req, res);
+    res.writeHead(200, { "Content-Type": "text/event-stream" }); res.end();
+  });
+  const port = await door(t, rita, { ritaPerHour: 3 });
+  const slow = new Promise((resolve, reject) => {
+    const req = request({ host: "127.0.0.1", port, path: "/ai/v1/query", method: "POST",
+      headers: { ...HEADERS, "X-Rita-Principal": USER, "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(QUERY) } }, res => { res.resume(); res.on("end", () => resolve(res.statusCode)); });
+    req.on("error", reject);
+    req.flushHeaders();
+    setTimeout(() => req.end(QUERY), 300);
+  });
+  assert.equal((await feedback(port)).status, 204, "a vote lands while the query body is in flight");
+  assert.equal(await slow, 200);
+  assert.equal((await feedback(port)).status, 204, "the query and two votes make three");
+  assert.equal((await feedback(port)).status, 429);
+});
+
 test("feedback refuses a bad body, an oversized one, a GET, and a refusing Rita", async t => {
   const rita = await fakeRita(t, accepted);
   const port = await door(t, rita);
