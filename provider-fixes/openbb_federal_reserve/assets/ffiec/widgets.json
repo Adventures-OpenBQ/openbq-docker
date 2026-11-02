@@ -7,7 +7,7 @@
     "widgetId": "ffiec_institutions_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_institutions"
+      "tool_id": "federal_reserve_ffiec_institutions"
     },
     "params": [
       {
@@ -221,7 +221,7 @@
     "widgetId": "ffiec_call_report_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_call_report"
+      "tool_id": "federal_reserve_ffiec_call_report"
     },
     "params": [
       {
@@ -397,7 +397,7 @@
     "widgetId": "ffiec_ubpr_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_ubpr"
+      "tool_id": "federal_reserve_ffiec_ubpr"
     },
     "params": [
       {
@@ -616,7 +616,7 @@
     "widgetId": "ffiec_executive_summary_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_executive_summary"
+      "tool_id": "federal_reserve_ffiec_executive_summary"
     },
     "params": [
       {
@@ -712,7 +712,7 @@
     "widgetId": "ffiec_custom_peer_group_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_custom_peer_group"
+      "tool_id": "federal_reserve_ffiec_custom_peer_group"
     },
     "params": [
       {
@@ -940,7 +940,7 @@
     "widgetId": "ffiec_peer_group_average_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_peer_group_average"
+      "tool_id": "federal_reserve_ffiec_peer_group_average"
     },
     "params": [
       {
@@ -1860,7 +1860,7 @@
     "widgetId": "ffiec_peer_group_bank_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_peer_group_bank"
+      "tool_id": "federal_reserve_ffiec_peer_group_bank"
     },
     "params": [
       {
@@ -2070,7 +2070,7 @@
     "widgetId": "ffiec_peer_group_distribution_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_peer_group_distribution"
+      "tool_id": "federal_reserve_ffiec_peer_group_distribution"
     },
     "params": [
       {
@@ -2990,7 +2990,7 @@
     "widgetId": "ffiec_state_average_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_state_average"
+      "tool_id": "federal_reserve_ffiec_state_average"
     },
     "params": [
       {
@@ -3405,7 +3405,7 @@
     "widgetId": "ffiec_list_of_banks_peer_group_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_list_of_banks_peer_group"
+      "tool_id": "federal_reserve_ffiec_list_of_banks_peer_group"
     },
     "params": [
       {
@@ -4301,7 +4301,7 @@
     "widgetId": "ffiec_call_report_sectioned_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_call_report_sectioned"
+      "tool_id": "federal_reserve_ffiec_call_report_sectioned"
     },
     "params": [
       {
@@ -4545,7 +4545,7 @@
     "widgetId": "ffiec_country_exposure_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_country_exposure"
+      "tool_id": "federal_reserve_ffiec_country_exposure"
     },
     "params": [
       {
@@ -4693,7 +4693,7 @@
     "widgetId": "ffiec_large_holding_companies_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_large_holding_companies"
+      "tool_id": "federal_reserve_ffiec_large_holding_companies"
     },
     "params": [
       {
@@ -4790,7 +4790,7 @@
     "widgetId": "ffiec_institution_structure_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_institution_structure"
+      "tool_id": "federal_reserve_ffiec_institution_structure"
     },
     "params": [
       {
@@ -5011,7 +5011,7 @@
     "widgetId": "ffiec_bhcpr_report_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_bhcpr_report"
+      "tool_id": "federal_reserve_ffiec_bhcpr_report"
     },
     "params": [
       {
@@ -5208,7 +5208,7 @@
     "widgetId": "ffiec_bhcpr_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_bhcpr"
+      "tool_id": "federal_reserve_ffiec_bhcpr"
     },
     "params": [
       {
@@ -5310,7 +5310,7 @@
     "widgetId": "ffiec_financial_report_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_financial_report"
+      "tool_id": "federal_reserve_ffiec_financial_report"
     },
     "params": [
       {
@@ -5448,7 +5448,7 @@
     "widgetId": "ffiec_financial_report_pdf_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ffiec_financial_report_pdf"
+      "tool_id": "federal_reserve_ffiec_financial_report_pdf"
     },
     "params": [
       {
