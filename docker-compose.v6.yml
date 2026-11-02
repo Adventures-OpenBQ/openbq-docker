@@ -83,6 +83,9 @@ services:
         required: false
     environment:
       OPENBB_MCP_DEFAULT_SKILLS_DIR: ""
+      # Must equal every widget's mcp_tool.mcp_server, or Workspace never pairs a widget
+      # with its tool.
+      OPENBB_MCP_NAME: "Open Data Platform"
       # In-process ODP calls must not demand the API's Basic auth.
       OPENBB_API_AUTH: "false"
     volumes:
