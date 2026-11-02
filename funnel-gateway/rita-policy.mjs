@@ -4,8 +4,9 @@
 /**
  * The /ai (Rita) family on the door (user ruling 2026-10-20, reversing R3a for a
  * Qwen-only Rita). Additive: policy.mjs, the contract BDOBB's web layer vendors, is
- * unchanged. Two routes only -- her document and her one streamed query. Her
- * /v1/generate/* routes take a model of their own and stay closed.
+ * unchanged. Three routes only -- her document, her one streamed query, and her feedback vote
+ * (`/ai/v1/feedback`, rebuilt from its six fields). Her /v1/generate/* routes take a model of
+ * their own and stay closed.
  *
  * What the door sends her is REBUILT here, never the caller's bytes:
  *   - the model is the pinned one (settings.json "ritaModel"): agent-rita takes
@@ -27,6 +28,7 @@ export function ritaRoute(url, method) {
   if (url.search) return null;
   if (url.pathname === "/ai/agents.json" && method === "GET") return "agents";
   if (url.pathname === "/ai/v1/query" && method === "POST") return "query";
+  if (url.pathname === "/ai/v1/feedback" && method === "POST") return "feedback";
   return null;
 }
 
@@ -87,6 +89,25 @@ export function ritaAgents(doc, model) {
     const features = { ...agent.features, "file-upload": false };
     if (plain(features.model)) features.model = { ...features.model, default: model, options: [{ label: model, value: model }] };
     put(out, id, { ...agent, features });
+  }
+  return out;
+}
+
+export const RITA_FEEDBACK_MAX = 64 * 1024;
+const VOTES = new Set(["thumbs_up", "thumbs_down"]);
+
+/** A feedback vote as the door forwards it: the six known fields, rebuilt; null to refuse (400). */
+export function ritaFeedback(body) {
+  let raw;
+  try { raw = JSON.parse(body.toString("utf8")); } catch { return null; }
+  if (!plain(raw) || !VOTES.has(raw.vote)) return null;
+  const tags = raw.tags ?? [];
+  if (!Array.isArray(tags) || !tags.every(tag => typeof tag === "string")) return null;
+  const out = { vote: raw.vote, tags };
+  for (const key of ["user_comment", "ai_response", "user_prompt", "trace_id"]) {
+    const value = raw[key] ?? "";
+    if (typeof value !== "string") return null;
+    out[key] = value;
   }
   return out;
 }
