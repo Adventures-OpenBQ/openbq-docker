@@ -7,7 +7,7 @@
     "widgetId": "ny_supply_chain_pressure_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_supply_chain_pressure"
+      "tool_id": "federal_reserve_ny_supply_chain_pressure"
     },
     "params": [
       {
@@ -78,7 +78,7 @@
     "widgetId": "ny_corporate_bond_distress_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_corporate_bond_distress"
+      "tool_id": "federal_reserve_ny_corporate_bond_distress"
     },
     "params": [
       {
@@ -163,7 +163,7 @@
     "widgetId": "ny_consumer_expectations_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_consumer_expectations"
+      "tool_id": "federal_reserve_ny_consumer_expectations"
     },
     "params": [
       {
@@ -406,7 +406,7 @@
     "widgetId": "ny_business_leaders_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_business_leaders"
+      "tool_id": "federal_reserve_ny_business_leaders"
     },
     "params": [
       {
@@ -484,7 +484,7 @@
     "widgetId": "ny_empire_state_manufacturing_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_empire_state_manufacturing"
+      "tool_id": "federal_reserve_ny_empire_state_manufacturing"
     },
     "params": [
       {
@@ -575,7 +575,7 @@
     "widgetId": "ny_consumer_labor_market_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_consumer_labor_market"
+      "tool_id": "federal_reserve_ny_consumer_labor_market"
     },
     "params": [
       {
@@ -646,7 +646,7 @@
     "widgetId": "ny_consumer_housing_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_consumer_housing"
+      "tool_id": "federal_reserve_ny_consumer_housing"
     },
     "params": [
       {
@@ -841,7 +841,7 @@
     "widgetId": "ny_consumer_credit_access_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_consumer_credit_access"
+      "tool_id": "federal_reserve_ny_consumer_credit_access"
     },
     "params": [
       {
@@ -938,7 +938,7 @@
     "widgetId": "ny_household_debt_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_household_debt"
+      "tool_id": "federal_reserve_ny_household_debt"
     },
     "params": [
       {
@@ -1157,7 +1157,7 @@
     "widgetId": "ny_core_trend_inflation_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_core_trend_inflation"
+      "tool_id": "federal_reserve_ny_core_trend_inflation"
     },
     "params": [
       {
@@ -1326,7 +1326,7 @@
     "widgetId": "ny_empire_state_reports_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_empire_state_reports"
+      "tool_id": "federal_reserve_ny_empire_state_reports"
     },
     "params": [
       {
@@ -1389,7 +1389,7 @@
     "widgetId": "ny_market_expectations_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_market_expectations"
+      "tool_id": "federal_reserve_ny_market_expectations"
     },
     "params": [
       {
@@ -1616,7 +1616,7 @@
     "widgetId": "ny_market_expectations_reports_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_market_expectations_reports"
+      "tool_id": "federal_reserve_ny_market_expectations_reports"
     },
     "params": [
       {
@@ -1699,7 +1699,7 @@
     "widgetId": "ny_nowcast_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_nowcast"
+      "tool_id": "federal_reserve_ny_nowcast"
     },
     "params": [
       {
@@ -1791,7 +1791,7 @@
     "widgetId": "ny_publications_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_publications"
+      "tool_id": "federal_reserve_ny_publications"
     },
     "params": [
       {
@@ -1926,7 +1926,7 @@
     "widgetId": "ny_sofr_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_sofr"
+      "tool_id": "federal_reserve_ny_sofr"
     },
     "params": [
       {
@@ -2039,7 +2039,7 @@
     "widgetId": "ny_effr_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_effr"
+      "tool_id": "federal_reserve_ny_effr"
     },
     "params": [
       {
@@ -2196,7 +2196,7 @@
     "widgetId": "ny_overnight_bank_funding_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_overnight_bank_funding"
+      "tool_id": "federal_reserve_ny_overnight_bank_funding"
     },
     "params": [
       {
@@ -2316,7 +2316,7 @@
     "widgetId": "ny_central_bank_holdings_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_central_bank_holdings"
+      "tool_id": "federal_reserve_ny_central_bank_holdings"
     },
     "params": [
       {
@@ -2630,7 +2630,7 @@
     "widgetId": "ny_primary_dealer_positioning_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_primary_dealer_positioning"
+      "tool_id": "federal_reserve_ny_primary_dealer_positioning"
     },
     "params": [
       {
@@ -2985,7 +2985,7 @@
     "widgetId": "ny_primary_dealer_fails_federal_reserve_obb",
     "mcp_tool": {
       "mcp_server": "Open Data Platform",
-      "tool_id": "ny_primary_dealer_fails"
+      "tool_id": "federal_reserve_ny_primary_dealer_fails"
     },
     "params": [
       {
