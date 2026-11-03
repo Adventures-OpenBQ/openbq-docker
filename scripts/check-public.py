@@ -13,6 +13,36 @@ from pathlib import Path
 def git(*args):
  return subprocess.check_output(['git',*args])
 
+def push_history(stream):
+ """Return roots sent by Git minus only remote roots in its update protocol.
+
+ Ref names are metadata: local names can be revisions, OIDs or '(delete)'.
+ Only validated full object IDs ever reach rev-list; no ref text is executed.
+ """
+ object_format=git('rev-parse','--show-object-format').decode().strip()
+ lengths={'sha1':40,'sha256':64}
+ if object_format not in lengths:raise ValueError('Unsupported object format')
+ length=lengths[object_format]
+ zero='0'*length
+ local_roots=set();remote_roots=set();checked=set()
+ for line in stream:
+  fields=line.split()
+  if len(fields)!=4:raise ValueError('Invalid push update')
+  _,local,_,remote=fields
+  if local==remote==zero:raise ValueError('Empty push update')
+  for oid in (local,remote):
+   if not re.fullmatch('[0-9a-f]{'+str(length)+'}',oid):raise ValueError('Invalid object ID')
+   if oid!=zero and oid not in checked:
+    # Accept commits and annotated tags that peel to commits. Missing or
+    # non-commit roots fail closed instead of silently omitting history.
+    subprocess.run(['git','rev-parse','--verify',oid+'^{commit}'],check=True,
+                   stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    checked.add(oid)
+  if local!=zero:local_roots.add(local)
+  if remote!=zero:remote_roots.add(remote)
+ if not local_roots:return None
+ return sorted(local_roots)+(['--not',*sorted(remote_roots)] if remote_roots else [])
+
 def reviewed_history_findings():
  """Exact, reviewed historical findings only; current and index scans never use these."""
  manifest=Path('scripts/public-history-findings.json')
@@ -61,7 +91,12 @@ def history_objects(history):
  return sorted(pairs)
 
 def main():
- parser=argparse.ArgumentParser();parser.add_argument('--history',nargs='*',metavar='REV',help='also scan history reachable from REVs (default: all refs)');args=parser.parse_args()
+ parser=argparse.ArgumentParser()
+ modes=parser.add_mutually_exclusive_group()
+ modes.add_argument('--history',nargs='*',metavar='REV',help='also scan history reachable from REVs (default: all refs)')
+ modes.add_argument('--pre-push',action='store_true',help='scan new history from Git pre-push updates on stdin')
+ args=parser.parse_args()
+ history=push_history(sys.stdin) if args.pre_push else (args.history or ['--all']) if args.history is not None else None
  patterns=[
   ('tailscale key',r'tskey-[A-Za-z0-9-]{10,}'),
   ('GitHub token',r'gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}'),
@@ -112,15 +147,15 @@ def main():
   if not item:continue
   meta,name=item.split('\t',1);oid=meta.split()[1]
   scan('index:'+name,git('cat-file','blob',oid))
- if args.history is not None:
-  for oid,name in history_objects(args.history or ['--all']):
+ if history is not None:
+  for oid,name in history_objects(history):
    kind=git('cat-file','-t',oid).decode().strip()
    if kind=='blob':
     scan('history:'+name,git('cat-file','blob',oid),reviewed.get((oid,name),frozenset()))
     if Path(name).name=='.DS_Store':findings.append(('history:'+name,'machine metadata'))
  for label,name in sorted(set(findings)):print('FAIL:',label,'—',name)
  if findings:return 1
- print('PASS: public-content scan'+(' including reachable history' if args.history is not None else ''))
+ print('PASS: public-content scan'+(' including reachable history' if history is not None else ''))
  return 0
 if __name__=='__main__':
  try:sys.exit(main())

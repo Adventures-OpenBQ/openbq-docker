@@ -1,0 +1,21 @@
+# Append after compose.temporaldb.yaml and compose.gateway.yaml. No PostgreSQL is
+# published here: an operator-provisioned settings database must be reachable.
+services:
+  openbq-v11:
+    env_file:
+      - ${OPENBQ_V11_ENV_FILE:?Scoped provider credentials and private capture token}
+      - ${OPENBQ_SETTINGS_ENV_FILE:?Private settings runtime DSN, stable principal and existing gateway token}
+    environment:
+      OPENBQ_SETTINGS_BACKEND: postgresql
+      OPENBQ_SETTINGS_GATEWAY_STATE: "1"
+  openbq-settings-migrate:
+    image: ${OPENBQ_V11_IMAGE:?Verified local v11 provider host image ID}
+    profiles: [settings-migrate]
+    pull_policy: never
+    read_only: true
+    env_file: ${OPENBQ_SETTINGS_MIGRATION_ENV_FILE:?Private settings migration-only DSN}
+    entrypoint: [python, -m, openbq_settings_pg.migrate_json]
+    command: [migrate]
+    networks: [openbq-internal]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]

@@ -1,0 +1,31 @@
+{
+  "status": "targeted_final_correction_passed_scoped_review_pending",
+  "source_commit": "8d259ddd06995b48febe11c3f9a56f1ab9274f0d",
+  "image_id": "sha256:36d2c63cb95dbdcb154031312920864ea1ccfe73cd76633577fdbe01f27328b3",
+  "environment_digest": "46c9c02c5d55c93b815bcb2c6c280ec12511efbfae1d9796cb831a7bd6568425",
+  "distribution": "local-docker-save; unpublished",
+  "registry_reference": null,
+  "scope": "Fresh installed final discovery error/manifest corrections and ordinary cached execution; earlier consumer/Rita/protected replay/restore proof retained separately, not rerun or relabeled.",
+  "current_provenance": "final-provenance.json",
+  "current_identity": "final-identity.json",
+  "current_runtime_archive": "final-runtime-archive.json",
+  "genuine_accepted_metadata_errors_and_execution": "final-discovery.json",
+  "large_snapshot_boundary_fixture": {
+    "evidence": "final-metadata-boundary.json",
+    "limit": "Real installed HTTP/MCP and codec against explicit metadata fixture rows, not actual accepted DuckLake snapshots above 2^53."
+  },
+  "previous_qualification": "previous-qualification.json",
+  "reuse_comparison": "final-reuse-comparison.json",
+  "previous_source": "f83abc2141af2ca3b3991df9d7e5e9c78dd44b00",
+  "previous_image_id": "sha256:8bf7945541cd8139805b6b5309d84552b05cd8d83fc9efb3b8cd09603d132007",
+  "previous_environment_digest": "c5075c0f2740f98583476d60d98234f988df92aa6773c0c6cc6120ead295b0e9",
+  "previous_explicit_protected_run_id": "d328df7e-3064-46ff-84e9-1c37a6dc0b16",
+  "current_cleanup": "final-cleanup.json",
+  "qualification_sequence": "Initial narrow gate reached successful cached execution then failed its incorrect all-jobs assertion. Corrected test-only continuation passed on identical retained services. Original pytest owner was interrupted afterward for graceful cleanup; no new fixture or image.",
+  "limits": [
+    "Local unpublished Linux arm64 only; no deployment or operator ingress qualification.",
+    "No fresh browser, Rita, protected replay, restore or legacy matrix on this image.",
+    "Actual PG cancellation exercises QueryCanceled; prior service statement-timeout test covers the deadline mechanism."
+  ],
+  "producer_evidence_directory": "temporalDB-docker/docs/releases/mcp"
+}

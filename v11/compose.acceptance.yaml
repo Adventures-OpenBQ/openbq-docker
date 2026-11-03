@@ -1,0 +1,14 @@
+# Fixture-only replica overlay. Combine with compose.temporaldb.yaml, a unique
+# project name and dedicated fixture environment/archive. Never shared stores.
+# The Python acceptance harness additionally owns bounded PostgreSQL/S3 projects,
+# browser relay/gateway, fault injection and independent restore.
+services:
+  temporaldb-api-2:
+    extends:
+      file: compose.temporaldb.yaml
+      service: temporaldb-api
+    ports: !reset []
+  temporaldb-worker-2:
+    extends:
+      file: compose.temporaldb.yaml
+      service: temporaldb-worker

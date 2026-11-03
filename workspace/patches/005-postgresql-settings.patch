@@ -1,0 +1,731 @@
+# Patch to OpenBB Workspace (https://github.com/OpenBB-finance/workspace),
+# Copyright (c) OpenBB Inc., licensed under the Apache License, Version 2.0.
+# Patch Copyright 2026 SecretoftheUniverse.com LLC.
+# SPDX-License-Identifier: Apache-2.0
+
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -77,15 +77,15 @@
+ 
+ WORKDIR $PYSETUP_PATH
+ 
+-RUN pip install --upgrade setuptools poetry
++RUN pip install poetry==2.5.1
+ 
+ COPY backend/pyproject.toml backend/poetry.lock ./
+-# Regenerate the lock if it's out of sync with pyproject.toml (e.g. after
+-# moving deps into an optional group). --no-update keeps existing pins.
+-RUN poetry lock --no-update || poetry lock
++# Use the previously recorded resolved lock; never resolve or refresh during build.
++RUN echo "d491646f3ee25c2da599a079e285084a2768eb2929f220fc4001839dc7a59f86  poetry.lock" | sha256sum -c - \
++    && poetry check --lock
+ RUN poetry install --only main
+ 
+-RUN $VENV_PATH/bin/pip install "cython>=3.0" "setuptools>=68"
++RUN $VENV_PATH/bin/pip install "cython==3.2.4" "setuptools==82.0.1"
+ 
+ RUN rm -rf $VENV_PATH/src/slowapi/poetry.lock $VENV_PATH/src/slowapi/docs/requirements.txt
+ 
+@@ -154,6 +154,9 @@
+ COPY --from=backend-compile --chown=appuser:appuser $PYSETUP_PATH/code/api ./api
+ COPY --from=backend-compile --chown=appuser:appuser $PYSETUP_PATH/code/routers ./routers
+ COPY --from=backend-compile --chown=appuser:appuser $PYSETUP_PATH/code/utilities ./utilities
++
++# Relative source/patch/helper/lock hashes only, for actual-image verification.
++COPY .workspace-patches.json ./workspace-build.json
+ 
+ # Plain-Python entry points + migrations.
+ COPY --chown=appuser:appuser backend/main.py ./
+--- a/backend/alembic/env.py
++++ b/backend/alembic/env.py
+@@ -1,3 +1,4 @@
++import os
+ import sys
+ import time
+ import traceback
+@@ -6,7 +7,7 @@
+ from logging.config import fileConfig
+ from uuid import uuid4
+ 
+-from sqlalchemy import engine_from_config, pool
++from sqlalchemy import create_engine, engine_from_config, inspect, pool, text
+ 
+ # Importing the models package registers all tables on Base.metadata.
+ import api.models  # noqa: F401, PLC0415
+@@ -24,7 +25,8 @@
+ 
+ database_url = settings.get_write_url()
+ # database_url = "mysql+pymysql://root:root@localhost:3360/sample_db?charset=utf8"
+-config.set_main_option("sqlalchemy.url", database_url)
++if settings.DATABASE_TYPE != "postgresql":
++    config.set_main_option("sqlalchemy.url", database_url)
+ 
+ 
+ def run_migrations_offline():
+@@ -39,7 +41,7 @@
+     script output.
+ 
+     """
+-    url = config.get_main_option("sqlalchemy.url")
++    url = database_url if settings.DATABASE_TYPE == "postgresql" else config.get_main_option("sqlalchemy.url")
+     context.configure(
+         url=url,
+         target_metadata=target_metadata,
+@@ -51,6 +53,55 @@
+         context.run_migrations()
+ 
+ 
++def run_postgresql_migrations():
++    # The same physical session owns the lock, checks the revision, executes DDL
++    # and releases the lock. A terminated migrator loses its session lock.
++    kwargs = settings.pg_engine_kwargs()
++    for name in ("pool_size", "max_overflow", "pool_timeout", "pool_recycle", "pool_pre_ping"):
++        kwargs.pop(name, None)
++    engine = create_engine(database_url, poolclass=pool.NullPool, **kwargs)
++    try:
++        with engine.connect() as connection:
++            deadline = time.monotonic() + settings.DB_POOL_TIMEOUT
++            acquired = False
++            try:
++                while not acquired:
++                    acquired = connection.execute(text("SELECT pg_try_advisory_lock(1791763200, 5)")).scalar_one()
++                    connection.commit()
++                    if not acquired:
++                        if time.monotonic() >= deadline:
++                            raise TimeoutError("migration lock acquisition expired")
++                        time.sleep(0.1)
++                role = os.environ.get("WORKSPACE_MIGRATION_ROLE")
++                if role:
++                    connection.exec_driver_sql("SET ROLE " + connection.dialect.identifier_preparer.quote(role))
++                    connection.commit()
++                tables = set(inspect(connection).get_table_names(schema="public"))
++                if tables and "alembic_version" not in tables:
++                    raise ValueError("unmanaged schema")
++                if tables:
++                    # This compatibility profile only accepts a complete existing
++                    # target. Never stamp/repair an unknown or partial PG layout.
++                    from scripts.workspace_migration import validate_postgres, load_manifest
++                    validate_postgres(connection, load_manifest())
++                connection.commit()
++                # Revision inspection happens here, after this session acquired
++                # the lock, including after another migrator completed.
++                context.configure(connection=connection, target_metadata=target_metadata,
++                                  user_module_prefix="model_helpers.")
++                with context.begin_transaction():
++                    context.run_migrations()
++                    from scripts.workspace_migration import validate_postgres, load_manifest
++                    validate_postgres(connection, load_manifest())
++            finally:
++                connection.rollback()
++                if acquired:
++                    connection.execute(text("SELECT pg_advisory_unlock(1791763200, 5)"))
++                    connection.commit()
++    finally:
++        engine.dispose()
++
++
+ def run_migrations_online():
+     """Run migrations in 'online' mode.
+ 
+@@ -58,6 +109,8 @@
+     and associate a connection with the context.
+ 
+     """
++    if settings.DATABASE_TYPE == "postgresql":
++        return run_postgresql_migrations()
+     is_sqlite = settings.DATABASE_TYPE == "sqlite"
+     use_redis_lock = not is_sqlite
+ 
+@@ -177,6 +230,8 @@
+ except (KeyboardInterrupt, Exception) as exc:
+     if isinstance(exc, KeyboardInterrupt):
+         print("\nMigration interrupted, releasing lock...\n\n")  # noqa: T201
++    elif settings.DATABASE_TYPE == "postgresql":
++        print("PostgreSQL migration failed (" + type(exc).__name__ + ").", file=sys.stderr)
+     else:
+         traceback.print_exc()
+         print("\n🚨🚨🚨 Migration failed, releasing lock...\n\n")  # noqa: T201
+--- a/backend/api/database.py
++++ b/backend/api/database.py
+@@ -71,6 +71,12 @@
+     with suppress(Exception):
+         from api.helpers import add_log  # noqa
+ 
++        if settings.DATABASE_TYPE == "postgresql":
++            # SQL text may itself contain literal values; neither it nor bound
++            # parameters may enter the relational log or application output.
++            add_log("query_threshold", json.dumps({"total_ms": total, "category": "database_slow_query"}), 400, "query")
++            return
++
+         # make sure parameters are not too large
+         if isinstance(parameters, list | tuple):
+             parameters = [str(param)[:100] for param in parameters]
+--- a/backend/api/models/model_helpers.py
++++ b/backend/api/models/model_helpers.py
+@@ -83,7 +83,7 @@
+         self.impl = (
+             DateTime(timezone)
+             .with_variant(MySQL_DATETIME(fsp=fsp), "mysql")
+-            .with_variant(TIMESTAMP(timezone, fsp), "postgresql")
++            .with_variant(TIMESTAMP(timezone, 6 if fsp == 3 else fsp), "postgresql")
+         )
+ 
+     def __repr__(self):
+--- a/backend/api/models/tauri_models.py
++++ b/backend/api/models/tauri_models.py
+@@ -263,7 +263,10 @@
+     )
+     content: Mapped[dict | None] = mapped_column(GzipJsonType)
+     searchable_content: Mapped[str | None] = mapped_column(Text)
+-    role: Mapped[base.ChatMessageRole] = mapped_column(Enum(base.ChatMessageRole))
++    role: Mapped[base.ChatMessageRole] = mapped_column(
++        Enum(base.ChatMessageRole, name="message_role")
++        if settings.DATABASE_TYPE == "postgresql" else Enum(base.ChatMessageRole)
++    )
+ 
+     created_date: Mapped[datetime | None] = mapped_column(
+         DATETIME(fsp=3), default=base.get_now
+--- a/backend/api/worker_tasks.py
++++ b/backend/api/worker_tasks.py
+@@ -780,6 +780,16 @@
+ async def start_background_tasks():
+     """Start all background tasks"""
+ 
++    from scripts.workspace_pg import selected_serve
++    if selected_serve():
++        # Ordinary upkeep remains active. Historic rewrite/repair jobs below
++        # must never mutate an imported account, relationship or ciphertext.
++        await reset_copilot_calls_task()
++        await entitlement_usage_task()
++        await delete_old_saves_task()
++        await delete_unconfirmed_files_task()
++        return True
++
+     await populate_dashboard_items_entity_uuid_task()
+     await reset_copilot_calls_task()
+     await entitlement_usage_task()
+--- a/backend/init-db.py
++++ b/backend/init-db.py
+@@ -21,6 +21,18 @@
+         # SQLite is file-based: there is no server to wait for and no
+         # CREATE DATABASE step, and SELECT VERSION() is not supported.
+         print("SQLite database is file-based; skipping initialization.")  # noqa
++        return
++
++    if settings.DATABASE_TYPE == "postgresql":
++        manager = get_connection()
++        try:
++            async with manager.session() as session:
++                await session.execute(text("SELECT 1"))
++        except Exception as exc:
++            print("PostgreSQL connectivity check failed (" + type(exc).__name__ + ").", file=sys.stderr)
++            raise SystemExit(1) from None
++        finally:
++            await manager.close()
+         return
+ 
+     attempts = 0
+--- a/backend/main.py
++++ b/backend/main.py
+@@ -75,12 +75,29 @@
+ 
+ @asynccontextmanager
+ async def lifespan(app: FastAPI):
+-    await helpers.init_trial_mappings()
+-    await start_background_tasks()
+-    await init_audit_listeners()
+-    if config.settings.PROMETHEUS:
+-        start_runtime_metrics()
+-    yield
++    from scripts.workspace_pg import selected_serve
++    try:
++        if not selected_serve():
++            await helpers.init_trial_mappings()
++        await start_background_tasks()
++        await init_audit_listeners()
++        if config.settings.PROMETHEUS:
++            start_runtime_metrics()
++        yield
++    finally:
++        if config.settings.DATABASE_TYPE == "postgresql":
++            from api.database import AsyncReadSessionLocal, AsyncWriteSessionLocal
++            from api.worker_tasks import WriteSession
++            try:
++                await AsyncReadSessionLocal.close()
++            finally:
++                try:
++                    await AsyncWriteSessionLocal.close()
++                finally:
++                    try:
++                        WriteSession.close()
++                    finally:
++                        WriteSession.bind.dispose()
+ 
+ 
+ if config.settings.DISABLE_CORS:
+--- a/backend/utilities/config.py
++++ b/backend/utilities/config.py
+@@ -36,6 +36,7 @@
+ from redis.asyncio.cluster import RedisCluster as AsyncRedisCluster
+ from redis.cluster import RedisCluster
+ from sqlalchemy import AsyncAdaptedQueuePool, create_engine
++from sqlalchemy.engine import URL, make_url
+ from sqlalchemy.engine.base import Engine
+ from sqlalchemy.ext.asyncio import (
+     AsyncConnection,
+@@ -85,7 +86,8 @@
+     name = self.DB_NAME
+ 
+     if self.DATABASE_TYPE == "postgresql":
+-        return f"postgresql+psycopg2://{user}:{password}@{the_host}:{the_port}/{name}"
++        return URL.create("postgresql+psycopg2", username=user, password=password,
++                          host=the_host, port=the_port, database=name)
+ 
+     return f"mysql+pymysql://{user}:{password}@{the_host}:{the_port}/{name}?charset=utf8mb4"
+ 
+@@ -106,9 +108,9 @@
+ 
+ class DatabaseEngineSettings(BaseModel):
+     pool_pre_ping: bool = True
+-    pool_size: int = 50
+-    max_overflow: int = 20  # allowed extra connections above pool_size
+-    pool_timeout: int = 30  # this is in seconds
++    pool_size: int = Field(default=50, gt=0)
++    max_overflow: int = Field(default=20, ge=0)  # allowed extra connections above pool_size
++    pool_timeout: int = Field(default=30, gt=0)  # this is in seconds
+     pool_recycle: int = 1800  # this is also in seconds
+     echo: bool = False
+     connect_args: DatabaseConnectArgs = DatabaseConnectArgs()
+@@ -128,6 +130,13 @@
+             pool_size of 26 and max_overflow of 10, allowing up to 144 connections `(4*(26+10))`.
+         """
+ 
++        if settings.DATABASE_TYPE == "postgresql":
++            for field, env in (("pool_size", "DB_POOL_SIZE"), ("max_overflow", "DB_MAX_OVERFLOW"),
++                               ("pool_timeout", "DB_POOL_TIMEOUT")):
++                if field not in self.model_fields_set:
++                    object.__setattr__(self, field, getattr(settings, env))
++            return self
++
+         limits = DB_POOL_SIZE[settings.DATABASE_TYPE]
+         self.pool_size = limits["default"]
+         self.max_overflow = limits["overflow"]
+@@ -156,11 +165,12 @@
+ 
+ class DatabaseSessionManager:
+     def __init__(self, host: str, **engine_kwargs: Any):
+-        host = host.replace("pymysql", "aiomysql").replace("psycopg2", "asyncpg")
+-
+-        is_sqlite = host.startswith("sqlite")
++        host = make_url(host)
++        is_sqlite = host.get_backend_name() == "sqlite"
++        host = host.set(drivername={"postgresql+psycopg2": "postgresql+asyncpg",
++                                    "mysql+pymysql": "mysql+aiomysql",
++                                    "sqlite": "sqlite+aiosqlite"}.get(host.drivername, host.drivername))
+         if is_sqlite:
+-            host = host.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+             # A single connection serialized through pool checkout: concurrent
+             # sessions queue for it. StaticPool must not be used here — it hands
+             # the same connection to overlapping sessions, so their transactions
+@@ -225,6 +235,13 @@
+     SSL_CA: str | None = None
+     SSL_CERT: str | None = None
+     SSL_KEY: str | None = None
++    DB_POOL_SIZE: int = Field(default=2, gt=0)
++    DB_MAX_OVERFLOW: int = Field(default=0, ge=0)
++    DB_POOL_TIMEOUT: int = Field(default=30, gt=0)
++    DB_CONNECT_TIMEOUT: int = Field(default=10, gt=0)
++    DB_STATEMENT_TIMEOUT: int = Field(default=30000, gt=0)
++    DB_LOCK_TIMEOUT: int = Field(default=5000, gt=0)
++    WORKSPACE_POSTGRES_ALLOW_PLAINTEXT: bool = False
+ 
+     @model_validator(mode="after")
+     def _validate_db_settings(self):
+@@ -270,6 +287,36 @@
+             ctx.load_cert_chain(certfile=self.SSL_CERT, keyfile=self.SSL_KEY)
+         return ctx
+ 
++    def pg_engine_kwargs(self, engine_settings=None, *, asynchronous=False):
++        """Bound every PG factory and use only that driver's verified TLS arguments."""
++        options = engine_settings or DatabaseEngineSettings()
++        kwargs = options.model_dump(exclude={"connect_args"})
++        for field, value in (("pool_size", self.DB_POOL_SIZE), ("max_overflow", self.DB_MAX_OVERFLOW),
++                             ("pool_timeout", self.DB_POOL_TIMEOUT)):
++            if field not in options.model_fields_set:
++                kwargs[field] = value
++        kwargs["hide_parameters"] = True
++        tls = self.get_ssl_config()  # validates CA and complete client certificate pair
++        if tls is None and not self.WORKSPACE_POSTGRES_ALLOW_PLAINTEXT:
++            raise ValueError("PostgreSQL TLS material is required; set WORKSPACE_POSTGRES_ALLOW_PLAINTEXT=1 to connect without TLS")
++        if asynchronous:
++            args = {"timeout": self.DB_CONNECT_TIMEOUT,
++                    "command_timeout": self.DB_STATEMENT_TIMEOUT / 1000,
++                    "ssl": tls if tls is not None else False,
++                    "server_settings": {"statement_timeout": str(self.DB_STATEMENT_TIMEOUT),
++                                        "lock_timeout": str(self.DB_LOCK_TIMEOUT),
++                                        "search_path": "public", "application_name": "openbq-workspace"}}
++        else:
++            args = {"connect_timeout": self.DB_CONNECT_TIMEOUT,
++                    "application_name": "openbq-workspace",
++                    "options": f"-c statement_timeout={self.DB_STATEMENT_TIMEOUT} -c lock_timeout={self.DB_LOCK_TIMEOUT} -c search_path=public",
++                    "sslmode": "verify-full" if tls is not None else "disable"}
++            for field, name in (("SSL_CA", "sslrootcert"), ("SSL_CERT", "sslcert"), ("SSL_KEY", "sslkey")):
++                if getattr(self, field):
++                    args[name] = getattr(self, field)
++        kwargs["connect_args"] = args
++        return kwargs
++
+     def get_read_url(self) -> str:
+         return get_url(self)
+ 
+@@ -286,6 +333,8 @@
+         }
+ 
+     def get_read_engine(self, settings: DatabaseEngineSettings | None = None) -> Engine:
++        if self.DATABASE_TYPE == "postgresql":
++            return create_engine(self.get_read_url(), **self.pg_engine_kwargs(settings))
+         if self.DATABASE_TYPE == "sqlite":
+             return create_engine(self.get_read_url(), **self._sqlite_engine_kwargs())
+         if settings is None:
+@@ -295,6 +344,8 @@
+     def get_read_session(
+         self, settings: DatabaseEngineSettings | None = None
+     ) -> DatabaseSessionManager:
++        if self.DATABASE_TYPE == "postgresql":
++            return DatabaseSessionManager(self.get_read_url(), **self.pg_engine_kwargs(settings, asynchronous=True))
+         if settings is None:
+             settings = DatabaseEngineSettings.with_custom_ssl(self.get_ssl_config())
+         return DatabaseSessionManager(self.get_read_url(), **settings.model_dump())
+@@ -305,6 +356,8 @@
+     def get_write_engine(
+         self, settings: DatabaseEngineSettings | None = None
+     ) -> Engine:
++        if self.DATABASE_TYPE == "postgresql":
++            return create_engine(self.get_write_url(), **self.pg_engine_kwargs(settings))
+         if self.DATABASE_TYPE == "sqlite":
+             return create_engine(self.get_write_url(), **self._sqlite_engine_kwargs())
+         if settings is None:
+@@ -314,6 +367,8 @@
+     def get_write_session(
+         self, settings: DatabaseEngineSettings | None = None
+     ) -> DatabaseSessionManager:
++        if self.DATABASE_TYPE == "postgresql":
++            return DatabaseSessionManager(self.get_write_url(), **self.pg_engine_kwargs(settings, asynchronous=True))
+         if settings is None:
+             settings = DatabaseEngineSettings.with_custom_ssl(self.get_ssl_config())
+         return DatabaseSessionManager(self.get_write_url(), **settings.model_dump())
+@@ -321,6 +376,8 @@
+     def get_validate_user_session(
+         self, settings: DatabaseEngineSettings | None = None
+     ) -> DatabaseSessionManager:
++        if self.DATABASE_TYPE == "postgresql":
++            return DatabaseSessionManager(self.get_write_url(), **self.pg_engine_kwargs(settings, asynchronous=True))
+         if settings is None:
+             settings = DatabaseEngineSettings.with_custom_ssl(self.get_ssl_config())
+         return DatabaseSessionManager(self.get_write_url(), **settings.model_dump())
+--- a/entrypoint.sh
++++ b/entrypoint.sh
+@@ -7,6 +7,13 @@
+ # stable across container restarts and the JWT_SECRET / OPENBB_AUTH_TOKEN
+ # pair remains consistent.
+ set -euo pipefail
++
++# Selected PG defaults to nonmutating serve. Explicit restored SQLite uses
++# this same fail-closed path before legacy key/bootstrap code can run.
++if [[ "${DATABASE_TYPE:-sqlite}" == "postgresql" || -n "${WORKSPACE_DB_ACTION:-}" ]]; then
++  cd /opt/code
++  exec python -m scripts.workspace_pg
++fi
+ 
+ DATA_DIR="${DATA_DIR:-/data}"
+ SECRETS_FILE="${DATA_DIR}/secrets.env"
+--- /dev/null
++++ b/backend/scripts/workspace_pg.py
+@@ -0,0 +1,287 @@
++"""Explicit pinned Workspace lifecycle. Imported serve performs no database writes."""
++import contextlib
++import hashlib
++import json
++import os
++from pathlib import Path
++import secrets
++import sqlite3
++import stat
++import subprocess
++import sys
++import tempfile
++
++from scripts import workspace_migration as transfer
++
++KEYS = ('JWT_SECRET', 'OPENBB_AUTH_TOKEN', 'OPENBB_AES_KEY', 'LOCAL_STORAGE_SECRET_KEY')
++OPTIONAL = ('OPENBB_ADMIN_EMAIL', 'OPENBB_ADMIN_PASSWORD', 'OPENBB_FRONTEND_USER_AGENT',
++            'OPENBB_AI_USER_AGENT', 'OPENBB_GEO_KEY', 'OPENBB_CHARGEBEE_SITE_KEY',
++            'OPENBB_CHARGEBEE_API_KEY', 'OKTA_DOMAIN')
++
++
++def selected_serve():
++    return os.environ.get('WORKSPACE_DB_ACTION',
++        'serve' if os.environ.get('DATABASE_TYPE') == 'postgresql' else '') == 'serve'
++
++
++def protected_json(path):
++    path = Path(path)
++    if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077:
++        raise ValueError('permission map must be a private regular file')
++    return json.loads(path.read_text())
++
++
++def atomic_json(path, value, *, new=False):
++    path = Path(path)
++    if path.is_symlink():
++        raise ValueError('symlink output refused')
++    fd, temporary = tempfile.mkstemp(prefix='.workspace-', dir=path.parent)
++    try:
++        with os.fdopen(fd, 'w') as output:
++            json.dump(value, output, sort_keys=True)
++            output.flush()
++            os.fsync(output.fileno())
++        if new:
++            os.link(temporary, path)
++        else:
++            os.replace(temporary, path)
++    finally:
++        Path(temporary).unlink(missing_ok=True)
++
++
++def load_keys():
++    path = Path(os.environ.get('DATA_DIR', '/data')) / 'secrets.env'
++    if path.exists():
++        if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077:
++            raise ValueError('identity file must be private')
++        for line in path.read_text().splitlines():
++            if not line or line.startswith('#'):
++                continue
++            key, separator, value = line.partition('=')
++            if not separator or key not in KEYS + OPTIONAL:
++                raise ValueError('unsupported identity-file entry')
++            if not os.environ.get(key):
++                os.environ[key] = value
++
++
++def validate_keys():
++    import jwt
++    digest = transfer.identity_digest(os.environ)
++    jwt.decode(os.environ['OPENBB_AUTH_TOKEN'], os.environ['JWT_SECRET'], algorithms=['HS256'])
++    return digest
++
++
++@contextlib.contextmanager
++def database(write=False):
++    from utilities.config import settings
++    if settings.DATABASE_TYPE == 'postgresql':
++        engine = settings.get_write_engine() if write else settings.get_read_engine()
++        try:
++            with engine.connect() as connection:
++                if write and os.environ.get('WORKSPACE_MIGRATION_ROLE'):
++                    role = connection.dialect.identifier_preparer.quote(os.environ['WORKSPACE_MIGRATION_ROLE'])
++                    connection.exec_driver_sql('SET ROLE ' + role)
++                    connection.commit()
++                yield connection, 'postgresql'
++        finally:
++            engine.dispose()
++    elif settings.DATABASE_TYPE == 'sqlite':
++        with transfer.sqlite_read(Path(settings.DB_PATH)) as connection:
++            yield connection, 'sqlite'
++    else:
++        raise ValueError('explicit lifecycle supports only PostgreSQL or restored SQLite')
++
++
++def schema(connection, dialect):
++    manifest = transfer.load_manifest()
++    if dialect == 'postgresql':
++        transfer.validate_postgres(connection, manifest)
++    elif transfer.validate_sqlite(connection, manifest)[0] != transfer.HEAD:
++        raise ValueError('restored SQLite must be at the patched head')
++
++
++def validate_runtime():
++    load_keys()
++    digest = validate_keys()
++    mapping = protected_json(os.environ['WORKSPACE_PERMISSION_MAP_FILE'])
++    if mapping.get('identity_digest') != digest:
++        raise ValueError('identity material differs from approved mapping')
++    with database() as (connection, dialect):
++        schema(connection, dialect)
++        result = transfer.permission_mapping(connection, dialect, mapping)
++        if dialect == 'postgresql':
++            ready = connection.exec_driver_sql(
++                'SELECT identity_digest,entity_uuid,inviting_uuid FROM workspace_admin.readiness WHERE singleton=true').all()
++            expected = (digest, mapping['entity_uuid'], mapping['inviting_uuid'])
++            if len(ready) != 1 or tuple(str(v) for v in ready[0]) != expected:
++                raise ValueError('database has no matching completed readiness')
++    return result
++
++
++def write_permission_mapping(value):
++    atomic_json(Path('/opt/code/user_create.json'), value)
++    if os.geteuid() == 0:
++        import pwd
++        user = pwd.getpwnam('appuser')
++        os.chown('/opt/code/user_create.json', user.pw_uid, user.pw_gid)
++
++
++def fresh_check():
++    # Only the actual seed tables may contain data. No ORM or create-if-missing.
++    with database(write=True) as (connection, dialect):
++        if dialect != 'postgresql':
++            raise ValueError('fresh bootstrap requires provisioned PostgreSQL')
++        schema(connection, dialect)
++        if connection.exec_driver_sql('SELECT count(*) FROM workspace_admin.readiness').scalar_one():
++            raise ValueError('database already initialized')
++        manifest = transfer.load_manifest()
++        if transfer.seed_signature(connection, manifest) != manifest['seed_signature']:
++            raise ValueError('bootstrap requires the known fresh seed state')
++        seeds = {'alembic_version', 'tier', 'default_tier', 'data_bundle'}
++        for table in manifest['schemas']['postgresql-' + transfer.HEAD]['schema']['tables']:
++            if table not in seeds and connection.exec_driver_sql(
++                    'SELECT EXISTS(SELECT 1 FROM public.' + transfer.identifier(table) + ')').scalar_one():
++                raise ValueError('bootstrap refuses existing application data')
++
++
++def checked_run(command, *, environment=None):
++    # Upstream scripts may log email/password or DB detail. Keep output private
++    # in memory and emit only a fixed category, including on child failure.
++    result = subprocess.run(command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
++    if result.returncode:
++        raise RuntimeError('explicit lifecycle child failed')
++
++
++def bootstrap():
++    path = Path(os.environ['WORKSPACE_PERMISSION_MAP_FILE'])
++    if path.exists() or path.is_symlink():
++        raise ValueError('bootstrap mapping destination must be new')
++    check_env = dict(os.environ)
++    check_env.setdefault('OPENBB_AES_KEY', '0' * 16)
++    check_env.setdefault('JWT_SECRET', 'offline-schema-validation')
++    checked_run([sys.executable, '-m', 'scripts.workspace_pg', 'fresh-check'], environment=check_env)
++    # Fresh bootstrap alone prepares the pinned Redis/folder companions. Imported
++    # serve never changes directory ownership or preserved identity files.
++    import pwd
++    data = Path(os.environ.get('DATA_DIR', '/data'))
++    if any(parent.is_symlink() for parent in (data, *data.parents)):
++        raise ValueError('bootstrap data symlink refused')
++    directories = [data, *(data / name for name in ('redis', 'storage', 'state'))]
++    for directory in directories:
++        if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
++            raise ValueError('bootstrap companion must be a directory')
++    user = pwd.getpwnam('appuser')
++    for directory in directories:
++        directory.mkdir(exist_ok=True, mode=0o700)
++        os.chown(directory, user.pw_uid, user.pw_gid)
++    load_keys()
++    import jwt
++    os.environ.setdefault('JWT_SECRET', secrets.token_hex(48))
++    os.environ.setdefault('OPENBB_AES_KEY', secrets.token_hex(8))
++    os.environ.setdefault('LOCAL_STORAGE_SECRET_KEY', secrets.token_urlsafe(32))
++    os.environ.setdefault('OPENBB_AUTH_TOKEN', jwt.encode({'sub': 'openbb'}, os.environ['JWT_SECRET'], algorithm='HS256'))
++    digest = validate_keys()
++    if not os.environ.get('OPENBB_ADMIN_EMAIL') or not os.environ.get('OPENBB_ADMIN_PASSWORD'):
++        raise ValueError('explicit bootstrap requires administrator inputs')
++    data = Path(os.environ.get('DATA_DIR', '/data'))
++    data.mkdir(exist_ok=True, mode=0o700)
++    secret_file = data / 'secrets.env'
++    if not secret_file.exists():
++        with open(secret_file, 'x', opener=lambda p, f: os.open(p, f, 0o600)) as output:
++            output.write(''.join(key + '=' + os.environ[key] + '\n' for key in KEYS))
++    Path('/opt/code/user_create.json').unlink(missing_ok=True)
++    cfg = Path('/opt/code/scripts/cfgs')
++    cfg.mkdir(exist_ok=True)
++    text = ('[entity]\nname="OpenBB Lite"\nseats=10000\naum=1000\ncompany_type="CORPORATION"\n'
++            'organization_size="SMALL"\ncountry="DOM"\n[[admins]]\nfirst_name="Lite"\nlast_name="Admin"\n')
++    # JSON basic strings are valid TOML strings for these validated inputs.
++    text += 'email=' + json.dumps(os.environ['OPENBB_ADMIN_EMAIL']) + '\npassword=' + json.dumps(os.environ['OPENBB_ADMIN_PASSWORD']) + '\n'
++    config_file = cfg / '.workspace-bootstrap.toml'
++    try:
++        config_file.write_text(text)
++        config_file.chmod(0o600)
++        checked_run([sys.executable, '-c', """
++import asyncio,os,tomllib
++from sqlalchemy import event
++from sqlalchemy.engine import Engine
++from sqlalchemy.dialects.postgresql import dialect
++# This listener exists only in this short-lived explicit bootstrap child.
++# All of its factories use the same migrator credentials; runtime never installs it.
++if (os.environ['READ_DB_USER'] != os.environ['WRITE_DB_USER'] or
++        os.environ['READ_DB_PASSWORD'] != os.environ['WRITE_DB_PASSWORD'] or
++        os.environ['WORKSPACE_MIGRATION_ROLE'] != 'openbq_workspace_owner'):
++    raise ValueError('explicit bootstrap requires one approved migrator identity')
++role = dialect().identifier_preparer.quote(os.environ['WORKSPACE_MIGRATION_ROLE'])
++@event.listens_for(Engine, 'connect')
++def select_bootstrap_role(connection, record):
++    cursor = connection.cursor()
++    try:
++        cursor.execute('SET ROLE ' + role)
++        connection.commit()  # initialization rollback must not undo the session role
++    finally: cursor.close()
++from scripts.init_users import Config,SetupConfig,init_trial_mappings,aget_write_db
++async def run():
++    await init_trial_mappings()
++    with open('/opt/code/scripts/cfgs/.workspace-bootstrap.toml','rb') as f: config=Config(**tomllib.load(f))
++    async for db in aget_write_db(): await SetupConfig(config,db).run()
++asyncio.run(run())
++"""])
++    finally:
++        config_file.unlink(missing_ok=True)
++    generated = json.loads(Path('/opt/code/user_create.json').read_text())
++    with database(write=True) as (connection, dialect):
++        row = connection.exec_driver_sql('SELECT entity_uuid FROM permissions_entity_map WHERE uuid=%s',
++                                        (generated['on_prem_admin_uuid'],)).one()
++        mapping = {'entity_uuid': str(row[0]), 'inviting_uuid': generated['inviting_uuid'], 'identity_digest': digest}
++        transfer.permission_mapping(connection, dialect, mapping)
++        connection.exec_driver_sql('INSERT INTO workspace_admin.readiness(singleton,identity_digest,entity_uuid,inviting_uuid) VALUES(true,%s,%s,%s)',
++                                   (digest, mapping['entity_uuid'], mapping['inviting_uuid']))
++        connection.commit()
++    atomic_json(path, mapping, new=True)
++
++
++def main():
++    action = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('WORKSPACE_DB_ACTION', 'serve')
++    if action == 'fresh-check':
++        fresh_check()
++    elif action == 'migrate':
++        # Configuration imports require these fields; maintenance never persists
++        # them or starts authentication/listeners. No runtime keys are generated.
++        os.environ.setdefault('OPENBB_AES_KEY', '0' * 16)
++        os.environ.setdefault('JWT_SECRET', 'offline-schema-validation')
++        checked_run([sys.executable, '-m', 'alembic', 'upgrade', 'head'])
++    elif action == 'bootstrap':
++        from sqlalchemy.engine import URL
++        url=URL.create('postgresql+psycopg2',username=os.environ['WRITE_DB_USER'],
++            password=os.environ['WRITE_DB_PASSWORD'],host=os.environ['DB_HOST'],
++            port=int(os.environ.get('DB_PORT','5432')),database=os.environ['DB_NAME'])
++        engine=transfer.pg_engine(url)
++        try:
++            with transfer.locked_target(engine):
++                bootstrap()
++        finally:
++            engine.dispose()
++    elif action == 'serve':
++        if os.environ.get('WORKERS', '1') != '1':
++            raise ValueError('selected profile requires one worker')
++        write_permission_mapping(validate_runtime())
++        checked_run(['/usr/local/bin/render-frontend-config.sh'])
++        template = Path('/etc/nginx/templates/default.conf.template').read_text()
++        port = int(os.environ.get('PORT', '3000'))
++        if not 1 <= port <= 65535:
++            raise ValueError('invalid port')
++        Path('/etc/nginx/sites-available/default').write_text(template.replace('${PORT}', str(port)))
++        link = Path('/etc/nginx/sites-enabled/default')
++        if not link.exists():
++            link.symlink_to('/etc/nginx/sites-available/default')
++        os.execv('/usr/local/bin/supervisord', ['supervisord', '-c', '/etc/supervisor/supervisord.conf'])
++    else:
++        raise ValueError('unsupported lifecycle action')
++
++
++if __name__ == '__main__':
++    try:
++        main()
++    except Exception as exc:
++        print('Workspace lifecycle refused (' + type(exc).__name__ + ').', file=sys.stderr)
++        raise SystemExit(1) from None

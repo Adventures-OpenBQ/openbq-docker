@@ -79,3 +79,8 @@ eod.env
 table-source/
 table-config/
 table-build.env
+# Generated immutable v11 provider archives and assembled build recipe.
+v11/build-inputs/
+
+# Local gateway dependency directories, including worktree dependency links.
+/funnel-gateway/node_modules

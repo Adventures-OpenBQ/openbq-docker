@@ -5,6 +5,7 @@
 Images are built on the Mac; these pin what every API Dockerfile must install and copy.
 """
 import re
+import shlex
 import unittest
 from pathlib import Path
 
@@ -126,6 +127,40 @@ class ApiImages(unittest.TestCase):
         self.assertIn("exec bun src/server.ts", door)
         example = dockerfile("rita-door.env.example")
         self.assertNotIn("ANTHROPIC", example.replace("# ", ""))
+
+
+def provider_install_is_locked_or_local(args):
+    tokens = shlex.split(args)
+    if "--require-hashes" in tokens:
+        return True
+    local_installs = (
+        ["--no-build-isolation", "--no-deps", "--force-reinstall", "/tmp/v11/eodhd", "/tmp/v11/yfinance"],
+        ["--no-build-isolation", "--no-deps", "/tmp/calendar-core", "/tmp/calendar-routes"],
+    )
+    return tokens in local_installs
+
+
+class V11ProviderImage(unittest.TestCase):
+    def test_local_install_policy_rejects_unlocked_index_packages(self):
+        for args in (
+            "--no-build-isolation --no-deps /tmp/calendar-core /tmp/calendar-routes extra-index-package",
+            "--no-build-isolation --no-deps extra-index-package /tmp/calendar-core /tmp/calendar-routes",
+            "--no-build-isolation --no-deps /tmp/unreviewed-package",
+            "--no-build-isolation /tmp/calendar-core /tmp/calendar-routes",
+            "--no-deps /tmp/calendar-core /tmp/calendar-routes",
+        ):
+            with self.subTest(args=args):
+                self.assertFalse(provider_install_is_locked_or_local(args))
+
+    def test_index_installs_come_only_from_the_hashed_lock(self):
+        installs = re.findall(r"pip install ([^&\\]*)", dockerfile("v11/Dockerfile.providers"))
+        self.assertIn("--require-hashes --no-deps -r /tmp/v11/providers.lock ", installs)
+        for args in installs:
+            with self.subTest(args):
+                self.assertTrue(provider_install_is_locked_or_local(args))
+        lock = (ROOT / "v11/providers.lock").read_text()
+        for name in ("hatchling==1.32.4", "setuptools==84.0.0", "yfinance==1.7.0"):
+            self.assertRegex(lock, rf"(?m)^{re.escape(name)} \\\n    --hash=sha256:")
 
 
 if __name__ == "__main__":

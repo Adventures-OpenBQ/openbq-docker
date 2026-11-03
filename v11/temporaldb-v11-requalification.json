@@ -1,0 +1,851 @@
+{
+  "date": "2026-10-19",
+  "temporaldb_image": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
+  "temporaldb_source": "d96c33823addbaa519f95c74ec23ee4700748871",
+  "provider_host_image": "sha256:ad23875af24d2cf005cf6c77d65d3f99c9f5a42a49231e7da2deacdc0a7e6ba3",
+  "harness_source": "temporalDB-docker release/v11 (harness fixes aa8c65e, 75cbc74 and the fixture-settings commit)",
+  "runtime_qualification": {
+    "command": "docs/releases/v11/final-fix-qualify-runtime.py <image> (scratch copy; disposable tmpfs PostgreSQL/S3)",
+    "exit_code": 0,
+    "elapsed_seconds": 479,
+    "report": {
+      "phase": "all",
+      "tick_migration_authority": [
+        {
+          "ticks": 2,
+          "status": "PASS",
+          "parent": "13f8fd54-e89e-45ce-a6d7-fcd4b78750e8",
+          "elapsed_seconds": 17.133460424025543,
+          "requests": [
+            [
+              1636084800,
+              1636171199
+            ],
+            [
+              1636084800,
+              1636127999
+            ],
+            [
+              1636128000,
+              1636171199
+            ]
+          ],
+          "response_bytes": [
+            86,
+            86
+          ],
+          "owner_pid": 1064,
+          "survivor_pid": 1428,
+          "owner_loss": true,
+          "owner_exit": -9,
+          "survivor_exit": null,
+          "old_fence": 1,
+          "new_fence": 7,
+          "processing": [
+            [
+              "canonical_gold",
+              "COMPLETED",
+              1800.0
+            ],
+            [
+              "session",
+              "COMPLETED",
+              1800.0
+            ]
+          ]
+        },
+        {
+          "ticks": 2,
+          "status": "FAIL",
+          "parent": "682f2d76-e80f-443c-bcf0-eb1b56065cc8",
+          "elapsed_seconds": 7.131630295072682,
+          "requests": [
+            [
+              1636084800,
+              1636171199
+            ],
+            [
+              1636084800,
+              1636127999
+            ],
+            [
+              1636128000,
+              1636171199
+            ]
+          ],
+          "response_bytes": [
+            86,
+            86
+          ],
+          "owner_pid": 2061,
+          "survivor_pid": 2423,
+          "owner_loss": false,
+          "owner_exit": null,
+          "survivor_exit": null,
+          "old_fence": null,
+          "new_fence": 5,
+          "processing": []
+        },
+        {
+          "ticks": 100001,
+          "status": "PASS",
+          "parent": "7393d34c-9e46-4e99-b50f-cc357b5cd5ab",
+          "elapsed_seconds": 199.29391529795248,
+          "requests": [
+            [
+              1636084800,
+              1636171199
+            ],
+            [
+              1636084800,
+              1636127999
+            ],
+            [
+              1636128000,
+              1636171199
+            ]
+          ],
+          "response_bytes": [
+            4488984,
+            4500002
+          ],
+          "owner_pid": 2807,
+          "survivor_pid": 3168,
+          "owner_loss": false,
+          "owner_exit": null,
+          "survivor_exit": null,
+          "old_fence": null,
+          "new_fence": 18,
+          "processing": [
+            [
+              "canonical_gold",
+              "COMPLETED",
+              1800.0
+            ],
+            [
+              "session",
+              "COMPLETED",
+              1800.0
+            ]
+          ]
+        }
+      ],
+      "managed_tick_selections": 5,
+      "managed_gold_refreshes": 6,
+      "managed_fred_selections": 1,
+      "migration": 32,
+      "status": "passed",
+      "service": "TemporalDB",
+      "platform": {
+        "system": "Linux",
+        "machine": "aarch64",
+        "release": "7.0.14-linuxkit"
+      },
+      "environment_digest": "5385ea1ebb4e3da8a04c67a865193255e3aa4961dd06c3d6a327d8da1056621d",
+      "original_execution": "a0e42048-25fd-49f7-9fbc-8d33262a3b1d",
+      "replay_execution": "3a0e2288-93db-4469-8f66-bd186cfb1e3f",
+      "audit_run": "f164a69f-f89b-4e40-8a67-f3ecfec353fb",
+      "input_manifest": {
+        "schema_version": 1,
+        "manifest_id": "d3e6c9cb-d01b-569a-bf75-4e84b005fc3a",
+        "pins": [
+          {
+            "schema_version": 1,
+            "catalog_id": "hot",
+            "snapshot_id": 5
+          }
+        ],
+        "projection_versions": {
+          "gold.eodhd.eod": "daily-v1"
+        },
+        "publication_id": "5b3be0d5-70f9-499a-a92b-e74916161205"
+      },
+      "result_hash": "8a7726bc2f19edb3cfaa400baa9ecb17d71e098ea366a16954ee9b412ceab77d",
+      "distribution": "local image; not published",
+      "proof": "actual API and worker module processes; archived original and replay",
+      "query_phases": [
+        {
+          "phase": "current",
+          "execution_id": "a0e42048-25fd-49f7-9fbc-8d33262a3b1d",
+          "states": [
+            "queued",
+            "running",
+            "succeeded"
+          ],
+          "seconds": 27.906128179980442,
+          "status": "passed",
+          "runtime_artifact": "5385ea1ebb4e3da8a04c67a865193255e3aa4961dd06c3d6a327d8da1056621d"
+        },
+        {
+          "phase": "snapshot",
+          "execution_id": "19e2f9b4-a623-4dec-b45e-a1615a6b017a",
+          "states": [
+            "queued",
+            "running",
+            "succeeded"
+          ],
+          "seconds": 18.27433246700093,
+          "status": "passed",
+          "runtime_artifact": "5385ea1ebb4e3da8a04c67a865193255e3aa4961dd06c3d6a327d8da1056621d"
+        },
+        {
+          "phase": "protect",
+          "seconds": 10.110783671028912,
+          "status": "passed"
+        },
+        {
+          "phase": "replay",
+          "execution_id": "3a0e2288-93db-4469-8f66-bd186cfb1e3f",
+          "states": [
+            "queued",
+            "running",
+            "succeeded"
+          ],
+          "seconds": 16.447185633005574,
+          "status": "passed",
+          "runtime_artifact": "5385ea1ebb4e3da8a04c67a865193255e3aa4961dd06c3d6a327d8da1056621d"
+        }
+      ],
+      "archive_mode": "provisioned writable",
+      "evidence_mode": "archive shared RW"
+    }
+  },
+  "installed_provider_host": {
+    "test": "tests/test_installed_provider_host.py",
+    "result": "1 passed (rebuilt image after the v10.0.0 merge, openbq-eodhd/openbq-yfinance 11.0.0)"
+  },
+  "installed_topology": {
+    "test": "tests/test_installed_host_topology.py (TEMPORALDB_TEST_INSTALLED_TOPOLOGY=1)",
+    "result": "2 passed in 207.60s (rebuilt provider host after the v10.0.0 merge)",
+    "report": {
+      "project": "task3-topology-71b7d1a6dc",
+      "temporaldb_image": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
+      "provider_image": "sha256:ad23875af24d2cf005cf6c77d65d3f99c9f5a42a49231e7da2deacdc0a7e6ba3",
+      "source_commit": "d96c33823addbaa519f95c74ec23ee4700748871",
+      "boundary": "final installed Linux runtime and reviewed provider/settings image; recorded HTTPS/SDK captures",
+      "checks": [
+        {
+          "kind": "success",
+          "provider": "eodhd",
+          "symbol": "TEST",
+          "before": {
+            "source": {
+              "eodhd": 0,
+              "yfinance": 0
+            },
+            "durable": {
+              "captures": [],
+              "reservations": 0
+            }
+          },
+          "after": {
+            "source": {
+              "eodhd": 1,
+              "yfinance": 0
+            },
+            "durable": {
+              "captures": [
+                [
+                  "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ]
+              ],
+              "reservations": 1
+            }
+          }
+        },
+        {
+          "kind": "success",
+          "provider": "yfinance",
+          "symbol": "TEST",
+          "before": {
+            "source": {
+              "eodhd": 1,
+              "yfinance": 0
+            },
+            "durable": {
+              "captures": [
+                [
+                  "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ]
+              ],
+              "reservations": 1
+            }
+          },
+          "after": {
+            "source": {
+              "eodhd": 1,
+              "yfinance": 1
+            },
+            "durable": {
+              "captures": [
+                [
+                  "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "989156bc-0b23-47d7-a554-9acdad03711b",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ]
+              ],
+              "reservations": 2
+            }
+          }
+        },
+        {
+          "kind": "success",
+          "provider": "eodhd",
+          "symbol": "FRESH",
+          "before": {
+            "source": {
+              "eodhd": 1,
+              "yfinance": 1
+            },
+            "durable": {
+              "captures": [
+                [
+                  "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "989156bc-0b23-47d7-a554-9acdad03711b",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ]
+              ],
+              "reservations": 2
+            }
+          },
+          "after": {
+            "source": {
+              "eodhd": 2,
+              "yfinance": 1
+            },
+            "durable": {
+              "captures": [
+                [
+                  "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "35f131eb-b91d-4db6-a683-59aa7d768948",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "FRESH.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "989156bc-0b23-47d7-a554-9acdad03711b",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ]
+              ],
+              "reservations": 3
+            }
+          }
+        },
+        {
+          "kind": "success",
+          "provider": "yfinance",
+          "symbol": "FRESH",
+          "before": {
+            "source": {
+              "eodhd": 2,
+              "yfinance": 1
+            },
+            "durable": {
+              "captures": [
+                [
+                  "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "35f131eb-b91d-4db6-a683-59aa7d768948",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "FRESH.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "989156bc-0b23-47d7-a554-9acdad03711b",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ]
+              ],
+              "reservations": 3
+            }
+          },
+          "after": {
+            "source": {
+              "eodhd": 2,
+              "yfinance": 2
+            },
+            "durable": {
+              "captures": [
+                [
+                  "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "35f131eb-b91d-4db6-a683-59aa7d768948",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "FRESH.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "598c231b-2766-452c-9a42-c7a61213ba46",
+                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "FRESH",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "989156bc-0b23-47d7-a554-9acdad03711b",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ]
+              ],
+              "reservations": 4
+            }
+          }
+        },
+        {
+          "kind": "rejected",
+          "name": "BADBEARER",
+          "statuses": {
+            "eodhd": 401,
+            "yfinance": 401
+          },
+          "state": {
+            "source": {
+              "eodhd": 2,
+              "yfinance": 2
+            },
+            "durable": {
+              "captures": [
+                [
+                  "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "35f131eb-b91d-4db6-a683-59aa7d768948",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "FRESH.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "598c231b-2766-452c-9a42-c7a61213ba46",
+                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "FRESH",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "989156bc-0b23-47d7-a554-9acdad03711b",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ]
+              ],
+              "reservations": 4
+            }
+          }
+        },
+        {
+          "kind": "rejected",
+          "name": "FOREIGN",
+          "statuses": {
+            "eodhd": 502,
+            "yfinance": 502
+          },
+          "state": {
+            "source": {
+              "eodhd": 2,
+              "yfinance": 2
+            },
+            "durable": {
+              "captures": [
+                [
+                  "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "35f131eb-b91d-4db6-a683-59aa7d768948",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "FRESH.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "598c231b-2766-452c-9a42-c7a61213ba46",
+                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "FRESH",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "989156bc-0b23-47d7-a554-9acdad03711b",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ]
+              ],
+              "reservations": 4
+            }
+          }
+        },
+        {
+          "kind": "rejected",
+          "name": "MISSING",
+          "statuses": {
+            "eodhd": 502,
+            "yfinance": 502
+          },
+          "state": {
+            "source": {
+              "eodhd": 2,
+              "yfinance": 2
+            },
+            "durable": {
+              "captures": [
+                [
+                  "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "35f131eb-b91d-4db6-a683-59aa7d768948",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "FRESH.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "598c231b-2766-452c-9a42-c7a61213ba46",
+                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "FRESH",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "989156bc-0b23-47d7-a554-9acdad03711b",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ]
+              ],
+              "reservations": 4
+            }
+          }
+        },
+        {
+          "kind": "rejected",
+          "name": "INVALID",
+          "statuses": {
+            "eodhd": 502,
+            "yfinance": 502
+          },
+          "state": {
+            "source": {
+              "eodhd": 2,
+              "yfinance": 2
+            },
+            "durable": {
+              "captures": [
+                [
+                  "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "35f131eb-b91d-4db6-a683-59aa7d768948",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "FRESH.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "598c231b-2766-452c-9a42-c7a61213ba46",
+                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "FRESH",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "989156bc-0b23-47d7-a554-9acdad03711b",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ]
+              ],
+              "reservations": 4
+            }
+          }
+        },
+        {
+          "kind": "rejected",
+          "name": "CAPTUREDOWN",
+          "statuses": {
+            "eodhd": 502,
+            "yfinance": 502
+          },
+          "state": {
+            "source": {
+              "eodhd": 2,
+              "yfinance": 2
+            },
+            "durable": {
+              "captures": [
+                [
+                  "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "TEST.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "35f131eb-b91d-4db6-a683-59aa7d768948",
+                  "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+                  "eodhd",
+                  "requests-decoded-content",
+                  "FRESH.US",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "598c231b-2766-452c-9a42-c7a61213ba46",
+                  "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "FRESH",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ],
+                [
+                  "989156bc-0b23-47d7-a554-9acdad03711b",
+                  "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+                  "yfinance",
+                  "sdk_decoded_v1",
+                  "TEST",
+                  "11111111-1111-4111-8111-111111111111",
+                  "paid"
+                ]
+              ],
+              "reservations": 4
+            }
+          }
+        }
+      ],
+      "gateway_image": "sha256:5c01aa49358c9f55a7837ec4d235b5d7ad375c01a2b488f2df00b472f93b0de5",
+      "rendered_images": {
+        "temporaldb-api": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
+        "provision": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
+        "openbq-v11": "sha256:ad23875af24d2cf005cf6c77d65d3f99c9f5a42a49231e7da2deacdc0a7e6ba3"
+      },
+      "networks": {
+        "funnel-gateway": [
+          "openbq-internal",
+          "table-private",
+          "task3-ingress"
+        ],
+        "openbq-v11": [
+          "openbq-internal"
+        ],
+        "temporaldb-api": [
+          "openbq-internal"
+        ],
+        "recorded-source": [
+          "openbq-internal"
+        ],
+        "postgres": [
+          "openbq-internal",
+          "task3-ingress"
+        ],
+        "s3": [
+          "openbq-internal",
+          "task3-ingress"
+        ]
+      },
+      "running_api": {
+        "image": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
+        "source": "d96c33823addbaa519f95c74ec23ee4700748871"
+      },
+      "discovery_status": 200,
+      "widgets_discovery": {
+        "status": 200,
+        "widgets": 1053
+      },
+      "missing_token_startup_refusal": {
+        "status": "running",
+        "exit": 0,
+        "restarts": 1
+      },
+      "final": {
+        "source": {
+          "eodhd": 2,
+          "yfinance": 2
+        },
+        "durable": {
+          "captures": [
+            [
+              "1272c13e-7ca6-4eb3-8e5a-59dee6f016dc",
+              "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+              "eodhd",
+              "requests-decoded-content",
+              "TEST.US",
+              "11111111-1111-4111-8111-111111111111",
+              "paid"
+            ],
+            [
+              "35f131eb-b91d-4db6-a683-59aa7d768948",
+              "6a14d5b754bc0c79b2b873615d1dad1451e42265a2291ac27ce8a49ca9efcb89",
+              "eodhd",
+              "requests-decoded-content",
+              "FRESH.US",
+              "11111111-1111-4111-8111-111111111111",
+              "paid"
+            ],
+            [
+              "598c231b-2766-452c-9a42-c7a61213ba46",
+              "5ed3e0057b295ad7ed30d1a6ddd1d2209380c3ae236042fec46e0db9377ae593",
+              "yfinance",
+              "sdk_decoded_v1",
+              "FRESH",
+              "11111111-1111-4111-8111-111111111111",
+              "paid"
+            ],
+            [
+              "989156bc-0b23-47d7-a554-9acdad03711b",
+              "18b79ca6e11cd21dff91949f23911ba24f3fb9444210c63187260f07635748bb",
+              "yfinance",
+              "sdk_decoded_v1",
+              "TEST",
+              "11111111-1111-4111-8111-111111111111",
+              "paid"
+            ]
+          ],
+          "reservations": 4
+        }
+      },
+      "success": true,
+      "remaining_containers": []
+    }
+  },
+  "not_covered": "live acquisition, NAS load, public OAuth, packaged native app, Tailscale Services on a live tailnet",
+  "provider_host_rebuild": "Rebuilt 2026-10-19 on openbq-docker c979200 (merge of v10.0.0 2c2067e: full API image, served v9 examples) from openbq-eodhd 44f51b1 and openbq-yfinance d867c8b (11.0.0); runtime qualification unchanged (same TemporalDB image)."
+}

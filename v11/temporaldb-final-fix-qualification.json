@@ -1,0 +1,53 @@
+{
+  "tick_migration_authority": {
+    "prevalidation_head_preserved": true,
+    "pass_published": true,
+    "fail_head_preserved": true,
+    "ordinary_refresh_excludes_failed_migration": true,
+    "gold_tick_query_honors_authority": true,
+    "old_gold_unchanged": true
+  },
+  "managed_tick_selections": 3,
+  "managed_gold_refreshes": 5,
+  "managed_fred_selections": 1,
+  "migration": 22,
+  "status": "passed",
+  "service": "TemporalDB",
+  "platform": {
+    "system": "Linux",
+    "machine": "aarch64",
+    "release": "7.0.14-linuxkit"
+  },
+  "environment_digest": "9f0b21be24400f99cb7bb3e6bbe3395b75a52a7d68719761b4224fe36cd876f8",
+  "original_execution": "da6f9828-9372-403a-a432-4740f4b15f51",
+  "replay_execution": "1d8ec244-a9f9-403a-ad77-45075474c7ed",
+  "audit_run": "c0cb31ed-3748-4ab7-870b-4712a829405f",
+  "input_manifest": {
+    "schema_version": 1,
+    "manifest_id": "76dd60f1-03f5-5f05-bf07-37406226f26f",
+    "pins": [
+      {
+        "schema_version": 1,
+        "catalog_id": "hot",
+        "snapshot_id": 8
+      }
+    ],
+    "projection_versions": {
+      "gold.eodhd.eod": "daily-v1"
+    },
+    "publication_id": "b2772008-1201-40b1-b78b-c73b11f6e310"
+  },
+  "result_hash": "dccc6e8e43d6c636a87fa1474481ff7e8d9bbf4ff55d0134f306b27721840cbc",
+  "distribution": "local image; not published",
+  "proof": "actual API and worker module processes; archived original and replay",
+  "version": "0.3.2",
+  "source_commit": "d66e6b965558c5fa0b1718c5a801a1fb536254c8",
+  "image_id": "sha256:b516e4500208fa30711b259ceca7fd041be82dad8c0490101ac5ed4576f295e8",
+  "qualification_scope": "Installed runtime API/worker/archive smoke, not complete v11 acceptance",
+  "limits": [
+    "Recorded local fixtures; no live provider or NAS qualification",
+    "Migration authority scenario uses recorded capture callbacks; configured installed handler evidence is separate",
+    "Required split-session daily migration is not implemented",
+    "Separate-restore source diagnostic blocked by absent Docker CLI inside runtime image"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "tick_migration_authority": {
+    "prevalidation_head_preserved": true,
+    "pass_published": true,
+    "fail_head_preserved": true,
+    "ordinary_refresh_excludes_failed_migration": true,
+    "gold_tick_query_honors_authority": true,
+    "old_gold_unchanged": true
+  },
+  "managed_tick_selections": 3,
+  "managed_gold_refreshes": 5,
+  "managed_fred_selections": 1,
+  "migration": 15,
+  "status": "passed",
+  "service": "TemporalDB",
+  "platform": {
+    "system": "Linux",
+    "machine": "aarch64",
+    "release": "7.0.14-linuxkit"
+  },
+  "environment_digest": "088a982689f253d1eb690422d37b0276d9cc07d8407149ce36b3c4052e9f51ae",
+  "original_execution": "e99518cb-bf7b-4eeb-a3e1-9978e2680555",
+  "replay_execution": "7af06c2b-5a97-4478-a078-849d775aaea2",
+  "audit_run": "0a7b3ffe-de65-4d21-a1ff-f4f7098f6280",
+  "input_manifest": {
+    "schema_version": 1,
+    "manifest_id": "b3710db2-6a86-46a1-8e6e-b8b8b6ffe255",
+    "pins": [
+      {
+        "schema_version": 1,
+        "catalog_id": "hot",
+        "snapshot_id": 8
+      }
+    ],
+    "projection_versions": {
+      "eodhd.eod": "runtime-normalizers-1:2e6ea058f9dd2542d21e3360f85d764e95987110aa4a914bac756ed60c887b37"
+    },
+    "publication_id": "ff85d197-190f-445c-9b25-3357ef27de4f"
+  },
+  "result_hash": "cf939a37d5a1797c56bc351fcb72f3e0dbe184893a9253d68006066f461aa9f7",
+  "distribution": "local image; not published",
+  "proof": "actual API and worker module processes; archived original and replay",
+  "image_id": "sha256:2e5c1db261105b7d5cb825151ee2c3106f2aed5f670c990c25f7f330a0e08930",
+  "source_commit": "b0484c562e7be747eec3614d2186d72cd83f9162",
+  "artifact_sha256": "30471547e33619fbcb6d40b3fb6c7bdf1c955254b2126f114e18b763865e4cfd",
+  "qualification_harness_commit": "b0484c562e7be747eec3614d2186d72cd83f9162",
+  "retained_native_loader": "retained Python, imported native/application modules and /proc/self/maps libpython paths verified under materialized archive"
+}

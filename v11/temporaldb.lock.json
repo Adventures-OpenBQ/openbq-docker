@@ -1,0 +1,125 @@
+{
+  "host_compatibility": 11,
+  "client_compatibility": 11,
+  "service": "TemporalDB",
+  "version": "0.5.0",
+  "source_commit": "e5f49ffddc11ca72da7e74b3b31bd9a71098865b",
+  "image_id": "sha256:4cfb00a549291940c16fbc53b1d0e42ce5a6cd21da9a51715c7752ef30f21f00",
+  "platform": "linux/arm64",
+  "artifact": "temporaldb-0.5.0-linux-arm64.docker.tar",
+  "artifact_sha256": "13898298b6abdb44ebb83410a3b7f60924482c6a5679349c0bc566c35fb7e952",
+  "distribution": "local-docker-save; unpublished",
+  "registry_reference": null,
+  "provenance": {
+    "image_id": "sha256:4cfb00a549291940c16fbc53b1d0e42ce5a6cd21da9a51715c7752ef30f21f00",
+    "platform": "linux/arm64",
+    "labels": {
+      "org.opencontainers.image.revision": "e5f49ffddc11ca72da7e74b3b31bd9a71098865b",
+      "org.opencontainers.image.source": "https://github.com/Adventures-OpenBQ/temporalDB-docker",
+      "org.opencontainers.image.title": "TemporalDB",
+      "org.opencontainers.image.version": "0.5.0"
+    },
+    "version": "0.5.0",
+    "source_commit": "e5f49ffddc11ca72da7e74b3b31bd9a71098865b",
+    "source_date_epoch": "1793638301",
+    "artifact": "temporaldb-0.5.0-linux-arm64.docker.tar",
+    "artifact_sha256": "13898298b6abdb44ebb83410a3b7f60924482c6a5679349c0bc566c35fb7e952",
+    "distribution": "local-docker-save; unpublished",
+    "registry_reference": null,
+    "build_command": "scripts/build_release.py --platform linux/arm64",
+    "lock_sha256": "b0a1d48c8df4342988733efea31c576287b4be487b4c2453b8dbc34d4c2ae367",
+    "extension_lock_sha256": "17f302af620e7342dc96315d6fbc39f4523e8eb75b509aa660438eb914f69f8f"
+  },
+  "providers": {
+    "eodhd": {
+      "reviewed_commit": "44f51b1c93eb737b007ab85344e7314bf3c889a9"
+    },
+    "yfinance": {
+      "reviewed_commit": "d867c8bb64fda4dc843146a44f46ec7ca17e0ae8"
+    }
+  },
+  "qualification_report": null,
+  "candidate_qualification": {
+    "status": "built_archive_verified_assembly_pending",
+    "reason": "Fresh current public v11 image and Docker-save layer/config hashes verified; previous donor runtime qualification does not qualify this assembled image.",
+    "historical_source_commit": "efd560cb6bbbf6b4eeccdc9d84999e90c94598b3",
+    "historical_image_id": "sha256:8c000e0415e773ec10d9db9d1793bef0bd2979e6f30abc741d7a8e26d6e4ded9"
+  },
+  "provider_host": {
+    "version": "11.0.0",
+    "image_id": "sha256:ad23875af24d2cf005cf6c77d65d3f99c9f5a42a49231e7da2deacdc0a7e6ba3",
+    "platform": "linux/arm64",
+    "distribution": "local build; unpublished",
+    "registry_reference": null,
+    "sources": {
+      "eodhd": {
+        "commit": "44f51b1c93eb737b007ab85344e7314bf3c889a9",
+        "archive_sha256": "da58a2767b18ad2087eb15c1ae69de4f568c9c74c4de0a39528fd287e56315ec",
+        "distribution": "verified local clean commit archive; remote availability not asserted"
+      },
+      "yfinance": {
+        "commit": "d867c8bb64fda4dc843146a44f46ec7ca17e0ae8",
+        "archive_sha256": "b61b6be5d672497db521978fb58b61a89059dcccfdc003c5d47607f3a8b826a7",
+        "distribution": "verified local clean commit archive; remote availability not asserted"
+      }
+    },
+    "qualification": "Requalified 2026-10-19: installed provider host and topology tests passed against this image (temporaldb-v11-requalification.json).",
+    "settings_source_commit": "41008a1e4a7d1aafce877d5fdce69571f6c57c49",
+    "installed_source_hashes": {
+      "v3/openbq_settings.py": "26018e9b609aca93e3e04adf126d12631533fe436a5ec3e614dd0c5b4e8a9ee9",
+      "v11/settings/README.md": "dfd5340537e7650d903e7b324f523ed0c96babf0c795e24cd6fec291432d7338",
+      "v11/settings/schema.sql": "26bd0a500474688cb3eff4507f5a61fa14e970b2793df365c8db8f3b6e334e26",
+      "v11/settings/store.py": "d268fc62402e427fa959d37599c7719d2d207cca603972ce7e25add3a6898e6d",
+      "v11/settings/openbb.toml": "8010bc1373ba4ad3f141a18f33c120b4270da860dc43f8c66deeb938a8998487",
+      "v11/settings/private_state.py": "0a3dbf60243ba29a89a0fda824f9b2aa8b659307fc59c5e0d33a982f856bab9c",
+      "v11/settings/verify-settings.sh": "17b6c020d313bc2a6f72f18264c517dafd364f484fb57f6c30898c4acfd35caa",
+      "v11/settings/config.py": "6ce989f5b5647ea0dbf082aff90c15594f5edbd7e2890456155e41681ce9aaf4",
+      "v11/settings/launch.py": "5433a3e1b78f147599fa2fba2a54d028c3346eca03b0c1ad69195f229f917fce",
+      "v11/settings/provision.sql": "6093e0db0fe7183bb80cedaf181022aba5a64698bbaed35178cd24f141777fcc",
+      "v11/settings/requirements.lock": "a170e2a10c9104242f29ae6c6cd696306a4e4fe8b476a6d834fc257f32c995f8",
+      "v11/settings/health.py": "f6b91fd3f0fec6a89158ec8dbacc8eb4502b3cf702bd5adb3f7973552879415a",
+      "v11/settings/__init__.py": "07e64b78a898d13caad5d7889176835a4564b8d54f08cdc639ceae6436045020",
+      "v11/settings/migrate_json.py": "a2353c486ac79c95a808c4883c2afc548791b25a176420c52d0cf49eedc95257",
+      "v11/settings/fixtures/browser.mjs": "272ac15ba2217316352ad2a3ff6559d2ca42da6f1635a953d60863b473facacb",
+      "v11/settings/fixtures/gateway.mjs": "d3dcacce79896b562c95dc93fb541251918151ec52bea3f8f33eedf9bbc1d206",
+      "v11/settings/fixtures/json-syntax.mjs": "7909f6ac3787fd3787fe24e96df7b516d6c9cdb92c1947cb792ba2ad361019b2",
+      "v11/settings/tests/verify_fixture.py": "6d1c5fe5a3e38f899e84fdea90a827c3a60f05dfb23b9fddee1bce05ecaed426",
+      "v11/settings/tests/test_contracts.py": "1b28f658eae81836d7d1151067a2861cc7217138eafc415740c76c2d386dd837",
+      "v11/settings/tests/verify_encoding.py": "e1e8cec387d135a550288c8d9107b4f0c9825f335016bcfa427c8951e3460fc9"
+    }
+  },
+  "previous_runtime": {
+    "source_commit": "f83abc2141af2ca3b3991df9d7e5e9c78dd44b00",
+    "image_id": "sha256:8bf7945541cd8139805b6b5309d84552b05cd8d83fc9efb3b8cd09603d132007",
+    "artifact_sha256": "a4b48e7a12af673bbc0457d8590276047fa423c87c75e99f2c1b3290cb22f265",
+    "runtime_environment_digest": "c5075c0f2740f98583476d60d98234f988df92aa6773c0c6cc6120ead295b0e9",
+    "qualification_report": "temporaldb-mcp-previous-qualification.json"
+  },
+  "previous_runtimes": [
+    {
+      "source_commit": "eb2c00da1ef2eb8279a3858e8f0828a15499d3e2",
+      "image_id": "sha256:11dfd7a836cf31fc53785ffdfc33d35f7a279188e846a6cc9147dd05da86abda",
+      "artifact_sha256": "a007be571da1dd0503d6845484b98d311bec6880c842963e1021786c3492be60",
+      "qualification_report": null
+    },
+    {
+      "source_commit": "d96c33823addbaa519f95c74ec23ee4700748871",
+      "image_id": "sha256:050841ff7228f5a8f5600a5ddc2eec51b63d38fefe7d65a76e31bd4dbc73589e",
+      "artifact_sha256": "ae622de144e527a89b93c5c27d572c981adce228acc148915ead027deccc6039",
+      "qualification_report": "temporaldb-v11-requalification.json"
+    },
+    {
+      "source_commit": "8d259ddd06995b48febe11c3f9a56f1ab9274f0d",
+      "image_id": "sha256:36d2c63cb95dbdcb154031312920864ea1ccfe73cd76633577fdbe01f27328b3",
+      "artifact_sha256": "a2fd9e71e0d9a3a26f86aff8beb998afe91fa2ba1b0fa2602756efe593bf3342",
+      "runtime_environment_digest": "46c9c02c5d55c93b815bcb2c6c280ec12511efbfae1d9796cb831a7bd6568425",
+      "qualification_report": "temporaldb-mcp-qualification.json"
+    },
+    {
+      "source_commit": "219e7e7dc261064e1868d0c9888e102711c3a2b0",
+      "image_id": "sha256:486634d5aa36dc29c1ae9d0f7cbf73d2328b843d33671bbcd5c9f8eadede7e7e",
+      "artifact_sha256": "3b03d312d5c7ae4d5487fd5ed17c23c76fe8c40a5c5a8e93e3f70b982f34ab24",
+      "qualification_report": "temporaldb-wholebranch-corrections-qualification.json"
+    }
+  ]
+}

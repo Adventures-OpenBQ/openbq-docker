@@ -34,6 +34,33 @@ const settings = { origin: ORIGIN,
 const secrets = { token: TOKEN, apiUsername: "testuser", apiPassword: "synthetic-password" };
 const config = () => validateConfig(settings, secrets);
 const HEADERS = { Host: new URL(ORIGIN).host, Authorization: `Bearer ${TOKEN}` };
+test("API upstream selection is explicit, fixed and independent of TemporalDB query routes", () => {
+  for (const [change, want] of [[{}, "http://openbq-api:6900"],
+    [{ apiUpstream: "v10" }, "http://openbq-api:6900"],
+    [{ apiUpstream: "v11" }, "http://openbq-v11:6900"],
+    [{ temporalDB: true }, "http://openbq-api:6900"],
+    [{ temporalDB: true, apiUpstream: "v11" }, "http://openbq-v11:6900"]]) {
+    const cfg = validateConfig({ ...settings, ...change }, { ...secrets, temporalToken: "separate_temporal_fixture_token_123456" });
+    assert.equal(cfg.apiOrigin, want);
+    assert.equal(cfg.temporalDB, change.temporalDB ?? false);
+  }
+  for (const apiUpstream of [null, true, 11, "", "v12", "http://arbitrary:6900"]) {
+    assert.throws(() => validateConfig({ ...settings, apiUpstream }, secrets));
+  }
+  assert.throws(() => validateConfig({ ...settings, apiOrigin: "http://openbq-v11:6900" }, secrets));
+});
+
+test("gateway uses the selected provider origin and never retries a failed v11 request", async t => {
+  const selected = validateConfig({ ...settings, apiUpstream: "v11" }, secrets);
+  const calls = [];
+  const { port } = await fixture(t, selected, { requestJson: async (path, cfg) => {
+    calls.push([path, cfg.apiOrigin, cfg.apiAuthorization]);
+    throw new Error("selected upstream unavailable");
+  } });
+  const path = "/api/api/v1/eodhd/equity/price/historical?symbol=TEST&start_date=2021-11-05&end_date=2021-11-06&provider=eodhd";
+  assert.equal((await http(port, path)).status, 502);
+  assert.deepEqual(calls, [[path, "http://openbq-v11:6900", "Basic " + Buffer.from("testuser:synthetic-password").toString("base64")]]);
+});
 const quote = "/api/api/v1/equity/price/quote?symbol=AAPL&provider=eodhd";
 const news = "/news/api/news?feed_id=7&limit=1";
 async function fixture(t, overrides = {}, dependencies = {}) {
@@ -512,6 +539,50 @@ test("root manifests are gzipped for a caller that accepts gzip; data routes and
   // A data route is never encoded, whatever the caller accepts.
   const data = await http(port, "/ref/metric_widget", gzip);
   assert.equal(data.headers["content-encoding"], undefined);
+});
+
+// Adapted at the release/v11 merge: main's MANIFEST_MAX (16 MiB, every root manifest, both
+// upstreams) supersedes the codex branch's v11-only 8 MiB budget, so v10 now admits the same
+// catalogue and the oversize probes sit just past 16 MiB.
+test("v11's exact widgets discovery admits the installed catalogue within MANIFEST_MAX (16 MiB)", async t => {
+  let mode = "catalogue";
+  const paths = [];
+  const upstream = createServer((req, res) => {
+    paths.push(req.url);
+    const headers = { "Content-Type": "application/json" };
+    if (mode === "declared-over") {
+      res.writeHead(200, { ...headers, "Content-Length": 16 * 1024 * 1024 + 1 });
+      res.flushHeaders(); // Never send a body: declared oversize must reject immediately.
+      return;
+    }
+    if (mode === "encoded") headers["Content-Encoding"] = "gzip";
+    res.writeHead(200, headers);
+    // write + end guarantees chunked transport: actual bytes must enforce the limit too.
+    res.write('{"catalogue":"');
+    res.end("x".repeat(mode === "chunked-over" ? 16 * 1024 * 1024 : 5_551_214) + '"}');
+  });
+  upstream.listen(0, "127.0.0.1"); await once(upstream, "listening");
+  t.after(() => new Promise(resolve => upstream.close(resolve)));
+  const upstreamOrigin = `http://127.0.0.1:${upstream.address().port}`;
+  const selected = validateConfig({ ...settings, apiUpstream: "v11" }, secrets);
+  const v11 = await fixture(t, { ...selected, apiOrigin: upstreamOrigin }, { requestJson: getJson });
+  const v10 = await fixture(t, { apiOrigin: upstreamOrigin }, { requestJson: getJson });
+  const response = await http(v11.port, "/api/widgets.json");
+  assert.equal(response.status, 200);
+  assert.equal(JSON.parse(response.text).catalogue.length, 5_551_214);
+  assert.equal((await http(v10.port, "/api/widgets.json")).status, 200);
+  assert.equal((await http(v11.port, quote)).status, 502);
+  const beforeInvalidPaths = paths.length;
+  for (const path of ["/api/widgets.json?apiUpstream=v11", "/api/widgets.json/", "/api/%77idgets.json"]) {
+    assert.ok([404, 421].includes((await http(v11.port, path)).status));
+  }
+  assert.equal(paths.length, beforeInvalidPaths);
+  for (mode of ["chunked-over", "encoded", "declared-over"]) {
+    const response = await Promise.race([http(v11.port, "/api/widgets.json"),
+      new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error("body limit did not reject promptly")), 2000); timer.unref(); })]);
+    assert.equal(response.status, 502, mode);
+    assert.equal(response.text, '{"error":"Request refused"}');
+  }
 });
 
 test("operator verifier makes no upstream or provider calls, wire on or off", async t => {
@@ -2097,4 +2168,55 @@ test("od's SSRM cache marker never reaches the client, and a client's never reac
   }
   const spoof=await call("/api/api/v1/test/rows","POST",'{}',{"x-openbq-ssrm":"hit"});
   assert.equal(spoof.status,200); assert.equal(calls.at(-1).headers["x-openbq-ssrm"],undefined);
+});
+
+test("PostgreSQL state selection requires v11 and excludes a legacy directory", () => {
+  assert.equal(validateConfig({ ...settings, apiUpstream: "v11", stateStorage: "postgresql" }, secrets).stateStorage, "postgresql");
+  for (const patch of [{ stateStorage: "" }, { stateStorage: "postgresql" },
+    { stateStorage: "postgresql", apiUpstream: "v11", stateDir: "/tmp/state" }]) {
+    assert.throws(() => validateConfig({ ...settings, ...patch }, secrets));
+  }
+});
+
+test("selected remote state retains text IDs, validates admission and never falls back", async t => {
+  const seen = [];
+  const { port } = await fixture(t, { stateStorage: "postgresql", apiUpstream: "v11" }, {
+    requestState: async (method, id, name, body, cfg, signal) => {
+      seen.push([method, id, name]);
+      if (id === "99") throw new Error("secret unavailable");
+      return { status: 200, json: { files: { "settings.json": " {\"extension\":1} " } } };
+    },
+  });
+  assert.equal((await http(port, "/state/00042")).status, 200);
+  assert.deepEqual(seen, [["GET", "00042", undefined]]);
+  assert.equal((await http(port, "/state/99")).status, 502);
+  assert.equal((await http(port, "/state/42?x=1")).status, 404);
+  assert.equal((await http(port, "/state/42/evil.json")).status, 404);
+});
+
+test("remote state limits concurrency and releases work on client disconnect and shutdown", async t => {
+  let admitted, aborted;
+  let admission = new Promise(resolve => { admitted = resolve; });
+  let abortion = new Promise(resolve => { aborted = resolve; });
+  const { server, port } = await fixture(t, { stateStorage: "postgresql", maxConcurrent: 1 }, {
+    requestState: async (_method, id, _name, _body, _cfg, signal) => {
+      if (id === '43') return { status: 200, json: { files: {} } };
+      admitted();
+      return new Promise((_resolve, reject) => signal.addEventListener('abort', () => {
+        aborted(); reject(new Error('cancelled'));
+      }, { once: true }));
+    },
+  });
+  const start = () => {
+    const req = request({ host:'127.0.0.1', port, path:'/state/42', headers:HEADERS });
+    req.on('error', () => {}); req.end(); return req;
+  };
+  const first = start(); await admission;
+  assert.equal((await http(port, '/state/43')).status, 429);
+  first.destroy(); await abortion;
+  assert.equal((await http(port, '/state/43')).status, 200);
+  admission = new Promise(resolve => { admitted = resolve; });
+  abortion = new Promise(resolve => { aborted = resolve; });
+  start(); await admission;
+  await server.closeGateway(); await abortion;
 });

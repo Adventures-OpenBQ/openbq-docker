@@ -1,6 +1,6 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
-import json, shutil, subprocess, tempfile, unittest
+import json, os, shutil, subprocess, tempfile, unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 def config(*profiles):
@@ -31,4 +31,33 @@ class ComposeTests(unittest.TestCase):
   c=config('workspace')
   self.assertEqual(c['volumes']['workspace-data']['name'],'openbq-episode2_workspace-data')
   self.assertEqual(c['networks']['workspace-internal']['driver_opts']['com.docker.network.driver.mtu'],'1500')
+ def test_postgresql_overlay_separates_runtime_and_explicit_maintenance(self):
+  with tempfile.TemporaryDirectory() as d:
+   p=Path(d);shutil.copy(ROOT/'docker-compose.yml',p)
+   (p/'workspace').mkdir();(p/'v11').mkdir();(p/'tls').mkdir()
+   shutil.copy(ROOT/'v11/compose.workspace-postgres.yaml',p/'v11')
+   for source,target in [('workspace/runtime.env.example','workspace/runtime.env'),
+                         ('workspace/ts.env.example','workspace/ts.env'),('ts.env.example','ts.env'),
+                         ('credentials.demo.env','credentials.demo.env')]:shutil.copy(ROOT/source,p/target)
+   for name in ('runtime','migration','bootstrap'):(p/(name+'.env')).write_text('')
+   env={**os.environ,'OPENBQ_WORKSPACE_IMAGE':'workspace-synthetic:fixture',
+        'OPENBQ_WORKSPACE_ENV_FILE':str(p/'runtime.env'),
+        'OPENBQ_WORKSPACE_MIGRATION_ENV_FILE':str(p/'migration.env'),
+        'OPENBQ_WORKSPACE_BOOTSTRAP_ENV_FILE':str(p/'bootstrap.env'),
+        'OPENBQ_WORKSPACE_TLS_DIR':str(p/'tls')}
+   result=subprocess.run(['docker','compose','-f','docker-compose.yml','-f','v11/compose.workspace-postgres.yaml',
+       '--profile','workspace','--profile','workspace-maintenance','config','--format','json'],
+       cwd=p,env=env,capture_output=True,text=True,check=True)
+   services=json.loads(result.stdout)['services'];runtime=services['workspace']
+   self.assertEqual(set(runtime['networks']),{'workspace-internal','openbq-internal'})
+   self.assertEqual(runtime['environment']['WORKSPACE_DB_ACTION'],'serve')
+   self.assertNotIn('WORKSPACE_MIGRATION_ROLE',runtime['environment'])
+   self.assertEqual(runtime['environment']['DB_MAX_OVERFLOW'],'0')
+   self.assertEqual(runtime['environment']['WORKERS'],'1')
+   for name,action in [('openbq-workspace-migrate','migrate'),('openbq-workspace-bootstrap','bootstrap')]:
+    job=services[name];self.assertEqual(job['environment']['WORKSPACE_DB_ACTION'],action)
+    self.assertEqual(job['restart'],'no');self.assertEqual(set(job['networks']),{'openbq-internal'})
+    self.assertNotIn('ports',job)
+   self.assertTrue(all(v['target']!='/data' for v in services['openbq-workspace-migrate']['volumes']))
+   self.assertTrue(next(v for v in runtime['volumes'] if v['target']=='/run/workspace-tls')['read_only'])
 if __name__=='__main__': unittest.main()

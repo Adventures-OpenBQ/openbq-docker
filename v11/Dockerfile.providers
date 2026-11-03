@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+# Appended to the unchanged legacy recipe by prepare-provider-build.py.
+FROM api AS v11
+ARG EODHD_COMMIT
+ARG YFINANCE_COMMIT
+ARG EODHD_ARCHIVE_SHA256
+ARG YFINANCE_ARCHIVE_SHA256
+COPY v11/build-inputs/eodhd.tar v11/build-inputs/yfinance.tar v11/providers.lock /tmp/v11/
+RUN echo "$EODHD_ARCHIVE_SHA256  /tmp/v11/eodhd.tar" | sha256sum -c - \
+ && echo "$YFINANCE_ARCHIVE_SHA256  /tmp/v11/yfinance.tar" | sha256sum -c - \
+ && mkdir /tmp/v11/eodhd /tmp/v11/yfinance \
+ && tar -xf /tmp/v11/eodhd.tar -C /tmp/v11/eodhd \
+ && tar -xf /tmp/v11/yfinance.tar -C /tmp/v11/yfinance \
+ && python -m pip install --require-hashes --no-deps -r /tmp/v11/providers.lock \
+ && python -m pip install --no-build-isolation --no-deps --force-reinstall /tmp/v11/eodhd /tmp/v11/yfinance \
+ && python -m pip check && openbb-build \
+ && python -c "import openbq_eodhd.capture,openbq_yfinance.capture; assert hasattr(openbq_eodhd.capture.HttpCaptureBridge,'acquire'); assert hasattr(openbq_yfinance.capture.HttpCaptureBridge,'acquire')" \
+ && rm -rf /tmp/v11
+LABEL org.opencontainers.image.version="11.0.0" \
+      com.openbq.eodhd.commit=$EODHD_COMMIT \
+      com.openbq.yfinance.commit=$YFINANCE_COMMIT
+
+# Calendar v1 routes share the exact catalogue used by the maintained release lines.
+COPY calendar-core /tmp/calendar-core
+COPY v4/routes /tmp/calendar-routes
+RUN python -m pip install --no-build-isolation --no-deps /tmp/calendar-core /tmp/calendar-routes \
+ && python -m pip check && openbb-build \
+ && rm -rf /tmp/calendar-core /tmp/calendar-routes
+
+# v11 settings only; leave the legacy stages and their dependency lock untouched.
+COPY v11/settings/requirements.lock /tmp/settings-requirements.lock
+RUN python -m pip install --require-hashes --no-deps --constraint /tmp/requirements.lock -r /tmp/settings-requirements.lock \
+ && python -m pip check
+COPY v3/openbq_settings.py /usr/local/lib/python3.12/site-packages/openbq_settings.py
+COPY v11/settings /usr/local/lib/python3.12/site-packages/openbq_settings_pg
+COPY v11/settings/openbb.toml /workspace/openbb.toml
+RUN python -c "import openbq_settings, openbq_settings_pg, psycopg, psycopg_pool; assert psycopg.__version__ == '3.3.2'; assert psycopg_pool.__version__ == '3.3.0'"
+HEALTHCHECK --interval=30s --timeout=12s --start-period=600s --retries=5 CMD ["python", "-m", "openbq_settings_pg.health"]
+CMD ["python", "-m", "openbq_settings_pg.launch", "--host", "0.0.0.0", "--port", "6900"]

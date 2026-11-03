@@ -1,0 +1,56 @@
+# Additive v11 integration only. Requires separately provisioned durable stores.
+# Local immutable ID from the verified Docker-save artifact; no registry pull claim.
+x-temporaldb: &temporaldb
+  image: sha256:4cfb00a549291940c16fbc53b1d0e42ce5a6cd21da9a51715c7752ef30f21f00
+  platform: linux/arm64
+  profiles: [temporaldb-v11]
+  pull_policy: never
+  read_only: true
+  tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=67108864,mode=1777", "/run/temporaldb/runtime:rw,exec,nosuid,nodev,size=2147483648,mode=1777", "/run/temporaldb/gold:rw,noexec,nosuid,nodev,size=${TEMPORALDB_GOLD_SCRATCH_BYTES:-1073741824},uid=65532,gid=65532,mode=0700"]
+  volumes:
+    - ${TEMPORALDB_ARCHIVE_HOST:?Shared durable Linux archive}:/archive:ro
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: unless-stopped
+services:
+  temporaldb-api:
+    <<: *temporaldb
+    environment:
+      TEMPORALDB_EVIDENCE_ARCHIVE: /evidence
+      TEMPORALDB_GOLD_SCRATCH_DIRECTORY: /run/temporaldb/gold
+      TEMPORALDB_GOLD_SCRATCH_LIMIT_BYTES: ${TEMPORALDB_GOLD_SCRATCH_LIMIT_BYTES:-805306368}
+    volumes:
+      - ${TEMPORALDB_ARCHIVE_HOST:?Shared durable runtime archive}:/archive:ro
+      - ${TEMPORALDB_EVIDENCE_HOST:?Provision evidence/blobs for uid 65532}:/evidence:rw
+    env_file: ${TEMPORALDB_API_ENV_FILE:?Private API-only runtime environment}
+    command: [python, -m, temporaldb.api.app]
+    ports: ["127.0.0.1:${TEMPORALDB_PORT:-8088}:8080"]
+  temporaldb-worker:
+    <<: *temporaldb
+    environment:
+      TEMPORALDB_EVIDENCE_ARCHIVE: /evidence
+      TEMPORALDB_GOLD_SCRATCH_DIRECTORY: /run/temporaldb/gold
+      TEMPORALDB_GOLD_SCRATCH_LIMIT_BYTES: ${TEMPORALDB_GOLD_SCRATCH_LIMIT_BYTES:-805306368}
+    volumes:
+      - ${TEMPORALDB_ARCHIVE_HOST:?Shared durable runtime archive}:/archive:ro
+      - ${TEMPORALDB_EVIDENCE_HOST:?Provision evidence/blobs for uid 65532}:/evidence:ro
+    env_file: ${TEMPORALDB_WORKER_ENV_FILE:?Private worker-only runtime environment}
+    command: [python, -m, temporaldb.worker.runner]
+  openbq-v11:
+    image: ${OPENBQ_V11_IMAGE:?Verified local v11 provider host image ID}
+    platform: linux/arm64
+    profiles: [temporaldb-v11]
+    pull_policy: never
+    env_file: ${OPENBQ_V11_ENV_FILE:?Scoped provider credentials and private capture token}
+    environment:
+      EODHD_CAPTURE_REQUIRED: "1"
+      YFINANCE_CAPTURE_REQUIRED: "1"
+      EODHD_CAPTURE_URL: http://temporaldb-api:8080
+      YFINANCE_CAPTURE_URL: http://temporaldb-api:8080
+      EODHD_CAPTURE_TRUST_INTERNAL_HTTP: "1"
+      YFINANCE_CAPTURE_TRUST_INTERNAL_HTTP: "1"
+      EODHD_CAPTURE_CAPABILITY: requests-decoded-content
+      YFINANCE_CAPTURE_CAPABILITY: sdk_decoded_v1
+    ports: ["127.0.0.1:${OPENBQ_V11_PORT:-6901}:6900"]
+    depends_on: [temporaldb-api]
+    restart: unless-stopped

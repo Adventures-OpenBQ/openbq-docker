@@ -1,0 +1,52 @@
+{
+  "status": "installed_gates_passed_broad_and_final_review_pending",
+  "source_commit": "75d5389d0b68a7041b84e7e7e1f04d097d8ff9b1",
+  "image_id": "sha256:fae4ef24f77d45d8c87de6095d71515e83fda1c1eab2bad68595b6c5c42a4ec2",
+  "artifact_sha256": "e1f91f1dce98bc159caf9326d3f86841589b35b47c1b6876658862fa323153cb",
+  "runtime_platform": "linux/arm64",
+  "release_approved": false,
+  "required_gates_pending": [
+    "broad TemporalDB final inventory",
+    "final independent evidence and whole-branch review"
+  ],
+  "gates": {
+    "combined": {
+      "passed": 1,
+      "seconds": 440.3,
+      "api_processes": 2,
+      "worker_processes": 2,
+      "restore_objects": 38,
+      "restore_tables": 94,
+      "protected_record_equal": true,
+      "publication_denials_inventory_equal": true
+    },
+    "provider_topology": {
+      "passed": 2,
+      "seconds": 253.0,
+      "rendered_and_running_image_verified": true
+    },
+    "runtime": {
+      "original_full_run": "FAILED snapshot execution deadline after334.901906625s; immutable",
+      "independent_tick_phase": {
+        "ticks": 100001,
+        "status": "PASS",
+        "seconds": 162.287114283,
+        "budget_seconds": 1800
+      },
+      "ordinary_followup": {
+        "status": "PASS",
+        "seconds": 145.230508375,
+        "archive": "prebuilt identical bytes/modes; private Linux volume RO",
+        "evidence": "shared RW child processes; separate combined gate proves shipped role-specific mounts",
+        "cleanup": true
+      }
+    }
+  },
+  "limitations": [
+    "EODHD three known baseline failures",
+    "P broad aggregate pending; original five failures have focused fixes",
+    "Linux filesystem semantics only; Mac Docker bind/NAS latency and durability unqualified",
+    "Tauri packaging/signing/public OAuth/Funnel/live paid acquisition unqualified",
+    "local artifact only; no release/tag/registry/deployment approval"
+  ]
+}

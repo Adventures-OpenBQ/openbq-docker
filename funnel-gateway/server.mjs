@@ -21,6 +21,10 @@ import { ritaRoute, ritaQuery, ritaAgents, ritaFeedback, RITA_FEEDBACK_MAX } fro
 import { mcpRoute, mcpMessage, MCP_SESSION_RE, MCP_VERSION_RE } from "./mcp-policy.mjs";
 import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
 
+import { requestState as remoteState } from "./state-store.mjs";
+
+import { temporalRoute, temporalStatus } from "./temporal-policy.mjs";
+
 const MAX_BODY = 2 * 1024 * 1024;
 // The root manifests are static catalogue documents, not data: openbq-api's widgets.json is
 // 5.0 MB (998 widgets). They get their own cap; every other path keeps MAX_BODY.
@@ -233,6 +237,8 @@ export async function getJson(path, config, signal) {
     const request = send(url, { ...options, method: "GET", headers, signal }, response => {
       const type = response.headers["content-type"] ?? "", plain = !svg && /^text\/plain(?:\s*;|$)/i.test(type);
       if (response.statusCode !== 200 ||
+          (response.headers["content-encoding"] && response.headers["content-encoding"] !== "identity") ||
+          Number(response.headers["content-length"] ?? 0) > limit ||
           !(plain || (svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(type))) {
         response.destroy();
         // The STATUS travels on the error, never the body: the handler needs to tell a 404
@@ -309,6 +315,37 @@ export async function sendGrid(method, path, body, config, signal) {
   return new Promise((resolve, rejectPromise) => {
     const request = httpRequest(url, { method, headers, signal }, response => {
       const ok = response.statusCode === 200 || response.statusCode === 201;
+      if (!ok || !/^application\/json(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
+        response.destroy();
+        return resolve({ status: ok ? 502 : response.statusCode });
+      }
+      let size = 0; const parts = [];
+      response.on("data", chunk => {
+        size += chunk.length;
+        if (size > MAX_BODY) { response.destroy(); rejectPromise(new Error("Body limit")); }
+        else parts.push(chunk);
+      });
+      response.on("error", rejectPromise);
+      response.on("end", () => {
+        try { resolve({ status: response.statusCode, json: JSON.parse(Buffer.concat(parts).toString("utf8")) }); }
+        catch { rejectPromise(new Error("Invalid JSON")); }
+      });
+    });
+    request.once("error", rejectPromise);
+    request.end(body);
+  });
+}
+
+async function sendTemporal(method, path, body, config, signal) {
+  const url = new URL(path.slice("/temporal".length), config.temporalOrigin);
+  const headers = { Authorization: config.temporalAuthorization, Accept: "application/json" };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    headers["Content-Length"] = String(Buffer.byteLength(body));
+  }
+  return new Promise((resolve, rejectPromise) => {
+    const request = httpRequest(url, { method, headers, signal }, response => {
+      const ok = [200, 201, 202].includes(response.statusCode);
       if (!ok || !/^application\/json(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
         response.destroy();
         return resolve({ status: ok ? 502 : response.statusCode });
@@ -585,7 +622,7 @@ function previewPrincipal(req) {
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openNews = connectNews,
   openGrid = connectGrid, openRef = connectRef, sendSubscription = sendGrid, fetchPage = getGridPage,
-  postQuery = postRita, now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
+  requestState = remoteState, postQuery = postRita, now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
   let inflight = 0, controlInflight = 0, sockets = 0;
   // Rita's limits: turns open now (all, and whose), and each principal's query times this hour.
   // ponytail: in memory, so a restart forgets the hour; persist it if the cap ever has to survive one.
@@ -722,6 +759,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     }
   }
   const approvedIds = new Set(Object.values(config.feeds));
+  const stateCalls = new Set();
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
   const admitted = new Map();
   // The Subscriptions page, fetched from live-grid once and kept: it is the one route served
@@ -787,7 +825,28 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (origin && origin !== config.origin && !DESKTOP_ORIGINS.has(origin)) return reply(res, 403);
       if (req.method === "GET" && req.url === SUBSCRIPTIONS_PAGE) return reply(res, 503);  // live-grid off
       if (url.pathname.startsWith("/state/")) {
-        return await handleState(req, res, url, config);
+        if (config.stateStorage !== "postgresql") return await handleState(req, res, url, config);
+        const match = /^\/state\/(\d{1,20})(?:\/(.+))?$/.exec(url.pathname);
+        if (!match || url.search || (match[2] !== undefined && !stateFile(match[2]))) return reply(res, 404);
+        const [, id, name] = match;
+        if (name === undefined ? req.method !== "GET" : !["PUT", "DELETE"].includes(req.method)) return reply(res, 405);
+        if (inflight >= config.maxConcurrent) return reply(res, 429);
+        inflight++;
+        const controller = new AbortController(); stateCalls.add(controller);
+        const abort = () => controller.abort();
+        res.once("close", abort); req.once("aborted", abort);
+        try {
+          let body;
+          if (req.method === "PUT") {
+            body = await jsonBody(req, STATE_FILE_MAX);
+            if (typeof body === "number") return reply(res, body);
+          }
+          const answer = await requestState(req.method, id, name, body, config,
+            AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]));
+          return reply(res, answer.status, answer.json);
+        } finally {
+          stateCalls.delete(controller); res.off("close", abort); req.off("aborted", abort); inflight--;
+        }
       }
       if (url.pathname.startsWith("/grid/api/subscriptions")) {
         const route = subscriptionRoute(url, req.method);
@@ -802,6 +861,29 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         if (control) controlInflight++; else inflight++;
         try { return await tableExchange(req,res,table,config); }
         finally { if (control) controlInflight--; else inflight--; }
+      }
+      if (url.pathname.startsWith("/temporal/")) {
+        const route = temporalRoute(url, req.method, config);
+        if (!route) return reply(res, 404);
+        if (!config.temporalOrigin || !config.temporalAuthorization) return reply(res, 503);
+        if (inflight >= config.maxConcurrent) return reply(res, 429);
+        let body;
+        if (req.method === "POST" || req.method === "PUT") {
+          if (!/^application\/json(?:\s*;|$)/i.test(req.headers["content-type"] ?? "")) return reply(res, 415);
+          body = await jsonBody(req, 1048576);
+          if (typeof body === "number") return reply(res, body);
+        } else if (req.headers["transfer-encoding"] || (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
+        // Reading the body yields; another request may have taken the slot.
+        if (inflight >= config.maxConcurrent) return reply(res, 429);
+        inflight++;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 12000);
+        const disconnect = () => { if (!res.writableEnded) controller.abort(); };
+        res.once("close", disconnect);
+        try {
+          const answer = await sendTemporal(req.method, route.path, body, config, controller.signal);
+          return reply(res, temporalStatus(answer.status), answer.json);
+        } finally { clearTimeout(timer); res.off("close", disconnect); inflight--; }
       }
       // Off ("rita" unset), /ai is what it always was here: unmatched, its POST a 405.
       if (config.ritaUpstream && url.pathname.startsWith("/ai/")) return await handleRita(req, res, url);
@@ -1019,6 +1101,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     });
   });
   server.closeGateway = () => {
+    for (const controller of stateCalls) controller.abort();
     for (const client of wss.clients) client.terminate();
     server.closeAllConnections();
     return new Promise(resolve => server.close(resolve));

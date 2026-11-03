@@ -1,0 +1,61 @@
+# Opt in after the root compose file. Uses the retained PostgreSQL engine;
+# this overlay neither provisions nor starts a database automatically.
+services:
+  workspace:
+    image: ${OPENBQ_WORKSPACE_IMAGE:?Verified locally built patched Workspace image ID}
+    pull_policy: never
+    env_file: !override
+      - ${OPENBQ_WORKSPACE_ENV_FILE:?Private Workspace read/write runtime environment}
+    environment:
+      DATABASE_TYPE: postgresql
+      WORKSPACE_DB_ACTION: serve
+      WORKSPACE_PERMISSION_MAP_FILE: /data/permission-map.json
+      DB_POOL_SIZE: "2"
+      DB_MAX_OVERFLOW: "0"
+      DB_POOL_TIMEOUT: "30"
+      WORKERS: "1"
+    volumes:
+      - type: bind
+        source: ${OPENBQ_WORKSPACE_TLS_DIR:?Explicit Workspace TLS material directory}
+        target: /run/workspace-tls
+        read_only: true
+        bind: {create_host_path: false}
+    networks: [workspace-internal, openbq-internal]
+  openbq-workspace-migrate:
+    image: ${OPENBQ_WORKSPACE_IMAGE:?Verified locally built patched Workspace image ID}
+    pull_policy: never
+    profiles: [workspace-maintenance]
+    restart: "no"
+    env_file:
+      - ${OPENBQ_WORKSPACE_MIGRATION_ENV_FILE:?Private Workspace migrator environment only}
+    environment:
+      DATABASE_TYPE: postgresql
+      WORKSPACE_DB_ACTION: migrate
+      WORKERS: "1"
+    volumes:
+      - type: bind
+        source: ${OPENBQ_WORKSPACE_TLS_DIR:?Explicit Workspace TLS material directory}
+        target: /run/workspace-tls
+        read_only: true
+        bind: {create_host_path: false}
+    networks: [openbq-internal]
+  openbq-workspace-bootstrap:
+    image: ${OPENBQ_WORKSPACE_IMAGE:?Verified locally built patched Workspace image ID}
+    pull_policy: never
+    profiles: [workspace-maintenance]
+    restart: "no"
+    env_file:
+      - ${OPENBQ_WORKSPACE_BOOTSTRAP_ENV_FILE:?Private explicitly authorized fresh-bootstrap environment}
+    environment:
+      DATABASE_TYPE: postgresql
+      WORKSPACE_DB_ACTION: bootstrap
+      WORKSPACE_PERMISSION_MAP_FILE: /data/permission-map.json
+      WORKERS: "1"
+    volumes:
+      - workspace-data:/data
+      - type: bind
+        source: ${OPENBQ_WORKSPACE_TLS_DIR:?Explicit Workspace TLS material directory}
+        target: /run/workspace-tls
+        read_only: true
+        bind: {create_host_path: false}
+    networks: [openbq-internal]

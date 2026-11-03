@@ -74,10 +74,21 @@ def test_the_episode_6_configs_are_the_episode_3_config_plus_rita_and_mcp_tailne
         assert {k: v for k, v in serve['Web'].items() if not k.endswith((':10443', ':11443'))} == v3, name
         assert not any(serve['AllowFunnel'].values()), name
 
+def test_the_v11_config_is_the_v6_services_config_plus_two_temporaldb_services():
+    v6, v11 = _serve('serve-v6-services.json'), _serve('serve-v11.json')
+    services, base = v11.pop('Services'), v6.pop('Services')
+    assert v11 == v6
+    assert {name: services.pop(name) for name in base} == base
+    assert {name: s['Web'] for name, s in services.items()} == {
+        'svc:openbq-temporal': {'openbq-temporal.<your-tailnet>.ts.net:443': {'Handlers': {'/': {'Proxy': 'http://temporaldb-api:8080'}}}},
+        'svc:openbq-temporal-mcp': {'openbq-temporal-mcp.<your-tailnet>.ts.net:443': {'Handlers': {'/': {'Proxy': 'http://temporaldb-mcp:8081'}}}},
+    }
+    assert 'serve-v11.json' in (ROOT / 'v11/compose.tailnet.yaml').read_text()
+
 def test_every_serve_config_publishes_the_pool_on_tailnet_8088_and_never_funnels_it():
     # A News card dials :8088 whichever Serve file is live, the key-maint ones included.
     names = sorted(p.name for p in (ROOT / 'ts-config').glob('serve*.json'))
-    assert len(names) == 8, names  # serve-v6-services.json (v6 opt-in Service names) is the eighth
+    assert len(names) == 9, names  # serve-v6-services.json (v6 opt-in Service names) and serve-v11.json
     for name in names:
         serve = _serve(name)
         assert serve['TCP']['8088'] == {'HTTPS': True}, name

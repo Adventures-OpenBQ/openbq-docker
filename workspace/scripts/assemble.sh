@@ -15,7 +15,7 @@ if [[ -n "$(git -C "$source_dir" status --porcelain --untracked-files=all)" ]]; 
   exit 1
 fi
 python3 - "$source_dir" "$workspace_dir" <<'PY'
-import shutil,sys
+import hashlib,json,shutil,sys
 from pathlib import Path
 src,root=map(Path,sys.argv[1:])
 out=root/'build-context'
@@ -25,5 +25,9 @@ ignore=shutil.ignore_patterns('.git','node_modules','.venv','venv','__pycache__'
 shutil.copytree(src/'lite',out,ignore=ignore)
 shutil.copytree(src/'backend-api/backend',out/'backend',ignore=ignore)
 shutil.copytree(src/'terminalpro',out/'terminalpro',ignore=ignore)
+record={'upstream':'be00e95019a55d57af146919ee46b7e1a4859226',
+        'files':{p.relative_to(out).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
+                 for p in sorted(out.rglob('*')) if p.is_file()}}
+(out/'.workspace-source.json').write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
 print(out)
 PY

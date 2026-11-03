@@ -19,5 +19,40 @@
     "backend_lock_regenerated": true,
     "resolved_lock_sha256": "d491646f3ee25c2da599a079e285084a2768eb2929f220fc4001839dc7a59f86",
     "runtime_inventory_sha256": "204a795c9759bf83e73c14d10f92d38bd93cd568681b5454f99cbb2f34cbb189"
+  },
+  "postgresql_build": {
+    "runtime_image_id": "sha256:9b5b871ba1f000e7269056329ee254eb22936409301034bd9c0f512a32ea374c",
+    "frontend_image_id": "sha256:c229c6a509195e34f819ea9d42e05f049016c02363e93ac514125dab77da3a06",
+    "architecture": "amd64",
+    "python": "3.13.16",
+    "database_fixture_image": "postgres:16.11-alpine",
+    "runtime_inventory_sha256": "204a795c9759bf83e73c14d10f92d38bd93cd568681b5454f99cbb2f34cbb189",
+    "compiled_and_plain_modules": {
+      "api/database.cpython-313-x86_64-linux-gnu.so": "0a961ed091001b2f64ed3d66c3353757d9ea96ce336cd6f80cee8b3d0dc7dbe4",
+      "api/models/model_helpers.cpython-313-x86_64-linux-gnu.so": "ea21753d8e4284849e0033e2fc3d996a67f84cf5572b673418bbaac29eb11402",
+      "utilities/config.cpython-313-x86_64-linux-gnu.so": "8ee976f2eeb9ad8be89589a7d3ab0d673e0ac2abf597ad488d82ca9395828b7e",
+      "routers/pro/helpers.cpython-313-x86_64-linux-gnu.so": "92f7b0865bd4627d16e518ee098483b798c0ec98a0b46723205bcb51584b42ac",
+      "api/models/tauri_models.py": "6be6d9a751561bcd97b1acac034b83af3ae18954a7e433a63a6b603d9cdf14af",
+      "scripts/workspace_pg.py": "b14c8e9aab5a2b0c833afe48e638719d6136f7a017ccfb164fa2cfc0aede0bab",
+      "scripts/workspace_migration.py": "5e4a4a93d69b59446668b8c4132ea3ad283630dd5997299b95dffbae05017f7b",
+      "scripts/workspace_schema_manifest.json": "8b2c32f5e1046412dc605fc34e14c49f7d140f5c5ba97bb704e113a026fd56db"
+    },
+    "assembly": {
+      "packaged": {
+        "postgres/migrate_workspace.py": "5e4a4a93d69b59446668b8c4132ea3ad283630dd5997299b95dffbae05017f7b",
+        "postgres/schema_manifest.json": "8b2c32f5e1046412dc605fc34e14c49f7d140f5c5ba97bb704e113a026fd56db"
+      },
+      "patches": {
+        "001-pinned-build-and-bun.patch": "3121a85cf31b38d86c9a0550819f9bcad7521662072c4f1f334986849d43a84c",
+        "002-local-state-exclusions.patch": "43377f98e361bd067f760be06c54ac0f48994465cc329fe5600992f67d72dca4",
+        "003-runtime-healthcheck.patch": "538283d5161789560a669372ab481cbe5a9ab8e567022a853da9a8a8194a7a12",
+        "004-system-dashboard.patch": "f962b0b3ae4f3f4fae85bbd53d5bc08ea1f7be3056eb9e1718f678f764575914",
+        "005-postgresql-settings.patch": "eb49c9813fd2cdc7c7eaa523eaead753c13baa299d45be3d93773db1dc206ca1"
+      },
+      "resolved_lock": "d491646f3ee25c2da599a079e285084a2768eb2929f220fc4001839dc7a59f86",
+      "source_record": "5fd4b38d598772f282f8ec5244dc1201d8d428ac5312f1542665acb1428fb423",
+      "status": "complete",
+      "upstream": "be00e95019a55d57af146919ee46b7e1a4859226"
+    }
   }
 }

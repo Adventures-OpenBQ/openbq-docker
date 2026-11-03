@@ -152,6 +152,18 @@ Both API images (the `Dockerfile` stages `api` and `v3`) install the vendored op
 
 The same profile adds the S3 tier (by user ruling, from the donor line): `rustfs` (the S3 store, the upstream Apache-2.0 image `rustfs/rustfs:1.0.1`, bridge only, no port, no console), `rustfs-init` (creates the bucket over the S3 API) and `eod-dump` (at 00:05 UTC it flushes the UTC day kdb held into a Delta Lake table per symbol and day, library `ticks_live`). live-grid's chart reads whole past days back from that store, so a 1m chart over last week is built from the recorded ticks rather than provider history. Fill `rustfs.env` first (`cp rustfs.env.example rustfs.env && chmod 600 rustfs.env`; a long random root pair, written twice, as `RUSTFS_*` and `DELTA_S3_*`); without it rustfs logs a refusal once and idles unhealthy (no store, no restart loop), and kdb and live-grid run without the store. `eod.env` is optional. No MinIO software is used. The store is persistent on the host: its data lives in `./rustfs-data` (git-ignored; set `RUSTFS_DATA_DIR` in the shell or `.env` to use another disk), so it survives container recreation, image upgrades and `docker compose down -v`; the one-shot `rustfs-perms` makes that directory belong to RustFS's uid 10001 before `rustfs` starts. To build the kdb image yourself from KX's distribution (for amd64 or arm64) instead of pulling the private default, add `-f compose.kdb-build.yml` (recipe in [kdb-x/](kdb-x/README.md); it ships no KX software and no licence).
 
+## TemporalDB (v11, opt-in)
+
+v11 adds [TemporalDB](https://github.com/Adventures-OpenBQ/temporalDB-docker): durable provider capture, Bronze/Silver/Gold history and saved, time-pinned queries. Everything is additive overlays under `v11/`; the default stack and the v10 gateway policy are unchanged.
+
+- `v11/compose.temporaldb.yaml` (profile `temporaldb-v11`) runs `temporaldb-api` (loopback `127.0.0.1:8088`), `temporaldb-worker`, and `openbq-v11`, the provider host whose openbq-eodhd and openbq-yfinance write every response to TemporalDB (loopback `127.0.0.1:6901`). Both images are local builds pinned in `v11/temporaldb.lock.json`, with `pull_policy: never`.
+- `v11/compose.gateway.yaml` gives the funnel gateway a `/temporal` route (`temporalDB: true` plus `TEMPORALDB_GATEWAY_TOKEN`) and can point `/api` at the provider host (`apiUpstream: "v11"`).
+- `v11/compose.temporaldb-mcp.yaml` (profile `mcp`) runs the MCP server for Rita. It publishes no port ([v11/temporaldb-mcp.md](v11/temporaldb-mcp.md)).
+- `v11/compose.tailnet.yaml` and `ts-config/serve-v11.json` give the API and the MCP server stable tailnet names as the Tailscale Services `svc:openbq-temporal` and `svc:openbq-temporal-mcp`, on top of Episode 6's `serve-v6-services.json` names (setup in [v11/RUNBOOK.md](v11/RUNBOOK.md#tailnet-names-tailscale-services)).
+- `v11/compose.settings.yaml` and `v11/compose.workspace-postgres.yaml` move key-mode settings and workspace state into PostgreSQL ([v11/settings/README.md](v11/settings/README.md)).
+
+PostgreSQL and S3 are yours to provision. Build, setup (migrations, runtime archive, catalogs) and qualification are covered step by step in [v11/RUNBOOK.md](v11/RUNBOOK.md); [v11/MIGRATION.md](v11/MIGRATION.md) records what the recovery rehearsal does and does not cover. BDOBB v11's query library and query widget use this service.
+
 ## Public repository checks
 
 Enable the local gates after cloning:

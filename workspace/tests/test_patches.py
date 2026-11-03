@@ -10,7 +10,10 @@ class PatchTests(unittest.TestCase):
   for p in PATCHES:
    head=p.read_text().splitlines()[:4]
    self.assertIn('OpenBB-finance/workspace',head[0],p.name);self.assertIn('Apache-2.0',head[3],p.name)
-   self.assertIn(f'patch -p1 < ../patches/{p.name}',readme,p.name)
+   self.assertIn(p.name,readme,p.name)
+  self.assertIn('workspace/scripts/apply-patches.sh',readme)
+  script=(ROOT/'scripts/apply-patches.sh').read_text()
+  self.assertIn("['001','002','003','004','005']",script)
  def test_the_system_dashboard_migration_follows_the_pinned_head(self):
   text=(ROOT/'patches/004-system-dashboard.patch').read_text()
   self.assertIn('+down_revision = "0d4a342f4c26"',text)
