@@ -1,0 +1,51 @@
+{
+  "artifact_version": 1,
+  "report_sha256": "789175b6c76bb1ccf35b594987851fcc59e6bddd247d0d8516f39492cb6e2a00",
+  "responses": [
+    {
+      "bytes": 17285,
+      "path": "responses/capabilities.json",
+      "sha256": "a9cf7a80934194f6aeaa5192a6b9d48f598e6c8b71f4ebf675f54190e083df35"
+    },
+    {
+      "bytes": 8719,
+      "path": "responses/clipped_xshg_1990.json",
+      "sha256": "d7d926e70da08ece871ffa451388ff367100b81ebe9bef39d3fd4602b545e381"
+    },
+    {
+      "bytes": 83,
+      "path": "responses/invalid_date.json",
+      "sha256": "ba7e2d3c94c168c8bfd08281b62ce1a028541fab54ee595ea79e5dab0daaf22b"
+    },
+    {
+      "bytes": 70,
+      "path": "responses/oversized.json",
+      "sha256": "b6c10e40541d41bdb4abe6cbf27b1cc660f84d99ac27957d1c6ab89354a95d46"
+    },
+    {
+      "bytes": 79,
+      "path": "responses/reversed.json",
+      "sha256": "3ad7aece2f35255f7d779ccf0d1f7e9d17c4ed41e35d60ed399ba330057ecc34"
+    },
+    {
+      "bytes": 308,
+      "path": "responses/unavailable_future.json",
+      "sha256": "dc54166647fb0d2f1bc6057b9676ad27cd23b97983c350ac20d975d7b886c838"
+    },
+    {
+      "bytes": 85,
+      "path": "responses/unknown.json",
+      "sha256": "0b2a5de7135c0ff970787ed1dd4f0021520e1e9d43338696e23020052c4fd2f2"
+    },
+    {
+      "bytes": 99792,
+      "path": "responses/xhkg_2026.json",
+      "sha256": "c8d389aa994b1c41a19e0bd4301381be78d3e15706d42f7f9b8123b31dfe7724"
+    },
+    {
+      "bytes": 85046,
+      "path": "responses/xnys_2026.json",
+      "sha256": "fa89d05e84386b40c7256de2911b679f72bad8139e23679bfff75976f0c4476b"
+    }
+  ]
+}

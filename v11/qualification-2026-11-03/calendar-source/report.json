@@ -1,0 +1,221 @@
+{
+  "checks": [
+    {
+      "name": "installed_calendar_source_matches_checkout",
+      "status": "pass"
+    },
+    {
+      "name": "installed_route_source_matches_checkout",
+      "status": "pass"
+    },
+    {
+      "name": "installed_capabilities_match_catalogue",
+      "status": "pass"
+    },
+    {
+      "name": "closed_only_early_close_and_dst_survive_installed_route",
+      "status": "pass"
+    },
+    {
+      "name": "intraday_break_segments_preserved",
+      "status": "pass"
+    },
+    {
+      "name": "unknown_refuses_without_fallback",
+      "status": "pass"
+    },
+    {
+      "name": "reversed_refuses_without_fallback",
+      "status": "pass"
+    },
+    {
+      "name": "invalid_date_refuses_without_fallback",
+      "status": "pass"
+    },
+    {
+      "name": "oversized_refuses_without_fallback",
+      "status": "pass"
+    },
+    {
+      "name": "unavailable_future_refuses_without_fallback",
+      "status": "pass"
+    },
+    {
+      "name": "clipped_coverage_is_explicit_not_a_closure",
+      "status": "pass"
+    },
+    {
+      "name": "semantic_and_exact_byte_identities_are_distinct",
+      "status": "pass"
+    },
+    {
+      "name": "complete_coverage_cannot_hide_a_missing_day",
+      "status": "pass"
+    }
+  ],
+  "format": "calendar-source-qualification-v1",
+  "harness": "installed FastAPI route packages in disposable offline container; not full OpenBB/gateway deployment",
+  "image_id": "sha256:0820fc939831d47d87551d798b9bd42fea5d187fb5866012b91e116b5ab999f0",
+  "installed_source_inventory": {
+    "__init__.py": "ed75f1cfb803df671d4178b0278076baa92fea18a1f76fde8b71edc47a43f1bf",
+    "artifact.py": "352459a9d77b91b685ce3e3e1dec9719f103e2611d635441a86cf6b639fc379d",
+    "canonical.py": "aab441127f993ee29bfb3671bfc82256e21f832ce132108bcf6d629b980f99a5",
+    "catalogue.py": "9e4cb50138fbef67f6537939ed2e595ba8bc44025db62a5875a2df6d8c64d90b",
+    "contracts.py": "bf2303f481ddbad530f6b63db8034bc7565854211e76c3d967baaad1f36b759e",
+    "curation.py": "fe48a0615de2f3f879934a75cb707bb6bac2771904780c1a025311fddddeaf47",
+    "legacy.py": "a4d1b4c91c4740d725160e7cf63ab51e3813adaa8bcb630e84a8573acec985c5",
+    "registry.py": "c7f80dfca3e79e4eab489927cbeea4978f6d0d71bbb9e5223d567ce975af2349",
+    "supplier.py": "e1a3e5fc96325d5e5047da3f2219e77725f2e8d3da1e517efcdf80e593c2ecaf"
+  },
+  "limits": [
+    "not TemporalDB accepted capture/publication",
+    "not historical provider publication evidence",
+    "not Security Master integration qualification",
+    "tzdata package label alone does not identify the active timezone backend"
+  ],
+  "observations": {
+    "calendar_count": 71,
+    "clipped_request": {
+      "caller_must_refuse_uncovered_resolution": true,
+      "http_status": 200,
+      "requested_start": "1990-01-01",
+      "served_coverage": {
+        "complete": true,
+        "end": "1990-12-31",
+        "start": "1990-12-03"
+      }
+    },
+    "correction_test": "synthetic mutation only; not a real source correction",
+    "xnys": {
+      "authority": "library_baseline; not exchange-certified or historical local knowledge",
+      "coverage": {
+        "complete": true,
+        "end": "2026-12-31",
+        "start": "2026-01-01"
+      },
+      "digest": "75e35ecd1c31b19b0b3653d4677e3ea7ff5712dfa6275cc750ce81c9a8e0a0da",
+      "source": {
+        "adapter": "openbq-calendar/0.1.0",
+        "packageVersion": "4.13.2",
+        "ruleDigest": "2ce5dc9810c3b21a1468a476517070bd758b87b7a386b6d4aa28d438114d1f15",
+        "tzdataVersion": "2026.5"
+      }
+    }
+  },
+  "observed_at": "2026-11-03T18:06:03.707525+00:00",
+  "qualification_program_sha256": "c8a5f8e32b635e5e05ae5293e633323f4b9ba3a380474d4857fe8323a5a2ee41",
+  "requests": [
+    {
+      "method": "GET",
+      "name": "capabilities",
+      "observed_at": "2026-11-03T18:06:03.189008+00:00",
+      "parameters": {},
+      "path": "/api/v1/calendar/trading/v1/calendars",
+      "status_code": 200
+    },
+    {
+      "method": "GET",
+      "name": "xnys_2026",
+      "observed_at": "2026-11-03T18:06:03.416060+00:00",
+      "parameters": {
+        "calendar_id": "exchange:XNYS",
+        "end": "2026-11-26",
+        "start": "2026-11-26"
+      },
+      "path": "/api/v1/calendar/trading/v1/bundle",
+      "status_code": 200
+    },
+    {
+      "method": "GET",
+      "name": "xhkg_2026",
+      "observed_at": "2026-11-03T18:06:03.652044+00:00",
+      "parameters": {
+        "calendar_id": "exchange:XHKG",
+        "end": "2026-01-02",
+        "start": "2026-01-02"
+      },
+      "path": "/api/v1/calendar/trading/v1/bundle",
+      "status_code": 200
+    },
+    {
+      "method": "GET",
+      "name": "unknown",
+      "observed_at": "2026-11-03T18:06:03.659525+00:00",
+      "parameters": {
+        "calendar_id": "constructor",
+        "end": "2026-01-02",
+        "start": "2026-01-01"
+      },
+      "path": "/api/v1/calendar/trading/v1/bundle",
+      "status_code": 422
+    },
+    {
+      "method": "GET",
+      "name": "reversed",
+      "observed_at": "2026-11-03T18:06:03.661011+00:00",
+      "parameters": {
+        "calendar_id": "exchange:XNYS",
+        "end": "2026-01-01",
+        "start": "2026-02-01"
+      },
+      "path": "/api/v1/calendar/trading/v1/bundle",
+      "status_code": 422
+    },
+    {
+      "method": "GET",
+      "name": "invalid_date",
+      "observed_at": "2026-11-03T18:06:03.662241+00:00",
+      "parameters": {
+        "calendar_id": "exchange:XNYS",
+        "end": "2026-03-01",
+        "start": "2026-02-30"
+      },
+      "path": "/api/v1/calendar/trading/v1/bundle",
+      "status_code": 422
+    },
+    {
+      "method": "GET",
+      "name": "oversized",
+      "observed_at": "2026-11-03T18:06:03.663436+00:00",
+      "parameters": {
+        "calendar_id": "exchange:XNYS",
+        "end": "2021-01-01",
+        "start": "2000-01-01"
+      },
+      "path": "/api/v1/calendar/trading/v1/bundle",
+      "status_code": 413
+    },
+    {
+      "method": "GET",
+      "name": "unavailable_future",
+      "observed_at": "2026-11-03T18:06:03.665008+00:00",
+      "parameters": {
+        "calendar_id": "exchange:XSES",
+        "end": "2027-01-02",
+        "start": "2027-01-01"
+      },
+      "path": "/api/v1/calendar/trading/v1/bundle",
+      "status_code": 422
+    },
+    {
+      "method": "GET",
+      "name": "clipped_xshg_1990",
+      "observed_at": "2026-11-03T18:06:03.681425+00:00",
+      "parameters": {
+        "calendar_id": "exchange:XSHG",
+        "end": "1990-12-31",
+        "start": "1990-01-01"
+      },
+      "path": "/api/v1/calendar/trading/v1/bundle",
+      "status_code": 200
+    }
+  ],
+  "status": "pass",
+  "versions": {
+    "exchange_calendars": "4.13.2",
+    "openbq-calendar": "0.1.0",
+    "openbq-routes": "4.0.0",
+    "pydantic": "2.13.5",
+    "tzdata": "2026.5"
+  }
+}

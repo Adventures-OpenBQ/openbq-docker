@@ -1,0 +1,1 @@
+{"error":{"code":"CALENDAR_UNAVAILABLE","message":"1 validation error for Coverage\n  Value error, invalid coverage range [type=value_error, input_value={'start': '2027-01-01', '...2-31', 'complete': True}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"}}
