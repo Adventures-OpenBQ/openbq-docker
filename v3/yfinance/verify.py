@@ -28,7 +28,8 @@ assert all(k in widgets for k in expected)
 seen = {}
 def history(self, **kwargs):
     seen.update(kwargs)
-    return pd.DataFrame({'Open':[10.], 'High':[12.], 'Low':[9.], 'Close':[11.], 'Adj Close':[10.5], 'Volume':[100]}, index=pd.DatetimeIndex(['2025-01-02'], tz='America/New_York'))
+    nan = float('nan')
+    return pd.DataFrame({'Open':[10., nan], 'High':[12., nan], 'Low':[9., nan], 'Close':[11., nan], 'Adj Close':[10.5, nan], 'Volume':[100, 0]}, index=pd.DatetimeIndex(['2025-01-02', '2025-01-03'], tz='America/New_York'))
 yf.Ticker.history = history
 class Asset:
     def get_income_stmt(self, **kwargs):
@@ -38,6 +39,7 @@ client = TestClient(app)
 r = client.get('/api/v1/yfinance/equity/historical', params={'symbol':'AAPL','start_date':'2025-01-01','end_date':'2025-01-03','auto_adjust':False})
 assert r.status_code == 200, r.text
 assert r.json()['results'][0]['adjusted_close'] == 10.5
+assert len(r.json()['results']) == 1, 'placeholder bar with no prices must be skipped'
 assert r.json()['results'][0]['date'] == '2025-01-02', r.json()['results'][0]['date']
 assert str(seen['end']) == '2025-01-04', seen  # inclusive end_date
 r = client.get('/api/v1/yfinance/equity/historical', params={'symbol':'AAPL','start_date':'2025-01-02','end_date':'2025-01-02'})
