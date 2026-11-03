@@ -1,0 +1,26 @@
+{
+  "source_commit": "b4b7f4b68ae200f82b2067dd6ade70a9d425509a",
+  "archive_sha256": "3ebd2e93d198aa8a1ac26d16730c73dd6db0c747648bd96f44d861dacf268f73",
+  "paths": [
+    "security-master-api",
+    "openbb-deltalake"
+  ],
+  "status": "standalone-source-tests-passed; HTTP bridge and installed qualification pending",
+  "runtime": "native-macos-arm64 isolated Python 3.12; not NAS/installed-image proof",
+  "versions": {
+    "security-master-api": "0.2.0",
+    "openbb-deltalake": "11.0.0",
+    "openbb-core": "1.6.13",
+    "duckdb": "1.5.5",
+    "deltalake": "1.6.3",
+    "pyarrow": "25.0.1",
+    "pandas-market-calendars": "5.4.0",
+    "pydantic": "2.13.5",
+    "pytest": "9.1.1"
+  },
+  "tests": {
+    "passed": 238,
+    "warnings": 4,
+    "log_sha256": "5e5b7f0da6838734b2b1e775fca7093b5206a99c4da141e99ef0501b7be7b351"
+  }
+}

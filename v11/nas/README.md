@@ -45,3 +45,11 @@ volumes. Do not connect staging to the current gateway until installed acceptanc
 The SIP archive remains in the older MinIO `openbb-delta/ticks_sip` namespace.
 Its internal object directories must not be copied into a RustFS data directory.
 Source Delta/S3 inventory and a bounded import precede any migration decision.
+
+## Prepare a private bundle
+
+`python v11/nas/provision.py --release-receipt VERIFIED_AMD64_RECEIPT.json --output NEW_DIRECTORY`
+prepares files locally without starting containers or changing the server.
+See `STAGING-DESIGN.md` for the required initialization sequence and containment
+limits. Generated credentials are fresh and private; never commit the bundle.
+The runtime deliberately refuses to start with its UNPROVISIONED digest.
