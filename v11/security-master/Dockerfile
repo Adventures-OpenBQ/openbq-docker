@@ -21,7 +21,8 @@ LABEL org.opencontainers.image.title="OpenBQ Security Master staging" \
 ENV PATH="/opt/security-master/security-master-api/.venv/bin:$PATH" \
     HOME="/run/security-master" OPENBB_HOME="/run/security-master/.openbb_platform" \
     PYTHONDONTWRITEBYTECODE=1
-RUN mkdir -p /data /run/security-master && chown 65532:65532 /data /run/security-master
+RUN groupadd --gid 65532 openbq && useradd --uid 65532 --gid 65532 --home-dir /run/security-master --no-create-home --shell /usr/sbin/nologin openbq \
+    && mkdir -p /data /run/security-master && chown 65532:65532 /data /run/security-master
 WORKDIR /run/security-master
 USER 65532:65532
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:6905/security-master/v1/health',timeout=3).read()"]

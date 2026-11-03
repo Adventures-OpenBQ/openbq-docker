@@ -142,7 +142,7 @@ def prepare_bundle(output, release_receipt, *, port=18088):
                 "image": RUSTFS,
                 "platform": "linux/amd64",
                 "env_file": ["s3.env"],
-                "user": "0:0",
+                "user": "rustfs",
                 "mem_limit": 512 * MIB,
                 "cpus": 0.5,
                 "pids_limit": 128,
