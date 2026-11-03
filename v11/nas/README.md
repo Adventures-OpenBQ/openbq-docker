@@ -84,3 +84,24 @@ profile skips rather than claiming an integration pass. Local broad backend
 regression was interrupted by Docker VM disk exhaustion; a fresh isolated
 protected-publication reproduction subsequently passed. Do not weaken the tests
 or prune unrelated Docker data to bypass that capacity gate.
+
+## Managed Yahoo interpreter artifact
+
+`Dockerfile.managed-yahoo` builds the reviewed provider source archive separately
+from TemporalDB's Python environment. The archive is pinned to source
+`d867c8bb64fda4dc843146a44f46ec7ca17e0ae8` and SHA-256
+`b61b6be5d672497db521978fb58b61a89059dcccfdc003c5d47607f3a8b826a7`.
+The SDK target was built natively for linux/amd64 as
+`sha256:b837a2a4ac871ac43cd8cfc6b30efa374a1b6ef1489e51ac11098a672e5f3922`.
+A nonroot, read-only, network-disabled NAS smoke check imported the provider's
+historical model and decoded codec successfully. Installed versions were
+openbq-yfinance11.0.0, OpenBB core2.0.1, yfinance1.7.0, pandas3.0.6 and numpy2.5.3.
+
+For the final `runtime` target, supply the qualified immutable TemporalDB base
+image explicitly using `TEMPORALDB_BASE_IMAGE`. The SDK is copied under its own
+interpreter path; it does not change TemporalDB's installed dependencies. Retain
+both source identities, recipe hash, base/final image IDs and the native SDK
+profile. Worker configuration must select that exact interpreter/profile and a
+server-owned account binding. Building this SDK target does not enable
+acquisition or qualify the combined runtime. Combined-image qualification and
+staged service selection remain separate release steps.
