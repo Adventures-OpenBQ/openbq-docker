@@ -1,7 +1,9 @@
 # NAS v11 staging
 
-Status: inventory and backup preparation only. No service or schema upgrade has
-been performed by these tools. Follow the cross-project roadmap before cutover.
+Status: a separate NAS staging project is initialized and running. Its API
+passed readiness, authentication and saved-query persistence across API/worker
+restart. Production remains selected. Cross-store restore and analysis replay
+qualification are still required before cutover.
 
 ## Inventory
 
@@ -53,3 +55,32 @@ prepares files locally without starting containers or changing the server.
 See `STAGING-DESIGN.md` for the required initialization sequence and containment
 limits. Generated credentials are fresh and private; never commit the bundle.
 The runtime deliberately refuses to start with its UNPROVISIONED digest.
+
+## Fresh-store bootstrap
+
+`bootstrap.py` runs inside the inspected candidate image with the private bundle
+mounted read-only at `/config`. Run it as a one-off on the staging network with
+only the staging archive/evidence volumes writable; runtime services retain their
+read-only archive mount. The one-off needs CHOWN/DAC_OVERRIDE for assigning its
+new archive files to runtime UID 65532. Never mount existing service volumes.
+
+Bootstrap verifies the restricted configuration, migrates the new control DB,
+creates separate runtime/catalog logins, initializes the staging bucket and hot
+catalog, verifies role boundaries, and archives the actual NAS runtime. Retain
+its credential-free JSON result privately. Register its environment digest in
+both private runtime files before starting API/worker. Never rerun it against an
+active store or replace credentials on existing roles.
+
+The November 3 native amd64 candidate uses TemporalDB source `d2d31ff63d9b`
+with migrations through 034. It does not include the later pure acquisition
+planner or a provider orchestration worker. Acquisition remains disabled.
+A saved AAPL query definition survived restart; no price data was acquired.
+This is metadata durability evidence, not cross-store backup/replay evidence.
+
+Guard tests: `python -m pytest tests/test_nas_bootstrap.py tests/test_nas_inventory.py tests/test_nas_staging.py -q`.
+The local Docker bootstrap profile requires `NAS_BOOTSTRAP_TEST_IMAGE`; the NAS
+inventory profile requires its explicit context/container settings. An unconfigured
+profile skips rather than claiming an integration pass. Local broad backend
+regression was interrupted by Docker VM disk exhaustion; a fresh isolated
+protected-publication reproduction subsequently passed. Do not weaken the tests
+or prune unrelated Docker data to bypass that capacity gate.

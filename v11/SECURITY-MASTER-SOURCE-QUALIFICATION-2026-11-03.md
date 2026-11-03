@@ -27,3 +27,24 @@ against a new store with acquisition disabled, and map its actual temporal and
 dependency receipts into a versioned retained-reference bridge. Do not claim
 shared Basic authentication supplies workspace isolation. Preserve the distinct
 calendar supplier and source-authority settings.
+
+## Installed native NAS qualification
+
+The frozen amd64 qualification image
+`sha256:5b7c4bdf02858d1438ddc22b1b5256f8e9fe8e833379aeca02a6af47a56414d6`
+passed all 238 offline tests natively on the NAS in 322.58 seconds, with the same
+four upstream warnings. It ran without networking, ports or production mounts,
+with a read-only root, dropped capabilities, no-new-privileges and bounded
+memory/CPU/tmpfs. A test-only writable contract-recorder directory was provided.
+
+The corresponding runtime image is
+`sha256:1092c5a3cc01912e6ff0dfbc487aa7120706dc6f027885ddf901cc937f761d8c`.
+Both use recipe commit `0b6ecfb399aa27a0c648b97560346a782663dd5f` and the source
+archive above. The combined Docker-save SHA-256 is
+`3af88acd6ef21bb36e2c092996aa0ac293311c532d4754b5763c8c983ab62c20`;
+the retained native test log SHA-256 is
+`c2f74b41a69d75b30de89b959f9ca500ba4aa86374f7d22e9af043558ec5b6ee`.
+
+This qualifies the offline installed test artifact. It does not admit the real
+S&P 500 data, establish classification history, qualify the ODP HTTP bridge or
+prove service recovery against a retained real store. No donor service changed.

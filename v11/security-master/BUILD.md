@@ -1,6 +1,8 @@
 # Standalone Security Master image
 
-Status: build recipe; installed and NAS qualification pending.
+Status: frozen amd64 qualification image passed 238 offline tests on the NAS
+(4 upstream warnings, 322.58 seconds). Real-store admission and service restart
+qualification remain pending.
 
 Use only the verified clean source archive described in
 `../SECURITY-MASTER-SOURCE-QUALIFICATION-2026-11-03.md`. Verify archive SHA-256
