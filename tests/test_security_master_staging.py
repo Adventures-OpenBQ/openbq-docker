@@ -92,3 +92,66 @@ def test_existing_service_configuration_is_never_overwritten(tmp_path):
     with pytest.raises(FileExistsError):
         module().prepare_bundle(out, receipt())
     assert (out / "service.env").read_text() == "preserve"
+
+
+def admission(**changes):
+    value = {
+        "status": "admitted_unserved",
+        "image_id": receipt()["image_id"],
+        "source_commit": receipt()["source_commit"],
+        "destination": "/data/admissions/" + "c" * 64,
+        "receipt": {
+            "schema_version": 1,
+            "status": "complete",
+            "package_fingerprint": "d" * 64,
+            "source_manifest_sha256": "e" * 64,
+            "prepared_at": "2026-11-03T21:00:00Z",
+            "completed_at": "2026-11-03T21:01:00Z",
+            "visibility_floor": "2026-11-03T21:01:00Z",
+            "relations": {
+                "silver.listings": {
+                    "version": 1,
+                    "row_count": 503,
+                    "content_hash": "f" * 64,
+                }
+            },
+        },
+    }
+    value.update(changes)
+    return value
+
+
+def test_completed_admission_can_select_only_its_image_bound_owned_root(tmp_path):
+    out = tmp_path / "admitted"
+    module().prepare_bundle(out, receipt(), admission=admission())
+    env = dict(
+        line.split("=", 1) for line in (out / "service.env").read_text().splitlines()
+    )
+    assert env["SECURITY_MASTER_ROOT"] == "/data/admissions/" + "c" * 64
+    assert env["SECURITY_MASTER_ACQUISITION"] == "disabled"
+    saved = json.loads((out / "release.json").read_text())
+    assert saved["admission"]["receipt"]["package_fingerprint"] == "d" * 64
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"image_id": "sha256:" + "9" * 64},
+        {"source_commit": "9" * 40},
+        {"destination": "/data/security_master"},
+        {"status": "pending"},
+        {"destination": "/data/admissions/../production"},
+    ],
+)
+def test_mismatched_or_unowned_admission_refuses_before_writing(tmp_path, change):
+    out = tmp_path / "admitted"
+    with pytest.raises(ValueError):
+        module().prepare_bundle(out, receipt(), admission=admission(**change))
+    assert not out.exists()
+
+
+def test_incomplete_receipt_cannot_select_a_store(tmp_path):
+    value = admission()
+    value["receipt"]["status"] = "pending"
+    with pytest.raises(ValueError):
+        module().prepare_bundle(tmp_path / "admitted", receipt(), admission=value)
