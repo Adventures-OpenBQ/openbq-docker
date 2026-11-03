@@ -1,0 +1,320 @@
+{
+  "status": "core_passed",
+  "scope": "full installed protocol and consumer gate",
+  "image": "sha256:4cfb00a549291940c16fbc53b1d0e42ce5a6cd21da9a51715c7752ef30f21f00",
+  "source": "e5f49ffddc11ca72da7e74b3b31bd9a71098865b",
+  "installed_dependencies": [
+    [
+      "PyJWT",
+      "2.15.1"
+    ],
+    [
+      "annotated-types",
+      "0.8.0"
+    ],
+    [
+      "anyio",
+      "4.15.1"
+    ],
+    [
+      "attrs",
+      "26.1.0"
+    ],
+    [
+      "boto3",
+      "1.42.25"
+    ],
+    [
+      "botocore",
+      "1.42.97"
+    ],
+    [
+      "cffi",
+      "2.1.1"
+    ],
+    [
+      "click",
+      "8.5.0"
+    ],
+    [
+      "cryptography",
+      "50.0.2"
+    ],
+    [
+      "duckdb",
+      "1.4.3"
+    ],
+    [
+      "h11",
+      "0.16.0"
+    ],
+    [
+      "httpcore2",
+      "2.13.1"
+    ],
+    [
+      "httpx2",
+      "2.13.1"
+    ],
+    [
+      "idna",
+      "3.20"
+    ],
+    [
+      "jmespath",
+      "1.1.0"
+    ],
+    [
+      "jsonschema",
+      "4.25.1"
+    ],
+    [
+      "jsonschema-specifications",
+      "2025.9.1"
+    ],
+    [
+      "mcp",
+      "2.3.0"
+    ],
+    [
+      "mcp-types",
+      "2.3.0"
+    ],
+    [
+      "opentelemetry-api",
+      "1.45.1"
+    ],
+    [
+      "psycopg",
+      "3.3.2"
+    ],
+    [
+      "psycopg-binary",
+      "3.3.2"
+    ],
+    [
+      "psycopg-pool",
+      "3.3.0"
+    ],
+    [
+      "pyarrow",
+      "23.0.1"
+    ],
+    [
+      "pycparser",
+      "3.11"
+    ],
+    [
+      "pydantic",
+      "2.12.5"
+    ],
+    [
+      "pydantic_core",
+      "2.41.5"
+    ],
+    [
+      "python-dateutil",
+      "2.9.0.post0"
+    ],
+    [
+      "python-multipart",
+      "0.0.32"
+    ],
+    [
+      "pytz",
+      "2025.2"
+    ],
+    [
+      "referencing",
+      "0.37.0"
+    ],
+    [
+      "rpds-py",
+      "2026.9.1"
+    ],
+    [
+      "s3transfer",
+      "0.16.1"
+    ],
+    [
+      "six",
+      "1.17.0"
+    ],
+    [
+      "sse-starlette",
+      "3.5.0"
+    ],
+    [
+      "starlette",
+      "1.8.0"
+    ],
+    [
+      "temporaldb",
+      "0.5.0"
+    ],
+    [
+      "truststore",
+      "0.10.5"
+    ],
+    [
+      "typing-inspection",
+      "0.4.4"
+    ],
+    [
+      "typing_extensions",
+      "4.16.0"
+    ],
+    [
+      "urllib3",
+      "2.8.0"
+    ],
+    [
+      "uvicorn",
+      "0.54.0"
+    ]
+  ],
+  "environment_digest": "882fe82c4d741ef36831d67d3ebfad8e69d2bb3a18fa4cc2bb2ebca02df2d55b",
+  "protocol": {
+    "execution_id": "0131112c-3242-47f0-8b5a-708679c8cd0e",
+    "saved": {
+      "schema_version": 1,
+      "query_id": "6b016c04-712a-4f94-8747-8b525fc535aa",
+      "revision": 1,
+      "title": "MCP synthetic exact values",
+      "description": "Created through installed MCP; fixture data only.",
+      "kind": "sql",
+      "parameters": [],
+      "request": {
+        "sql": "SELECT effective_from AS day, CAST(raw_close AS DECIMAL(38,18)) AS close, CAST(volume AS BIGINT) AS volume FROM prices UNION ALL SELECT effective_from AS day, CAST(raw_close AS DECIMAL(38,18)) AS close, CAST(volume AS BIGINT) AS volume FROM prices UNION ALL SELECT effective_from AS day, CAST(raw_close AS DECIMAL(38,18)) AS close, CAST(volume AS BIGINT) AS volume FROM prices",
+        "sources": {
+          "prices": "eodhd.eod"
+        },
+        "bindings": {},
+        "max_rows": 1000
+      },
+      "temporal": {
+        "schema_version": 1,
+        "mode": "current_corrected",
+        "knowledge_basis": null,
+        "known_at": null,
+        "effective_at": null,
+        "date_range": null
+      },
+      "schema_expectation": [],
+      "presentation": {
+        "format": "table"
+      }
+    },
+    "receipt": {
+      "execution_id": "0131112c-3242-47f0-8b5a-708679c8cd0e",
+      "query_id": "6b016c04-712a-4f94-8747-8b525fc535aa",
+      "query_revision": 1,
+      "parameters": {},
+      "context": {
+        "schema_version": 1,
+        "mode": "current_corrected",
+        "knowledge_basis": null,
+        "known_at": null,
+        "effective_at": null,
+        "date_range": null
+      },
+      "input_manifest": {
+        "schema_version": 1,
+        "manifest_id": "49b45e79-4784-4185-9616-48ef34c79aa2",
+        "pins": [
+          {
+            "schema_version": 1,
+            "catalog_id": "hot",
+            "snapshot_id": 7
+          }
+        ],
+        "projection_versions": {
+          "eodhd.eod": "runtime-normalizers-1:2e6ea058f9dd2542d21e3360f85d764e95987110aa4a914bac756ed60c887b37"
+        },
+        "publication_id": "74d8f338-3012-4266-9434-a7eca8b3f99b"
+      },
+      "environment_digest": "882fe82c4d741ef36831d67d3ebfad8e69d2bb3a18fa4cc2bb2ebca02df2d55b",
+      "transform_versions": {
+        "eodhd.eod": "runtime-normalizers-1:2e6ea058f9dd2542d21e3360f85d764e95987110aa4a914bac756ed60c887b37",
+        "execution": "q2-v1"
+      },
+      "schema": [
+        {
+          "name": "day",
+          "type": "date32[day]",
+          "nullable": true
+        },
+        {
+          "name": "close",
+          "type": "decimal128(38, 18)",
+          "nullable": true
+        },
+        {
+          "name": "volume",
+          "type": "int64",
+          "nullable": true
+        }
+      ],
+      "completeness": "complete",
+      "result_hash": "33e11acfb01dd5d85605b7a626ea25fc936f4b7813cf89e0f55194e9a554a2f8",
+      "order_contract": "materialized_sequence",
+      "frozen_at": "2026-11-03T14:34:58.632694+00:00",
+      "codec": "arrow-json-v1",
+      "runtime_artifact": "882fe82c4d741ef36831d67d3ebfad8e69d2bb3a18fa4cc2bb2ebca02df2d55b"
+    },
+    "manifest": {
+      "pins": [
+        {
+          "catalog_id": "hot",
+          "snapshot_id": 7,
+          "schema_version": 1
+        }
+      ],
+      "manifest_id": "49b45e79-4784-4185-9616-48ef34c79aa2",
+      "publication_id": "74d8f338-3012-4266-9434-a7eca8b3f99b",
+      "schema_version": 1,
+      "projection_versions": {
+        "eodhd.eod": "runtime-normalizers-1:2e6ea058f9dd2542d21e3360f85d764e95987110aa4a914bac756ed60c887b37"
+      }
+    },
+    "rows": [
+      {
+        "day": "2020-01-02",
+        "close": "1.123456789012345678",
+        "volume": "9007199254740993"
+      },
+      {
+        "day": "2020-01-02",
+        "close": "1.123456789012345678",
+        "volume": "9007199254740993"
+      },
+      {
+        "day": "2020-01-02",
+        "close": "1.123456789012345678",
+        "volume": "9007199254740993"
+      }
+    ],
+    "tool_names": [
+      "list_datasets",
+      "describe_dataset",
+      "cache_coverage",
+      "validate_query",
+      "list_saved_queries",
+      "get_saved_query",
+      "save_query",
+      "query_cache",
+      "get_query_result",
+      "cancel_query"
+    ],
+    "replica_save_equal": true,
+    "exact_snapshot_equal": true,
+    "read_only_save_denied": true,
+    "foreign_scope_denied": true,
+    "oversized_page_denied": true,
+    "cache_miss_no_capture_or_job": true
+  },
+  "rita_exit_code": 1,
+  "independent_restore": true,
+  "acquisition_evidence": "protocol report asserts no capture/job growth on cache miss; unchanged provider boundaries retained separately",
+  "distribution": "local unpublished Docker-save"
+}

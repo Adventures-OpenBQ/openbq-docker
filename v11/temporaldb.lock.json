@@ -38,16 +38,17 @@
       "reviewed_commit": "d867c8bb64fda4dc843146a44f46ec7ca17e0ae8"
     }
   },
-  "qualification_report": null,
+  "qualification_report": "qualification-2026-11-03/platform.json",
   "candidate_qualification": {
-    "status": "built_archive_verified_assembly_pending",
-    "reason": "Fresh current public v11 image and Docker-save layer/config hashes verified; previous donor runtime qualification does not qualify this assembled image.",
+    "status": "installed_platform_passed_release_gates_remaining",
+    "reason": "Installed Linux platform and MCP core passed. Live Rita, packaged desktop runtime and intended NAS qualification remain open.",
     "historical_source_commit": "efd560cb6bbbf6b4eeccdc9d84999e90c94598b3",
-    "historical_image_id": "sha256:8c000e0415e773ec10d9db9d1793bef0bd2979e6f30abc741d7a8e26d6e4ded9"
+    "historical_image_id": "sha256:8c000e0415e773ec10d9db9d1793bef0bd2979e6f30abc741d7a8e26d6e4ded9",
+    "mcp_report": "qualification-2026-11-03/mcp-core.json"
   },
   "provider_host": {
     "version": "11.0.0",
-    "image_id": "sha256:ad23875af24d2cf005cf6c77d65d3f99c9f5a42a49231e7da2deacdc0a7e6ba3",
+    "image_id": "sha256:0820fc939831d47d87551d798b9bd42fea5d187fb5866012b91e116b5ab999f0",
     "platform": "linux/arm64",
     "distribution": "local build; unpublished",
     "registry_reference": null,
@@ -63,8 +64,8 @@
         "distribution": "verified local clean commit archive; remote availability not asserted"
       }
     },
-    "qualification": "Requalified 2026-10-19: installed provider host and topology tests passed against this image (temporaldb-v11-requalification.json).",
-    "settings_source_commit": "41008a1e4a7d1aafce877d5fdce69571f6c57c49",
+    "qualification": "Built from current integration source; embedded build checks passed. Deployed provider/capture topology not requalified.",
+    "settings_source_commit": "ba2154764f61e6a470379cab29a8765cce05a227",
     "installed_source_hashes": {
       "v3/openbq_settings.py": "26018e9b609aca93e3e04adf126d12631533fe436a5ec3e614dd0c5b4e8a9ee9",
       "v11/settings/README.md": "dfd5340537e7650d903e7b324f523ed0c96babf0c795e24cd6fec291432d7338",
@@ -86,7 +87,9 @@
       "v11/settings/tests/verify_fixture.py": "6d1c5fe5a3e38f899e84fdea90a827c3a60f05dfb23b9fddee1bce05ecaed426",
       "v11/settings/tests/test_contracts.py": "1b28f658eae81836d7d1151067a2861cc7217138eafc415740c76c2d386dd837",
       "v11/settings/tests/verify_encoding.py": "e1e8cec387d135a550288c8d9107b4f0c9825f335016bcfa427c8951e3460fc9"
-    }
+    },
+    "previous_image_id": "sha256:ad23875af24d2cf005cf6c77d65d3f99c9f5a42a49231e7da2deacdc0a7e6ba3",
+    "build_host_commit": "ba2154764f61e6a470379cab29a8765cce05a227"
   },
   "previous_runtime": {
     "source_commit": "f83abc2141af2ca3b3991df9d7e5e9c78dd44b00",

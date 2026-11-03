@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "image": "sha256:4cfb00a549291940c16fbc53b1d0e42ce5a6cd21da9a51715c7752ef30f21f00",
+  "source": "e5f49ffddc11ca72da7e74b3b31bd9a71098865b",
+  "api_requests": [
+    37,
+    37
+  ],
+  "api_processes": 2,
+  "worker_processes": 2,
+  "mount_evidence_sha256": "79c720dd38f66c12b7ccfc388513e1d2bf6ede8b05d3b4210c75c1b43a5ee397",
+  "runtime": "installed-linux-arm64",
+  "archive_storage": "task-owned native Linux Docker volume; operator bind/NAS latency and durability unqualified",
+  "restore": "separate-pg-s3-archived-linux-runtime",
+  "packaged_tauri_restart_qualified": false
+}
