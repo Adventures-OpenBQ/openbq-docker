@@ -4,20 +4,23 @@
 """Plotly figure JSON. The client renders it -- this image has no chart backend."""
 
 
-def _x(date):
-    """A bar date as JSON: bars built from kdb+ ticks carry datetimes (pandas Timestamps),
-    which JSONResponse cannot serialise, so /chart answered 500 once live bars joined."""
-    return date if date is None or isinstance(date, str) else date.isoformat()
+from app.market_time import wire_time
 
 
-def build_figure(symbol: str, bars: list[dict]) -> dict:
+def _x(value, *, date_only=False):
+    return wire_time(value, date_only=date_only)
+
+
+def build_figure(symbol: str, bars: list[dict], interval: str | None = None) -> dict:
     """A candlestick figure for the given bars."""
+    from app.series import intraday
+    date_only = interval is not None and not intraday(interval)
     return {
         "data": [
             {
                 "type": "candlestick",
                 "name": symbol,
-                "x": [_x(b.get("date")) for b in bars],
+                "x": [_x(b.get("date"), date_only=date_only) for b in bars],
                 "open": [b.get("open") for b in bars],
                 "high": [b.get("high") for b in bars],
                 "low": [b.get("low") for b in bars],

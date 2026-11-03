@@ -34,7 +34,7 @@ def window_end(end: str) -> datetime:
         return datetime.max
     if len(text) == 10:  # YYYY-MM-DD -- a whole day, not its first instant
         return parsed + timedelta(days=1) - timedelta(microseconds=1)
-    return parsed
+    return _row_dt(parsed)
 
 
 def seam_boundary(first_tick: datetime, interval: str) -> datetime:

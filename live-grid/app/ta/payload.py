@@ -19,6 +19,8 @@ from app.ta.macros import load_all
 from app.ta.panes import Pane, all_reqs, assign
 from app.ta.registry import Req, resolve
 from app.ta.sources import LocalSource
+from app.market_time import naive_utc, wire_time
+from app.series import intraday
 
 _NUMERIC = ("period", "k", "d", "fast", "slow", "signal", "smooth_k",
             "stoch_period", "atr_period", "mult", "acceleration", "maximum")
@@ -87,7 +89,7 @@ def parse_indicators(raw: str) -> list[Req]:
     return reqs
 
 
-def bars_to_frame(bars: list[dict]) -> pl.DataFrame:
+def bars_to_frame(bars: list[dict], *, interval: str | None = None) -> pl.DataFrame:
     """Bars from build_series into the frame the engine expects.
 
     Tick-derived bars have no adjusted close, so raw close stands in. That is
@@ -99,6 +101,7 @@ def bars_to_frame(bars: list[dict]) -> pl.DataFrame:
               "volume": pl.Float64, "vwap": pl.Float64}
     if not bars:
         return pl.DataFrame(schema=schema)
+    date_only = interval is not None and not intraday(interval)
     rows = []
     for bar in bars:
         close = bar.get("close")
@@ -109,11 +112,10 @@ def bars_to_frame(bars: list[dict]) -> pl.DataFrame:
         # blank on those symbols, with no error anywhere to explain it.
         adjusted = bar.get("adjusted_close")
         rows.append({
-            # NOT truncated to 10 chars: widgets.json offers 1h/5m/1m and kdb
-            # tick bars carry a full timestamp, so a day's worth of intraday
-            # bars would all plot at one x. /chart passes timestamps through
-            # untouched; this route must not be the sibling that flattens them.
-            "date": str(bar.get("date")),
+            # Daily labels keep their source calendar date; intraday offsets
+            # normalize to the internal UTC clock before the engine runs.
+            "date": naive_utc(wire_time(bar.get("date"), date_only=True)
+                              if date_only else bar.get("date")),
             "open": bar.get("open"), "high": bar.get("high"),
             "low": bar.get("low"), "close": close,
             "adj_close": close if adjusted is None else adjusted,
@@ -125,10 +127,6 @@ def bars_to_frame(bars: list[dict]) -> pl.DataFrame:
     # history rows lead with vwap=None; without the override polars infers a
     # Null column and the first tick bar's float then fails to append
     return pl.DataFrame(rows, schema_overrides={"vwap": pl.Float64}).with_columns([
-        # Vendor intraday history is UTC with a "Z" (or "+00:00") suffix and kdb+ bars
-        # are naive UTC. to_datetime(strict=False) nulls every suffixed value, so strip
-        # the suffix: both become the same naive UTC the rest of the engine expects.
-        pl.col("date").str.replace(r"(Z|[+-]00:00)$", "").str.to_datetime(strict=False),
         pl.col(["open", "high", "low", "close", "adj_close", "volume", "vwap"])
           .cast(pl.Float64, strict=False),
     ])
@@ -164,7 +162,7 @@ async def build_payload(
         computed = LocalSource().series(frame, reqs).frame
 
     subtitle = f"{params.interval} · {params.source}"
-    figure = build_ta_figure(params.symbol, computed, panes, annotations, subtitle)
+    figure = build_ta_figure(params.symbol, computed, panes, annotations, subtitle, interval=params.interval)
     return figure, panes, computed, annotations
 
 

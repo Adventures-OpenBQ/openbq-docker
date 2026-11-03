@@ -64,11 +64,19 @@ function parseIsoDateUtc(s) {
   return new Date(Date.UTC(y, m - 1, d));
 }
 function parseRangeDateUtc(s) {
-  const [datePart, timePart] = s.replace("T", " ").split(" ");
-  const [y, m, d] = datePart.split("-").map(Number);
-  if (!timePart) return new Date(Date.UTC(y, m - 1, d));
-  const [hh, mm, ss] = timePart.split(":").map(Number);
-  return new Date(Date.UTC(y, m - 1, d, hh || 0, mm || 0, Math.floor(ss || 0)));
+  // Known bar/Plotly boundary: unmarked legacy clock values are UTC.
+  const value = String(s).trim();
+  const parts = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,6})?)?(Z|[+-]\d{2}:?\d{2})?)?$/i.exec(value);
+  if (!parts) return new Date(NaN);
+  const year = Number(parts[1]), month = Number(parts[2]), day = Number(parts[3]);
+  const hour = Number(parts[4] || 0), minute = Number(parts[5] || 0), second = Number(parts[6] || 0);
+  const valid = new Date(0);
+  valid.setUTCFullYear(year, month - 1, day);
+  if (year < 1 || month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59 ||
+      valid.getUTCFullYear() !== year || valid.getUTCMonth() !== month - 1 || valid.getUTCDate() !== day) return new Date(NaN);
+  let iso = value.replace(" ", "T");
+  if (parts[4] && !parts[7]) iso += "Z";
+  return new Date(iso);
 }
 
 // Cumulative telemetry, counted in ROWS rather than bytes. A "bytes saved"

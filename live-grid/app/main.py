@@ -16,6 +16,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
+from app.market_time import wire_time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
@@ -473,6 +474,9 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                 symbol, interval, s, e, recorder, _tick_window(), provider, lake=lake,
                 gap_key=key,
             )
+            bars = [dict(bar, date=wire_time(bar.get("date"), date_only=not intraday(interval)))
+                    for bar in bars]
+            meta = dict(meta, seam=wire_time(meta.get("seam")))
         except Exception as exc:  # noqa: BLE001
             log.warning("series failed for %s: %s", symbol, exc)
             return JSONResponse(
@@ -495,11 +499,12 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             bars, _ = await build_series(
                 symbol, interval, s, e, recorder, _tick_window(), provider, lake=lake
             )
+            figure = build_figure(symbol, bars, interval=interval)
         except Exception as exc:  # noqa: BLE001
             log.warning("chart failed for %s: %s", symbol, exc)
             return JSONResponse({"data": [], "layout": {"title": {"text": f"{symbol}: {exc}"}}},
                                 status_code=502)
-        return JSONResponse(build_figure(symbol, bars))
+        return JSONResponse(figure)
 
     @app.get("/sector_map")
     async def sector_map():
@@ -555,7 +560,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             bars, meta, bars_error = [], {}, exc
         try:
             figure, _, _, _ = await build_payload(
-                params, bars_to_frame(bars), eodhd_source=_eodhd
+                params, bars_to_frame(bars, interval=params.interval), eodhd_source=_eodhd
             )
         except Exception as exc:  # noqa: BLE001
             log.warning("ta_chart failed for %s: %s", symbol, exc)
@@ -616,7 +621,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                     bars, meta, bars_error = [], {}, exc
                 try:
                     figure, panes, frame, annotations = await build_payload(
-                        params, bars_to_frame(bars), eodhd_source=_eodhd
+                        params, bars_to_frame(bars, interval=params.interval), eodhd_source=_eodhd
                     )
                 # Mirrors /ta_chart's 502: not a missing-bars degradation, this
                 # is unrecoverable (bad macro, bad indicator params), so end
@@ -645,7 +650,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                         or marks != previous_marks):
                     await ws.send_json({"type": "figure", "rev": rev, "figure": figure})
                 else:
-                    payload = ta_delta(frame, panes, revised_from(previous, dates))
+                    payload = ta_delta(frame, panes, revised_from(previous, dates), interval=params.interval)
                     await ws.send_json({"type": "delta", "rev": rev, **payload})
                 previous, previous_marks, rev = dates, marks, rev + 1
                 # Drop rather than queue: a recompute that overran its slot must
@@ -937,7 +942,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         return {
             "symbol": sym,
             "ticks": [
-                {"time": r["time"].isoformat(), "price": r["price"], "size": r["size"]}
+                {"time": wire_time(r["time"]), "price": r["price"], "size": r["size"]}
                 for r in rows
             ],
         }

@@ -42,4 +42,4 @@ def test_tick_built_bars_with_datetimes_serialise():
                    dict(BARS[1], date=datetime(2026, 10, 20, 15, 13))]
     fig = json.loads(json.dumps(build_figure("AAPL", bars)))
     assert fig["data"][0]["x"] == ["2024-01-02", "2024-01-03",
-                                   "2026-10-20T00:00:00", "2026-10-20T15:13:00"]
+                                   "2026-10-20T00:00:00Z", "2026-10-20T15:13:00Z"]

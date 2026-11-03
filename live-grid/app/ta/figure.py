@@ -18,6 +18,8 @@ from datetime import datetime, timedelta
 import polars as pl
 
 from app.ta.panes import Pane, domains
+from app.market_time import naive_utc, wire_time
+from app.series import intraday
 
 PRICE = "__price__"
 
@@ -59,18 +61,19 @@ def _column(frame: pl.DataFrame, name: str) -> list:
     ]
 
 
-def _dates(frame: pl.DataFrame) -> list[str]:
+def _dates(frame: pl.DataFrame, interval: str | None = None) -> list[str]:
     if "date" not in frame.columns:
         return []
-    return [None if d is None else str(d) for d in frame["date"].to_list()]
+    return [wire_time(d, date_only=interval is not None and not intraday(interval))
+            for d in frame["date"].to_list()]
 
 
 def build_ta_figure(
     symbol: str, frame: pl.DataFrame, panes: Sequence[Pane],
-    annotations: Sequence = (), subtitle: str = "",
+    annotations: Sequence = (), subtitle: str = "", *, interval: str | None = None,
 ) -> dict:
     """A stacked multi-pane figure: candlesticks on top, indicators below."""
-    x = _dates(frame)
+    x = _dates(frame, interval)
     spans = domains(list(panes))
 
     data: list[dict] = [{
@@ -147,7 +150,7 @@ _SPAN_FILL = {
 
 
 def _instant(text: str) -> datetime:
-    return datetime.fromisoformat(text).replace(tzinfo=None)
+    return naive_utc(text)
 
 
 def add_seam(figure: dict, meta: dict, lake_on: bool) -> None:
@@ -158,6 +161,7 @@ def add_seam(figure: dict, meta: dict, lake_on: bool) -> None:
     title. `meta` is build_series' own; `lake_on` is whether lake read-back is configured.
     """
     x = figure["data"][0]["x"] if figure["data"] else []
+    date_only = bool(x) and all(len(d) == 10 for d in x if d)
     days = meta.get("lake_days") or []
     live = meta.get("rows_from_ticks") or 0
     history = len(x) - (meta.get("rows_from_lake") or 0) - live
@@ -184,7 +188,7 @@ def add_seam(figure: dict, meta: dict, lake_on: bool) -> None:
         for lo, hi, kind in spans:
             layout["shapes"].append({
                 "type": "rect", "xref": "x", "yref": "paper", "layer": "below",
-                "x0": lo.isoformat(), "x1": hi.isoformat(), "y0": 0, "y1": 1,
+                "x0": wire_time(lo, date_only=date_only), "x1": wire_time(hi, date_only=date_only), "y0": 0, "y1": 1,
                 "fillcolor": _SPAN_FILL[kind], "line": {"width": 0},
                 "label": {"text": kind, "textposition": "top left",
                           "font": {"size": 10, "color": "#8b919c"}},
@@ -192,7 +196,7 @@ def add_seam(figure: dict, meta: dict, lake_on: bool) -> None:
         if seam:
             layout["shapes"].append({
                 "type": "line", "xref": "x", "yref": "paper",
-                "x0": _instant(seam).isoformat(), "x1": _instant(seam).isoformat(),
+                "x0": wire_time(_instant(seam), date_only=date_only), "x1": wire_time(_instant(seam), date_only=date_only),
                 "y0": 0, "y1": 1, "line": {"color": "#98c379", "width": 1.5, "dash": "dash"},
             })
 
@@ -202,7 +206,7 @@ def add_seam(figure: dict, meta: dict, lake_on: bool) -> None:
     layout["margin"]["t"] = 64
 
 
-def delta(frame: pl.DataFrame, panes: Sequence[Pane], start_row: int) -> dict:
+def delta(frame: pl.DataFrame, panes: Sequence[Pane], start_row: int, *, interval: str | None = None) -> dict:
     """The tail from `start_row` onward, addressed by trace index.
 
     Only revised bars need to travel: a revision to bar t changes bar t alone
@@ -221,4 +225,4 @@ def delta(frame: pl.DataFrame, panes: Sequence[Pane], start_row: int) -> dict:
         if position == 0:
             continue
         traces[str(position)] = {"y": _column(tail, column)}
-    return {"from": start, "x": _dates(tail), "traces": traces}
+    return {"from": start, "x": _dates(tail, interval), "traces": traces}

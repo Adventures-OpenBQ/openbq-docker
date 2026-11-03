@@ -25,8 +25,8 @@ def _client(monkeypatch, lake_on=False, meta=None):
 
 
 @pytest.mark.parametrize("extra", [{}, {"show_seam": "false"}])
-def test_without_show_seam_the_figure_is_byte_identical_to_before(monkeypatch, extra):
-    # GOLDEN was written by /ta_chart before show_seam existed, from the same seam_case bars.
+def test_without_show_seam_matches_the_canonical_daily_wire_golden(monkeypatch, extra):
+    # Same seam-case figure; golden x dates now use canonical daily date-only labels.
     response = _client(monkeypatch).get("/ta_chart", params={**QUERY, **extra})
     assert response.status_code == 200
     assert response.content == GOLDEN.read_bytes()
@@ -47,11 +47,11 @@ def test_show_seam_shades_each_span_and_marks_the_seam(monkeypatch):
     # Bars 10-12..10-18: provider to the first flushed day, two lake days merged into one
     # span, then kdb from the seam to the last bar.
     assert rects == [
-        ("provider", "2026-10-12T00:00:00", "2026-10-15T00:00:00"),
-        ("lake", "2026-10-15T00:00:00", "2026-10-17T00:00:00"),
-        ("kdb", "2026-10-17T00:00:00", "2026-10-18T00:00:00"),
+        ("provider", "2026-10-12", "2026-10-15"),
+        ("lake", "2026-10-15", "2026-10-17"),
+        ("kdb", "2026-10-17", "2026-10-18"),
     ]
-    assert lines == ["2026-10-17T00:00:00"]
+    assert lines == ["2026-10-17"]
     assert title.endswith(
         "<br><sup>history 3 · lake 2 days · live 2 · seam 2026-10-17T00:00:00</sup>")
 

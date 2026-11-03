@@ -167,7 +167,7 @@ def test_demo_page_registers_relayout_handler_once(client):
 # arithmetic and the clipping, not q.
 
 SPAN = (D("2025-06-10T14:00:30"), D("2025-06-10T14:03:30"))
-SEAM = "2025-06-10T14:01:00"
+SEAM = "2025-06-10T14:01:00Z"
 
 # 14:01 is deliberately present in BOTH: history must lose it to the ticks.
 TICK_HISTORY = [bar(D("2025-06-10T13:58:00")), bar(D("2025-06-10T13:59:00")),
@@ -252,9 +252,9 @@ def test_the_join_has_no_duplicate_timestamps_and_is_strictly_increasing(tick_cl
     stamps = [b["date"] for b in body["bars"]]
     assert stamps == sorted(stamps)
     assert len(stamps) == len(set(stamps))
-    assert stamps == ["2025-06-10T13:58:00", "2025-06-10T13:59:00",
-                      "2025-06-10T14:00:00", SEAM,
-                      "2025-06-10T14:02:00", "2025-06-10T14:03:00"]
+    assert stamps == ["2025-06-10T13:58:00Z", "2025-06-10T13:59:00Z",
+                      "2025-06-10T14:00:00Z", SEAM,
+                      "2025-06-10T14:02:00Z", "2025-06-10T14:03:00Z"]
 
 
 def test_rows_from_ticks_counts_only_the_tick_derived_bars(tick_client):
@@ -269,7 +269,7 @@ def test_tick_bars_are_clipped_to_the_requested_end(tick_client):
     returned bars past the window the caller asked for."""
     body = _series(tick_client, start="2025-06-10", end="2025-06-10T14:02:00")
     stamps = [b["date"] for b in body["bars"]]
-    assert max(stamps) == "2025-06-10T14:02:00"
+    assert max(stamps) == "2025-06-10T14:02:00Z"
     assert body["cache"]["rows_from_ticks"] == 2
     _, hi = tick_client.store.aggregate_calls[-1]
     assert hi == D("2025-06-10T14:02:00"), "the aggregation itself must be clipped"
@@ -281,7 +281,7 @@ def test_a_window_that_closed_in_the_past_gets_no_ticks_at_all(tick_client):
     body = _series(tick_client, start="2024-01-01", end="2024-06-01")
     assert body["cache"]["rows_from_ticks"] == 0
     assert body["cache"]["seam"] is None
-    assert body["bars"] == [dict(b, date=b["date"].isoformat()) for b in TICK_HISTORY]
+    assert body["bars"] == [dict(b, date=b["date"].isoformat() + "Z") for b in TICK_HISTORY]
     assert tick_client.store.aggregate_calls == [], "no aggregation should have run"
 
 
@@ -366,3 +366,44 @@ def test_ticks_without_a_store_is_an_empty_list(monkeypatch):
     res = no_recorder_client.get("/ticks?symbol=AAPL")
     assert res.status_code == 200
     assert res.json()["ticks"] == []
+
+
+@pytest.mark.parametrize('endpoint', ['/series','/chart'])
+def test_intraday_wire_marks_legacy_utc_explicitly(client, endpoint):
+    body = client.get(endpoint, params={'symbol':'AAPL', 'interval':'1m'}).json()
+    stamps = ([bar['date'] for bar in body['bars']] if endpoint == '/series'
+              else body['data'][0]['x'])
+    assert stamps == ['2025-06-10T13:58:00Z','2025-06-10T13:59:00Z']
+
+
+def test_series_normalizes_offset_without_mutating_cached_rows(client, monkeypatch):
+    from datetime import datetime, timezone, timedelta
+    rows = [bar('2026-01-15T09:30:00-05:00'),
+            bar(datetime(2026, 1, 15, 9, 31, tzinfo=timezone(timedelta(hours=-5))))]
+    async def fake(*args, **kwargs):
+        return rows, {'seam':None}
+    monkeypatch.setattr('app.main.build_series', fake)
+    body = client.get('/series', params={'interval':'1m'}).json()
+    assert [r['date'] for r in body['bars']] == ['2026-01-15T14:30:00Z','2026-01-15T14:31:00Z']
+    assert rows[0]['date'] == '2026-01-15T09:30:00-05:00'
+    daily = client.get('/series', params={'interval':'1d'}).json()
+    assert [r['date'] for r in daily['bars']] == ['2026-01-15'] * 2
+
+
+@pytest.mark.parametrize('endpoint', ['/series','/chart'])
+def test_malformed_upstream_timestamp_returns_a_clear_failure(client, monkeypatch, endpoint):
+    async def fake(*args, **kwargs):
+        return [bar('2026-02-30T09:30:00Z')], {'seam':None}
+    monkeypatch.setattr('app.main.build_series', fake)
+    response = client.get(endpoint, params={'interval':'1m'})
+    assert response.status_code == 502
+
+
+@pytest.mark.parametrize('endpoint', ['/chart','/ta_chart'])
+def test_daily_market_date_survives_positive_offset_in_all_chart_paths(client, monkeypatch, endpoint):
+    async def fake(*args, **kwargs):
+        return [bar('2026-01-15T00:00:00+09:00')], {'seam':None}
+    monkeypatch.setattr('app.main.build_series', fake)
+    response = client.get(endpoint, params={'interval':'1d', 'macro':'none'})
+    assert response.status_code == 200
+    assert response.json()['data'][0]['x'] == ['2026-01-15']
