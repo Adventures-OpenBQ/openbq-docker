@@ -41,7 +41,7 @@
     "bdobb": {
       "visibility": "PUBLIC",
       "default_branch": "main",
-      "head": "23f699fe39397d101c8dcae4a0d6c7c2e9b8b620"
+      "head": "2ee88d18b217eb44589468064ee27350bd60699c"
     },
     "openbq-docker": {
       "visibility": "PUBLIC",
@@ -57,5 +57,14 @@
   },
   "credentials_and_licensed_rows_published": false,
   "original_sip_minio_changed": false,
-  "old_images_containers_volumes_retained": true
+  "old_images_containers_volumes_retained": true,
+  "browser_e2e_closeout": {
+    "commit": "2ee88d18b217eb44589468064ee27350bd60699c",
+    "ci_url": "https://github.com/Adventures-OpenBQ/bdobb/actions/runs/41840304804",
+    "all_five_jobs": "success",
+    "browser_tests_passed": 313,
+    "browser_tests_skipped": 11,
+    "production_runtime_changed": false,
+    "public_vercel_demo_qualified": false
+  }
 }
