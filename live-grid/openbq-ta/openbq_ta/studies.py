@@ -277,7 +277,12 @@ def sync_dir(directory: Path | None) -> None:
     """
     if directory is None or not Path(directory).is_dir():
         return
-    seen = {p.stem: p.stat().st_mtime_ns for p in Path(directory).glob("*.py")}
+    seen: dict[str, int] = {}
+    for p in Path(directory).glob("*.py"):
+        try:
+            seen[p.stem] = p.stat().st_mtime_ns
+        except OSError as exc:  # dangling symlink, or deleted since the glob
+            log.warning("skipping study %s: %s", p.name, exc)
     for stem in [s for s in _MTIMES if s not in seen]:
         unload(stem)
         del _MTIMES[stem]

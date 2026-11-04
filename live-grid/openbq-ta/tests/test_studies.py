@@ -227,3 +227,21 @@ def test_nesting_resolves_defaults_and_rejects_unknown_parameters():
 
 def test_load_dir_with_no_directory_is_empty():
     assert studies.load_dir(None) == {} and studies.load_dir("/nonexistent") == {}
+
+
+def test_sync_dir_skips_a_dangling_symlink_and_a_file_deleted_mid_sync(tmp_path, caplog, monkeypatch):
+    write(tmp_path, "mid", MID.replace("{label}", "a"))
+    (tmp_path / "dangling.py").symlink_to(tmp_path / "nowhere.py")
+    with caplog.at_level(logging.WARNING):
+        studies.sync_dir(tmp_path)
+    assert "mid_line" in REGISTRY and "dangling.py" in caplog.text
+    # A file that vanishes between the glob and the stat is skipped the same way.
+    real_stat = type(tmp_path).stat
+
+    def flaky(self, *a, **k):
+        if self.name == "mid.py":
+            raise FileNotFoundError(self.name)
+        return real_stat(self, *a, **k)
+    monkeypatch.setattr(type(tmp_path), "stat", flaky)
+    studies.sync_dir(tmp_path)
+    assert "mid_line" not in REGISTRY
