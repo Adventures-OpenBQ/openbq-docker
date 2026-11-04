@@ -20,11 +20,11 @@ jobs:
           python-version: "3.12"
       - name: Test the key-mode settings, dashboard and app sync routes
         run: |
-          python3 -m pip install --quiet pytest starlette==1.7.0 httpx==0.28.1 anyio==4.15.1
+          python3 -m pip install --quiet pytest==9.0.2 starlette==1.7.0 httpx==0.28.1 anyio==4.15.1
           python3 -m pytest v3/tests -q -p no:cacheprovider
       - name: Test the web profile's compose and Serve configs
         run: |
-          python3 -m pip install --quiet pyyaml
+          python3 -m pip install --quiet pyyaml==6.0.2 fastapi==0.142.2 pydantic==2.13.5 "psycopg[binary]==3.3.2"
           python3 -m pytest tests -q -p no:cacheprovider
       - uses: actions/setup-node@v4
         with:
