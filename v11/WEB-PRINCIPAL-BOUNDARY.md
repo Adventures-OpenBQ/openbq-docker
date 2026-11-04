@@ -63,3 +63,29 @@ reran that probe and reported no remaining critical or important findings.
 These checks use synthetic authentication fixtures and a local HTTP upstream;
 they do not claim real OAuth, market-data, public TLS or retained-data browser
 acceptance. Existing live credentials, scope policy and ingress are unchanged.
+
+## Integration checkpoint
+
+Merged client source: `3c0fa4d1c7c681a2bcd03782cc2d67099fb4c096`.
+Merged gateway source: `835dcc4`.
+The NAS candidate image is
+`sha256:557da9000025301afbf291b129380d1c1556cb0718e364ac26fca74879f208c2`.
+It extends the retained qualified gateway image with only the reviewed
+`config.mjs` and `server.mjs`; it is not described as a clean dependency rebuild.
+All nine TemporalDB gateway tests passed inside that candidate image on the NAS.
+The live gateway has not been replaced.
+
+The main push completed a successful staged Vercel build:
+[DaiBwwkPYQz3c8W4t425GqaLV2PA](https://vercel.com/bdobb-dev/openbq-bdobb/DaiBwwkPYQz3c8W4t425GqaLV2PA).
+The full client CI is also running; its completion must be checked separately
+from the already passed affected suites. Production domains remain on the
+previous deployment with manual promotion required.
+
+A private activation bundle was prepared outside Git. It retains the original
+configuration hashes and adds one new real-user demo workspace, one distinct
+scoped credential and matching gateway/managed-ingestion bindings. Both the
+actual API scope-policy parser and gateway configuration parser accepted it.
+It grants no provider acquisition permission, seeds no data and changes no
+existing scope or receipt. It is **not applied**. Private deployed acceptance,
+intentional demo-data admission, Vercel relay configuration and public ingress
+remain deployment gates, not completed work.
