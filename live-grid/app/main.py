@@ -12,6 +12,7 @@ import json
 import logging
 import math
 import os
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -23,6 +24,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware import Middleware
+
+import openbq_ta
+from openbq_ta.studies import sync_dir
 
 from app.auth import BasicAuthMiddleware, auth_enabled
 from app.classify import FEEDS, classify, normalize
@@ -189,6 +193,28 @@ async def fill_gaps(symbol, interval, ticks, lo, hi, store, key, meta, provider=
     if interval == "1m":
         return sorted(merged, key=lambda r: _row_dt(r["date"]))
     return resample(merged, interval)
+
+
+_OBS = re.compile(r"OBS-([1-9][0-9]{0,6})")
+
+
+def _studies_dir() -> Path | None:
+    raw = os.getenv("TA_STUDIES_DIR", "").strip()
+    return Path(raw) if raw else None
+
+
+async def _trades(symbol: str, indicators: str, recorder) -> list:
+    """The newest trades' timestamps, newest first, as many as the deepest OBS-n asks for.
+    Empty when no OBS-n is asked for or the tape cannot be read (no kdb)."""
+    wanted = [int(n) for n in _OBS.findall(indicators or "")]
+    if not wanted or recorder is None:
+        return []
+    try:
+        rows = await asyncio.to_thread(recorder.store.read_ticks, symbol, max(wanted))
+    except Exception as exc:  # noqa: BLE001 - like /ticks: no tape, the OBS-n study is dropped with a note
+        log.warning("trade read failed for %s: %s", symbol, exc)
+        return []
+    return [row["time"] for row in rows]
 
 
 async def build_series(symbol, interval, start, end, recorder, window, provider="kdb",
@@ -544,6 +570,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                        show_seam: bool = False):
         s, e = _window(start, end)
         indicators = with_anchor(indicators, anchor)
+        sync_dir(_studies_dir())
         params = ChartParams(symbol, interval, source, macro, indicators, s, e, provider)
         bars_error = None
         try:
@@ -555,7 +582,8 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             bars, meta, bars_error = [], {}, exc
         try:
             figure, _, _, _ = await build_payload(
-                params, bars_to_frame(bars), eodhd_source=_eodhd
+                params, bars_to_frame(bars), eodhd_source=_eodhd,
+                trades=await _trades(symbol, indicators, recorder),
             )
         except Exception as exc:  # noqa: BLE001
             log.warning("ta_chart failed for %s: %s", symbol, exc)
@@ -576,6 +604,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     @app.websocket("/ta_chart_ws")
     async def ta_chart_ws(ws: WebSocket) -> None:
         await ws.accept()
+        sync_dir(_studies_dir())
         query = ws.query_params
         s, e = _window(query.get("start"), query.get("end"))
         params = ChartParams(
@@ -616,7 +645,8 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                     bars, meta, bars_error = [], {}, exc
                 try:
                     figure, panes, frame, annotations = await build_payload(
-                        params, bars_to_frame(bars), eodhd_source=_eodhd
+                        params, bars_to_frame(bars), eodhd_source=_eodhd,
+                        trades=await _trades(params.symbol, params.indicators, recorder),
                     )
                 # Mirrors /ta_chart's 502: not a missing-bars degradation, this
                 # is unrecoverable (bad macro, bad indicator params), so end
@@ -686,6 +716,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             "calls_per_indicator": 5,
             "min_refetch_s": float(os.getenv("TA_EODHD_MIN_REFETCH_S", "60")),
         }
+        body["openbq_ta"] = openbq_ta.__version__
         # Kept for clients that read it: the widget is always published now
         # (unset, its endpoint is the request's own address).
         body["subscriptions"] = {"published": True}

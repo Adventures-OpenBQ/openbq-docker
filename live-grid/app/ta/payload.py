@@ -17,11 +17,9 @@ import polars as pl
 from app.ta.figure import build_ta_figure
 from app.ta.macros import load_all
 from app.ta.panes import Pane, all_reqs, assign
-from openbq_ta.registry import Req, resolve
+from openbq_ta.compute import resolve_times
+from openbq_ta.registry import Req, StudyError, col_suffix, get, resolve
 from app.ta.sources import LocalSource
-
-_NUMERIC = ("period", "k", "d", "fast", "slow", "signal", "smooth_k",
-            "stoch_period", "atr_period", "mult", "acceleration", "maximum")
 
 
 @dataclass(frozen=True)
@@ -36,11 +34,15 @@ class ChartParams:
     provider: str = "kdb"
 
 
-def _coerce(key: str, raw: str):
-    if key not in _NUMERIC:
+def _coerce(default, raw: str):
+    """The registry's default says what a parameter IS: an int default stays int, a float
+    default stays float (`bbands:k=2` is 2.0, `stoch:k=14` is 14), a text or None default
+    -- an anchor -- passes through. A name list would have to be edited for every folder
+    study, and a folder study edits no list."""
+    if isinstance(default, bool) or not isinstance(default, (int, float)):
         return raw
     value = float(raw)
-    return int(value) if value.is_integer() and key != "k" else value
+    return int(value) if isinstance(default, int) and value.is_integer() else value
 
 
 def with_anchor(indicators: str, anchor: str | None) -> str:
@@ -77,12 +79,13 @@ def parse_indicators(raw: str) -> list[Req]:
                 pairs.append(part)
             else:
                 pairs[-1] += ":" + part
+        defaults = get(name.strip()).params
         params = {}
         for pair in pairs:
             if "=" not in pair:
                 continue
             key, value = pair.split("=", 1)
-            params[key.strip()] = _coerce(key.strip(), value.strip())
+            params[key.strip()] = _coerce(defaults.get(key.strip()), value.strip())
         reqs.append(resolve(name.strip(), **params))
     return reqs
 
@@ -135,13 +138,18 @@ def bars_to_frame(bars: list[dict]) -> pl.DataFrame:
 
 
 async def build_payload(
-    params: ChartParams, frame: pl.DataFrame, eodhd_source=None,
+    params: ChartParams, frame: pl.DataFrame, eodhd_source=None, trades=(),
 ) -> tuple[dict, list[Pane], pl.DataFrame, list]:
     """The figure, its panes, the computed frame, and its annotations.
 
     Annotations come back rather than being folded into the title and dropped:
     the title only ships on a FIGURE push, so a caller that cannot see them
     change cannot know to send one (see main.ta_chart_ws).
+
+    A study whose time parameter does not resolve (an expression the host should have
+    resolved, an OBS-n beyond `trades`) is dropped here with a note in the title, before
+    either source runs; a local study whose iterate/session_agg raises is dropped the same
+    way by LocalSource (spec 2026-11-04 §3). `trades` is newest first.
     """
     macro = None
     if params.macro and params.macro != "none":
@@ -151,7 +159,13 @@ async def build_payload(
         macro = macros[params.macro]
 
     panes = assign(macro, parse_indicators(params.indicators))
-    reqs = all_reqs(panes)
+    reqs, notes = [], []
+    for req in all_reqs(panes):
+        try:
+            resolve_times(req, trades)
+            reqs.append(req)
+        except StudyError as exc:
+            notes.append((req, str(exc)))
 
     annotations: list = []
     if params.source == "eodhd" and eodhd_source is not None and reqs:
@@ -161,9 +175,20 @@ async def build_payload(
         )
         computed, annotations = result.frame, result.annotations
     else:
-        computed = LocalSource().series(frame, reqs).frame
+        result = LocalSource().series(frame, reqs, trades)
+        computed, notes = result.frame, notes + result.notes
+
+    # a dropped study draws no empty legend entry or pane
+    gone = {c + col_suffix(req) for req, _ in notes for c in get(req.name).render}
+    dropped = {id(req) for req, _ in notes}
+    for pane in panes:
+        pane.series = [s for s in pane.series if s.column not in gone]
+        pane.reqs = [r for r in pane.reqs if id(r) not in dropped]
+    panes = [p for p in panes if p.is_price or p.series]
 
     subtitle = f"{params.interval} · {params.source}"
+    if notes:
+        subtitle += " · dropped " + "; ".join(f"{req.name}: {msg}" for req, msg in notes)
     figure = build_ta_figure(params.symbol, computed, panes, annotations, subtitle)
     return figure, panes, computed, annotations
 

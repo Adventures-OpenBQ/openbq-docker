@@ -47,6 +47,7 @@ class Result:
     frame: pl.DataFrame
     annotations: list[Annotation] = field(default_factory=list)
     calls: int = 0
+    notes: list = field(default_factory=list)
 
 
 def _columns(req: Req) -> list[str]:
@@ -71,8 +72,9 @@ class LocalSource:
 
     name = "local"
 
-    def series(self, df: pl.DataFrame, reqs: list[Req]) -> Result:
-        return Result(compute(df, reqs))
+    def series(self, df: pl.DataFrame, reqs: list[Req], trades=()) -> Result:
+        notes: list = []
+        return Result(compute(df, reqs, trades=trades, notes=notes), notes=notes)
 
 
 class EodhdSource:
@@ -110,6 +112,7 @@ class EodhdSource:
         # across every bar of the day and passed off as intraday. Compute
         # locally and say so, rather than draw a plausible lie.
         if interval != "1d":
+            # ponytail: no notes on the EODHD path -- an iterate that raises fails the request; thread notes here if a folder study ever runs with source=eodhd.
             return Result(compute(df, reqs), [
                 Annotation(col, "local", "EODHD has no intraday data")
                 for r in reqs for col in _columns(r)
