@@ -7,10 +7,10 @@ The [identity evidence](price-identity/block-xyz-evidence.json) and
 operator assertion to that one NYSE day. Security Master's unknown business
 history remains unknown; this is not historical index membership.
 
-Saved policy revision2 permits one symbol, one day and one32KiB request per run,
+Saved policy revision2 permits one symbol, one day and one 32 KiB request per run,
 with no automatic retries. Its explicit acquisition credential is separate
 from the existing MCP cache credential. The provider key is available only to
-the worker. A source-less preflight indicated acquisition was needed; the
+the worker. A read-only preflight indicated acquisition was needed; the
 subsequent run retained the real response, accepted its normalization and Gold
 publication, and produced an immutable execution. Raw OHLC and volume match the
 113-byte provider response. A second preflight reported cached; a second run
@@ -42,3 +42,21 @@ the existing accepted run; it did not repeat acquisition.
 This is a bounded native data-workflow checkpoint. Calendar linkage, actual
 visible widgets/Rita, bounded SIP admission and the final frozen
 restart/restore/replay/review gates remain separate release requirements.
+
+## Linked calendar and authenticated MCP checkpoint
+
+[The production client verification](qualification-2026-11-03/real-price-policy/price-calendar.json)
+binds the price execution and retained XNYS2025 calendar separately. It resolves
+January21 to14:30–21:00UTC with `operational-v1`, records both input manifests,
+source hashes and their common archived runtime, and preserves the provisional
+identity and unavailable adjusted close. The provider made no live calendar
+fetch while resolving the retained data.
+
+[The local-knowledge check](qualification-2026-11-03/real-price-policy/calendar-local-knowledge.json)
+returned zero eligible observations one microsecond before local receipt and
+one afterward. This is local retained availability, not historical exchange
+publication knowledge. [Authenticated MCP](qualification-2026-11-03/real-price-policy/mcp.json)
+read the original price execution and produced a fresh cached execution with
+the same rows, schema and result hash; its acquisition capability stayed denied.
+The tutorial now explains both data layers and tracking layers with this case.
+Final release/review, visible widgets/Rita and SIP admission remain open.
