@@ -82,6 +82,7 @@ checked in `funnel-gateway/charts-policy.mjs`:
 |---|---|
 | `/charts`, `/charts/{id}` (+ `/history`, `/restore/{n}`) | GET POST PUT DELETE as the route allows |
 | `/charts/events` | GET (SSE) |
+| `/charts/widgets.json`, `/charts/widgets/documents`, `/charts/widgets/alerts` | GET (BDOBB's companion widgets; read-only; no query. The bars widget is live-grid's, not on the door) |
 | `/charts/mcp` | POST (MCP, 600 calls an hour per principal) |
 | `/charts/{id}/snapshot.png`, `/charts/{id}/snapshots/{id}.png` | GET |
 | `/charts/ws_ticket`, `/ta_series_ws` | the study socket's ticket and socket |

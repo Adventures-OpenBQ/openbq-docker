@@ -47,6 +47,13 @@ for _ in range(60):  # arts-charts migrates, then serves
     time.sleep(2)
 for client, door in ((g, 'G'), (d, 'D')):
     check(f'{door} /ta_registry', client.get('/ta_registry').status_code == 200)
+for client, door in ((g, 'G'), (d, 'D')):
+    manifest = client.get('/charts/widgets.json')
+    check(f'{door} /charts/widgets.json', manifest.status_code == 200 and set(manifest.json())
+          == {'arts_charts_documents', 'arts_charts_alerts'})
+    for path in ('/charts/widgets/documents', '/charts/widgets/alerts'):
+        check(f'{door} {path}', client.get(path).status_code == 200)
+check('G /charts/widgets/bars is not on the door', g.get('/charts/widgets/bars').status_code == 404)
 
 events = queue.Queue()
 def feed():

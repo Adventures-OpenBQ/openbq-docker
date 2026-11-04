@@ -35,9 +35,10 @@ const STUDY = [...SERIES, "source", "macro", "indicators", "anchor", "basis", "w
 const ROUTES = [
   ["GET|POST", /^\/charts$/, [], "json"],
   ["GET", /^\/charts\/events$/, [], "sse"],
-  // BDOBB's companion widgets (v12 part 5): read-only GETs; only the bars take a query.
+  // BDOBB's companion widgets (v12 part 5, trimmed by the 2026-11-04 engine split): read-only GETs, no query. The bars widget is live-grid's.
   ["GET", /^\/charts\/widgets\.json$/, [], "json"],
-  ["GET", /^\/charts\/widgets\/bars$/, ["symbol", "interval", "session"], "json"],
+  ["GET", /^\/charts\/widgets\/documents$/, [], "json"],
+  ["GET", /^\/charts\/widgets\/alerts$/, [], "json"],
   ["POST", /^\/charts\/mcp$/, [], "mcp"],
   ["GET|PUT|DELETE", exact(`/charts/${ID}`), [], "json"],
   ["GET", exact(`/charts/${ID}/history`), [], "json"],

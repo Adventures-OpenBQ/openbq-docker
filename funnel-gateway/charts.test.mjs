@@ -25,7 +25,7 @@ test("every listed /charts route is admitted exactly, with its query keys", () =
   for (const [method, path, kind] of [
     ["GET", "/charts", "json"], ["POST", "/charts", "json"], ["GET", "/charts/events", "sse"],
     ["GET", "/charts/widgets.json", "json"],
-    ["GET", "/charts/widgets/bars?symbol=AAPL&interval=1h&session=regular", "json"],
+    ["GET", "/charts/widgets/documents", "json"], ["GET", "/charts/widgets/alerts", "json"],
     ["POST", "/charts/mcp", "mcp"], ["GET", `/charts/${id}`, "json"], ["PUT", `/charts/${id}`, "json"],
     ["DELETE", `/charts/${id}`, "json"], ["GET", `/charts/${id}/history`, "json"],
     ["POST", `/charts/${id}/restore/3`, "json"], ["GET", `/charts/${id}/snapshot.png?width=1200&height=675&theme=light`, "png"],
@@ -60,11 +60,11 @@ test("unlisted routes, methods, keys, values and path tricks are refused", () =>
     ["DELETE", `/watches/${id}`], ["GET", "/watches?chart_id=x"], ["POST", "/watches/action"],
     ["GET", "/ta_series_ws"], ["GET", "/charts/ws_ticket?target=/ta_series_ws"],
     ["GET", "/charts/widgets.json?x=1"], ["POST", "/charts/widgets.json"], ["GET", "/charts/widgets.json/"],
-    ["GET", "/charts/widgets"], ["GET", "/charts/widgets/"], ["GET", "/charts/widgets/bars/"],
-    ["GET", "/charts/widgets/Bars"], ["GET", "/charts/widgets/bars.json"], ["POST", "/charts/widgets/bars"],
-    ["GET", "/charts/widgets/bars?symbol=AAPL&symbol=MSFT"], ["GET", "/charts/widgets/bars?provider=yfinance"],
-    ["GET", "/charts/widgets/bars?indicators=sma:period=20"], ["GET", "/charts/widgets/bars?start=2026-01-01"],
-    ["GET", "/charts/widgets/bars?interval=1y"], ["GET", "/charts/widgets/bars?session=overnight"],
+    ["GET", "/charts/widgets"], ["GET", "/charts/widgets/"], ["GET", "/charts/widgets/bars"], ["GET", "/charts/widgets/bars?symbol=AAPL&interval=1d"],
+    ["GET", "/charts/widgets/documents/"], ["GET", "/charts/widgets/Documents"],
+    ["GET", "/charts/widgets/alerts.json"],
+    ["GET", "/charts/widgets/documents?limit=5"], ["GET", "/charts/widgets/alerts?before=x"],
+    ["DELETE", "/charts/widgets/alerts"], ["POST", "/charts/widgets/documents"], ["GET", "/charts/widgets/inbox"],
     ["GET", "/docs"],
   ]) assert.equal(chartsRoute(u(path), method), null, `${method} ${path}`);
 });
@@ -210,7 +210,7 @@ test("charts off answers exactly as v11", async t => {
   const gateway = createGateway(validateConfig(settings, secrets)); await listen(gateway); t.after(() => gateway.closeGateway());
   const port = gateway.address().port;
   for (const path of ["/charts", `/charts/${id}`, "/series?symbol=AAPL", "/charts/events", `/inbox/${id}`, "/charts/ws_ticket?target=/ta_series_ws",
-                      "/charts/widgets.json", "/charts/widgets/bars?symbol=AAPL&interval=1d"])
+                      "/charts/widgets.json", "/charts/widgets/documents"])
     assert.equal((await call(port, path)).status, 404, path);
   for (const [method, path] of [["POST", "/charts/mcp"], ["PUT", `/charts/${id}`], ["POST", "/watches/action"]])
     assert.equal((await call(port, path, { method, body: "{}", headers: { "content-type": "application/json" } })).status, 405, path);
@@ -329,21 +329,19 @@ test("/ntfy websocket: the caller's Authorization goes upstream, a client frame 
   client.send("x"); await once(client, "close");
 });
 
-test("companion widgets: token required, pair injected, query re-serialised, path tricks never reach arts-charts", async t => {
-  const { port, seen } = await stack(t, (req, res) => req.url.includes("interval=2h")
-    ? json(res, 400, { detail: "interval '2h' is not served by yfinance" }) : json(res, 200, { rows: [] }));
-  for (const path of ["/charts/widgets.json", "/charts/widgets/bars?symbol=AAPL&interval=1h"])
+test("companion widgets: token required, pair injected, no query, path tricks never reach arts-charts", async t => {
+  const { port, seen } = await stack(t, (req, res) => json(res, 200, { rows: [] }));
+  for (const path of ["/charts/widgets.json", "/charts/widgets/documents", "/charts/widgets/alerts"])
     assert.equal((await call(port, path, { bearer: false })).status, 401, path);
   assert.equal(seen.length, 0);
-  const ok = await call(port, "/charts/widgets/bars?interval=1h&symbol=AAPL");
+  const ok = await call(port, "/charts/widgets/documents");
   assert.equal(ok.status, 200); assert.deepEqual(JSON.parse(ok.body), { rows: [] });
-  assert.equal(seen[0].path, "/charts/widgets/bars?interval=1h&symbol=AAPL");
+  assert.equal(seen[0].path, "/charts/widgets/documents");
   assert.equal(seen[0].headers.authorization, PAIR);
-  const refused = await call(port, "/charts/widgets/bars?symbol=AAPL&interval=2h");
-  assert.equal(refused.status, 400); assert.match(refused.body.toString(), /not served/);
   const count = seen.length;
-  for (const path of ["/charts/widgets/%62ars?symbol=AAPL", "/charts/widgets/x/../bars", "/charts//widgets/bars",
-                      "/charts/widgets/bars?symbol=AAPL&x=1", "/charts/widgets.json?callback=x", "/charts/widgets/bars?symbol=A%0AB"])
+  for (const path of ["/charts/widgets/%64ocuments", "/charts/widgets/x/../alerts", "/charts//widgets/documents",
+                      "/charts/widgets/documents?limit=5", "/charts/widgets.json?callback=x",
+                      "/charts/widgets/bars?symbol=AAPL&interval=1d"])
     assert.notEqual((await call(port, path)).status, 200, path);
   assert.equal(seen.length, count);
 });
