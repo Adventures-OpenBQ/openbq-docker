@@ -26,6 +26,7 @@ from typing import Any
 
 import polars as pl
 
+from openbq_ta.compute import resolve_times
 from openbq_ta.exprs import Base
 from openbq_ta.registry import REGISTRY, Indicator, StudyError, get, register, resolve
 
@@ -196,14 +197,14 @@ def exprs_of(name: str, **params: Any) -> dict[str, pl.Expr]:
     req = resolve(name, **params)
     # The study's own Bases, so a build that reads them by key (sma, bbands)
     # composes; they are materialised only if your study declares them too.
-    bases = {b.key: b for b in ind.deps(req.params)}
-    return {e.meta.output_name(): e for e in ind.build(req.params, bases)}
+    params = resolve_times(req)  # times= parameters arrive as UTC datetimes
+    bases = {b.key: b for b in ind.deps(params)}
+    return {e.meta.output_name(): e for e in ind.build(params, bases)}
 
 
 def deps_of(name: str, **params: Any) -> list[Base]:
     """The shared sub-series another study reads, to declare as your own `deps`."""
-    req = resolve(name, **params)
-    return get(name).deps(req.params)
+    return get(name).deps(resolve_times(resolve(name, **params)))
 
 
 def unload(stem: str) -> list[str]:

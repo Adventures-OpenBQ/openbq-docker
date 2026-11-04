@@ -116,3 +116,14 @@ def test_a_time_parameter_reaches_a_folder_study_as_a_datetime():
         assert seen["start"] == datetime(2026, 6, 3, 14, tzinfo=UTC)
     finally:
         studies.unload("<runtime>")
+
+
+def test_exprs_of_and_deps_of_resolve_time_parameters():
+    assert "avwap" in studies.exprs_of("avwap", anchor="2026-06-03T14:00:00Z")
+    studies.study(name="t_nest", label="Nest", params={"start": None}, colors={"s": "#fff"},
+                  times=("start",), deps=lambda p: [])(lambda p: [pl.lit((p["start"] or datetime(2000, 1, 1)).year).alias("s")])
+    try:
+        assert studies.deps_of("t_nest", start="2026-06-03T14:00:00Z") == []
+        assert studies.exprs_of("t_nest", start="2026-06-03T14:00:00Z")["s"] is not None
+    finally:
+        studies.unload("<runtime>")
