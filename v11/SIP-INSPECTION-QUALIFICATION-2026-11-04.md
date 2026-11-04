@@ -60,7 +60,12 @@ retained-state bound; row/column/time, worker and service caps remain active.
 The successful run still recorded throttled commands/cancels and bounded response
 refusals before completing. This remains a whole-release review focus.
 
+The native browser pivot over all1,788 rows returned one group with source-size
+sum41,529, matching the independently parsed source. Its JSON export retained
+the same execution/hash and inspection warning. The initial test assertion used
+the internal measure ID; exports correctly use the explicit presentation label.
+
 The pre-SIP cross-store backup passed all seven checksum checks and the original
-qualification services restarted. Native pivot/browser qualification, final isolated recovery and
+qualification services restarted. Final isolated recovery and
 whole-release review are tracked separately. This report is not a v11 completion,
 OAuth issuer, public TLS, signed application or production-cutover claim.
