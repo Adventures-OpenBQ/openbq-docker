@@ -43,9 +43,10 @@ Interfaces: `CalendarCollector.collect_current(scope,parameters)` → CaptureEnv
 
 ### Task 3: retained client provider and shared conformance
 
-Files: C new `src/lib/calendars/retained.ts` and test, existing provider/cache only where necessary. P/H/C common source-based case receipt.
+Files: C new `src/lib/calendars/retained.ts` and test, existing provider/cache only where necessary. P/H/C common source-based case receipt. C `src/lib/temporal/client.ts` and test own MCP-compatible default paging.
 Interfaces: `createRetainedCalendarProvider(selection,cache)` consumes exact validated ResultPage + backend/scope identity and returns existing CalendarProvider plus retained reference; no live fetch. Selection includes frozen execution/context/input identity; bundle byte/semantic hashes verified.
 - [ ] Write failing tests for real retained bundle, altered bytes, scope/context/execution separation, earlyclose/break/DST/date-label parity, clipped-gap refusal and old retained selection after correction.
+- [ ] Add a RED assertion that new Cclient executions default to100rows/page (MCP cap), preserve explicit1000 HTTP overrides, then change only the default. Keep old retained execution semantics.
 - [ ] Implement using existing shared cache/verifyBundle/createBundleProvider; preserve operational/planning policy vocabulary and expose retained reference for prepared batches.
 - [ ] Run focused calendar/temporal contract tests and typecheck; expected pass. Commit with the backend source contract receipt.
 
