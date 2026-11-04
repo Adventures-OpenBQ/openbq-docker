@@ -28,6 +28,7 @@ from starlette.middleware import Middleware
 import openbq_ta
 from openbq_ta.studies import sync_dir
 
+from app import bars_widget
 from app.auth import BasicAuthMiddleware, auth_enabled
 from app.classify import FEEDS, classify, normalize
 from app.feeds import FeedManager
@@ -54,9 +55,10 @@ from app.ta.payload import (
     bars_to_frame,
     build_payload,
     revised_from,
+    parse_indicators,
     with_anchor,
 )
-from app.ta.sources import EodhdSource
+from app.ta.sources import EodhdSource, LocalSource
 
 log = logging.getLogger("live-grid")
 
@@ -432,6 +434,31 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
 
     _STATIC = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=_STATIC), name="static")
+
+    @app.get("/widgets/bars")
+    async def widget_bars(request: Request):
+        """The bars/SMA widget (spec 2026-11-04 §4). Read-only. A refusal is a 400 or 422
+        with detail, an outage a 502; never partial rows."""
+        try:
+            q = bars_widget.query(request, bars_widget.KEYS)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
+        symbol, interval = q.get("symbol", "AAPL"), q.get("interval", "1d")
+        if interval not in bars_widget.INTERVALS:
+            raise HTTPException(
+                400, f"interval {interval!r} is not one of {', '.join(bars_widget.INTERVALS)}")
+        start, end = bars_widget.window(interval, date.today())
+        try:
+            bars, _ = await build_series(symbol, interval, start, end, recorder,
+                                         _tick_window(), "kdb", lake=lake)
+        except Exception:  # noqa: BLE001 - becomes the 502 below, never the upstream text
+            raise HTTPException(502, "bars unavailable") from None
+        frame = LocalSource().series(
+            bars_to_frame(bars), parse_indicators(bars_widget.INDICATORS)).frame
+        try:
+            return {"rows": bars_widget.bar_rows(frame, interval)}
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
 
     def _window(start: str | None, end: str | None, days: int = 365) -> tuple[str, str]:
         today = date.today()

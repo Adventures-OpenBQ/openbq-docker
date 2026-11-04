@@ -479,5 +479,79 @@
    "EODHD",
    "kdb+"
   ]
+ },
+ "ta_bars": {
+  "name": "Bars and SMAs",
+  "description": "Closes with their 20, 50 and 200-bar simple moving averages at the chosen interval. Read-only.",
+  "category": "Equity",
+  "type": "table",
+  "endpoint": "widgets/bars",
+  "gridData": {
+   "w": 40,
+   "h": 16
+  },
+  "params": [
+   {
+    "paramName": "symbol",
+    "label": "Symbol",
+    "type": "text",
+    "value": "AAPL"
+   },
+   {
+    "paramName": "interval",
+    "label": "Interval",
+    "value": "1d",
+    "groupType": "chart.interval",
+    "options": [
+     {
+      "label": "1m",
+      "value": "1m"
+     },
+     {
+      "label": "5m",
+      "value": "5m"
+     },
+     {
+      "label": "15m",
+      "value": "15m"
+     },
+     {
+      "label": "30m",
+      "value": "30m"
+     },
+     {
+      "label": "1h",
+      "value": "1h"
+     },
+     {
+      "label": "1d",
+      "value": "1d"
+     },
+     {
+      "label": "1w",
+      "value": "1w"
+     },
+     {
+      "label": "1M",
+      "value": "1M"
+     }
+    ]
+   }
+  ],
+  "data": {
+   "dataKey": "rows",
+   "portfolio": {
+    "protocol": "bdobb.portfolio/0.1",
+    "view": "timeseries",
+    "x": "time",
+    "y": [
+     "close",
+     "sma_20",
+     "sma_50",
+     "sma_200"
+    ],
+    "interval": "param"
+   }
+  }
  }
 }

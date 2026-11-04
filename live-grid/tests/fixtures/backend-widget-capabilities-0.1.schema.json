@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bdobb:widget-capabilities:0.1",
+  "title": "BDOBB candidate widget capability objects 0.1",
+  "$defs": {
+    "explorer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "dataset",
+        "snapshots",
+        "columns"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "bdobb.explorer/0.1"
+        },
+        "dataset": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,119}$",
+          "not": {
+            "enum": [
+              "constructor",
+              "prototype"
+            ]
+          }
+        },
+        "snapshots": {
+          "type": "boolean"
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "field",
+              "type"
+            ],
+            "properties": {
+              "field": {
+                "type": "string",
+                "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,119}$",
+                "not": {
+                  "enum": [
+                    "constructor",
+                    "prototype"
+                  ]
+                }
+              },
+              "type": {
+                "enum": [
+                  "string",
+                  "number",
+                  "date"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "portfolio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "view",
+        "x",
+        "y"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "bdobb.portfolio/0.1"
+        },
+        "view": {
+          "enum": [
+            "timeseries",
+            "bar",
+            "heatmap",
+            "pca",
+            "risk",
+            "hrp",
+            "clusters"
+          ]
+        },
+        "x": {
+          "type": "string",
+          "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,79}$",
+          "not": {
+            "enum": [
+              "constructor",
+              "prototype"
+            ]
+          }
+        },
+        "y": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,79}$",
+            "not": {
+              "enum": [
+                "constructor",
+                "prototype"
+              ]
+            }
+          }
+        },
+        "source": {
+          "enum": [
+            "synthetic_capture",
+            "accepted_skfolio",
+            "computed_arkk",
+            "native_arkk"
+          ]
+        },
+        "unit": {
+          "enum": [
+            "fraction",
+            "coefficient"
+          ]
+        },
+        "interval": {
+          "type": "string",
+          "anyOf": [
+            {
+              "const": "param"
+            },
+            {
+              "pattern": "^[1-9][0-9]{0,3}(s|m|h|d|w|M)$"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "view": {
+                "enum": [
+                  "pca",
+                  "risk",
+                  "hrp",
+                  "clusters"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "source"
+            ],
+            "properties": {
+              "source": {
+                "enum": [
+                  "computed_arkk",
+                  "native_arkk"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "interval"
+            ]
+          },
+          "then": {
+            "properties": {
+              "view": {
+                "const": "timeseries"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/explorer"
+    },
+    {
+      "$ref": "#/$defs/portfolio"
+    }
+  ]
+}
