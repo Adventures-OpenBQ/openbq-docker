@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# Qualification-only browser runner. No private config is part of this image.
+ARG QUALIFIED_BROWSER_BASE
+FROM ${QUALIFIED_BROWSER_BASE}
+USER root
+RUN node --input-type=module -e 'import fs from "node:fs"; const fix=p=>{const s=fs.lstatSync(p);if(s.isSymbolicLink())return;fs.chmodSync(p,s.isDirectory()||s.mode&0o111?0o755:0o644);if(s.isDirectory())for(const n of fs.readdirSync(p))fix(p+"/"+n);};for(const p of ["/app/src","/app/web","/app/browser","/host"])fix(p);for(const n of fs.readdirSync("/app")){const p="/app/"+n;if(fs.lstatSync(p).isFile())fix(p);}'
+USER pwuser

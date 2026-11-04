@@ -105,3 +105,24 @@ profile. Worker configuration must select that exact interpreter/profile and a
 server-owned account binding. Building this SDK target does not enable
 acquisition or qualify the combined runtime. Combined-image qualification and
 staged service selection remain separate release steps.
+
+## Bounded qualification image updates
+
+The three additional Dockerfiles are operator recipes, not default releases.
+Pin their base by verified immutable image ID and retain source/tree, wheel and
+recipe hashes before using them. `runtime-wheel-update` replaces only the exact
+checked universal TemporalDB wheel, with dependency resolution disabled. Check
+installed package file hashes and archive the resulting native runtime separately.
+It does not prove the clean source image build passed.
+
+`table-runtime-modes` repairs only named public health/license/source manifest
+files masked by a private export umask; `browser-runtime-modes` normalizes only
+clean public qualification source/assets, skips symlinks and retains a nonroot
+runner. Neither recipe grants access to private configuration or licenses market
+data for publication. The browser runner is qualification tooling, not deployment.
+
+Keep source ingestion byte limits consistent: retained backend acquisition is
+clamped by `catalog.limits.max_upload_bytes` as well as backend `maxBytes`. The
+bounded SIP qualification uses32MiB for both source and parse limits,2000rows,
+64columns and60seconds, with a compatible worker frame bound. A complete query
+result must still retain the source-domain inspection warning.

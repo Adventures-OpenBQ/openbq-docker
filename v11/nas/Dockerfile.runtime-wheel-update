@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+# An exact universal wheel over a verified native runtime with unchanged deps.
+# Verify base ID, wheel hash, package files and extension lock separately.
+ARG QUALIFIED_TEMPORALDB_BASE
+FROM ${QUALIFIED_TEMPORALDB_BASE}
+USER 0:0
+ARG SOURCE_REVISION
+ARG WHEEL_SHA256
+COPY temporaldb-0.5.0-py3-none-any.whl /tmp/temporaldb-0.5.0-py3-none-any.whl
+RUN echo "$WHEEL_SHA256  /tmp/temporaldb-0.5.0-py3-none-any.whl" | sha256sum -c - \
+ && uv pip install --python /opt/temporaldb/.venv/bin/python --no-deps --reinstall /tmp/temporaldb-0.5.0-py3-none-any.whl \
+ && rm /tmp/temporaldb-0.5.0-py3-none-any.whl
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION
+USER 65532:65532

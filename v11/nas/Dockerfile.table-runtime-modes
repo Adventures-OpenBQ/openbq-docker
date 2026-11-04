@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+# Qualification repair for public file modes masked by a private export umask.
+# The caller must verify the immutable base ID and source manifest before build.
+ARG QUALIFIED_TABLE_BASE
+FROM ${QUALIFIED_TABLE_BASE}
+USER 0:0
+RUN chmod 0644 /app/healthcheck.mjs /app/source.json /app/licenses/LICENSE /app/licenses/NOTICE /app/licenses/THIRD_PARTY_NOTICES.md
+USER 10001:10001
