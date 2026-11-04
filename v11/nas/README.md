@@ -1,5 +1,9 @@
 # NAS v11 staging
 
+The qualified candidate is now running as a separate live v11 deployment.
+See [live ports, verification and tested rollback](../NAS-LIVE-2026-11-04.md).
+The dated staging instructions below retain the original build sequence.
+
 Current November 4 candidate: migration 044, native amd64 API/worker/MCP, real
 retained reference/calendar/price data and bounded SIP inspection. The original
 production selection is unchanged. See [the final qualification report](../FINAL-QUALIFICATION-2026-11-04.md)

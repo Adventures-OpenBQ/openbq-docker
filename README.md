@@ -2,6 +2,14 @@
 
 A headless Open Data Platform backend on Docker, with private HTTPS through a separate Tailscale sidecar. Companion to **Adventures in OpenBQ**. This is an independent packaging recipe for the official OpenBQ-stewarded OpenBB V5 packages, whose names and commands remain `openbb-*`.
 
+## v11 integration
+
+Main includes the optional v11 TemporalDB integration and the qualified NAS
+rollout. The ordinary ODP stack can run without TemporalDB. BDOBB remains an
+independent AGPL client; TemporalDB is separately deployed/licensed under
+Business Source License 1.1. See the [live NAS and rollback record](v11/NAS-LIVE-2026-11-04.md).
+Earlier episode release branches and tags remain available.
+
 ## Scope
 
 Official core/API, seventeen providers, news, and technical/quantitative/econometric extensions. No desktop frontend, custom providers, running MCP service, agent, or later storage stack in the ODP service. `requirements.in` declares the intended direct packages; `requirements.lock` records the full resolved environment used by the Docker build.

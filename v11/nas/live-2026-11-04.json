@@ -1,0 +1,61 @@
+{
+  "status": "v11_live_and_rollback_rehearsed",
+  "https": {
+    "status": "live_tailnet_https_qualified",
+    "certificate_chain_verified": true,
+    "hostname_verified": true,
+    "gateway_unauthenticated": 401,
+    "gateway_authenticated": 200,
+    "direct_v11_api": 200,
+    "legacy_api_unchanged": true,
+    "legacy_saved_queries": 2,
+    "legacy_consecutive_checks": 5,
+    "mcp_anonymous": 401,
+    "mcp_scope_override": 401,
+    "mcp_read_only_tools": true,
+    "mcp_same_retained_execution_and_hash": true,
+    "mcp_page_rows": 25,
+    "retained_sip_total_rows": 1788,
+    "new_internet_funnel_enabled": false
+  },
+  "managed_provider": {
+    "status": "live_managed_provider_qualified",
+    "sourceRows": 1788,
+    "exportedRows": 1788,
+    "globalDescendingFirstPosition": 2047,
+    "sameExecutionAndHash": true,
+    "inspectionWarning": true,
+    "desktopPrincipal": "desktop:owner",
+    "clientSource": "bf116c83",
+    "newTemporalExecutions": 0
+  },
+  "rollback": {
+    "status": "actual_rollback_rehearsal_passed",
+    "original_persisted_serve_bytes_restored": true,
+    "original_runtime_https_routes_restored": true,
+    "legacy_tls_verified": true,
+    "legacy_saved_queries": 2,
+    "all_data_volumes_retained": true
+  },
+  "repositories": {
+    "bdobb": {
+      "visibility": "PUBLIC",
+      "default_branch": "main",
+      "head": "23f699fe39397d101c8dcae4a0d6c7c2e9b8b620"
+    },
+    "openbq-docker": {
+      "visibility": "PUBLIC",
+      "default_branch": "main",
+      "runtime_source": "dd5dcb40e476e197cca2d70874d92696ff9230c2"
+    },
+    "temporalDB-docker": {
+      "visibility": "PRIVATE",
+      "default_branch": "main",
+      "head": "9a1cf6f19c40bbe5a4f02d31523981e7d697c7b1",
+      "license": "BUSL-1.1"
+    }
+  },
+  "credentials_and_licensed_rows_published": false,
+  "original_sip_minio_changed": false,
+  "old_images_containers_volumes_retained": true
+}

@@ -1,5 +1,9 @@
 # v11 offline recovery rehearsal
 
+For the current live NAS entry points and tested route rollback, see the
+[November 4 deployment record](NAS-LIVE-2026-11-04.md). The recovery procedures
+below remain separate from switching service entry points.
+
 ## November4 native NAS candidate
 
 The [native artifact receipt](nas/qualification-2026-11-04.json) records the

@@ -1,5 +1,5 @@
 {
-  "status": "isolated_v11_candidate_qualified",
+  "status": "live_v11_tailnet_deployment_qualified",
   "platform": "linux/amd64",
   "backend_source": "9a1cf6f19c40bbe5a4f02d31523981e7d697c7b1",
   "backend_image_id": "sha256:e134b38de756eb005d986630edffdc9ab80a419f80513b3521960640e9321b87",
@@ -60,9 +60,9 @@
   },
   "public_tls_qualified": false,
   "oauth_issuer_qualified": false,
-  "production_selected": false,
+  "production_selected": true,
   "registry_reference": null,
-  "main_changed": false,
+  "main_changed": true,
   "review": "one fresh-context independent whole-release review complete; two Important/P2 findings fixed in one pass; no Critical or final-review Minor findings; no second review",
   "artifact": "temporaldb-9a1cf6f-linux-amd64.docker.tar",
   "artifact_sha256": "2b9b19cf0ac5627a7bb54c7207e93b45b0923e314f2123685663db0254714c2d",
@@ -95,5 +95,22 @@
     "host_release_passed": 34,
     "host_explicit_profiles_skipped": 2,
     "final_entire_backend_suite_rerun": false
+  },
+  "tailnet_tls_qualified": true,
+  "live_deployment": {
+    "record": "../NAS-LIVE-2026-11-04.md",
+    "compose_project": "openbq-v11-live",
+    "gateway_port": 10000,
+    "mcp_port": 13443,
+    "direct_api_port": 15443,
+    "legacy_api_port": 12443,
+    "legacy_endpoints_and_stores_retained": true,
+    "actual_route_rollback_and_rollforward_passed": true,
+    "internet_funnel_enabled": false,
+    "public_repositories_default_main": true,
+    "temporaldb_repository_private": true,
+    "temporaldb_packaged_busl_license_matches": true,
+    "client_executable_source": "bf116c83f6d04febca5fddb89cfadfe94395728b",
+    "client_main_after_documentation": "23f699fe39397d101c8dcae4a0d6c7c2e9b8b620"
   }
 }
