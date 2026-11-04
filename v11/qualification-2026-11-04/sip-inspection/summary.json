@@ -1,0 +1,92 @@
+{
+  "status": "native_retained_inspection_and_mcp_qualified",
+  "backend_source": "89f80e7efc9d63fec6eb77e256aaeeac1c59055c",
+  "client_source": "1ba162a4fe9d9ec18a46f6774e3568d4264fd02c",
+  "image_id": "sha256:411ce881be0cfb0a2a68c0d87f188a602e3522c69c22ecc6099e096cf48df8a5",
+  "environment_digest": "b8639a892a3e510ea7481a980f0d7fdada17c802087b62cd2a704d2b95bfdf19",
+  "capture_id": "7ff38d18-5f4b-4f40-ae5c-e25bac004cd3",
+  "query_id": "8dc45b4d-38a9-433c-b28a-c2167752a9cb",
+  "snapshot_body_sha256": "d2dbd54f92ac59aaae689dc4e451604a6a5294347d89a4333fd0676e48901349",
+  "source_manifest": {
+    "pins": [
+      {
+        "catalog_id": "hot",
+        "snapshot_id": 19,
+        "schema_version": 1
+      }
+    ],
+    "manifest_id": "b907f55b-befc-413a-9a5d-d3bf318f3f79",
+    "publication_id": "223d40d0-6143-4b71-88c5-fd1e94f5fa7d",
+    "schema_version": 1,
+    "projection_versions": {
+      "sip_archive.ObservedSlice": "runtime-legacy-sip-inspection-1"
+    }
+  },
+  "gold_manifest": {
+    "pins": [
+      {
+        "catalog_id": "hot",
+        "snapshot_id": 19,
+        "schema_version": 1
+      }
+    ],
+    "manifest_id": "ecba5d71-8a3e-590e-850f-d377802051ab",
+    "publication_id": "88bfd755-2246-44aa-9d58-bfb6974c83c1",
+    "schema_version": 1,
+    "projection_versions": {
+      "gold.sip_archive.ObservedSlice": "legacy-sip-inspection-v1"
+    }
+  },
+  "archive": {
+    "provider": "original MinIO SIP archive",
+    "symbol": "AAPL",
+    "partition_day": "2025-01-21",
+    "delta_version": 1000,
+    "file_metadata_rows": 1216762,
+    "sample_offset": 0,
+    "original_rows": 2048,
+    "matched_rows": 1788,
+    "unmatched_rows": 260,
+    "full_parquet_bytes_archived": false
+  },
+  "inspection_only": true,
+  "partial_partition": true,
+  "canonical_tick_eligible": false,
+  "enterprise_identity_qualified": false,
+  "original_publication_history": false,
+  "native_execution_id": "b9b75f27-71bf-45b9-b69c-1ff02d757010",
+  "native_page_rows": [
+    1000,
+    788
+  ],
+  "mcp": {
+    "status": "live_native_sip_mcp_qualified",
+    "protocol": "2025-06-18",
+    "anonymous": 401,
+    "scope_override": 401,
+    "hidden_acquisition": -32001,
+    "rows_verified": 1788,
+    "pages_verified": 72,
+    "page_size": 25,
+    "maximum_mcp_page_rows": 100,
+    "source_execution_id": "b9b75f27-71bf-45b9-b69c-1ff02d757010",
+    "widget_pin_execution_id": "3b244901-8fe2-42bb-813d-ed2ca80a3c69",
+    "rows_schema_input_manifest_and_environment_match": true,
+    "result_hash": "819f6e77ca3bf1e6a468ee1887c34a4c2c07a5a62e471d050942625489057294",
+    "oauth_issuer": false,
+    "rita_reasoning_qualified": false
+  },
+  "guard_evidence": {
+    "mcp_100_row_byte_budget_refusal_preserved": true,
+    "mcp_limits_relaxed": false,
+    "new_source_fetches_during_admission_or_mcp": 0
+  },
+  "pending": [
+    "complete-result native table service",
+    "visible widget/browser qualification",
+    "live Rita tool dispatch",
+    "final restart and isolated restore/replay",
+    "independent whole-release review"
+  ],
+  "production_selected": false
+}
