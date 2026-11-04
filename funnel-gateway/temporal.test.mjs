@@ -95,3 +95,11 @@ test('v11 explorer: cache discovery and validation admit exact shapes only', () 
     ['POST',root+'/cache/coverage?cursor=x'],['GET',root+'/cache/other'],['GET',root+'/queries/page'],['POST',root+'/cache/describe/'+id]])
     assert.equal(overlay.temporalRoute(new URL(path,settings.origin),method,{temporalDB:true}),null,method+' '+path);
 });
+
+test('v11 acquisition permits only exact read, preflight and caller run routes',()=>{
+ for(const [method,path] of [['GET',root+'/acquisition/policies'],['GET',root+'/acquisition/policies/'+id+'?revision=3'],['POST',root+'/acquisition/preflight'],['POST',root+'/runs'],['GET',root+'/runs/'+id],['DELETE',root+'/runs/'+id]]){
+  assert.equal(overlay.temporalRoute(new URL(path,settings.origin),method,{temporalDB:true})?.path,path);
+  assert.equal(overlay.temporalRoute(new URL(path,settings.origin),method,{}),null);
+ }
+ for(const [method,path] of [['POST',root+'/acquisition/policies'],['PUT',root+'/acquisition/policies/'+id],['GET',root+'/acquisition/preflight'],['GET',root+'/runs'],['PUT',root+'/runs/'+id],['POST',root+'/runs/'+id],['GET',root+'/runs/'+id+'?policy=forged'],['GET',root+'/acquisition/policies/'+id+'?revision=1&revision=2'],['POST',root+'/acquisition/preflight?account=forged'],['GET',root+'/runs/not-uuid']])assert.equal(overlay.temporalRoute(new URL(path,settings.origin),method,{temporalDB:true}),null);
+});

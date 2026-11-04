@@ -5,6 +5,11 @@
 // Backend base: <preview>/temporal. Strip exactly that outer prefix at the gateway.
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const rules = [
+  ['GET', /^\/temporal\/temporal\/v1\/acquisition\/policies$/, []],
+  ['GET', new RegExp(`^/temporal/temporal/v1/acquisition/policies/${UUID}$`), ['revision']],
+  ['POST', /^\/temporal\/temporal\/v1\/acquisition\/preflight$/, []],
+  ['POST', /^\/temporal\/temporal\/v1\/runs$/, []],
+  ['GET|DELETE', new RegExp(`^/temporal/temporal/v1/runs/${UUID}$`), []],
   ['GET', /^\/temporal\/(?:widgets\.json|apps\.json)?$/, []],
   ['GET', /^\/temporal\/temporal\/v1\/capabilities$/, []],
   ['GET|POST', /^\/temporal\/temporal\/v1\/queries$/, []],
