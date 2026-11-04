@@ -20,14 +20,36 @@ from typing import Any
 import polars as pl
 
 from openbq_ta.exprs import Base, price_col
+from openbq_ta.iterative import parabolic_sar
 
 
 @dataclass(frozen=True)
 class Req:
-    """One indicator with its parameters fully resolved."""
+    """One indicator with its parameters fully resolved.
+
+    `source` (v12.3.0) is the request's own Local/EODHD choice, or None to
+    take the chart-wide default; it is part of the request's identity, so
+    the same SMA asked of both sources is two requests, not one.
+
+    `units` (v12.3.0) says which parameters were asked for in something other
+    than bars: `{"period": "bd"}` is `period=50bd`, fifty BUSINESS DAYS. The
+    unit is kept beside the value rather than folded into it because the
+    number still has to reach an indicator's build() as a number -- what the
+    unit changes is the FRAME the indicator is computed on (see
+    openbq_ta.session.session_closes), not the arithmetic. It is part of the
+    request's identity for the same reason `source` is: 50 bars and 50
+    sessions are two different lines.
+
+    A plain dict, exactly like `params`: this dataclass is frozen for intent
+    rather than for hashing (nothing hashes a Req -- panes._key builds a
+    tuple), and a second idiom for the same kind of field would be one more
+    thing to remember.
+    """
 
     name: str
     params: dict[str, Any]
+    source: str | None = None
+    units: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -68,13 +90,67 @@ class Indicator:
     deps: Callable[[dict], list[Base]]
     build: Callable[[dict, dict[str, Base]], list[pl.Expr]]
     render: dict[str, dict]
+    # Studies-picker metadata (v12.3.1): which of the nine picker groups this
+    # indicator sits under, its conventional long name, the one-line `desc`
+    # the picker's list shows under that name, longer plain-language help
+    # text written for this project (never copied from Wikipedia or anywhere
+    # else), and the Wikipedia article backing it -- or None where no
+    # dedicated article exists. `param_labels` and `param_steps` are the same
+    # story one level down: the human label the editor puts on a parameter,
+    # and the spinner increment for a float one (an int steps by 1). The
+    # client never hardcodes any of this; it renders whatever catalog() below
+    # projects, and degrades gracefully (group "Other", title = label, no
+    # help text) against an older backend that omits these fields entirely.
+    group: str = ""
+    full: str = ""
+    desc: str = ""
+    description: str = ""
+    wiki: str | None = None
+    param_labels: dict[str, str] = field(default_factory=dict)
+    param_steps: dict[str, float] = field(default_factory=dict)
+    # Which of this indicator's parameters count BARS -- a lookback window --
+    # as opposed to a multiplier, a step or a plot offset. Only a window may
+    # wear a unit (`period=50bd`), and because the unit moves the WHOLE
+    # request onto the session frame (openbq_ta.sources._is_bd), every window of
+    # a request wears it or none does. Declared per indicator because one
+    # name is not one thing: `stoch`'s `k` is a 14-bar lookback while
+    # `bbands`' `k` is a standard-deviation multiple. Empty means this
+    # indicator has no window at all and so takes no unit.
+    windows: tuple[str, ...] = ()
+    # A BANDED indicator's fill defaults (one whose render names a `_up` and a
+    # `_lo` output): the shade colour, its opacity, and the pattern the
+    # client paints it with -- "solid", "diagonal", "cross" or "dots". None
+    # leaves the client's own defaults (the series colour at 0.15) in place.
+    # A per-OUTPUT pen -- "solid", "dotted", "dashed", "large-dashed",
+    # "sparse-dotted" -- and width (1 to 4) are `pen` and `width` keys on
+    # that output's render dict, next to its colour, so a macro's `style` can
+    # override them the same way.
+    shade: str | None = None
+    fill_opacity: float | None = None
+    fill_pattern: str = "solid"
     guides: list[float] = field(default_factory=list)
     repaints: bool = False
     iterative: bool = False
+    # A sessioned indicator's `build` runs against a once-per-session,
+    # already-shifted frame instead of the bar frame. Distinct from avwap's
+    # anchor: that is ONE anchor chosen once and run cumulatively forward;
+    # this is a RECURRING boundary, every session independent of the last.
+    sessioned: bool = False
+    session_agg: Callable[[dict], dict] | None = None
+    # A path-dependent study: `iterate(frame, params)` returns {column: values}, every key of
+    # `render` among them (spec 2026-11-04 §2). `build` is then unused and returns [].
+    iterate: Callable[[pl.DataFrame, dict], dict[str, list]] | None = None
+    # The parameters that take a time. compute() resolves each with openbq_ta.times.resolve_time
+    # before the study runs, so build/iterate/session_agg receive an aware UTC datetime.
+    times: tuple[str, ...] = ()
     eodhd: EodhdMap | None = None
 
 
 REGISTRY: dict[str, Indicator] = {}
+
+
+class StudyError(ValueError):
+    """A study that cannot be registered, or a request it cannot compute."""
 
 
 def register(ind: Indicator) -> Indicator:
@@ -91,14 +167,25 @@ def get(name: str) -> Indicator:
         raise KeyError(f"unknown indicator {name!r}") from None
 
 
-def resolve(name: str, **overrides: Any) -> Req:
+def resolve(name: str, source: str | None = None,
+            units: dict[str, str] | None = None, **overrides: Any) -> Req:
     """Defaults from the registry, overridden by keyword. Unknown keys raise.
 
     `style` is accepted for every indicator: it is per-series presentation
     carried from a macro, not an indicator parameter, so it is not in
-    `Indicator.params`.
+    `Indicator.params`. `source` is the same kind of thing one level up -- a
+    routing choice, not a parameter -- so it is a named argument rather than
+    an override, and never reaches `params`. `units` is the third of these:
+    grammar attached to a parameter's value, not a parameter of its own.
     """
     ind = get(name)
+    # Validated HERE and not only in parse_indicators: the macro loader calls
+    # resolve(name, **spec) straight from YAML, so a `source:` key in a macro
+    # binds this argument without ever passing the query-string parser. An
+    # unchecked value would reach col_suffix and name a column after a source
+    # that does not exist.
+    if source not in (None, "local", "eodhd"):
+        raise ValueError(f"source must be 'local' or 'eodhd', got {source!r}")
     style = overrides.pop("style", None)
     if style is not None and not isinstance(style, dict):
         raise ValueError(f"style must be a mapping, got {style!r}")
@@ -108,7 +195,29 @@ def resolve(name: str, **overrides: Any) -> Req:
                 f"unknown parameter {key!r} for {name!r}; "
                 f"expected one of {sorted(ind.params)}"
             )
-    return Req(name, {**ind.params, "style": style, **overrides})
+    # A unit is written on one parameter but acts on the whole request: `bd`
+    # moves every window of it onto the session frame (openbq_ta.sources._is_bd).
+    # So the grammar has to match the effect. Without these two rules
+    # `macd:fast=12bd:slow=26` computes slow and signal on SESSIONS while the
+    # legend, the column name and the wire echo all say bars, and
+    # `bbands:k=2bd` asks for two business-day standard deviations -- neither
+    # is refused anywhere else, and neither is visible in the output. Checked
+    # here rather than in parse_indicators for the reason `source` is: a macro
+    # reaches resolve() without passing the query-string parser.
+    units = dict(units or {})
+    stray = sorted(set(units) - set(ind.windows))
+    if stray:
+        raise ValueError(
+            f"{stray[0]!r} counts no bars for {name!r}, so it takes no unit; "
+            f"a unit belongs on {sorted(ind.windows) or 'no parameter of this indicator'}"
+        )
+    bare = sorted(set(ind.windows) - set(units)) if units else []
+    if bare:
+        raise ValueError(
+            f"a unit applies to all of {name!r} or none of it: "
+            f"{bare} must wear the same unit as {sorted(units)}"
+        )
+    return Req(name, {**ind.params, "style": style, **overrides}, source, units)
 
 
 def col_suffix(req: Req) -> str:
@@ -116,10 +225,15 @@ def col_suffix(req: Req) -> str:
 
     Columns were named per indicator while requests dedup per (indicator,
     params), so two periods of one indicator collapsed onto a single column
-    and the second was silently dropped as a duplicate.
+    and the second was silently dropped as a duplicate. A parameter's unit
+    (`period=50bd`) and an explicit `source` are part of the signature too:
+    each makes a different line. A request naming no source keeps the
+    historic column name exactly.
     """
-    parts = [f"{k}={v}" for k, v in sorted(req.params.items())
+    parts = [f"{k}={v}{req.units.get(k, '')}" for k, v in sorted(req.params.items())
              if k != "style" and v is not None]
+    if req.source is not None:
+        parts.append(f"source={req.source}")
     return "|" + ",".join(parts) if parts else ""
 
 
@@ -130,7 +244,7 @@ def _line(color: str | None = None) -> dict:
 # --- Simple moving average -------------------------------------------------
 
 register(Indicator(
-    name="sma", label="SMA", params={"period": 50}, pane="price",
+    name="sma", windows=("period",), label="SMA", params={"period": 50}, pane="price",
     price_basis="adjusted",
     convention="Arithmetic mean of adjusted close over `period` bars.",
     deps=lambda p: [Base("sma", price_col("adjusted"), p["period"])],
@@ -145,7 +259,7 @@ register(Indicator(
 # --- Exponential moving average --------------------------------------------
 
 register(Indicator(
-    name="ema", label="EMA", params={"period": 50}, pane="price",
+    name="ema", windows=("period",), label="EMA", params={"period": 50}, pane="price",
     price_basis="adjusted",
     convention="EMA with alpha = 2/(period+1), adjust=False, on adjusted close.",
     deps=lambda p: [Base("ewm", price_col("adjusted"), p["period"])],
@@ -176,7 +290,7 @@ def _rsi_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
 
 
 register(Indicator(
-    name="rsi", label="RSI", params={"period": 14}, pane="own",
+    name="rsi", windows=("period",), label="RSI", params={"period": 14}, pane="own",
     price_basis="adjusted", guides=[30.0, 70.0],
     convention=(
         "Wilder's RSI: gains and losses smoothed with alpha=1/period "
@@ -204,7 +318,7 @@ def _bbands_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
 
 
 register(Indicator(
-    name="bbands", label="Bollinger Bands", params={"period": 20, "k": 2.0},
+    name="bbands", windows=("period",), label="Bollinger Bands", params={"period": 20, "k": 2.0},
     pane="price", price_basis="adjusted",
     convention=(
         "Middle = SMA(period) of adjusted close. Bands = mid +/- k * population "
@@ -224,7 +338,7 @@ register(Indicator(
 # --- Average true range -----------------------------------------------------
 
 register(Indicator(
-    name="atr", label="ATR", params={"period": 14}, pane="own",
+    name="atr", windows=("period",), label="ATR", params={"period": 14}, pane="own",
     price_basis="raw",
     convention=(
         "Wilder's average of true range on RAW OHLC. EODHD's atr matches raw, "
@@ -244,7 +358,7 @@ register(Indicator(
 # --- Weighted moving average ------------------------------------------------
 
 register(Indicator(
-    name="wma", label="WMA", params={"period": 50}, pane="price",
+    name="wma", windows=("period",), label="WMA", params={"period": 50}, pane="price",
     price_basis="adjusted",
     convention="Linearly weighted mean of adjusted close; weight i = i for i in 1..period.",
     deps=lambda p: [],
@@ -273,7 +387,7 @@ def _keltner_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
 
 
 register(Indicator(
-    name="keltner", label="Keltner Channels",
+    name="keltner", windows=("period", "atr_period"), label="Keltner Channels",
     params={"period": 20, "mult": 2.0, "atr_period": 10}, pane="price",
     price_basis="adjusted",
     convention="EMA(period) of adjusted close +/- mult * Wilder ATR(atr_period) of raw OHLC.",
@@ -287,7 +401,7 @@ register(Indicator(
 # --- Price channels (Donchian) ---------------------------------------------
 
 register(Indicator(
-    name="donchian", label="Price Channels", params={"period": 20}, pane="price",
+    name="donchian", windows=("period",), label="Price Channels", params={"period": 20}, pane="price",
     price_basis="raw",
     convention="Highest high and lowest low of raw OHLC over `period` bars; mid is their mean.",
     deps=lambda p: [Base("max", "high", p["period"]), Base("min", "low", p["period"])],
@@ -391,7 +505,7 @@ def _macd_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
 
 
 register(Indicator(
-    name="macd", label="MACD", params={"fast": 12, "slow": 26, "signal": 9},
+    name="macd", windows=("fast", "slow", "signal"), label="MACD", params={"fast": 12, "slow": 26, "signal": 9},
     pane="own", price_basis="adjusted", guides=[0.0],
     convention="EMA(fast) - EMA(slow) on adjusted close; signal is EMA(signal) of that line.",
     deps=lambda p: [Base("ewm", price_col("adjusted"), p["fast"]),
@@ -423,7 +537,7 @@ def _stoch_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
 
 
 register(Indicator(
-    name="stoch", label="Stochastic", params={"k": 14, "smooth_k": 1, "d": 3},
+    name="stoch", windows=("k", "smooth_k", "d"), label="Stochastic", params={"k": 14, "smooth_k": 1, "d": 3},
     pane="own", price_basis="raw", guides=[20.0, 80.0],
     convention=(
         "smooth_k=1 is FAST %K, 3 is SLOW, anything else is FULL. Raw OHLC. "
@@ -456,7 +570,7 @@ def _stochrsi_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
 
 
 register(Indicator(
-    name="stochrsi", label="StochRSI",
+    name="stochrsi", windows=("period", "stoch_period"), label="StochRSI",
     params={"period": 14, "stoch_period": 14}, pane="own",
     price_basis="adjusted", guides=[20.0, 80.0],
     convention="Stochastic of Wilder RSI(period) over stoch_period bars, scaled 0-100, on adjusted close.",
@@ -494,7 +608,7 @@ def _adx_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
 
 
 register(Indicator(
-    name="adx", label="ADX / DMI", params={"period": 14}, pane="own",
+    name="adx", windows=("period",), label="ADX / DMI", params={"period": 14}, pane="own",
     price_basis="raw", guides=[20.0, 25.0],
     convention=(
         "Wilder's ADX on raw OHLC: +DM/-DM smoothed with alpha=1/period, "
@@ -523,7 +637,7 @@ def _cci_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
 
 
 register(Indicator(
-    name="cci", label="CCI", params={"period": 20}, pane="own",
+    name="cci", windows=("period",), label="CCI", params={"period": 20}, pane="own",
     price_basis="raw", guides=[-100.0, 100.0],
     convention=(
         "(typical price - SMA) / (0.015 * mean absolute deviation), raw OHLC. "
@@ -543,7 +657,7 @@ register(Indicator(
 # --- Williams %R ------------------------------------------------------------
 
 register(Indicator(
-    name="willr", label="Williams %R", params={"period": 14}, pane="own",
+    name="willr", windows=("period",), label="Williams %R", params={"period": 14}, pane="own",
     price_basis="raw", guides=[-80.0, -20.0],
     convention="-100 * (highest high - close) / (highest high - lowest low), raw OHLC.",
     deps=lambda p: [Base("max", "high", p["period"]), Base("min", "low", p["period"])],
@@ -560,7 +674,7 @@ register(Indicator(
 # --- Rate of change ---------------------------------------------------------
 
 register(Indicator(
-    name="roc", label="Rate of Change", params={"period": 12}, pane="own",
+    name="roc", windows=("period",), label="Rate of Change", params={"period": 12}, pane="own",
     price_basis="adjusted", guides=[0.0],
     convention="Percent change of adjusted close over `period` bars.",
     deps=lambda p: [],
@@ -589,7 +703,7 @@ register(Indicator(
 # --- Standard deviation -----------------------------------------------------
 
 register(Indicator(
-    name="stddev", label="Standard Deviation", params={"period": 20}, pane="own",
+    name="stddev", windows=("period",), label="Standard Deviation", params={"period": 20}, pane="own",
     price_basis="adjusted",
     convention="Population standard deviation (ddof=0) of adjusted close.",
     deps=lambda p: [Base("std", price_col("adjusted"), p["period"])],
@@ -605,7 +719,7 @@ register(Indicator(
 # --- %B and BandWidth: both reuse the Bollinger bases ------------------------
 
 register(Indicator(
-    name="pct_b", label="%B", params={"period": 20, "k": 2.0}, pane="own",
+    name="pct_b", windows=("period",), label="%B", params={"period": 20, "k": 2.0}, pane="own",
     price_basis="adjusted", guides=[0.0, 1.0],
     convention="(close - lower) / (upper - lower), on adjusted close. Shares Bollinger's bases exactly.",
     deps=lambda p: [Base("sma", price_col("adjusted"), p["period"]),
@@ -624,7 +738,7 @@ register(Indicator(
 ))
 
 register(Indicator(
-    name="bandwidth", label="Bollinger BandWidth",
+    name="bandwidth", windows=("period",), label="Bollinger BandWidth",
     params={"period": 20, "k": 2.0}, pane="own", price_basis="adjusted",
     convention="(upper - lower) / middle * 100, on adjusted close. Shares Bollinger's bases exactly.",
     deps=lambda p: [Base("sma", price_col("adjusted"), p["period"]),
@@ -643,7 +757,7 @@ register(Indicator(
 register(Indicator(
     name="sar", label="Parabolic SAR",
     params={"acceleration": 0.02, "maximum": 0.2}, pane="price",
-    price_basis="raw", iterative=True,
+    price_basis="raw", iterative=True, iterate=parabolic_sar,
     convention=(
         "Wilder's Parabolic SAR on raw OHLC. Path-dependent: the value at each "
         "bar carries the extreme point and acceleration factor forward, so it "

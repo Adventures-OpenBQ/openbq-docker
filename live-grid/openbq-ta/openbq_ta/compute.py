@@ -16,8 +16,7 @@ from __future__ import annotations
 import polars as pl
 
 from openbq_ta.exprs import Base
-from openbq_ta.iterative import ITERATIVE
-from openbq_ta.registry import Req, col_suffix, get
+from openbq_ta.registry import Indicator, Req, col_suffix, get
 
 
 def collect_bases(reqs: list[Req]) -> dict[str, Base]:
@@ -27,6 +26,33 @@ def collect_bases(reqs: list[Req]) -> dict[str, Base]:
         for base in get(req.name).deps(req.params):
             bases[base.key] = base
     return bases
+
+
+def session_columns(frame: pl.DataFrame, ind: Indicator, params: dict) -> dict[str, list]:
+    """One value per session, held flat across every bar inside it.
+
+    The frame is expected ASCENDING by date. Do NOT sort here: the returned
+    lists are assigned onto the caller's frame by row position.
+    shift() is what makes today read YESTERDAY's aggregates; without it every
+    level is computed from the session it is drawn on, which is a lookahead.
+    """
+    every = str(params.get("anchor", "1d"))
+    back = int(params.get("session_shift", 1))
+    aggregates = ind.session_agg(params)
+    sessions = (
+        frame.group_by_dynamic("date", every=every, closed="left")
+        .agg(**aggregates)
+        .with_columns(**{name: pl.col(name).shift(back) for name in aggregates})
+    )
+    sessions = sessions.with_columns(ind.build(params, {}))
+    missing = [name for name in ind.render if name not in sessions.columns]
+    if missing:
+        raise ValueError(f"{ind.name!r}: session build did not produce column(s) {missing} "
+                         f"promised by render")
+    outputs = list(ind.render)
+    joined = frame.select("date").join_asof(
+        sessions.select(["date", *outputs]), on="date", strategy="backward")
+    return {name: joined[name].to_list() for name in outputs}
 
 
 def compute_with_bases(
@@ -43,8 +69,11 @@ def compute_with_bases(
     seen: set[str] = set()
     exprs: list[pl.Expr] = []
     for req in reqs:
+        ind = get(req.name)
+        if ind.sessioned or ind.iterative:
+            continue  # computed below, against the frame or the session frame
         suffix = col_suffix(req)
-        for expr in get(req.name).build(req.params, bases):
+        for expr in ind.build(req.params, bases):
             name = expr.meta.output_name() + suffix
             if name in seen:
                 continue  # the same indicator, same params, requested twice
@@ -53,17 +82,19 @@ def compute_with_bases(
     if exprs:
         frame = frame.with_columns(exprs)
 
-    # Path-dependent indicators run after the vectorised pass; they read the
-    # frame rather than contributing expressions to it.
+    # Path-dependent, then session-anchored studies: they read the frame rather than
+    # contributing expressions to it.
     for req in reqs:
-        if not get(req.name).iterative:
+        ind = get(req.name)
+        if not (ind.iterative or ind.sessioned):
             continue
+        values = (ind.iterate(frame, req.params) if ind.iterative
+                  else session_columns(frame, ind, req.params))
         suffix = col_suffix(req)
-        for column, values in ITERATIVE[req.name](frame, req.params).items():
+        for column, series in values.items():
             column += suffix
             if column not in frame.columns:
-                frame = frame.with_columns(pl.Series(column, values, dtype=pl.Float64))
-
+                frame = frame.with_columns(pl.Series(column, series, dtype=pl.Float64))
     return frame, bases
 
 

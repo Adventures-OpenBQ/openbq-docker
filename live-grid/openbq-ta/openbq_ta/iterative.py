@@ -13,8 +13,6 @@ They are the reason the seam exists in v1 rather than later.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
 import polars as pl
 
 
@@ -56,7 +54,3 @@ def parabolic_sar(df: pl.DataFrame, params: dict) -> dict[str, list[float | None
 
     return {"sar": out}
 
-
-ITERATIVE: dict[str, Callable[[pl.DataFrame, dict], dict[str, list]]] = {
-    "sar": parabolic_sar,
-}
