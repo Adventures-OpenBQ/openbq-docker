@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "identity_basis": "provisional_provider_symbol",
+  "issuer_cik": "0001512673",
+  "business_history_qualified": false,
+  "index_membership_qualified": false,
+  "security_master_projection": "security-master-projection/1:admission-floor-1:276020d132c6d2b856cafe6b4bda00b8ab9eae8d011ad8df6b997897565e269b:2026-11-03T21:54:38.454117Z",
+  "mappings": [
+    {
+      "symbol": "XYZ.US",
+      "listing_id": "b26c051d-9380-5edb-9496-abce1acc0376",
+      "issuer_id": "889177af-a7b8-5ecc-b28a-709f38056d7f",
+      "start": "2025-01-21",
+      "end": "2025-01-22"
+    }
+  ],
+  "sources": {
+    "general": {
+      "filename": "general.json",
+      "sha256": "2e33f4d69657c0554328b6c63866093bece864755834ebb093d2e1c027714a4c",
+      "endpoint": "fundamentals/XYZ.US",
+      "parameters": {
+        "filter": "General",
+        "fmt": "json"
+      },
+      "received_at": "2026-11-04T04:09:14.213632+00:00"
+    },
+    "rename": {
+      "filename": "rename.json",
+      "sha256": "417ea7c9d2dad9fd3fcd27f7ae61875353ba7e359d32b354ca64a9c7c3e40235",
+      "url": "https://eodhd.com/financial-apis/us-stock-symbol-rename-history-api",
+      "received_at": "2026-11-04T02:45:55.006088+00:00"
+    },
+    "announcement": {
+      "filename": "announcement.json",
+      "sha256": "09d219459b5e3999bea5f11fc7a4ca342ce4987ae3bb6d68b887d87dcdc7c8d1",
+      "url": "https://investors.block.xyz/investor-news/news-details/2025/Block-Announces-Ticker-Symbol-Change-to-XYZ-To-Report-Fourth-Quarter-Results/default.aspx",
+      "document_date": "2025-01-09"
+    },
+    "security_master": {
+      "filename": "security_master.json",
+      "sha256": "df08efcabe0f45b54db244bab37f85b56b3947eb22649d26ef69d334cdb69607",
+      "model": "ReferenceSecurity",
+      "source_authority": "nas-sp500-admitted-e6888f36",
+      "received_at": "2026-11-04T04:22:15.198910+00:00"
+    }
+  },
+  "limitations": [
+    "one-day operator assertion; not certified identity history",
+    "no CUSIP/ISIN supplied by current identity lookups",
+    "no historical index-membership claim",
+    "no Security Master business intervals changed",
+    "collected now; not evidence of local knowledge in January2025"
+  ]
+}
