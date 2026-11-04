@@ -16,16 +16,19 @@ import {readConfig,SESSION_COOKIE} from '/app/web/config.mjs';
 import {createGateway} from '/host/funnel-gateway/server.mjs';
 import {validateConfig} from '/host/funnel-gateway/config.mjs';
 const secrets=JSON.parse(await readFile('/private/harness.json','utf8'));
+if(typeof secrets.webApiToken!=='string'||!/^[A-Za-z0-9_-]{32,256}$/.test(secrets.webApiToken)||
+  [secrets.apiToken,secrets.mcpToken,secrets.tableGatewayToken,secrets.tableRelayToken].includes(secrets.webApiToken))
+  throw new Error('Qualification requires a distinct scoped webApiToken');
 const root=await mkdtemp(join(tmpdir(),'native-ui-'));
 const machine=randomBytes(32).toString('base64url');
-const hidden=[secrets.apiToken,secrets.mcpToken,secrets.tableGatewayToken,secrets.tableRelayToken,machine];
+const hidden=[secrets.apiToken,secrets.webApiToken,secrets.mcpToken,secrets.tableGatewayToken,secrets.tableRelayToken,machine];
 const clean=value=>{let raw=JSON.stringify(value,null,2);for(const key of hidden)raw=raw.split(key).join('[REDACTED]');return raw;};
 const report={startedAt:new Date().toISOString(),status:'RUNNING',executionId:secrets.executionId,resultHash:secrets.resultHash,synthetic_market_data:false,synthetic_local_auth_session:true,public_tls_qualified:false,oauth_issuer_qualified:false};
 let browser,context,tls,gateway;
 try{
  await mkdir(join(root,'state'));await cp('/app/browser',join(root,'ui'),{recursive:true});
  const assets=join(root,'ui');await mkdir(join(assets,'assets'),{recursive:true});
- const cfg=validateConfig({origin:'https://qualification.YOUR-TAILNET.ts.net:10000',temporalDB:true,tableService:true,stateDir:join(root,'state')},{token:machine,apiUsername:'qualification',apiPassword:randomBytes(32).toString('base64url'),temporalToken:secrets.apiToken,tableGatewayToken:secrets.tableGatewayToken,tableRelayToken:secrets.tableRelayToken});
+ const cfg=validateConfig({origin:'https://qualification.YOUR-TAILNET.ts.net:10000',temporalDB:true,tableService:true,stateDir:join(root,'state')},{token:machine,apiUsername:'qualification',apiPassword:randomBytes(32).toString('base64url'),temporalToken:secrets.apiToken,temporalPrincipalTokens:{'github:42':secrets.webApiToken},tableGatewayToken:secrets.tableGatewayToken,tableRelayToken:secrets.tableRelayToken});
  gateway=createGateway(cfg);gateway.listen(0,'127.0.0.1');await once(gateway,'listening');
  const gatewayURL='http://127.0.0.1:'+gateway.address().port;cfg.origin=gatewayURL;
  const config=readConfig({APP_ORIGIN:'https://localhost',AUTH_SECRET:randomBytes(64).toString('base64url'),AUTH_GITHUB_ID:'qualification',AUTH_GITHUB_SECRET:randomBytes(32).toString('base64url'),SESSION_EPOCH:'native-sip',GITHUB_ALLOWED_USER_IDS:'42',BACKEND_GATEWAY_ORIGIN:'https://gateway.example.test',BACKEND_GATEWAY_TOKEN:machine,TABLE_RELAY_TOKEN:secrets.tableRelayToken,TEMPORALDB_V11:'true'});

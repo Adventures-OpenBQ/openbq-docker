@@ -158,11 +158,19 @@ export function validateConfig(settings, secrets) {
   const credential = value => typeof value === "string" && /^[A-Za-z0-9_-]{32,256}$/.test(value);
   if (tableService && !credential(secrets.tableGatewayToken)) throw new Error("Table gateway credential required");
   if (secrets.tableRelayToken !== undefined && !credential(secrets.tableRelayToken)) throw new Error("Invalid table relay credential");
-  const privateTokens = [secrets.token, secrets.tableGatewayToken, secrets.tableRelayToken, temporalDB && secrets.temporalToken].filter(Boolean);
+  const temporalPrincipalTokens = secrets.temporalPrincipalTokens === undefined ? {} : secrets.temporalPrincipalTokens;
+  if (!temporalPrincipalTokens || typeof temporalPrincipalTokens !== "object" || Array.isArray(temporalPrincipalTokens) ||
+      Object.keys(temporalPrincipalTokens).length > 1000 ||
+      Object.entries(temporalPrincipalTokens).some(([principal, value]) => !/^github:[1-9][0-9]{0,19}$/.test(principal) || !credential(value)) ||
+      (Object.keys(temporalPrincipalTokens).length && (!temporalDB || !credential(secrets.tableRelayToken)))) {
+    throw new Error("Invalid TemporalDB principal credential mapping");
+  }
+  const privateTokens = [secrets.token, secrets.tableGatewayToken, secrets.tableRelayToken, temporalDB && secrets.temporalToken, ...Object.values(temporalPrincipalTokens)].filter(Boolean);
   if (new Set(privateTokens).size !== privateTokens.length) throw new Error("Table credentials must be distinct");
   return {
     stateStorage, apiUpstream, temporalDB, temporalOrigin: temporalDB ? "http://temporaldb-api:8080" : null,
     temporalAuthorization: temporalDB ? "Bearer " + secrets.temporalToken : null,
+    temporalPrincipalTokens: Object.freeze({ ...temporalPrincipalTokens }),
     tableOrigin: tableService ? "http://table-service:8080" : null,
     tableGatewayToken: secrets.tableGatewayToken, tableRelayToken: secrets.tableRelayToken,
     tableDesktopPrincipal, ssrmRoutes, tableTimeoutMs, ssrmTimeoutMs,
@@ -200,9 +208,12 @@ export function validateConfig(settings, secrets) {
  * the gateway never loads the provider keys credentials.env also holds.
  */
 export function readConfig(directory = "/run/bdobb", env = process.env) {
+  let temporalPrincipalTokens;
+  try { temporalPrincipalTokens = env.TEMPORALDB_PRINCIPAL_TOKENS === undefined ? undefined : JSON.parse(env.TEMPORALDB_PRINCIPAL_TOKENS); }
+  catch { throw new Error("Invalid TEMPORALDB_PRINCIPAL_TOKENS JSON"); }
   return validateConfig(
     JSON.parse(readFileSync(`${directory}/settings.json`, "utf8")),
     { token: env.GATEWAY_TOKEN, apiUsername: env.OPENBB_API_USERNAME, apiPassword: env.OPENBB_API_PASSWORD,
-      tableGatewayToken: env.TABLE_GATEWAY_TOKEN, tableRelayToken: env.TABLE_RELAY_TOKEN, temporalToken: env.TEMPORALDB_GATEWAY_TOKEN },
+      tableGatewayToken: env.TABLE_GATEWAY_TOKEN, tableRelayToken: env.TABLE_RELAY_TOKEN, temporalToken: env.TEMPORALDB_GATEWAY_TOKEN, temporalPrincipalTokens },
   );
 }

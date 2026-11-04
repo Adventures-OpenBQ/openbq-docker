@@ -231,6 +231,24 @@ Funnel offers only 443, 8443 and 10000; 10000 is the only port any file funnels
 
 ## Verification
 
+### TemporalDB browser identity
+
+When TemporalDB is enabled, browser requests must carry the verified session
+principal with the private `TABLE_RELAY_TOKEN`. Set
+`TEMPORALDB_PRINCIPAL_TOKENS` in private `gateway.env` to a JSON object mapping
+`github:<numeric-id>` to that user's scoped TemporalDB bearer token. At most
+1,000 mappings are accepted. These credentials must be distinct from each
+other and from the desktop, gateway and relay credentials. Unknown or invalid
+assertions return 403 without a backend request; they never use the desktop
+token. Desktop requests without assertions retain their existing behavior.
+
+The API scope policy and managed-table ingestion `principalHeaders` must bind
+the same principal to the intended scope. Do not commit credential maps or
+change receipt ownership to make an existing execution visible. The retained
+browser harness requires a distinct `webApiToken` in its private `harness.json`,
+explicitly bound to the qualification scope; its synthetic GitHub 42 session
+does not establish real-user OAuth acceptance.
+
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web up -d   # add --profile live (and "liveGrid": true) for /grid
 docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web exec funnel-gateway node check-upstreams.mjs  # API pair works, API locked, live-grid answers and is locked, wire answers, if on

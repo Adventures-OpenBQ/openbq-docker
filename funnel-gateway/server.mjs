@@ -336,9 +336,9 @@ export async function sendGrid(method, path, body, config, signal) {
   });
 }
 
-async function sendTemporal(method, path, body, config, signal) {
+async function sendTemporal(method, path, body, config, signal, authorization = config.temporalAuthorization) {
   const url = new URL(path.slice("/temporal".length), config.temporalOrigin);
-  const headers = { Authorization: config.temporalAuthorization, Accept: "application/json" };
+  const headers = { Authorization: authorization, Accept: "application/json" };
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
     headers["Content-Length"] = String(Buffer.byteLength(body));
@@ -866,6 +866,12 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         const route = temporalRoute(url, req.method, config);
         if (!route) return reply(res, 404);
         if (!config.temporalOrigin || !config.temporalAuthorization) return reply(res, 503);
+        let authorization = config.temporalAuthorization;
+        if (req.headers["x-table-relay-token"] !== undefined || req.headers["x-table-principal"] !== undefined) {
+          const principal = tablePrincipal(req, config);
+          if (!principal || !Object.hasOwn(config.temporalPrincipalTokens ?? {}, principal)) return reply(res, 403);
+          authorization = "Bearer " + config.temporalPrincipalTokens[principal];
+        }
         if (inflight >= config.maxConcurrent) return reply(res, 429);
         let body;
         if (req.method === "POST" || req.method === "PUT") {
@@ -881,7 +887,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         const disconnect = () => { if (!res.writableEnded) controller.abort(); };
         res.once("close", disconnect);
         try {
-          const answer = await sendTemporal(req.method, route.path, body, config, controller.signal);
+          const answer = await sendTemporal(req.method, route.path, body, config, controller.signal, authorization);
           return reply(res, temporalStatus(answer.status), answer.json);
         } finally { clearTimeout(timer); res.off("close", disconnect); inflight--; }
       }

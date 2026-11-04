@@ -36,6 +36,42 @@ test('TemporalDB config requires explicit opt-in and a separate secret; target i
 });
 
 async function listen(server) { server.listen(0,'127.0.0.1'); await once(server,'listening'); return 'http://127.0.0.1:'+server.address().port; }
+test('TemporalDB web credentials are bounded, distinct and require the trusted relay', () => {
+  const relay='synthetic_distinct_relay_token_for_tests';
+  const user='synthetic_first_user_temporal_token_for_tests';
+  const good={...secrets,tableRelayToken:relay,temporalPrincipalTokens:{'github:42':user}};
+  assert.equal(validateConfig({...settings,temporalDB:true},good).temporalPrincipalTokens['github:42'],user);
+  for(const value of [null,[],{'github:0':user},{'desktop:owner':user},{'github:42':'short'},{'github:42':upstreamToken},{'github:42':token},{'github:42':relay},{'github:42':user,'github:43':user}])
+    assert.throws(()=>validateConfig({...settings,temporalDB:true},{...good,temporalPrincipalTokens:value}));
+  assert.throws(()=>validateConfig({...settings,temporalDB:true},{...good,tableRelayToken:undefined}));
+  assert.throws(()=>validateConfig(settings,good));
+});
+test('TemporalDB selects a scoped token only for a verified mapped web principal', async t => {
+  const relay='synthetic_distinct_relay_token_for_tests';
+  const tokens={'github:42':'synthetic_first_user_temporal_token_for_tests','github:43':'synthetic_second_user_temporal_token_for_tests'};
+  const seen=[];
+  const upstream=createServer((req,res)=>{seen.push(req.headers);res.writeHead(200,{'Content-Type':'application/json'});res.end('{}');});
+  const temporalOrigin=await listen(upstream);t.after(()=>new Promise(resolve=>upstream.close(resolve)));
+  const gateway=createGateway({...validateConfig({...settings,temporalDB:true},{...secrets,tableRelayToken:relay,temporalPrincipalTokens:tokens}),temporalOrigin});
+  await listen(gateway);t.after(()=>gateway.closeGateway());const port=gateway.address().port;
+  for(const principal of Object.keys(tokens)) {
+    assert.equal((await call(port,root+'/queries',{headers:{'x-table-relay-token':relay,'x-table-principal':principal}})).status,200);
+    assert.equal(seen.at(-1).authorization,'Bearer '+tokens[principal]);
+    assert.equal(seen.at(-1)['x-table-relay-token'],undefined);
+    assert.equal(seen.at(-1)['x-table-principal'],undefined);
+  }
+  const before=seen.length;
+  for(const headers of [
+    {'x-table-relay-token':'wrong','x-table-principal':'github:42'},
+    {'x-table-relay-token':relay,'x-table-principal':'github:44'},
+    {'x-table-relay-token':relay}, {'x-table-principal':'github:42'},
+    {'x-table-relay-token':relay,'x-table-principal':['github:42','github:43']},
+    {'x-table-relay-token':[relay,relay],'x-table-principal':'github:42'},
+  ]) assert.equal((await call(port,root+'/queries',{headers})).status,403);
+  assert.equal(seen.length,before);
+  assert.equal((await call(port,root+'/queries')).status,200);
+  assert.equal(seen.at(-1).authorization,'Bearer '+upstreamToken);
+});
 function call(port,path,{method='GET',body,headers={}}={}) { return new Promise((resolve,reject)=>{
   const req=request({hostname:'127.0.0.1',port,path,method,headers:{host:new URL(settings.origin).host,authorization:'Bearer '+token,...headers}},res=>{const chunks=[];res.on('data',c=>chunks.push(c));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body:Buffer.concat(chunks).toString()}));}); req.on('error',reject);req.end(body);
 }); }
