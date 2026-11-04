@@ -46,7 +46,7 @@
     "openbq-docker": {
       "visibility": "PUBLIC",
       "default_branch": "main",
-      "runtime_source": "dd5dcb40e476e197cca2d70874d92696ff9230c2"
+      "runtime_source": "835dcc4"
     },
     "temporalDB-docker": {
       "visibility": "PRIVATE",
@@ -66,5 +66,26 @@
     "browser_tests_skipped": 11,
     "production_runtime_changed": false,
     "public_vercel_demo_qualified": false
+  },
+  "private_principal_activation": {
+    "status": "deployed_and_privately_qualified",
+    "gateway_image": "sha256:557da9000025301afbf291b129380d1c1556cb0718e364ac26fca74879f208c2",
+    "distinct_real_user_demo_scope": true,
+    "demo_scope_seeded": false,
+    "acquisition_permission": false,
+    "forged_and_unmapped_refused": true,
+    "other_scope_query_refused": true,
+    "desktop_saved_queries_preserved": 20,
+    "managed_retained_input_isolation_passed": true,
+    "same_original_execution_and_hash": true,
+    "new_temporal_executions": 0,
+    "certificate_and_hostname_verified": true,
+    "legacy_api_ready": true,
+    "configuration_rollback_rehearsed": true,
+    "four_original_files_restored_byte_for_byte": true,
+    "reviewed_configuration_reapplied": true,
+    "internet_funnel_enabled": false,
+    "full_client_ci_run": "41851055344",
+    "full_client_ci_status": "in_progress_at_checkpoint"
   }
 }

@@ -34,7 +34,7 @@ Use native execution in the existing isolated client and host worktrees.
 - [x] Implement web relay changes and update enabled-feature fixtures.
 - [x] Run complete gateway and web suites, inspect the cross-service contract,
   and record review evidence before merging or deploying.
-- [ ] Rebuild the gateway and staged web candidate, configure a real-user demo
+- [x] Rebuild the gateway and staged web candidate, configure a real-user demo
   scope and matching managed ingestion binding, then qualify privately.
 - [ ] Activate only the authenticated public gateway and promote with rollback
   after the real browser acceptance checks are ready.
@@ -73,7 +73,7 @@ The NAS candidate image is
 It extends the retained qualified gateway image with only the reviewed
 `config.mjs` and `server.mjs`; it is not described as a clean dependency rebuild.
 All nine TemporalDB gateway tests passed inside that candidate image on the NAS.
-The live gateway has not been replaced.
+The live gateway was unchanged at that build checkpoint; activation is recorded below.
 
 The main push completed a successful staged Vercel build:
 [DaiBwwkPYQz3c8W4t425GqaLV2PA](https://vercel.com/bdobb-dev/openbq-bdobb/DaiBwwkPYQz3c8W4t425GqaLV2PA).
@@ -89,3 +89,52 @@ It grants no provider acquisition permission, seeds no data and changes no
 existing scope or receipt. It is **not applied**. Private deployed acceptance,
 intentional demo-data admission, Vercel relay configuration and public ingress
 remain deployment gates, not completed work.
+
+## Private NAS activation and acceptance
+
+The scoped configuration and gateway candidate image were subsequently applied.
+The API was recreated with its existing image, stores and network aliases; the
+gateway was recreated with the reviewed image. Managed ingestion reads its
+private binding configuration per acquisition, so the table service needed no
+restart. No database migration, provider acquisition permission or public
+ingress was introduced.
+
+Actual private HTTP and HTTPS acceptance passed:
+
+* The real GitHub principal resolves to its own empty demo workspace.
+* Forged and unmapped assertions are refused. Another scope's saved query is
+  inaccessible. All 20 original desktop saved queries remain available.
+* Managed-table acquisition of the same retained input succeeds for its original
+  desktop owner with the same execution and result hash, and is refused for the
+  new demo principal. Temporary test table sources and sessions were disposed;
+  no Temporal query execution was created by this check.
+* HTTPS checks verified the certificate chain and expected hostname. The probe
+  pinned the transport to the address reported by Tailscale because MagicDNS
+  resolution was unavailable in the probe container; TLS verification stayed on.
+* The v11 and legacy API readiness endpoints pass. TCP ports and HTTPS handlers
+  match the previous configuration. All Funnel flags are false or absent;
+  the runtime omits redundant false entries for the three new ports.
+
+Rollback was actually rehearsed: all four original configuration files were
+restored byte-for-byte and the original gateway image restarted. The reviewed
+configuration was then reapplied and the private, HTTPS and managed-data
+acceptance checks passed again. The guarded rollback script is retained at:
+
+```text
+/share/Container/openbq-v11-staging/cutovers/20261104-web-principal/rollback.sh
+```
+
+This rolls back configuration and gateway image without deleting retained data.
+It refuses unrelated configuration changes. The original whole-v11 entry-point
+rollback remains available separately.
+
+The newest client main is `573fb1bfc1e0fbb74d24d22f4ecc98849f5556ef`
+following PR #40. Its Vercel build succeeded at
+[Dzs6zapUMe1DssEVSgA9GgnxMbQ9](https://vercel.com/bdobb-dev/openbq-bdobb/Dzs6zapUMe1DssEVSgA9GgnxMbQ9).
+Its replacement full CI run is `41851055344`; the earlier `3c0fa4d1` run was
+cancelled by the subsequent main push. A successful build is not completed
+browser E2E acceptance.
+
+The real demo workspace remains empty. Deliberate real-data admission, private
+Vercel credential import, public gateway activation and real OAuth/browser
+acceptance remain outstanding. Production domain promotion remains manual.
