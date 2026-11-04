@@ -1,7 +1,7 @@
 {
-  "status": "native_retained_inspection_and_mcp_qualified",
+  "status": "native_inspection_mcp_widgets_rita_and_archived_replay_qualified",
   "backend_source": "89f80e7efc9d63fec6eb77e256aaeeac1c59055c",
-  "client_source": "1ba162a4fe9d9ec18a46f6774e3568d4264fd02c",
+  "client_source": "082eee9a",
   "image_id": "sha256:411ce881be0cfb0a2a68c0d87f188a602e3522c69c22ecc6099e096cf48df8a5",
   "environment_digest": "b8639a892a3e510ea7481a980f0d7fdada17c802087b62cd2a704d2b95bfdf19",
   "capture_id": "7ff38d18-5f4b-4f40-ae5c-e25bac004cd3",
@@ -74,7 +74,7 @@
     "rows_schema_input_manifest_and_environment_match": true,
     "result_hash": "819f6e77ca3bf1e6a468ee1887c34a4c2c07a5a62e471d050942625489057294",
     "oauth_issuer": false,
-    "rita_reasoning_qualified": false
+    "rita_reasoning_qualified": true
   },
   "guard_evidence": {
     "mcp_100_row_byte_budget_refusal_preserved": true,
@@ -82,11 +82,74 @@
     "new_source_fetches_during_admission_or_mcp": 0
   },
   "pending": [
-    "complete-result native table service",
-    "visible widget/browser qualification",
-    "live Rita tool dispatch",
+    "native pivot/browser qualification",
     "final restart and isolated restore/replay",
     "independent whole-release review"
   ],
-  "production_selected": false
+  "production_selected": false,
+  "selected_backend_source": "caa1741724f02e5e5c1b9a48fd9ed851ad592781",
+  "selected_image_id": "sha256:de5dec4eb4e9f1acfdf34e3a00f836c96d49501f8020aac0f91501a3236707ba",
+  "selected_environment_digest": "49cf3ebf5692066695a915f0a0aa3eb36a221e52b7c5c2ec1ea9eedc13965305",
+  "receipt_runtime_note": "Original execution environment remains b8639a; selected mixed-catalog guard runtime is recorded separately.",
+  "browser": {
+    "browserVersion": "151.0.7922.34",
+    "paged": {
+      "status": "PASS",
+      "firstPageRows": 25,
+      "total": 1788,
+      "nextPrevious": true,
+      "inspectionWarning": true
+    },
+    "complete": {
+      "status": "PASS",
+      "rows": 1788,
+      "globalSortFirstPosition": 2047,
+      "matchingExecutionAndHash": true,
+      "inspectionWarning": true
+    },
+    "filter": {
+      "status": "PASS",
+      "minimumSourcePosition": 2000,
+      "rows": 43,
+      "allOutsideFirstPage": true,
+      "inspectionWarning": true
+    },
+    "browserMachineCredentialLeaks": 0,
+    "newExecutionsStartedByPinnedWidgets": 0,
+    "pageErrors": [],
+    "synthetic_local_auth_session": true,
+    "public_tls_qualified": false,
+    "oauth_issuer_qualified": false,
+    "refused_http_responses_by_status": {
+      "404": 2,
+      "429": 74,
+      "413": 2,
+      "409": 5
+    },
+    "refusal_followup": "Functionality passed after retries; throttled commands/cancels and bounded response refusals remain for whole-release review.",
+    "table_settings_sha256": "bd65b05a628d40b0a9ca6417ced623e8a1f17c7fc410d0e21c531d27318d1cde"
+  },
+  "rita": {
+    "model": "openai:qwen3.6-35b",
+    "actual_get_query_result_calls": 1,
+    "same_widget_execution_and_hash": true,
+    "reported_counts": [
+      2048,
+      1788,
+      260
+    ],
+    "partial_coverage_limitation_reported": true,
+    "original_service_reconfigured": false
+  },
+  "protected_replay": {
+    "status": "native_sip_protect_and_archived_replay_qualified",
+    "execution_id": "3b244901-8fe2-42bb-813d-ed2ca80a3c69",
+    "audit_id": "473a203a-5419-48bd-980c-5efdf40a1813",
+    "replay_execution_id": "8cdc14eb-3823-4315-b132-9b56ff1245d1",
+    "rows": 1788,
+    "schema_and_ordered_rows_match": true,
+    "original_2048_and_corroboration_bytes_archived": true,
+    "canonical_tick_eligible": false,
+    "restore_qualified": false
+  }
 }

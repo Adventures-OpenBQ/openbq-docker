@@ -35,8 +35,7 @@ inputs do not make those execution identities interchangeable.
 
 The client preserves the partial-inspection warning through complete/empty
 results, pinned results, filtering, sorting, pivoting, charts and exports. Its
-full frontend suite passed9,117 tests, with48 skipped; typechecking passed. The earlier unsigned arm64 application build passed;
-the cursor-renewal rebuild is pending. The warning describes source coverage,
+full frontend suite passed9,117 tests, with48 skipped; typechecking passed. The cursor-renewal unsigned arm64 application rebuild also passed. The warning describes source coverage,
 separately from whether all query rows were loaded.
 
 The client also accepts renewed signed cursor capabilities only after matching
@@ -51,8 +50,17 @@ restore qualification. Rita made one actual MCP result call through the producti
 client tool loop, matched the widget receipt and reported the qualified counts
 and inspection limitation. Existing Rita services were not reconfigured.
 
+Actual browser paging next/previous passed. The managed table globally sorted
+all1,788 rows and exported them with the exact retained receipt. A user-entered
+source-position filter selected43 rows outside the first page; its export kept
+the same receipt and inspection warning. No machine credential leaked into browser
+requests and pinned widgets started no new executions. Reduced qualification byte
+and retained-state budgets were corrected to32MiB source and the standard256MiB
+retained-state bound; row/column/time, worker and service caps remain active.
+The successful run still recorded throttled commands/cancels and bounded response
+refusals before completing. This remains a whole-release review focus.
+
 The pre-SIP cross-store backup passed all seven checksum checks and the original
-qualification services restarted. Complete-result
-service/browser qualification, final isolated recovery and
+qualification services restarted. Native pivot/browser qualification, final isolated recovery and
 whole-release review are tracked separately. This report is not a v11 completion,
 OAuth issuer, public TLS, signed application or production-cutover claim.
