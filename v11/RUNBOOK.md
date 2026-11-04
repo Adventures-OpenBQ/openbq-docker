@@ -1,5 +1,41 @@
 # v11 offline recovery rehearsal
 
+## November4 native NAS candidate
+
+The [native artifact receipt](nas/qualification-2026-11-04.json) records the
+current isolated linux/amd64 NAS candidate through migration043. It is separate
+from the older local arm64 fixture in `temporaldb.lock.json`; do not silently
+substitute one artifact/platform for the other. API, worker and MCP select the
+same native image. The managed table source is pinned independently because its
+server code is unchanged by the client cursor fix.
+
+The real retained demonstration includes current-observed S&P500 security data,
+reference lookups, dated calendar bundles, one bounded real daily-price policy,
+and a partial SIP inspection. Read each qualification report before generalizing
+its coverage or historical clocks. Full query loading never makes the original
+sample complete or supplies missing historical publication/security identity.
+
+The browser demonstrates bounded cursor paging, full-result sort/export,
+filtering outside pageone and an independently checked pivot. Rita calls the
+same retained execution through MCP. Browser qualification uses a synthetic
+local signed session and private scoped server credentials; it does not qualify
+an OAuth issuer or public TLS deployment. No machine keys enter browser requests.
+The successful wide-result run had throttled requests before completion; that
+behavior remains an explicit independent-review focus.
+
+The final recovery check uses a write-quiesced PostgreSQL/S3/archive/evidence
+snapshot and nine existing protected examples. Restore into NEW volumes and a
+NEW internal network; remove every inherited provider-egress network from both
+composition and actual container attachments. Disable acquisition, strip
+provider credentials, rotate bearer keys while preserving scope identities,
+retain the original object prefixes, and verify ordered rows/schema and each
+archived runtime independently. A successful tar extraction is not replay proof.
+Keep old containers, volumes, runtime images and snapshots as rollback targets.
+
+The current status is qualification, with final recovery/review still pending.
+No main merge, registry publication, signed application or production ingress
+cutover is implied by this receipt.
+
 Use the standalone P repository's `temporaldb.recovery` APIs or
 `uv run --frozen python scripts/restore_check.py ACTION --config CONFIG.json`.
 These are trusted administrative operations. Only use a locally reviewed bundle:

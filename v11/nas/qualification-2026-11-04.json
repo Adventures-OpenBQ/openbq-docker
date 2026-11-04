@@ -1,0 +1,61 @@
+{
+  "status": "qualified_artifacts_final_recovery_and_review_pending",
+  "platform": "linux/amd64",
+  "backend_source": "caa1741724f02e5e5c1b9a48fd9ed851ad592781",
+  "backend_image_id": "sha256:de5dec4eb4e9f1acfdf34e3a00f836c96d49501f8020aac0f91501a3236707ba",
+  "environment_digest": "49cf3ebf5692066695a915f0a0aa3eb36a221e52b7c5c2ec1ea9eedc13965305",
+  "migration": 43,
+  "build_method": "SHA256-verified universal wheel installed with --no-deps --reinstall over verified qualified native base; clean dependency rebuild failed inode exhaustion and is not claimed",
+  "base_image_id": "sha256:411ce881be0cfb0a2a68c0d87f188a602e3522c69c22ecc6099e096cf48df8a5",
+  "wheel_sha256": "e1eb4803e8e1a3cff7048c13191938950813f28a5f089a6848971e3723655e2e",
+  "source_archive_sha256": "37b8b87a830fadcca4301a9b8d3d7c18865959ba0b838659541b8f2a55d5168d",
+  "api_worker_mcp_same_image": true,
+  "client": {
+    "source_commit": "082eee9a4944df03a9a0b886cf5a75bc94ee343a",
+    "tree": "82724c9edd0b956ad0199ad95e0ab16a39529627",
+    "arm64_binary_sha256": "9a22d01aedec7f0a66670157d54df84f73bf45884c0e6391db557b7587996b29",
+    "unsigned_app_zip_sha256": "15eeb9a1cc8384d13ec1a55716fc17fb60238660646ae6cc26bacea3b596d95b",
+    "browser_archive_sha256": "4bf5256ba94e0c7c9a0f682b015ac09c47ce6887f3c705dffd5de6d93df97f42",
+    "full_tests_passed": 9117,
+    "full_tests_skipped": 48,
+    "native_app_launched_against_shared_storage": false,
+    "signed_or_notarized": false,
+    "nonempty_embedded_default_seed_keys": []
+  },
+  "managed_table": {
+    "source_commit": "1ba162a4fe9d9ec18a46f6774e3568d4264fd02c",
+    "source_tree": "8e6329ec26258d7347a0037ff0f4f996a4ac833c",
+    "image_id": "sha256:738bed0a5815ccd2643af8fdfa10fac838e71eafc297fd227eae6af5e57efc2b",
+    "source_limit_bytes": 33554432,
+    "retained_state_limit_bytes": 268435456,
+    "max_rows": 2000,
+    "max_columns": 64,
+    "max_seconds": 60,
+    "private_settings_sha256": "bd65b05a628d40b0a9ca6417ced623e8a1f17c7fc410d0e21c531d27318d1cde",
+    "server_code_unchanged_at_client_082eee9a": true
+  },
+  "proofs": [
+    "../SIP-INSPECTION-QUALIFICATION-2026-11-04.md",
+    "../REAL-PRICE-POLICY-QUALIFICATION-2026-11-03.md",
+    "../CALENDAR-SOURCE-QUALIFICATION-2026-11-03.md",
+    "../REFERENCE-RETENTION-QUALIFICATION-2026-11-03.md"
+  ],
+  "snapshot": {
+    "checksums_passed": 7,
+    "protected_examples": 9,
+    "source_restarted": true,
+    "isolated_restore_replay": "in_progress",
+    "provider_credentials_in_restore": false,
+    "restore_acquisition_enabled": false,
+    "restore_network": "internal only; actual attachments checked after inherited provider bridge removed"
+  },
+  "public_tls_qualified": false,
+  "oauth_issuer_qualified": false,
+  "production_selected": false,
+  "registry_reference": null,
+  "main_changed": false,
+  "review": "independent whole-release review in progress",
+  "artifact": "temporaldb-caa1741-linux-amd64.docker.tar",
+  "artifact_sha256": "f62d112ca0e673b3ff7e63e50f555aaba72f1f5a9e06bfab75d48351a768c65c",
+  "distribution": "verified local docker-save; unpublished"
+}

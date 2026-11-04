@@ -1,7 +1,7 @@
 {
   "status": "native_inspection_mcp_widgets_rita_and_archived_replay_qualified",
   "backend_source": "89f80e7efc9d63fec6eb77e256aaeeac1c59055c",
-  "client_source": "082eee9a",
+  "client_source": "082eee9a4944df03a9a0b886cf5a75bc94ee343a",
   "image_id": "sha256:411ce881be0cfb0a2a68c0d87f188a602e3522c69c22ecc6099e096cf48df8a5",
   "environment_digest": "b8639a892a3e510ea7481a980f0d7fdada17c802087b62cd2a704d2b95bfdf19",
   "capture_id": "7ff38d18-5f4b-4f40-ae5c-e25bac004cd3",
