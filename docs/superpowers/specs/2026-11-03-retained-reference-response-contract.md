@@ -70,3 +70,29 @@ accepted reference IDs survive execution/replay and cross-store restore.
 
 No provider/framework substitution, undocumented source-history estimate or
 arbitrary timezone relabeling is part of this slice.
+
+## Implementation refinement: use existing publication authority
+
+The implemented snapshot grain is one exact lookup, including source authority,
+model, parameters and source context. An explicit `reference_response_snapshot`
+Fact dates the **observation**, with nullable business validity in separate value
+fields. Public query rows expose `observed_at`, not a security `effective_from`.
+Empty and multiple results remain explicit and cannot leave a stale single
+identity looking current. Source assertions/captures have separate names.
+
+Reuse existing fenced capture normalization, accepted Silver publications,
+catalog pins, source vectors and audit dependencies. No new manifest wire shape
+or parallel reference database is necessary for these observation inputs.
+Migration041 selects only the exact registered reference-observation normalizer
+for current reference queries; price sources still require accepted clean Gold.
+Catalog ambiguity and source selection must be one PostgreSQL statement snapshot.
+A deterministic two-catalog race test observed a later cold-catalog admission
+replacing a prior checked hot selection; the corrected single-statement selection
+keeps the frozen hot input and refuses ambiguity on subsequent requests.
+
+This does not qualify listing business intervals or positive calendar rows.
+Current rule-library session materialization and historical price identity remain
+separate gates. Collection is explicit and operator-configured, not a new read
+side effect or an automatic price-policy capability.
+
+Lookup observations deliberately refuse `effective_on` and business-date filters. Earlier retained answers are selected with local `known_at`; source publication knowledge is unsupported. Internal observation timestamps must not be mistaken for listing validity.
