@@ -13,10 +13,14 @@ an available 2.06x (spec S3, D3).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import Any
+
 import polars as pl
 
 from openbq_ta.exprs import Base
-from openbq_ta.registry import Indicator, Req, col_suffix, get
+from openbq_ta.registry import Indicator, Req, StudyError, col_suffix, get
+from openbq_ta.times import resolve_time
 
 
 def collect_bases(reqs: list[Req]) -> dict[str, Base]:
@@ -55,25 +59,54 @@ def session_columns(frame: pl.DataFrame, ind: Indicator, params: dict) -> dict[s
     return {name: joined[name].to_list() for name in outputs}
 
 
+def resolve_times(req: Req, trades: Sequence = ()) -> dict[str, Any]:
+    """`req.params` with each `times=` parameter resolved to a UTC datetime. A None stays
+    None (avwap with no anchor runs from the first bar). Raises StudyError."""
+    names = get(req.name).times
+    if not names:
+        return req.params
+    return {**req.params, **{k: resolve_time(req.params[k], trades)
+                             for k in names if req.params.get(k) is not None}}
+
+
 def compute_with_bases(
-    df: pl.DataFrame, reqs: list[Req]
+    df: pl.DataFrame, reqs: list[Req], *, trades: Sequence = (), notes: list | None = None,
 ) -> tuple[pl.DataFrame, dict[str, Base]]:
-    """Evaluate `reqs` against `df`, keeping the intermediate Base columns."""
+    """Evaluate `reqs` against `df`, keeping the intermediate Base columns.
+
+    With `notes` a list, a study whose time does not resolve, or whose iterate/session_agg
+    raises, is left out and `(req, message)` appended (spec 2026-11-04 §3); every other
+    study computes. With `notes=None`, the error propagates.
+    """
     if not reqs:
         return df, {}
-    bases = collect_bases(reqs)
+
+    def drop(req: Req, exc: Exception) -> None:
+        if notes is None:
+            raise exc
+        notes.append((req, str(exc)))
+
+    work: list[tuple[Req, Indicator, dict]] = []
+    for req in reqs:
+        try:
+            work.append((req, get(req.name), resolve_times(req, trades)))
+        except StudyError as exc:
+            drop(req, exc)
+    bases: dict[str, Base] = {}
+    for _, ind, params in work:
+        for base in ind.deps(params):
+            bases[base.key] = base
     frame = df
     if bases:
         frame = frame.with_columns([b.expr().alias(b.key) for b in bases.values()])
 
     seen: set[str] = set()
     exprs: list[pl.Expr] = []
-    for req in reqs:
-        ind = get(req.name)
+    for req, ind, params in work:
         if ind.sessioned or ind.iterative:
             continue  # computed below, against the frame or the session frame
         suffix = col_suffix(req)
-        for expr in ind.build(req.params, bases):
+        for expr in ind.build(params, bases):
             name = expr.meta.output_name() + suffix
             if name in seen:
                 continue  # the same indicator, same params, requested twice
@@ -84,12 +117,18 @@ def compute_with_bases(
 
     # Path-dependent, then session-anchored studies: they read the frame rather than
     # contributing expressions to it.
-    for req in reqs:
-        ind = get(req.name)
+    for req, ind, params in work:
         if not (ind.iterative or ind.sessioned):
             continue
-        values = (ind.iterate(frame, req.params) if ind.iterative
-                  else session_columns(frame, ind, req.params))
+        try:
+            values = (ind.iterate(frame, params) if ind.iterative
+                      else session_columns(frame, ind, params))
+            missing = sorted(set(ind.render) - set(values))
+            if missing:
+                raise StudyError(f"{req.name!r} did not produce {missing}")
+        except Exception as exc:  # noqa: BLE001 - one study's loop must not take the frame down
+            drop(req, exc)
+            continue
         suffix = col_suffix(req)
         for column, series in values.items():
             column += suffix
@@ -98,7 +137,8 @@ def compute_with_bases(
     return frame, bases
 
 
-def compute(df: pl.DataFrame, reqs: list[Req]) -> pl.DataFrame:
+def compute(df: pl.DataFrame, reqs: list[Req], *, trades: Sequence = (),
+            notes: list | None = None) -> pl.DataFrame:
     """Evaluate `reqs` against `df`. Base columns are an implementation detail."""
-    frame, bases = compute_with_bases(df, reqs)
+    frame, bases = compute_with_bases(df, reqs, trades=trades, notes=notes)
     return frame.drop([k for k in bases if k in frame.columns])

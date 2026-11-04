@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import timezone
 from typing import Any
 
 import polars as pl
@@ -436,14 +436,6 @@ register(Indicator(
 # --- Anchored VWAP ----------------------------------------------------------
 
 
-def _avwap_anchor(raw: Any) -> datetime:
-    """ISO 8601 -> naive datetime in the bars' own timezone (UTC for ticks)."""
-    dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-    return dt
-
-
 def _avwap_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
     # Trade-true only: each tick-derived bar carries its real trade-weighted
     # vwap (size wavg price in q), so cumsum(vwap*volume)/cumsum(volume) IS
@@ -451,12 +443,12 @@ def _avwap_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
     # data (vendor history, all-zero-size buckets) contribute nothing and
     # render null -- never the (H+L+C)/3 approximation.
     valid = pl.col("vwap").is_not_null() & pl.col("vwap").is_not_nan() & (pl.col("volume") > 0)
-    if p.get("anchor"):
-        # cast, not compare in place: fixture/daily frames carry pl.Date, tick
-        # frames pl.Datetime, and Date >= datetime raises
-        valid = valid & (
-            pl.col("date").cast(pl.Datetime) >= pl.lit(_avwap_anchor(p["anchor"]))
-        )
+    anchor = p.get("anchor")   # a UTC datetime (times=("anchor",)) or None
+    if anchor is not None:
+        # cast, not compare in place: daily frames carry pl.Date, tick frames pl.Datetime,
+        # and the frame's datetimes are naive UTC
+        valid = valid & (pl.col("date").cast(pl.Datetime)
+                         >= pl.lit(anchor.astimezone(timezone.utc).replace(tzinfo=None)))
     num = pl.when(valid).then(pl.col("vwap") * pl.col("volume")).otherwise(0.0).cum_sum()
     den = pl.when(valid).then(pl.col("volume")).otherwise(0.0).cum_sum()
     return [pl.when(valid & (den > 0)).then(num / den).otherwise(None).alias("avwap")]
@@ -464,15 +456,15 @@ def _avwap_build(p: dict, b: dict[str, Base]) -> list[pl.Expr]:
 
 register(Indicator(
     name="avwap", label="Anchored VWAP", params={"anchor": None}, pane="price",
+    times=("anchor",),
     price_basis="raw",
     convention=(
         "Cumulative TRADE-weighted mean from the anchor timestamp forward: "
         "sum(price*size)/sum(size) over actual trades, via each tick-derived "
         "bar's own vwap column (size wavg price in q). Bars without trade "
         "data -- vendor history, bars before the anchor -- are null; this "
-        "never falls back to a typical-price approximation. Anchor is ISO "
-        "8601, read as naive in the bars' own timezone (UTC for tick-derived "
-        "bars). No anchor = cumulative from the first bar with trade data."
+        "never falls back to a typical-price approximation. Anchor is an "
+        "ISO-8601 instant or OBS-n (a naive instant is UTC). No anchor = cumulative from the first bar with trade data."
     ),
     deps=lambda p: [],
     build=_avwap_build,
