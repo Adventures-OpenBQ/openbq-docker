@@ -168,3 +168,21 @@ Treat these as weekly demonstration targets, not promises to ship unfinished inf
 | 10 — Watch and review | Authorized schedules, meaningful alerts and recurring portfolio review | Scheduled execution, inspection and decision notes |
 
 Maintain an Arcana-style question acceptance ledger: supported question, required inputs, service/tool, widget, assumptions, evidence and explicit gaps. Match demonstrated workflows rather than model-provider counts.
+
+
+## November 4 execution reconciliation
+
+The checkboxes above retain the original build sequence. Current evidence and
+scope dispositions are in the [final candidate report](../../../v11/FINAL-QUALIFICATION-2026-11-04.md)
+and [verbatim decision ledger](../../../v11/EXECUTION-DECISIONS-2026-11-04.md).
+Tasks 1–4 have source and native staged qualification: bounded acquisition,
+repeatable independent stores, admitted real Security Master, retained references,
+dated calendars and one real EODHD price range. Recorded Yahoo and installed
+SDK tests are distinct from live Yahoo sourcing, which remains unqualified.
+Task 5 is formally narrowed to bounded retained SIP inspection, as permitted by
+Milestone G; whole-archive certification/migration and canonical analytics remain
+open operational work. Task 6 includes actual authenticated MCP/Rita and native
+widgets with matching frozen receipts; OAuth issuer/public TLS remain separate.
+Task 7's candidate artifacts, tutorial, independent review and recovery are
+tracked by the final report. Its production switch/merge/publication instruction
+is not executed implicitly and remains a separate integration decision.

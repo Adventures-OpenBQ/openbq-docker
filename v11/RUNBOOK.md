@@ -3,11 +3,11 @@
 ## November4 native NAS candidate
 
 The [native artifact receipt](nas/qualification-2026-11-04.json) records the
-current isolated linux/amd64 NAS candidate through migration043. It is separate
+current isolated linux/amd64 NAS candidate through migration044. It is separate
 from the older local arm64 fixture in `temporaldb.lock.json`; do not silently
 substitute one artifact/platform for the other. API, worker and MCP select the
-same native image. The managed table source is pinned independently because its
-server code is unchanged by the client cursor fix.
+same native image. The managed table source is pinned independently: its ingestion bundle includes
+receipt provenance fixes; verified native Rust/dependency bytes are reused.
 
 The real retained demonstration includes current-observed S&P500 security data,
 reference lookups, dated calendar bundles, one bounded real daily-price policy,
@@ -20,11 +20,14 @@ filtering outside pageone and an independently checked pivot. Rita calls the
 same retained execution through MCP. Browser qualification uses a synthetic
 local signed session and private scoped server credentials; it does not qualify
 an OAuth issuer or public TLS deployment. No machine keys enter browser requests.
-The successful wide-result run had throttled requests before completion; that
-behavior remains an explicit independent-review focus.
+Native instrumentation identified an oversized virtual viewport as the request
+thrashing cause. The final constrained view settles with six commands, no
+cancellations or pending requests, and unchanged service limits. Earlier failed
+qualification attempts remain recorded.
 
 The final recovery check uses a write-quiesced PostgreSQL/S3/archive/evidence
-snapshot and nine existing protected examples. Restore into NEW volumes and a
+snapshot and ten protected examples, including the original acquisition
+explanation. Restore into NEW volumes and a
 NEW internal network; remove every inherited provider-egress network from both
 composition and actual container attachments. Disable acquisition, strip
 provider credentials, rotate bearer keys while preserving scope identities,
@@ -32,7 +35,11 @@ retain the original object prefixes, and verify ordered rows/schema and each
 archived runtime independently. A successful tar extraction is not replay proof.
 Keep old containers, volumes, runtime images and snapshots as rollback targets.
 
-The current status is qualification, with final recovery/review still pending.
+The independent review is complete; its two Important findings are fixed.
+The migration-044 cross-store restore passed all ten protected examples,
+including the exact original acquisition explanation. The [final qualification report](FINAL-QUALIFICATION-2026-11-04.md)
+records the evidence, deferred scope and distinction between a candidate and
+production selection.
 No main merge, registry publication, signed application or production ingress
 cutover is implied by this receipt.
 
@@ -529,11 +536,13 @@ The original725-node baseline has712 nodes with passing evidence,11 skips,1 loca
 mount unavailable and1 stale HTTP200-empty-array negative. A later focused group
 passes the corrected null negative and legitimate empty windows. The prior actual
 Linux native mount is reused. Task6 closing review approved those old-source
-baseline dispositions; scoped final fix review is still pending. Unchanged
+baseline dispositions; at that historical checkpoint, scoped final fix review
+was still pending. The November 4 final report above supersedes that status. Unchanged
 provider/settings/Workspace/session/native-analysis evidence retains original
 source/image identities with byte/dependency comparisons, not new-image claims.
 See P's `docs/releases/v11/final-fix-qualification.md` for current proof and limits.
-No release, registry push, merge, deployment or cutover is authorized.
+That historical checkpoint authorized no release, registry push, merge, deployment
+or cutover.
 
 ### Historical Task6 candidate qualification
 

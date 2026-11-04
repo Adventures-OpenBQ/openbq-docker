@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+# Replace the architecture-independent ingestion bundle over a verified native
+# base. Require byte-identical Rust sources/locks and unchanged external deps.
+ARG QUALIFIED_TABLE_BASE
+FROM ${QUALIFIED_TABLE_BASE}
+USER 0:0
+ARG SOURCE_REVISION
+COPY --chmod=0644 child.mjs /app/server/table-ingest/dist/child.mjs
+COPY --chmod=0644 source.json /app/source.json
+COPY --chmod=0644 SHA256SUMS /tmp/ingest-update.SHA256SUMS
+RUN cd /app && sha256sum -c /tmp/ingest-update.SHA256SUMS && rm /tmp/ingest-update.SHA256SUMS
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION
+USER 10001:10001

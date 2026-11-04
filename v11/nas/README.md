@@ -1,9 +1,11 @@
 # NAS v11 staging
 
-Status: a separate NAS staging project is initialized and running. Its API
-passed readiness, authentication and saved-query persistence across API/worker
-restart. Production remains selected. Cross-store restore and analysis replay
-qualification are still required before cutover.
+Current November 4 candidate: migration 044, native amd64 API/worker/MCP, real
+retained reference/calendar/price data and bounded SIP inspection. The original
+production selection is unchanged. See [the final qualification report](../FINAL-QUALIFICATION-2026-11-04.md)
+and [artifact receipt](qualification-2026-11-04.json) for the current source,
+review and recovery status. The dated observations below describe earlier
+staging steps and do not supersede that receipt.
 
 ## Inventory
 
@@ -126,3 +128,16 @@ clamped by `catalog.limits.max_upload_bytes` as well as backend `maxBytes`. The
 bounded SIP qualification uses32MiB for both source and parse limits,2000rows,
 64columns and60seconds, with a compatible worker frame bound. A complete query
 result must still retain the source-domain inspection warning.
+
+## Final ingestion bundle update
+
+`Dockerfile.table-ingest-update` replaces only the architecture-independent
+`child.mjs` and `source.json` over the explicitly supplied qualified native base.
+Before using it, compare all native Rust sources, build scripts, Cargo locks and
+external JavaScript dependency locks with the base revision; refuse this shortcut
+if those bytes differ. The supplied SHA256SUMS checks both copied files. Record
+both source identities, base/final image IDs, recipe and installed-file hashes.
+The November 4 receipt distinguishes this verified reuse from a clean dependency
+rebuild, which failed NAS inode capacity. The original full build recipe and
+source lock remain available; the update does not claim reproducible equivalence
+to a successful clean build.

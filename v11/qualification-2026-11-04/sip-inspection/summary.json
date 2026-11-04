@@ -1,7 +1,7 @@
 {
   "status": "native_inspection_mcp_widgets_rita_and_archived_replay_qualified",
   "backend_source": "89f80e7efc9d63fec6eb77e256aaeeac1c59055c",
-  "client_source": "082eee9a4944df03a9a0b886cf5a75bc94ee343a",
+  "client_source": "4dc87f7f0c0a92479d64e912e6739b304c511e3e",
   "image_id": "sha256:411ce881be0cfb0a2a68c0d87f188a602e3522c69c22ecc6099e096cf48df8a5",
   "environment_digest": "b8639a892a3e510ea7481a980f0d7fdada17c802087b62cd2a704d2b95bfdf19",
   "capture_id": "7ff38d18-5f4b-4f40-ae5c-e25bac004cd3",
@@ -81,16 +81,101 @@
     "mcp_limits_relaxed": false,
     "new_source_fetches_during_admission_or_mcp": 0
   },
-  "pending": [
-    "final restart and isolated restore/replay",
-    "independent whole-release review"
-  ],
+  "pending": [],
   "production_selected": false,
-  "selected_backend_source": "caa1741724f02e5e5c1b9a48fd9ed851ad592781",
-  "selected_image_id": "sha256:de5dec4eb4e9f1acfdf34e3a00f836c96d49501f8020aac0f91501a3236707ba",
-  "selected_environment_digest": "49cf3ebf5692066695a915f0a0aa3eb36a221e52b7c5c2ec1ea9eedc13965305",
+  "selected_backend_source": "9a1cf6f19c40bbe5a4f02d31523981e7d697c7b1",
+  "selected_image_id": "sha256:e134b38de756eb005d986630edffdc9ab80a419f80513b3521960640e9321b87",
+  "selected_environment_digest": "f11ad9a8d61656df66397c509b1f5a0a85e442eaae171d8a3ab6b1462d8dee31",
   "receipt_runtime_note": "Original execution environment remains b8639a; selected mixed-catalog guard runtime is recorded separately.",
   "browser": {
+    "synthetic_local_auth_session": true,
+    "public_tls_qualified": false,
+    "oauth_issuer_qualified": false,
+    "browserVersion": "151.0.7922.34",
+    "paged": {
+      "status": "PASS",
+      "firstPageRows": 25,
+      "total": 1788,
+      "nextPrevious": true,
+      "inspectionWarning": true
+    },
+    "geometry": {
+      "viewportHeight": 344,
+      "contentHeight": 50118,
+      "cardHeight": 468,
+      "renderedRows": 34
+    },
+    "complete": {
+      "status": "PASS",
+      "rows": 1788,
+      "globalSortFirstPosition": 2047,
+      "matchingExecutionAndHash": true,
+      "inspectionWarning": true
+    },
+    "filter": {
+      "status": "PASS",
+      "minimumSourcePosition": 2000,
+      "rows": 43,
+      "allOutsideFirstPage": true,
+      "inspectionWarning": true
+    },
+    "browserMachineCredentialLeaks": 0,
+    "newExecutionsStartedByPinnedWidgets": 0,
+    "pageErrors": [],
+    "pivot": {
+      "status": "PASS",
+      "sourceRows": 1788,
+      "aggregateRows": 1,
+      "sourceSizeSum": 41529,
+      "independentExpectedSum": 41529,
+      "matchingExecutionAndHash": true,
+      "inspectionWarning": true
+    },
+    "failedTableResponses": [
+      {
+        "path": "/table/apps.json",
+        "status": 404,
+        "body": ""
+      },
+      {
+        "path": "/table/",
+        "status": 404,
+        "body": ""
+      }
+    ],
+    "stable_display_diagnosis": "Constrain virtual viewport to widget card; six commands, zero cancellations/pending; no raised guards. Earlier failed attempts retained separately.",
+    "completeDisplaySettled": true,
+    "filterDisplaySettled": true,
+    "pendingTableRequests": 0,
+    "fetchCancellationTrace": [],
+    "command_requests": 6
+  },
+  "rita": {
+    "model": "openai:qwen3.6-35b",
+    "actual_get_query_result_calls": 1,
+    "same_widget_execution_and_hash": true,
+    "reported_counts": [
+      2048,
+      1788,
+      260
+    ],
+    "partial_coverage_limitation_reported": true,
+    "original_service_reconfigured": false
+  },
+  "protected_replay": {
+    "status": "native_sip_protect_and_archived_replay_qualified",
+    "execution_id": "3b244901-8fe2-42bb-813d-ed2ca80a3c69",
+    "audit_id": "473a203a-5419-48bd-980c-5efdf40a1813",
+    "replay_execution_id": "8cdc14eb-3823-4315-b132-9b56ff1245d1",
+    "rows": 1788,
+    "schema_and_ordered_rows_match": true,
+    "original_2048_and_corroboration_bytes_archived": true,
+    "canonical_tick_eligible": false,
+    "restore_qualified": true,
+    "restore_note": "Original execution replay independently verified in migration-044 isolated ten-example cross-store restore; original runtime digest remains frozen."
+  },
+  "selected_mcp_image_matches_api_worker": true,
+  "prior_browser_082eee9a": {
     "browserVersion": "151.0.7922.34",
     "paged": {
       "status": "PASS",
@@ -137,28 +222,5 @@
       "inspectionWarning": true
     }
   },
-  "rita": {
-    "model": "openai:qwen3.6-35b",
-    "actual_get_query_result_calls": 1,
-    "same_widget_execution_and_hash": true,
-    "reported_counts": [
-      2048,
-      1788,
-      260
-    ],
-    "partial_coverage_limitation_reported": true,
-    "original_service_reconfigured": false
-  },
-  "protected_replay": {
-    "status": "native_sip_protect_and_archived_replay_qualified",
-    "execution_id": "3b244901-8fe2-42bb-813d-ed2ca80a3c69",
-    "audit_id": "473a203a-5419-48bd-980c-5efdf40a1813",
-    "replay_execution_id": "8cdc14eb-3823-4315-b132-9b56ff1245d1",
-    "rows": 1788,
-    "schema_and_ordered_rows_match": true,
-    "original_2048_and_corroboration_bytes_archived": true,
-    "canonical_tick_eligible": false,
-    "restore_qualified": false
-  },
-  "selected_mcp_image_matches_api_worker": true
+  "review": "one independent final review; Important fixes and final qualification complete"
 }
