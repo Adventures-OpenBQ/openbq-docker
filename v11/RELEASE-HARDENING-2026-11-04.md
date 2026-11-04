@@ -70,6 +70,32 @@ MCP; the dedicated TemporalDB MCP endpoint is currently tailnet-only.
 * Retain the rehearsed rollback and a verified off-NAS recovery copy. A copy of
   the qualification snapshot is not a scheduled backup of subsequent live data.
 
+## Vercel reconnection and staged build
+
+After explicit approval, the existing project's Git connection was changed to
+`Adventures-OpenBQ/bdobb`. The dashboard confirmed the new connection. Production
+still tracks `main`. Automatic assignment of production domains was disabled
+and its saved state rechecked after reconnection, so new builds require manual
+promotion and the v10 deployment remains the rollback target.
+
+A staged production build was started for exact commit
+`2ee88d18b217eb44589468064ee27350bd60699c`:
+[deployment BFB6cWQKPTQS6Qiq9vPFhzymM1j6](https://vercel.com/bdobb-dev/openbq-bdobb/BFB6cWQKPTQS6Qiq9vPFhzymM1j6).
+Its initial status is Building; initiation is not successful deployment or
+public-demo acceptance.
+
+Fresh local verification passed all **94 web relay tests** and `pnpm build:web`.
+The generated output has no public `static` directory, sends every route to the
+private Node 22 function, and contains no MapLibre markers in its 13 JavaScript
+assets. Marker absence is supporting evidence, not a general vulnerability scan.
+
+Read-only inspection found existing production authentication, gateway, news,
+Rita and MCP variable names, but no `TEMPORALDB_V11` or `TABLE_RELAY_TOKEN`.
+Secret values were not revealed. The live gateway's preview origin matches the
+existing custom demo domain. Completing TemporalDB browser functionality still
+requires the private relay setting, verified public ingress and real principal
+binding; source reconnection alone does not supply those prerequisites.
+
 ## Off-NAS recovery copy
 
 The rehearsed final `9a1cf6f` recovery snapshot and current cutover bundle were
