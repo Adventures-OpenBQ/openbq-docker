@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "status": "native_calendar_source_capture_client_mcp_qualified_restore_pending",
+  "source": {
+    "commit": "b398d95f14d41f602754cf5b90264143385f3e83",
+    "archive_sha256": "aa0d3f345a07778840c50f467a58aa38762ff1b1216bf0a29f79f96e8dc79e88",
+    "image_id": "sha256:6e71400d74a62c03493850a2ba15b25d674721961c74c54fe1e25bfb5369a553",
+    "platform": "linux/amd64",
+    "timezone_backend": "pinned_tzdata",
+    "profile": {
+      "exchange_calendars": "4.13.2",
+      "tzdata": "2026.5",
+      "pydantic": "2.13.5"
+    }
+  },
+  "temporaldb": {
+    "code_commit": "0e145593d4d4fc28e576a03a127ebcf2ca693959",
+    "image_id": "sha256:1cac66887bda708133b17b9aff4d64fb275bfccf5baabca0a10dad9c50663f17",
+    "migration": 42,
+    "runtime_digest": "136e13c2129df28efc40695f453d3b9038488cbdb6de4ea5aed62e839ba908f3",
+    "selected_installed_tests": 149
+  },
+  "client": {
+    "commit": "f992814da3283edd91311e0e137fce22c505ce1b",
+    "focused_tests": 170,
+    "full_tests_passed": 9109,
+    "full_tests_skipped": 48,
+    "native_provider_executions_verified": 9
+  },
+  "calendars": [
+    {
+      "calendar": "XNYS",
+      "source_body_sha256": "72451cba29e8a1a0fe08f1587b1ab35a737fcef0ff4ee1eb9725b3da92b1bd25",
+      "calendar_digest": "75e35ecd1c31b19b0b3653d4677e3ea7ff5712dfa6275cc750ce81c9a8e0a0da",
+      "requested_coverage_status": "covered",
+      "coverage_start": "2026-01-01",
+      "coverage_end": "2026-12-31",
+      "executions": {
+        "current": "0c6814ec-7dd6-4eef-a7ab-fba1159fcdc4",
+        "exact": "f2e37abc-fe41-4e31-8dc1-729c1c95068e",
+        "known": "2f3726db-f5c8-4b45-9f69-e3a5ef0ead5e"
+      },
+      "session_state": "open"
+    },
+    {
+      "calendar": "XHKG",
+      "source_body_sha256": "74978cdbe7f04dd78d2274ab5d9d2456ee25187c1857f8f639564a28c3056c0c",
+      "calendar_digest": "25a7af8d3a9a71599993daf31a44bdac4ed460c8d3eadb9efb2d9c26fff4184b",
+      "requested_coverage_status": "covered",
+      "coverage_start": "2026-01-01",
+      "coverage_end": "2026-12-31",
+      "executions": {
+        "current": "a5f3182a-0319-43c8-a498-701ca0dc32ec",
+        "exact": "96f5baf3-5f33-4c90-adc8-6c2bddbe13d2",
+        "known": "a2fd318f-bb25-42a3-8ec2-2db601899887"
+      },
+      "session_state": "open"
+    },
+    {
+      "calendar": "XSHG",
+      "source_body_sha256": "47a977b765996efbe88470431898c633f2ed5af92431ca008027a8c917a138b0",
+      "calendar_digest": "09ecba073f96ed181b89053e0884ae85cb0e6ee1e6aab3b2ce66a0f2c8cc28bb",
+      "requested_coverage_status": "partial",
+      "coverage_start": "1990-12-03",
+      "coverage_end": "1990-12-31",
+      "executions": {
+        "current": "6d88a5ba-2273-4b46-b16f-88df39dd12bd",
+        "exact": "d0f53792-f4c1-4445-9ad6-ae165b2fabce",
+        "known": "05c935c7-9f47-40f1-a23f-9fa7ffdb02d9"
+      },
+      "session_state": "uncovered"
+    }
+  ],
+  "mcp": {
+    "acquisition_granted": false,
+    "acquisition_write_without_capability": -32001,
+    "anonymous": 401,
+    "oauth_issuer": false,
+    "protocol": "2025-06-18",
+    "query_save_granted": false,
+    "scope_override": 401,
+    "status": "live_native_mcp_cache_workflow_qualified",
+    "tool_names": [
+      "cache_coverage",
+      "cancel_query",
+      "describe_dataset",
+      "get_acquisition_policy",
+      "get_acquisition_run",
+      "get_query_result",
+      "get_saved_query",
+      "list_acquisition_policies",
+      "list_datasets",
+      "list_saved_queries",
+      "preflight_acquisition",
+      "query_cache",
+      "validate_query"
+    ],
+    "transport": "streamable_http_sse",
+    "verified": [
+      {
+        "execution_id": "e58180e9-8249-4b92-8a3c-291938459d28",
+        "matches_widget_wire_rows": true,
+        "metadata_and_provenance": true,
+        "model": "CalendarBundle XNYS"
+      },
+      {
+        "execution_id": "0d646d56-33c5-4b34-b31f-8ede582f285f",
+        "matches_widget_wire_rows": true,
+        "metadata_and_provenance": true,
+        "model": "CalendarBundle XHKG"
+      },
+      {
+        "execution_id": "1d411cef-70bb-4617-8b33-3b7bb3d00825",
+        "matches_widget_wire_rows": true,
+        "metadata_and_provenance": true,
+        "model": "CalendarBundle XSHG"
+      }
+    ]
+  },
+  "visible_widget_qualified": false,
+  "live_rita_qualified": false,
+  "calendar_restart_restore_replay_qualified": false,
+  "limits": [
+    "library_baseline; no exchange certification",
+    "local_received only; no provider publication history",
+    "no evidence of calendar knowledge before collection",
+    "calendar session does not prove price coverage",
+    "production not selected"
+  ]
+}

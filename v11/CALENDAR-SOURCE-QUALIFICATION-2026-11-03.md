@@ -129,3 +129,27 @@ identifier database or declaring two inconsistent sources authoritative.
   exact response references and the qualification program SHA-256.
 - Independent final review found no actionable issues; final evidence replaced
   the uncommitted presentation copy while prior local observations were retained.
+
+## Native retained-calendar checkpoint
+
+The [native summary](qualification-2026-11-03/calendar-native/summary.json)
+records exact source/image/runtime identities. A new bounded authenticated
+calendar service was built for linux/amd64 from H b398d95. Startup and live
+checks verified the actual pinned tzdata backend; the earlier arm64 harness
+is retained as separate evidence.
+
+The isolated TemporalDB42 candidate explicitly collected real XNYS2026,
+XHKG2026 and clipped XSHG1990 bundles, retained their byte hashes and waited
+for each capture's accepted Silver publication. Exact/current/local-known-at
+queries passed for all three. The production client provider verified all nine
+native result pages through its shared cache/calendar seam. Authenticated MCP
+returned matching original/new results and provenance; anonymous and scope
+spoofing attempts were401, and an acquisition write remained denied.
+
+The calendars preserve library-baseline evidence, not exchange certification.
+The closed NYSE holiday and early close, Hong Kong's separate segments and
+Shanghai's uncovered earlier dates remain distinct. Calendar Gold and historical
+provider-publication claims are absent. The three original results are protected
+by audit runs. Final frozen restart/restore/replay will cover the calendar,
+price and bounded SIP examples together; this checkpoint leaves that release
+gate open. Actual visible widgets and live Rita also remain separate gates.
