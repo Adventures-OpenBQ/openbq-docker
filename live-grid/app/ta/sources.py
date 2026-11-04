@@ -105,7 +105,7 @@ class EodhdSource:
 
     async def series(
         self, df: pl.DataFrame, reqs: list[Req], symbol: str,
-        interval: str, last_closed: str,
+        interval: str, last_closed: str, trades=(),
     ) -> Result:
         # EODHD's technical endpoint has no intraday, and eodhd_query sends no
         # interval at all -- so on a 5m chart their daily value would be fanned
@@ -113,7 +113,7 @@ class EodhdSource:
         # locally and say so, rather than draw a plausible lie.
         if interval != "1d":
             # ponytail: no notes on the EODHD path -- an iterate that raises fails the request; thread notes here if a folder study ever runs with source=eodhd.
-            return Result(compute(df, reqs), [
+            return Result(compute(df, reqs, trades=trades), [
                 Annotation(col, "local", "EODHD has no intraday data")
                 for r in reqs for col in _columns(r)
             ])
@@ -125,7 +125,7 @@ class EodhdSource:
             Annotation(col, "local", f"{r.name} has no EODHD equivalent")
             for r in unmapped for col in _columns(r)
         ]
-        frame = compute(df, unmapped) if unmapped else df
+        frame = compute(df, unmapped, trades=trades) if unmapped else df
         calls = 0
         fetched: list[tuple[Req, list[dict] | None]] = []
 
@@ -169,7 +169,7 @@ class EodhdSource:
 
         local_fallback = [r for r, rows in fetched if rows is None]
         if local_fallback:
-            frame = compute(frame, local_fallback)
+            frame = compute(frame, local_fallback, trades=trades)
 
         for req, rows in fetched:
             if rows is None:
@@ -178,7 +178,7 @@ class EodhdSource:
                 frame, absent = self._join(frame, req, rows)
             except Exception as exc:  # noqa: BLE001 - one bad series, not a dead chart
                 log.warning("eodhd %s returned an unusable payload: %s", req.name, exc)
-                frame = compute(frame, [req])
+                frame = compute(frame, [req], trades=trades)
                 annotations.extend(
                     Annotation(col, "local", f"EODHD response unusable: {exc}")
                     for col in _columns(req)

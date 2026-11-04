@@ -46,6 +46,7 @@ from app.sector_map import (
 from app.symbol_meta import get_meta
 from app.ta.figure import add_seam
 from app.ta.figure import delta as ta_delta
+from app.ta.figure import trace_index
 from app.ta.macros import load_all as load_macros_all
 from app.ta.payload import (
     ChartParams,
@@ -618,7 +619,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         show_seam = query.get("show_seam", "").lower() in ("1", "true", "yes", "on")
         interval_s = float(os.getenv("TA_PUSH_INTERVAL_MS", "1000")) / 1000.0
         previous: list[str] = []
-        previous_marks: tuple[str, ...] = ()
+        previous_marks: tuple = ()
         rev = 0
         try:
             while True:
@@ -670,7 +671,11 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                 # in the title, so an EODHD fetch that starts failing mid-stream
                 # would otherwise swap the series to local values while the
                 # title, frozen at rev 0, still reads "eodhd".
-                marks = tuple(sorted({a.column for a in annotations}))
+                # The trace layout and title ride along: a study dropped or restored
+                # between pushes (iterate raised, OBS-n short of trades) moves traces,
+                # and a delta addresses them by position.
+                marks = (tuple(sorted({a.column for a in annotations})),
+                         tuple(trace_index(panes)), figure["layout"]["title"]["text"])
                 if (rev == 0 or any_repaints(panes) or bars_error is not None
                         or marks != previous_marks):
                     await ws.send_json({"type": "figure", "rev": rev, "figure": figure})

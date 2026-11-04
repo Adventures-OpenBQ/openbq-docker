@@ -101,3 +101,39 @@ def test_an_expression_anchor_is_dropped_with_a_note_not_a_502(chart):
 def test_health_reports_the_engine_version(chart):
     api, _ = chart
     assert api.get("/health").json()["openbq_ta"] == openbq_ta.__version__
+
+
+def test_a_study_dropped_between_pushes_sends_a_full_figure(chart, monkeypatch):
+    api, _ = chart
+    from datetime import datetime
+    tape = [datetime(2025, 1, 10, 12, i) for i in (3, 2, 1)]
+    seen = iter([tape, []])
+
+    async def fake(symbol, indicators, recorder):
+        return list(next(seen, []))
+
+    monkeypatch.setattr("app.main._trades", fake)
+    monkeypatch.setenv("TA_PUSH_INTERVAL_MS", "0")
+    with api.websocket_connect("/ta_chart_ws?symbol=AAPL&indicators=rsi&anchor=OBS-3") as ws:
+        first, second = ws.receive_json(), ws.receive_json()
+    assert first["type"] == "figure"
+    assert any(t["name"].startswith("Anchored VWAP") for t in first["figure"]["data"])
+    assert second["type"] == "figure", "a changed trace layout must not arrive as a delta"
+    assert not any(t["name"].startswith("Anchored VWAP") for t in second["figure"]["data"])
+
+
+def test_an_obs_anchor_on_the_eodhd_source_is_resolved_not_a_502(chart, monkeypatch):
+    from datetime import datetime
+    api, _ = chart
+
+    async def tape(symbol, indicators, recorder):
+        return [datetime(2025, 1, 10, 12, i) for i in (3, 2, 1)]
+
+    monkeypatch.setattr("app.main._trades", tape)
+    answer = api.get("/ta_chart", params={"source": "eodhd", "anchor": "OBS-3"})
+    assert any(t["name"].startswith("Anchored VWAP") for t in traces_raw(answer))
+
+
+def traces_raw(answer):
+    assert answer.status_code == 200, answer.text
+    return answer.json()["data"]

@@ -171,7 +171,7 @@ async def build_payload(
     if params.source == "eodhd" and eodhd_source is not None and reqs:
         last_closed = str(frame["date"][-1]) if frame.height else ""
         result = await eodhd_source.series(
-            frame, reqs, params.symbol, params.interval, last_closed
+            frame, reqs, params.symbol, params.interval, last_closed, trades,
         )
         computed, annotations = result.frame, result.annotations
     else:
