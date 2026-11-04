@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "status": "bounded_real_price_saved_policy_native_qualified_release_pending",
+  "example": {
+    "provider": "eodhd",
+    "dataset": "eodhd.eod",
+    "symbol": "XYZ.US",
+    "price_date": "2025-01-21",
+    "identity_basis": "provisional_provider_symbol",
+    "business_history_qualified": false,
+    "index_membership_qualified": false,
+    "identity_map_sha256": "a9bdf8f5b1a204bbb3057b78333389621712c9575d447a65fd0299f14385a64c",
+    "identity_evidence_manifest_sha256": "2363c670b0e582a0509f3960b49c4e910999b0513fd809766127429a5fd257e2"
+  },
+  "runtime": {
+    "code_commit": "0e145593d4d4fc28e576a03a127ebcf2ca693959",
+    "image_id": "sha256:1cac66887bda708133b17b9aff4d64fb275bfccf5baabca0a10dad9c50663f17",
+    "platform": "linux/amd64",
+    "migration": 42,
+    "environment_digest": "f3266b7d7347e29a3fc375988633a0d40b1704b66815c1aa75e5ecfee3aca2cf"
+  },
+  "policy": {
+    "enabled": true,
+    "limits": {
+      "coverage_reads": 64,
+      "freshness_seconds": 3600,
+      "max_bytes": 32768,
+      "max_concurrency": 1,
+      "max_days": 1,
+      "max_identities": 1,
+      "max_requests": 1,
+      "max_retries": 0,
+      "negative_ttl_seconds": 300,
+      "schema_version": 1,
+      "timeout_seconds": 300
+    },
+    "mappings": [],
+    "policy_id": "fb3d6d8d-12e1-4f6b-bc82-86e367beff75",
+    "revision": 2,
+    "schema_version": 1,
+    "sources": [
+      {
+        "account_ref": "bdobb-v11-eodhd-qualification",
+        "dataset_id": "eodhd.eod",
+        "date_end": "2025-01-21",
+        "date_start": "2025-01-21",
+        "provider": "eodhd",
+        "schema_version": 1,
+        "symbols": [
+          "XYZ.US"
+        ]
+      }
+    ],
+    "title": "Block NYSE one-day provisional identity qualification"
+  },
+  "query_id": "7695cd95-d59d-403f-94a5-241d6703c4bb",
+  "miss_run_id": "3c9c7857-391e-40cb-af26-bcdd459ea273",
+  "miss_execution_id": "be3bc62e-be83-4cbe-b26d-ccb5a33b6b7b",
+  "hit_run_id": "da8691b7-b4da-4e83-98f5-1e2c43da0ddf",
+  "hit_execution_id": "abdc9113-fb96-4fe9-848e-860852db0d4b",
+  "capture_id": "b4e8f913-49f7-446a-a58d-42546d0bd66d",
+  "source_body_sha256": "8ab615ab5f3733484ce1d1d2340efffa0d13a34a09c538c61af575fbf2eca4f1",
+  "source_bytes": 113,
+  "source_normalizer_version": "runtime-normalizers-2:a9bdf8f5b1a204bbb3057b78333389621712c9575d447a65fd0299f14385a64c",
+  "source_publication_id": "bc80f25c-487f-4df2-9b50-94365f6aab26",
+  "gold_rules_version": "daily-v1",
+  "rows_verified": 1,
+  "adjustment_basis": "unavailable_dependencies",
+  "adjusted_close_available": false,
+  "raw_ohlc_and_volume_match_source": true,
+  "provider_counts": {
+    "after_hit": {
+      "captures": 1,
+      "provider_operations": 2,
+      "reserved_requests": 2
+    },
+    "after_miss": {
+      "captures": 1,
+      "provider_operations": 2,
+      "reserved_requests": 2
+    },
+    "before": {
+      "captures": 0,
+      "provider_operations": 1,
+      "reserved_requests": 1
+    }
+  },
+  "additional_hit_operations": 0,
+  "additional_hit_captures": 0,
+  "additional_hit_reservations": 0,
+  "initial_failed_attempt": {
+    "run_id": "d5ea90c7-b1da-4210-a306-208b39abc5ca",
+    "terminal_error": "ACQUISITION_RETRY_LIMIT",
+    "cause": "isolated worker DNS unavailable; fixed-provider no-HTTP/no-key TLS probe failed, then verified after owned worker-only egress",
+    "reserved_attempt_retained": true,
+    "accepted_provider_responses": 0
+  },
+  "initial_preflight_raw_retained": false,
+  "initial_preflight_acquire_asserted": true,
+  "cache_hit_preflight": {
+    "state": "cached",
+    "provider_called": false,
+    "submitted": false
+  },
+  "authority": {
+    "status": "native_idempotency_and_authority_qualified",
+    "duplicate_run_id": "3c9c7857-391e-40cb-af26-bcdd459ea273",
+    "duplicate_execution_id": "be3bc62e-be83-4cbe-b26d-ccb5a33b6b7b",
+    "stale_policy_preflight_status": 403,
+    "stale_policy_run_status": 403,
+    "old_credential_acquisition_status": 403,
+    "counts_before": {
+      "provider_operations": 2,
+      "captures": 1,
+      "reserved_requests": 2
+    },
+    "counts_after": {
+      "provider_operations": 2,
+      "captures": 1,
+      "reserved_requests": 2
+    }
+  },
+  "outside_window": {
+    "status": "outside_window_refused_before_provider_io",
+    "error_code": "DATE_NOT_ALLOWED",
+    "counts_before": {
+      "provider_operations": 2,
+      "captures": 1,
+      "reserved_requests": 2
+    },
+    "counts_after": {
+      "provider_operations": 2,
+      "captures": 1,
+      "reserved_requests": 2
+    }
+  },
+  "passing_qualification_script_sha256": "74c5f904b2ca754a71e1da4687dd5cf86a3e604694b94a270542d5952c4a83c7",
+  "final_release_restore_pending": true,
+  "visible_widget_qualified": false,
+  "live_rita_qualified": false
+}
