@@ -7,7 +7,7 @@ import pytest
 
 from app.ta.macros import Macro, PaneSpec
 from app.ta.panes import all_reqs, assign, domains
-from app.ta.registry import resolve
+from openbq_ta.registry import resolve
 from tests.ta_helpers import col, cols
 
 

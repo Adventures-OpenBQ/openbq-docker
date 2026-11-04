@@ -17,7 +17,7 @@ import polars as pl
 from app.ta.figure import build_ta_figure
 from app.ta.macros import load_all
 from app.ta.panes import Pane, all_reqs, assign
-from app.ta.registry import Req, resolve
+from openbq_ta.registry import Req, resolve
 from app.ta.sources import LocalSource
 
 _NUMERIC = ("period", "k", "d", "fast", "slow", "signal", "smooth_k",
@@ -175,7 +175,7 @@ def any_repaints(panes: list[Pane]) -> bool:
     is false for ZigZag, whose pivots move well back into history when a new
     extreme arrives, so such a chart resends in full (spec D10).
     """
-    from app.ta.registry import get
+    from openbq_ta.registry import get
 
     return any(get(req.name).repaints for pane in panes for req in pane.reqs)
 

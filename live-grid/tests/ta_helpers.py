@@ -7,7 +7,7 @@ from pathlib import Path
 
 import polars as pl
 
-from app.ta.registry import col_suffix, get, resolve
+from openbq_ta.registry import col_suffix, get, resolve
 
 FIXTURE = Path(__file__).parent / "fixtures" / "ohlcv.csv"
 

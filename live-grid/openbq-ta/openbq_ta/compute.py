@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import polars as pl
 
-from app.ta.exprs import Base
-from app.ta.iterative import ITERATIVE
-from app.ta.registry import Req, col_suffix, get
+from openbq_ta.exprs import Base
+from openbq_ta.iterative import ITERATIVE
+from openbq_ta.registry import Req, col_suffix, get
 
 
 def collect_bases(reqs: list[Req]) -> dict[str, Base]:

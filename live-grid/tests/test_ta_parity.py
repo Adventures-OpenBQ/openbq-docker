@@ -17,7 +17,7 @@ import statistics
 
 import pytest
 
-from app.ta.registry import REGISTRY, col_suffix, resolve
+from openbq_ta.registry import REGISTRY, col_suffix, resolve
 from app.ta.sources import EodhdSource, LocalSource, eodhd_query
 
 pytestmark = pytest.mark.network

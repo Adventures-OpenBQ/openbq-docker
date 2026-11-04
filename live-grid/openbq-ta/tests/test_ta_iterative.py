@@ -5,9 +5,9 @@
 
 from itertools import pairwise
 
-from app.ta.compute import compute
-from app.ta.iterative import parabolic_sar
-from app.ta.registry import get, resolve
+from openbq_ta.compute import compute
+from openbq_ta.iterative import parabolic_sar
+from openbq_ta.registry import get, resolve
 from tests.ta_helpers import col, fixture_frame
 
 

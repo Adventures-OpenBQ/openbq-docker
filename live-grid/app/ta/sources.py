@@ -21,8 +21,8 @@ from dataclasses import dataclass, field
 
 import polars as pl
 
-from app.ta.compute import compute
-from app.ta.registry import Req, col_suffix, get
+from openbq_ta.compute import compute
+from openbq_ta.registry import Req, col_suffix, get
 
 log = logging.getLogger("live-grid.ta")
 

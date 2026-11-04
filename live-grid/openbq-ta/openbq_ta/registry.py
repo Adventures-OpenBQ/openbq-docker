@@ -19,7 +19,7 @@ from typing import Any
 
 import polars as pl
 
-from app.ta.exprs import Base, price_col
+from openbq_ta.exprs import Base, price_col
 
 
 @dataclass(frozen=True)

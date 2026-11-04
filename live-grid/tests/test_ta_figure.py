@@ -7,10 +7,10 @@ from itertools import pairwise
 
 import polars as pl
 
-from app.ta.compute import compute
+from openbq_ta.compute import compute
 from app.ta.figure import build_ta_figure, delta, trace_index
 from app.ta.panes import assign
-from app.ta.registry import resolve
+from openbq_ta.registry import resolve
 from app.ta.sources import Annotation
 from tests.ta_helpers import col, cols, fixture_frame
 

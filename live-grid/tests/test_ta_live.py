@@ -6,7 +6,7 @@
 from app.ta.figure import delta, trace_index
 from app.ta.panes import assign
 from app.ta.payload import any_repaints, revised_from
-from app.ta.registry import REGISTRY, resolve
+from openbq_ta.registry import REGISTRY, resolve
 from tests.ta_helpers import fixture_frame
 
 
@@ -46,7 +46,7 @@ def test_a_repainting_indicator_is_detected():
 def test_a_delta_of_two_bars_carries_two_points_per_trace():
     frame = fixture_frame()
     panes = assign(None, [resolve("rsi", period=14)])
-    from app.ta.compute import compute
+    from openbq_ta.compute import compute
     computed = compute(frame, [resolve("rsi", period=14)])
     payload = delta(computed, panes, computed.height - 2)
     assert all(len(t.get("y", t.get("close", []))) == 2
@@ -55,7 +55,7 @@ def test_a_delta_of_two_bars_carries_two_points_per_trace():
 
 def test_trace_indices_in_a_delta_line_up_with_the_figure():
     panes = assign(None, [resolve("macd")])
-    from app.ta.compute import compute
+    from openbq_ta.compute import compute
     computed = compute(fixture_frame(), [resolve("macd")])
     payload = delta(computed, panes, computed.height - 1)
     assert sorted(int(k) for k in payload["traces"]) == list(range(len(trace_index(panes))))

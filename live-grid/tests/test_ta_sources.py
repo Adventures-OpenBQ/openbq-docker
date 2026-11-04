@@ -5,7 +5,7 @@
 
 import pytest
 
-from app.ta.registry import resolve
+from openbq_ta.registry import resolve
 from app.ta.sources import (
     CALLS_PER_REQUEST,
     EodhdSource,

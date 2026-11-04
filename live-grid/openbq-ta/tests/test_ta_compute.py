@@ -6,8 +6,8 @@
 import polars as pl
 import pytest
 
-from app.ta.compute import collect_bases, compute, compute_with_bases
-from app.ta.registry import resolve
+from openbq_ta.compute import collect_bases, compute, compute_with_bases
+from openbq_ta.registry import resolve
 from tests.ta_helpers import col, cols, fixture_frame
 
 

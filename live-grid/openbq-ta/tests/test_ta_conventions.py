@@ -7,8 +7,8 @@ a library silently returning a different variant under a familiar name."""
 import polars as pl
 import pytest
 
-from app.ta.compute import compute
-from app.ta.registry import REGISTRY, col_suffix, get, resolve
+from openbq_ta.compute import compute
+from openbq_ta.registry import REGISTRY, col_suffix, get, resolve
 from tests.ta_helpers import fixture_frame
 
 
@@ -79,7 +79,7 @@ def test_bandwidth_is_band_span_over_the_middle():
 
 
 def test_bbands_pct_b_and_bandwidth_share_one_base_pair():
-    from app.ta.compute import collect_bases
+    from openbq_ta.compute import collect_bases
     bases = collect_bases([resolve("bbands", period=20, k=2.0),
                            resolve("pct_b", period=20, k=2.0),
                            resolve("bandwidth", period=20, k=2.0)])

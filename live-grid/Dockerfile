@@ -27,6 +27,10 @@ ADD --checksum=sha256:6d21266ce1bd7d9e5ab4e115989c70c20de0382fd973a8f26ab58619eb
 # published to PyPI.
 COPY v10/kdb/source/ /srv/openbq-kdb/
 RUN pip install /srv/openbq-kdb
+# The study engine (spec 2026-11-04): an in-repo package, installed before live-grid for the
+# same reason openbq-kdb is.
+COPY live-grid/openbq-ta/ /srv/openbq-ta/
+RUN pip install /srv/openbq-ta
 
 COPY live-grid/pyproject.toml ./
 COPY live-grid/app/ app/
