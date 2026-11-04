@@ -25,7 +25,7 @@ let browser,context,tls,gateway;
 try{
  await mkdir(join(root,'state'));await cp('/app/browser',join(root,'ui'),{recursive:true});
  const assets=join(root,'ui');await mkdir(join(assets,'assets'),{recursive:true});
- const cfg=validateConfig({origin:'https://qualification.example.test:10000',temporalDB:true,tableService:true,stateDir:join(root,'state')},{token:machine,apiUsername:'qualification',apiPassword:randomBytes(32).toString('base64url'),temporalToken:secrets.apiToken,tableGatewayToken:secrets.tableGatewayToken,tableRelayToken:secrets.tableRelayToken});
+ const cfg=validateConfig({origin:'https://qualification.YOUR-TAILNET.ts.net:10000',temporalDB:true,tableService:true,stateDir:join(root,'state')},{token:machine,apiUsername:'qualification',apiPassword:randomBytes(32).toString('base64url'),temporalToken:secrets.apiToken,tableGatewayToken:secrets.tableGatewayToken,tableRelayToken:secrets.tableRelayToken});
  gateway=createGateway(cfg);gateway.listen(0,'127.0.0.1');await once(gateway,'listening');
  const gatewayURL='http://127.0.0.1:'+gateway.address().port;cfg.origin=gatewayURL;
  const config=readConfig({APP_ORIGIN:'https://localhost',AUTH_SECRET:randomBytes(64).toString('base64url'),AUTH_GITHUB_ID:'qualification',AUTH_GITHUB_SECRET:randomBytes(32).toString('base64url'),SESSION_EPOCH:'native-sip',GITHUB_ALLOWED_USER_IDS:'42',BACKEND_GATEWAY_ORIGIN:'https://gateway.example.test',BACKEND_GATEWAY_TOKEN:machine,TABLE_RELAY_TOKEN:secrets.tableRelayToken,TEMPORALDB_V11:'true'});
