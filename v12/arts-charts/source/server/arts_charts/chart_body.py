@@ -16,11 +16,11 @@ from __future__ import annotations
 import math
 import re
 
-from arts_charts.anchors import is_anchor
+from arts_charts.anchors import instant, is_time_value
 from arts_charts.odp_bars import Refused
 from arts_charts.router import default_provider, refuse
 from arts_charts.ta.payload import ChartParams
-from arts_charts.ta.registry import REGISTRY
+from openbq_ta.registry import REGISTRY
 
 SCHEMA = "chart/1"
 FLAGS = ("studyValues", "seriesPills", "snapshotHeader", "adjusted", "railHidden")
@@ -145,7 +145,7 @@ def _placed(i: int, s) -> None:
     if (s["type"] == "study") != ("name" in s):
         raise BodyError(f"{where}: a study series, and only a study series, has a name")
     if s["type"] == "performance":
-        if not _text(s.get("anchor"), 64) or ("symbol" in s and not _text(s["symbol"], 64)):
+        if not is_time_value(s.get("anchor")) or ("symbol" in s and not _text(s["symbol"], 64)):
             raise BodyError(f"{where}: a performance series needs an anchor, and its symbol is text")
     elif "symbol" in s or "anchor" in s:
         raise BodyError(f"{where}: only a performance series has a symbol and an anchor")
@@ -164,12 +164,18 @@ def indicators(series: list) -> str:
         name, params = s["name"], s.get("params", {})
         if not _text(name, 64) or any(c in name for c in ",:= "):
             raise BodyError(f"{where}.name must be a study name")
+        times = REGISTRY[name].times if name in REGISTRY else ()
         if not isinstance(params, dict):
             raise BodyError(f"{where}.params must be an object")
         parts = [name]
         for key, value in params.items():
             if not _text(key, 64) or any(c in key for c in ",:= "):
                 raise BodyError(f"{where}.params has a bad key {key!r}")
+            if isinstance(value, dict):
+                # S14: a time parameter is saved as {expr, at}; the server reads the instant.
+                if key not in times or not is_time_value(value):
+                    raise BodyError(f"{where}.params.{key} takes {{expr, at}} only as a time parameter")
+                value = instant(value)
             if not (_number(value) or _text(value, 128)):
                 raise BodyError(f"{where}.params.{key} must be a finite number or text")
             if isinstance(value, str) and any(c in value for c in ",="):
@@ -216,14 +222,13 @@ def validate(body) -> None:
         raise BodyError(f"session must be one of {', '.join(SESSIONS)}")
     if "range" in body:
         r = body["range"]
-        # Shape only: the range grammar is the client's v5 date grammar
-        # (`now-1mo`, `T-Mon@SOD`, `S`, `E`), wider than the server's anchors.
         if not (isinstance(r, dict) and set(r) == {"from", "to"}
-                and _text(r["from"], 64) and _text(r["to"], 64)):
-            raise BodyError("range must be {from, to}, two date expressions")
+                and is_time_value(r["from"]) and is_time_value(r["to"])):
+            raise BodyError("range must be {from, to}, each an ISO-8601 instant, OBS-n or {expr, at}")
     for i, a in enumerate(_list(body, "anchors")):
-        if not (_text(a, 64) and is_anchor(a)):
-            raise BodyError(f"anchors[{i}] is not an anchor: {a!r}")
+        if not is_time_value(a):
+            raise BodyError(f"anchors[{i}] must be an ISO-8601 instant, OBS-n or {{expr, at}}; "
+                            f"the host resolves expressions")
     for i, level in enumerate(_list(body, "levels")):
         if not (isinstance(level, dict) and set(level) <= {"price", "origin"}
                 and _number(level.get("price"))
@@ -236,6 +241,24 @@ def validate(body) -> None:
     for flag in FLAGS:
         if flag in body and not isinstance(body[flag], bool):
             raise BodyError(f"{flag} must be true or false")
+
+
+def unresolved(body: dict) -> list[str]:
+    """Each stored time with no instant the server can read (S14: a legacy entry holding
+    only an expression), named for a note. The host fills its instant in on the document's
+    next save; until then that one entry is skipped and the rest of the chart draws."""
+    out = [f"range.{end} {body['range'][end]!r}" for end in ("from", "to")
+           if "range" in body and instant(body["range"][end]) is None]
+    out += [f"anchors[{i}] {a!r}" for i, a in enumerate(body.get("anchors", [])) if instant(a) is None]
+    for i, s in enumerate(body.get("series", [])):
+        if s["type"] == "performance" and instant(s.get("anchor")) is None:
+            out.append(f"series[{i}] performance anchor {s.get('anchor')!r}")
+        times = REGISTRY[s["name"]].times if s["type"] == "study" and s.get("name") in REGISTRY else ()
+        for key in times:
+            value = s.get("params", {}).get(key)
+            if value is not None and instant(value) is None:
+                out.append(f"series[{i}] {s['name']} {key} {value!r}")
+    return out
 
 
 def with_defaults(body: dict) -> dict:

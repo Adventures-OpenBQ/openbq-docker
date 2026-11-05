@@ -46,5 +46,6 @@ RUN pip install . && pip check && chmod 644 app/static/plotly.min.js
 # Unprivileged (D21). /data is made here, owned by that uid, so a new live-grid-data volume
 # inherits it; compose adds a read-only root, a /tmp tmpfs, cap_drop ALL and no-new-privileges.
 RUN install -d -o 10001 -g 10001 /data
+RUN install -d -o 10001 -g 10001 /studies
 USER 10001:10001
 CMD ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "6903"]

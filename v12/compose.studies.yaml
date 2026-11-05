@@ -1,0 +1,16 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+# The shared studies folder (spec 2026-11-04 §2): Art's Charts installs custom studies here
+# (stage, import, rename; its pack too), live-grid re-reads it by mtime when a chart request
+# or stream starts. Apply after docker-compose.yml and v12/compose.charts.yaml, with the
+# charts-v12 and live profiles. Managing studies over HTTP stays off unless charts.env sets
+# TA_STUDIES_API=true.
+services:
+  arts-charts:
+    environment: {TA_STUDIES_DIR: /studies}
+    volumes: [ta-studies:/studies]
+  live-grid:
+    environment: {TA_STUDIES_DIR: /studies}
+    volumes: [ta-studies:/studies:ro]
+volumes:
+  ta-studies:

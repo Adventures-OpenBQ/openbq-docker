@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from arts_charts.ta.macros import Macro
-from arts_charts.ta.registry import Req, col_suffix, get
+from openbq_ta.registry import Req, col_suffix, get
 
 
 @dataclass(frozen=True)

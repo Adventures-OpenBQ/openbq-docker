@@ -17,8 +17,8 @@ from dataclasses import dataclass, field
 import polars as pl
 
 from arts_charts.classify import classify
-from arts_charts.ta.compute import compute
-from arts_charts.ta.registry import Req, col_suffix, get
+from openbq_ta.compute import compute
+from openbq_ta.registry import Req, col_suffix, get
 from arts_charts.ta.session import (
     SESSION_DATE,
     is_intraday,
@@ -63,7 +63,7 @@ class LocalSource:
 
     def series(self, df: pl.DataFrame, reqs: list[Req],
                interval: str = "1d", symbol: str = "",
-               prior: pl.DataFrame | None = None) -> Result:
+               prior: pl.DataFrame | None = None, notes: list | None = None) -> Result:
         """`interval`, `symbol` and `prior` are read only by `bd` windows.
 
         `prior` (v12.4.5) is a DAILY frame of the sessions before the first
@@ -94,10 +94,13 @@ class LocalSource:
         through to the ordinary path and means 50 bars -- 50 weeks or months,
         not 50 sessions. Upgrade path: reject a `bd` unit when the interval is
         coarser than `1d`, once a caller actually asks for one.
+
+        `notes`, a list, collects `(req, message)` for a study that cannot run (its time does
+        not resolve, or it raises) while every other study computes; None lets it raise.
         """
         bd = [r for r in reqs if _is_bd(r)]
         if not bd or df.height == 0 or not is_intraday(interval):
-            return Result(compute(df, reqs))
+            return Result(compute(df, reqs, notes=notes))
         feed = classify(symbol)
         wanted = [c for r in bd for c in columns_of(r)]
         # Two frames, one per clock: the bar frame for ordinary requests, the
@@ -115,8 +118,9 @@ class LocalSource:
             closes = pl.concat(
                 [before.select([c for c in closes.columns if c in before.columns]),
                  closes], how="diagonal_relaxed")
-        sessions = compute(closes, bd)
-        frame = compute(df, [r for r in reqs if not _is_bd(r)])
+        sessions = compute(closes, bd, notes=notes)
+        wanted = [c for c in wanted if c in sessions.columns]   # a noted study has no column
+        frame = compute(df, [r for r in reqs if not _is_bd(r)], notes=notes)
         joined = (
             frame.with_columns(session_date(feed))
             .join_asof(sessions.select([SESSION_DATE, *wanted]),

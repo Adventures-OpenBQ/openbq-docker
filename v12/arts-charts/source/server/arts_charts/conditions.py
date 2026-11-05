@@ -29,7 +29,7 @@ from arts_charts.classify import classify
 from arts_charts.history_pacer import interval_step
 from arts_charts.ta.panes import assign
 from arts_charts.ta.payload import parse_indicators
-from arts_charts.ta.registry import REGISTRY
+from openbq_ta.registry import REGISTRY
 
 OPS = ("crosses_above", "crosses_below", ">", "<")
 PRICES = ("close", "high", "low", "volume")

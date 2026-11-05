@@ -11,3 +11,22 @@ services:
     volumes: [./v12/verify:/verify:ro]
     read_only: true
     networks: [openbq-internal]
+  verify-live-grid:
+    profiles: [charts-v12]
+    build: {context: ., dockerfile: live-grid/Dockerfile}
+    image: openbq-live-grid:12.0.0-verify
+    command: [uvicorn, app.main:app, --host, 0.0.0.0, --port, "6903"]
+    # The verify pair only (verify-charts.sh's fresh credentials.env), never ./credentials.env
+    # and never an EODHD key: history comes from fake-odp, and there is no kdb.
+    env_file: [{path: "${ARTS_CHARTS_STACK_ENV}", required: true}]
+    environment:
+      OPENBB_URL: http://fake-odp:6900
+      OPENBB_HISTORY_NAMESPACE: eodhd
+      LIVE_GRID_CHART: "false"
+      EODHD_API_KEY: ""
+      TA_STUDIES_DIR: /studies
+    volumes: [ta-studies:/studies:ro]
+    read_only: true
+    tmpfs: ["/tmp:size=64m,nosuid"]
+    networks: [openbq-internal]
+volumes: {ta-studies: {}}

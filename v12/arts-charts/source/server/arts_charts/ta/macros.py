@@ -18,7 +18,7 @@ from pathlib import Path
 
 import yaml
 
-from arts_charts.ta.registry import Req, resolve
+from openbq_ta.registry import Req, resolve
 
 log = logging.getLogger("live-grid.ta")
 
@@ -136,7 +136,7 @@ def load_all() -> dict[str, Macro]:
 
 
 def _registry() -> dict:
-    from arts_charts.ta.registry import REGISTRY
+    from openbq_ta.registry import REGISTRY
 
     return REGISTRY
 

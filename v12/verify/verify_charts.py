@@ -149,4 +149,42 @@ check('D forged link token is 401', httpx.get(DIRECT + forged_path, timeout=60).
 check('G forged link token is 401', anon.get(forged_path).status_code == 401)
 check('G no token is 401', anon.get('/charts').status_code == 401)
 check('G trailing slash is 404', g.get('/charts/').status_code == 404)
+l = httpx.Client(base_url=E['LIVE_GRID'], auth=PAIR, timeout=150)
+for _ in range(60):  # live-grid starts
+    try:
+        if l.get('/health').status_code == 200:
+            break
+    except httpx.HTTPError:
+        pass
+    time.sleep(2)
+
+
+def one_engine(a, b):
+    """(check name, ok): both services report the same openbq-ta, the names carry both versions."""
+    return f'arts-charts and live-grid run one openbq-ta ({a} / {b})', a is not None and a == b
+
+
+check(*one_engine(d.get('/health').json().get('openbq_ta'), l.get('/health').json().get('openbq_ta')))
+bars = l.get('/widgets/bars', params={'symbol': 'AAPL', 'interval': '1d'})
+check('live-grid /widgets/bars', bars.status_code == 200 and len(bars.json()['rows']) > 0)
+STUDY = '''
+import polars as pl
+from openbq_ta.studies import study
+
+@study(name="verify_mid", label="Verify mid", params={"period": 5}, colors={"verify_mid": "#ffffff"},
+       pane="price", windows=("period",))
+def verify_mid(p):
+    return [((pl.col("high") + pl.col("low")) / 2).rolling_mean(p["period"]).alias("verify_mid")]
+'''
+installed = d.put('/ta_studies/verify_study', content=STUDY, headers={'content-type': 'text/plain'})
+check('D installs a custom study', installed.status_code == 200
+      and installed.json()['studies'] == ['verify_mid'])
+check('D /ta_registry lists it', 'verify_mid' in {e['name'] for e in d.get('/ta_registry').json()})
+snap = d.get('/ta_snapshot', params={'symbol': 'AAPL', 'interval': '1d', 'indicators': 'verify_mid'})
+check('D draws it on an Art\'s Charts panel', snap.status_code == 200 and 'verify_mid' in snap.text)
+chart = l.get('/ta_chart', params={'symbol': 'AAPL', 'interval': '1d', 'indicators': 'verify_mid',
+                                   'provider': 'eodhd'})
+trace = next((t for t in chart.json().get('data', []) if t.get('name', '').startswith('Verify mid')), None)
+check('live-grid draws it on the simple chart', chart.status_code == 200 and trace is not None
+      and any(y is not None for y in trace['y']))
 print('verify-charts: all checks passed')

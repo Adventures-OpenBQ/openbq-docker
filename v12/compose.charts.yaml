@@ -8,7 +8,7 @@
 #   cp v12/charts.env.example v12/charts.env && chmod 600 v12/charts.env
 x-arts-charts: &arts-charts
   profiles: [charts-v12]
-  build: {context: ./v12/arts-charts}
+  build: {context: ./v12/arts-charts, additional_contexts: {openbq-ta: ./live-grid/openbq-ta}}
   image: openbq-arts-charts:12.0.0
   restart: unless-stopped
   env_file:

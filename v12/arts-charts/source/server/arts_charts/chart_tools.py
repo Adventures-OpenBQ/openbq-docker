@@ -25,12 +25,13 @@ import httpx
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from arts_charts.chart_body import indicators
+from arts_charts.anchors import instant
+from arts_charts.chart_body import indicators, unresolved
 from arts_charts.chart_ops import OpError, apply
 from arts_charts.documents import WAKE_BY
 from arts_charts.snapshots import HEIGHT, WIDTH, SnapshotError, Snapshots
 from arts_charts.store import Store, is_chart_id
-from arts_charts.ta.registry import catalog
+from arts_charts.catalog import catalog
 from arts_charts.ta.session import has_regular_session, is_intraday
 from arts_charts.tokens import TokenError, verify
 from arts_charts.watches import DEFAULT_COOLDOWN
@@ -101,7 +102,7 @@ def _out(value) -> str:
     return json.dumps(value)
 
 
-def compute_query(body: dict, today: date | None = None) -> dict:
+def compute_query(body: dict, today: date | None = None, use_range: bool = True) -> dict:
     """The /ta_snapshot query for a document: what its card asks /ta_series_ws for.
 
     The window is the card's own when the document has no `range`
@@ -109,9 +110,10 @@ def compute_query(body: dict, today: date | None = None) -> dict:
     today; `warmup=auto` pads it as the card's padStart does. The studies are
     the indicator string chart_body.validate checked.
 
-    ponytail: `range` is not read -- a document with one is described over
-    the default window, while its card fetches the range's window. Port
-    barsWindow/resolveRange (the client's date grammar) if the two must agree.
+    A saved range is read by its instants (S14); a legacy range with none falls back to
+    the default window, and describe() says so. A watch passes `use_range=False`: its window
+    always ends today, so a range stamped at save time (`now` -> the save date) never freezes
+    the last bar it looks at.
     """
     today = date.today() if today is None else today  # the worker passes its own clock's
     interval, symbol = body["interval"], body["symbol"]
@@ -124,6 +126,10 @@ def compute_query(body: dict, today: date | None = None) -> dict:
     # The card's path (ta/session.regular_only) filters on the same decision.
     if body.get("session") == "regular" and has_regular_session(symbol, interval):
         query["session"] = "regular"
+    window = body.get("range", {}) if use_range else {}
+    start, end = instant(window.get("from")), instant(window.get("to"))
+    if start and end and not start.startswith("OBS-") and not end.startswith("OBS-"):
+        query["start"], query["end"] = start[:10], end[:10]
     return query
 
 
@@ -152,6 +158,9 @@ async def describe(api: httpx.AsyncClient, doc: dict) -> dict:
     /ta_series_ws sends a card -- and bounded to DESCRIBE_MAX characters."""
     query = compute_query(doc["body"])
     result = {"document": doc, "window": {"start": query["start"], "end": query["end"]}}
+    if skipped := unresolved(doc["body"]):
+        result["notes"] = [f"{entry} has no saved instant; it is skipped until the chart is next saved in BDOBB"
+                           for entry in skipped]
     response = await api.get("/ta_snapshot", params=query)
     if response.status_code == 200:
         result["readout"] = readout(response.json())
@@ -336,13 +345,14 @@ def chart_mcp(api: httpx.AsyncClient, snapshots: Snapshots, store: Store) -> MCP
         "Change a chart as one revision: every op applies or none does. expected_revision is "
         "the revision you described; if the chart moved since, nothing is written and the "
         "current document comes back with status 'stale'. Ops (chart-ops/1): "
-        "{op:'set_interval', interval}; {op:'set_range', from, to} (date expressions, e.g. "
-        "now-1mo, now); {op:'clear_range'}; {op:'add_study', name, params?, panel?, side?, "
+        "{op:'set_interval', interval}; {op:'set_range', from, to} (ISO-8601 instants, e.g. "
+        "2026-10-01T13:30:00Z; never an expression); {op:'clear_range'}; {op:'add_study', name, params?, panel?, side?, "
         "color?, style?}; {op:'remove_study', series}; {op:'retune_study', series, params?, "
-        "color?, style?} (params merge; null removes a key); {op:'add_anchor', anchor}; "
+        "color?, style?} (params merge; null removes a key); {op:'add_anchor', anchor} (an ISO-8601 instant or OBS-n); "
         "{op:'remove_anchor', anchor}; {op:'add_level', price}; {op:'remove_level', index}; "
         "{op:'add_drawing', drawing}; {op:'remove_drawing', index}; {op:'set_title', title}. "
         "`series` is a series id or its index in describe_chart's series list. "
+        "A study's time parameter (avwap anchor) is an ISO-8601 instant or OBS-n. "
         f"Studies: {menu}"))
     async def arrange_chart(ctx: Context, chart_id: str, expected_revision: int,
                             ops: list[dict]) -> str:

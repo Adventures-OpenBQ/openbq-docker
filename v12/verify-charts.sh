@@ -16,7 +16,7 @@ rand() { python3 -c 'import secrets; print(secrets.token_urlsafe(32))'; }
 dc() {
   ARTS_CHARTS_STACK_ENV="$TMP/credentials.env" ARTS_CHARTS_ENV="$TMP/charts.env" \
     docker compose -p "$P" --project-directory "$ROOT" -f docker-compose.yml -f v12/compose.charts.yaml \
-    -f v12/compose.gateway.yaml -f v12/verify/compose.verify.yaml --profile charts-v12 "$@"
+    -f v12/compose.studies.yaml -f v12/compose.gateway.yaml -f v12/verify/compose.verify.yaml --profile charts-v12 "$@"
 }
 cleanup() {
   status=$?
@@ -37,15 +37,16 @@ ORIGIN=https://openbq.verify.ts.$TLD:10000
 TOKEN=$(rand); USER_=verify-$$; PASS=$(rand); SECRET=$(rand); NTFY_PASS=$(rand); TOPIC=charts-verify
 printf 'OPENBB_API_AUTH=true\nOPENBB_API_USERNAME=%s\nOPENBB_API_PASSWORD=%s\n' "$USER_" "$PASS" > "$TMP/credentials.env"
 printf 'GATEWAY_TOKEN=%s\nOPENBB_API_USERNAME=%s\nOPENBB_API_PASSWORD=%s\n' "$TOKEN" "$USER_" "$PASS" > "$TMP/gateway.env"
-printf 'ARTS_CHARTS_SECRET=%s\nARTS_CHARTS_ODP_URL=http://fake-odp:6900\nARTS_CHARTS_NTFY_TOPIC=%s\nARTS_CHARTS_PUBLIC_URL=%s\n' \
+printf 'ARTS_CHARTS_SECRET=%s\nARTS_CHARTS_ODP_URL=http://fake-odp:6900\nARTS_CHARTS_NTFY_TOPIC=%s\nARTS_CHARTS_PUBLIC_URL=%s\nTA_STUDIES_API=true\n' \
   "$SECRET" "$TOPIC" "$ORIGIN" > "$TMP/charts.env"
 mkdir -m 755 "$TMP/gateway-config"
 printf '{"origin":"%s","charts":true,"ntfyTopic":"%s","maxSockets":8}\n' "$ORIGIN" "$TOPIC" > "$TMP/gateway-config/settings.json"
 chmod 600 "$TMP"/*.env; chmod 644 "$TMP/gateway-config/settings.json"
 
 dc build arts-charts
+dc build verify-live-grid
 dc --profile web build funnel-gateway
-dc up -d ntfy fake-odp            # also creates the project's bridge
+dc up -d ntfy fake-odp verify-live-grid            # also creates the project's bridge
 
 if [ "${1:-}" = --postgres ]; then
   PG="$P-pg-$(python3 -c 'import secrets; print(secrets.token_hex(4))')"
@@ -78,5 +79,6 @@ docker run -d --name "$P-gateway" --network "${P}_openbq-internal" --env-file "$
 
 dc run --rm --no-deps -v "$ROOT/v12/verify:/verify:ro" \
   -e CHARTS_ORIGIN="$ORIGIN" -e CHARTS_GATEWAY="http://$P-gateway:8091" -e GATEWAY_TOKEN="$TOKEN" \
+  -e LIVE_GRID=http://verify-live-grid:6903 \
   -e NTFY_USER=charts -e NTFY_PASS="$NTFY_PASS" \
   --entrypoint python arts-charts /verify/verify_charts.py

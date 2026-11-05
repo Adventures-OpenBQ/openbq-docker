@@ -18,6 +18,10 @@ ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PLAYWRIGHT_BROWSERS_PATH=/ms-playwrigh
 WORKDIR /srv
 COPY requirements.lock /tmp/requirements.lock
 RUN pip install --require-hashes --no-deps -r /tmp/requirements.lock
+# The study engine (spec 2026-11-04 S6), from this repository's live-grid/openbq-ta (the
+# compose build's `openbq-ta` context). Its one dependency, polars, is in the lock.
+COPY --from=openbq-ta . /srv/openbq-ta
+RUN pip install --no-deps /srv/openbq-ta
 COPY source/server /srv/server
 RUN pip install --no-deps /srv/server && pip check
 # Chromium's headless shell and its system libraries, readable by the unprivileged user.
@@ -27,5 +31,6 @@ COPY source/LICENSE source/client/ARTS_CHARTS_TERMS.md source/client/THIRD_PARTY
 ENV ARTS_CHARTS_RENDER_DIR=/srv/render ARTS_CHARTS_DB=sqlite:////data/arts-charts.db
 # Unprivileged; /data is the arts-charts-data volume (a new volume inherits this owner).
 RUN install -d -o 10001 -g 10001 /data
+RUN install -d -o 10001 -g 10001 /studies
 USER 10001:10001
 CMD ["uvicorn", "--factory", "arts_charts.app:create_app", "--host", "0.0.0.0", "--port", "8000"]

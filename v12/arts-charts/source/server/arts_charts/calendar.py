@@ -25,8 +25,6 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from arts_charts.anchors import UtcSessions
-
 log = logging.getLogger("arts-charts.calendar")
 
 PATH = "/api/v1/calendar/trading"
@@ -112,6 +110,22 @@ class ExchangeCalendar:
         """
         year = now.astimezone(timezone.utc).year
         await asyncio.gather(*(self.load(mic, y) for y in (year - 1, year, year + 1)))
+
+
+class UtcSessions:
+    """Crypto and forex: every day is a session from 00:00 to 24:00 UTC.
+
+    Extended is the same window -- there is no narrower "regular" session to
+    be wider than, so `@SOD`/`@EOD` read the same UTC day under either
+    `session` choice.
+    """
+    def zone(self, symbol): return "UTC"
+    def is_open(self, symbol, day): return True
+    def open_close(self, symbol, day):
+        start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+        return start, start + timedelta(days=1)
+    def extended_open_close(self, symbol, day):
+        return self.open_close(symbol, day)
 
 
 class UsEquitySessions:

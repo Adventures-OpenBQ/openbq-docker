@@ -20,15 +20,15 @@ from datetime import date, datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 import httpx
+import openbq_ta
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
-from arts_charts import companions
-from arts_charts.anchors import resolve_anchor
+from arts_charts import studies
+from arts_charts.catalog import catalog
 from arts_charts.calendar import XNYS, ExchangeCalendar, UsEquitySessions
 from arts_charts.classify import classify
 from arts_charts.odp_bars import NotConfigured, Refused, check_interval
-from arts_charts.ta import custom as custom_studies
 from arts_charts.ta.macros import load_all as load_macros_all
 from arts_charts.ta.macros import to_wire as macro_to_wire
 from arts_charts.ta.panes import all_reqs, assign
@@ -36,7 +36,8 @@ from arts_charts.ta.payload import (
     ChartParams, any_repaints, bars_to_frame, build_payload, chart_subtitle, delta_start,
     parse_indicators, with_anchor,
 )
-from arts_charts.ta.registry import REGISTRY, catalog
+from openbq_ta.registry import REGISTRY, StudyError
+from openbq_ta.studies import installed
 from arts_charts.ta.series_payload import build_series_payload, series_delta
 from arts_charts.ta.session import regular_only
 from arts_charts.ta.warmup import pad_start, warmup_bars
@@ -114,10 +115,7 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
     Custom studies load from TA_STUDIES_DIR now, before the catalog is projected,
     exactly as live-grid's create_app did."""
     api = APIRouter()
-    custom_studies.load_dir(custom_studies.studies_dir())
-    # eodhd: null on every entry -- there is no EODHD source behind this router,
-    # so the client's advanced_chart_eodhd widget lists nothing.
-    registry = [{**entry, "eodhd": None} for entry in catalog()]
+    studies.load_all()
     sessions = UsEquitySessions(classify, calendar)
 
     async def fetch(symbol: str, interval: str, start: str, end: str, provider: str,
@@ -127,26 +125,6 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
     def window(start: str | None, end: str | None) -> tuple[str, str]:
         today = date.today()
         return (start or str(today - timedelta(days=365)), end or str(today))
-
-
-    async def no_tape(symbol: str, n: int) -> None:
-        return None  # OBS-n: there is no trade tape behind this router
-
-    def anchor_resolver_for(symbol: str, session: str = "extended"):
-        async def _resolve(raw: str) -> str | None:
-            now = datetime.now(timezone.utc)
-            if calendar:
-                await calendar.load_around(XNYS, now)
-            try:
-                at = await resolve_anchor(
-                    raw, symbol, now.replace(tzinfo=None),
-                    sessions, no_tape, session=session,
-                )
-            except Exception as exc:  # noqa: BLE001 - one bad anchor must not kill the whole chart
-                log.warning("resolve_anchor failed for %s %r: %s", symbol, raw, exc)
-                return None
-            return None if at is None else at.isoformat()
-        return _resolve
 
     def warmup_for(params: ChartParams):
         """The daily sessions before a chart, for a `bd` window (live-grid warmup_for).
@@ -187,7 +165,6 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
             rows = regular_only(rows, params.symbol, params.interval)
         _, panes, frame, annotations = await build_payload(
             params, bars_to_frame(rows, basis=params.basis),
-            anchor_resolver=anchor_resolver_for(params.symbol, params.session),
             warmup=warmup,
         )
         return panes, frame, annotations, meta, bars_error
@@ -213,7 +190,54 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
 
     @api.get("/ta_registry")
     async def ta_registry() -> JSONResponse:
-        return JSONResponse(registry)
+        # eodhd: null on every entry -- there is no EODHD source behind this router,
+        # so the client's advanced_chart_eodhd widget lists nothing. Projected per
+        # request, so an installed study appears without a restart.
+        return JSONResponse([{**entry, "eodhd": None} for entry in catalog()])
+
+    @api.get("/health")
+    async def health() -> dict:
+        """Liveness, and the engine version (spec 2026-11-04 §3: verify_charts compares it
+        with live-grid's)."""
+        return {"status": "ok", "openbq_ta": openbq_ta.__version__}
+
+    def studies_folder():
+        """The studies folder, or 404 when managing studies is off (TA_STUDIES_API)."""
+        directory = studies.studies_dir()
+        if directory is None or not studies.api_enabled():
+            raise HTTPException(404, "Not Found")
+        return directory
+
+    @api.get("/ta_studies")
+    async def ta_studies() -> dict:
+        studies_folder()
+        return {"installed": installed()}
+
+    @api.put("/ta_studies/{stem}")
+    async def ta_studies_install(stem: str, request: Request) -> dict:
+        directory = studies_folder()
+        if stem == studies.PACK_STEM:
+            raise HTTPException(409, "the Art's Charts pack is installed by the server itself")
+        body = await request.body()
+        if len(body) > 262_144:
+            raise HTTPException(413, "a study file is at most 256 KiB")
+        try:
+            # In the event loop, not a thread: the registry is a plain dict that every
+            # chart request reads.
+            names = studies.install(directory, stem, body.decode("utf-8"))
+        except (StudyError, UnicodeDecodeError) as exc:
+            raise HTTPException(400, str(exc)) from None
+        return {"stem": stem, "studies": names}
+
+    @api.delete("/ta_studies/{stem}")
+    async def ta_studies_remove(stem: str) -> dict:
+        directory = studies_folder()
+        if stem == studies.PACK_STEM:
+            raise HTTPException(409, "the Art's Charts pack is installed by the server itself")
+        names = studies.remove(directory, stem)
+        if not names:
+            raise HTTPException(404, f"no study file {stem!r} is installed")
+        return {"removed": names}
 
     @api.get("/ta_macros")
     def ta_macros() -> JSONResponse:
@@ -340,44 +364,6 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
         except Exception as exc:  # noqa: BLE001
             log.warning("ta_series_ws ended for %s: %s", params.symbol, exc)
             return
-
-    @api.get("/charts/widgets/bars")
-    async def companion_bars(request: Request):
-        """The bars/studies companion widget (v12 part 5): /series' bars over the window
-        companions.window picks, three SMAs, one row per bar. Read-only. A refusal is a 400
-        or 422 with detail, an outage a 502; never partial rows."""
-        try:
-            q = companions.query(request, companions.BARS_KEYS)
-            session = q.get("session", "extended")
-            if session not in companions.SESSIONS:
-                raise ValueError(f"session is one of {', '.join(companions.SESSIONS)}")
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from None
-        symbol, interval = q.get("symbol", "AAPL"), q.get("interval", "1d")
-        start, end = companions.window(interval, date.today())
-        params = ChartParams(symbol=symbol, interval=interval, indicators=companions.INDICATORS,
-                             start=start, end=end, provider=default_provider, session=session)
-        try:
-            refuse(params)
-            bars.check(params.provider, interval)
-        except Refused as exc:
-            raise HTTPException(400, str(exc)) from None
-        except NotConfigured as exc:
-            raise HTTPException(422, str(exc)) from None
-        try:
-            answer: object = await fetch(symbol, interval, start, end, params.provider, session)
-        except Exception as exc:  # noqa: BLE001 - becomes the 502 below, never the upstream text
-            answer = exc
-        try:
-            _, frame, _, _, bars_error = await series_state(params, warmup_for(params), answer)
-        except (KeyError, ValueError) as exc:
-            raise HTTPException(422, str(exc).strip("'\"")) from None
-        if bars_error is not None:
-            raise HTTPException(502, "bars unavailable")
-        try:
-            return {"rows": companions.bar_rows(frame, interval)}
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from None
 
     @api.get("/ta_snapshot")
     async def ta_snapshot(symbol: str = "AAPL", interval: str = "1d", source: str = "local",

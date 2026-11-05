@@ -35,6 +35,13 @@ ntfy has one base URL, and iOS wakeups are keyed on it, so pick one door for the
 both empty for a stack that must never call out. Which door works in the ntfy app is the
 pending phone check in step 11.
 
+Custom studies: apply `v12/compose.studies.yaml` after `v12/compose.charts.yaml` (with the
+`charts-v12` and `live` profiles) to share one `ta-studies` volume: arts-charts writes it,
+live-grid reads it read-only and re-reads by mtime. Managing studies over HTTP is off unless
+`charts.env` sets `TA_STUDIES_API=true`; then `PUT/DELETE /ta_studies/{stem}` exist on the
+bridge only, never on the door. Both services report `openbq_ta` on `/health`; the versions
+must match (`verify-charts.sh` checks it).
+
 ## 3. ntfy account and topic
 
 ntfy runs deny-all with one account and one topic. Start ntfy once so it creates its auth

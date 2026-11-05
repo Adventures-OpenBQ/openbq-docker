@@ -12,6 +12,7 @@
  */
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
+import { literalDates } from "../src/host/literalDates";
 import { ArtsChartsRenderer, configureArtsCharts, type ArtsChartsHost, type WidgetDef } from "../src";
 import "../src/arts-charts.css";
 import "../../dev/tokens.css";
@@ -23,6 +24,8 @@ const query = (params: Record<string, string>) =>
 const nothing = async () => { throw new Error("the snapshot page has no files"); };
 
 const host: ArtsChartsHost = {
+  // The snapshot reads a document's saved instants, so it needs no grammar.
+  dates: literalDates,
   async fetchWidgetPath(_backend, path, params) {
     const response = await fetch(`/${path}?${query(params)}`);
     if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);

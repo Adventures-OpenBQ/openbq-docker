@@ -15,6 +15,8 @@ dependencies = [
     "fastapi>=0.110",
     "httpx>=0.27",
     "mcp>=2.3,<3",
+    # The study engine, from an openbq-docker tag (spec 2026-11-04 S6); see the plan's open question.
+    "openbq-ta==0.1.0",
     "polars>=1.20",
     "pyyaml>=6.0",
 ]

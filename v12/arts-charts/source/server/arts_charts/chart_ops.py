@@ -23,7 +23,8 @@ import copy
 import json
 import uuid
 
-from arts_charts.ta.registry import REGISTRY
+from arts_charts.anchors import instant, is_anchor
+from openbq_ta.registry import REGISTRY
 
 MAX_OPS = 64
 #: The series types that draw the price itself (chart_body.TYPES less volume, performance, study).
@@ -124,6 +125,22 @@ def _merge(current: dict, patch: dict) -> dict:
     return {k: v for k, v in out.items() if v is not None}
 
 
+def _instant(values: dict, key: str, obs: bool = False) -> str:
+    """Rita writes instants only (S14): she has no date grammar, and the host is the one
+    that resolves expressions."""
+    value = values[key]
+    if not (is_anchor(value) and (obs or not str(value).startswith("OBS-"))):
+        raise OpError(f"{key} must be an ISO-8601 instant{' or OBS-n' if obs else ''}, "
+                      f"not {str(value)[:64]!r}; expressions are resolved by the host")
+    return value
+
+
+def _times(name: str, params: dict) -> None:
+    for key in (REGISTRY[name].times if name in REGISTRY else ()):
+        if params.get(key) is not None:
+            _instant(params, key, obs=True)
+
+
 def _add_study(body: dict, op: dict) -> None:
     _keys(op, ("name",), ("params", "panel", "side", "color", "style"))
     name = op["name"]
@@ -139,6 +156,7 @@ def _add_study(body: dict, op: dict) -> None:
     panel, side = op.get("panel", panel), op.get("side", side)
     if panel is None:
         raise OpError("the panels text cannot be read; name a panel and side")
+    _times(name, params)
     defaults = {k: v for k, v in REGISTRY[name].params.items() if v is not None}
     entry = {"id": str(uuid.uuid4()), "type": "study", "name": name,
              "params": {**defaults, **params}, "panel": panel, "side": side}
@@ -159,6 +177,7 @@ def _retune_study(body: dict, op: dict) -> None:
     found = _study(body, op["series"])
     if "params" in op:
         found["params"] = _merge(found.get("params", {}), _object(op, "params"))
+        _times(found["name"], found["params"])
     if "style" in op:
         found["style"] = _merge(found.get("style", {}), _object(op, "style"))
         if not found["style"]:
@@ -177,7 +196,7 @@ def _set_interval(body: dict, op: dict) -> None:
 
 def _set_range(body: dict, op: dict) -> None:
     _keys(op, ("from", "to"))
-    body["range"] = {"from": op["from"], "to": op["to"]}
+    body["range"] = {"from": _instant(op, "from"), "to": _instant(op, "to")}
 
 
 def _clear_range(body: dict, op: dict) -> None:
@@ -187,16 +206,18 @@ def _clear_range(body: dict, op: dict) -> None:
 
 def _add_anchor(body: dict, op: dict) -> None:
     _keys(op, ("anchor",))
+    anchor = _instant(op, "anchor", obs=True)
     anchors = body.setdefault("anchors", [])
-    if op["anchor"] not in anchors:
-        anchors.append(op["anchor"])
+    if not any(instant(a) == anchor for a in anchors):
+        anchors.append(anchor)
 
 
 def _remove_anchor(body: dict, op: dict) -> None:
     _keys(op, ("anchor",))
-    if op["anchor"] not in body.get("anchors", []):
+    found = next((a for a in body.get("anchors", []) if a == op["anchor"] or instant(a) == op["anchor"]), None)
+    if found is None:
         raise OpError(f"no anchor {str(op['anchor'])[:64]!r}")
-    body["anchors"].remove(op["anchor"])
+    body["anchors"].remove(found)
 
 
 def _add_level(body: dict, op: dict) -> None:
