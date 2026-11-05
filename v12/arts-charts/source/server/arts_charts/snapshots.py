@@ -61,7 +61,10 @@ class _Page:
     """One render's answers to the page, and what they show about its progress."""
 
     def __init__(self, api: httpx.AsyncClient, render_dir: Path, doc: dict):
-        self.api, self.dir, self.doc = api, render_dir, doc
+        # The card is handed the document without its saved range, so the picture's window
+        # ends today like describe_chart's (chart_tools.compute_query, ruling 2026-11-05).
+        body = {k: v for k, v in doc["body"].items() if k != "range"}
+        self.api, self.dir, self.doc = api, render_dir, {**doc, "body": body}
         self.framed = False
         #: (status, reason) once the render cannot succeed; settled() raises it at once.
         self.failure: tuple[int, str] | None = None

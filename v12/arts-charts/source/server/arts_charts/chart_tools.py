@@ -25,7 +25,6 @@ import httpx
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from arts_charts.anchors import instant
 from arts_charts.chart_body import indicators, unresolved
 from arts_charts.chart_ops import OpError, apply
 from arts_charts.documents import WAKE_BY
@@ -102,18 +101,17 @@ def _out(value) -> str:
     return json.dumps(value)
 
 
-def compute_query(body: dict, today: date | None = None, use_range: bool = True) -> dict:
+def compute_query(body: dict, today: date | None = None) -> dict:
     """The /ta_snapshot query for a document: what its card asks /ta_series_ws for.
 
-    The window is the card's own when the document has no `range`
-    (window.ts barsWindow): five days intraday, a year otherwise, ending
-    today; `warmup=auto` pads it as the card's padStart does. The studies are
-    the indicator string chart_body.validate checked.
+    The window is the card's own default (window.ts barsWindow): five days
+    intraday, a year otherwise, ending today; `warmup=auto` pads it as the
+    card's padStart does. The studies are the indicator string
+    chart_body.validate checked.
 
-    A saved range is read by its instants (S14); a legacy range with none falls back to
-    the default window, and describe() says so. A watch passes `use_range=False`: its window
-    always ends today, so a range stamped at save time (`now` -> the save date) never freezes
-    the last bar it looks at.
+    A saved `range` is not read (ruling 2026-11-05): S14 stamps `now` with the save
+    instant, so a watch, describe_chart and a snapshot would otherwise freeze on the
+    save date. Every server reader looks at a window ending today.
     """
     today = date.today() if today is None else today  # the worker passes its own clock's
     interval, symbol = body["interval"], body["symbol"]
@@ -126,10 +124,6 @@ def compute_query(body: dict, today: date | None = None, use_range: bool = True)
     # The card's path (ta/session.regular_only) filters on the same decision.
     if body.get("session") == "regular" and has_regular_session(symbol, interval):
         query["session"] = "regular"
-    window = body.get("range", {}) if use_range else {}
-    start, end = instant(window.get("from")), instant(window.get("to"))
-    if start and end and not start.startswith("OBS-") and not end.startswith("OBS-"):
-        query["start"], query["end"] = start[:10], end[:10]
     return query
 
 
@@ -158,7 +152,7 @@ async def describe(api: httpx.AsyncClient, doc: dict) -> dict:
     /ta_series_ws sends a card -- and bounded to DESCRIBE_MAX characters."""
     query = compute_query(doc["body"])
     result = {"document": doc, "window": {"start": query["start"], "end": query["end"]}}
-    if skipped := unresolved(doc["body"]):
+    if skipped := unresolved({k: v for k, v in doc["body"].items() if k != "range"}):
         result["notes"] = [f"{entry} has no saved instant; it is skipped until the chart is next saved in BDOBB"
                            for entry in skipped]
     response = await api.get("/ta_snapshot", params=query)
