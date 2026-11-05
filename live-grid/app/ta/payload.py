@@ -174,6 +174,7 @@ async def build_payload(
             frame, reqs, params.symbol, params.interval, last_closed, trades,
         )
         computed, annotations = result.frame, result.annotations
+        notes = notes + result.notes
     else:
         result = LocalSource().series(frame, reqs, trades)
         computed, notes = result.frame, notes + result.notes

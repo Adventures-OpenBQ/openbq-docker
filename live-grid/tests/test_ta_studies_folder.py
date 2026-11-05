@@ -137,3 +137,24 @@ def test_an_obs_anchor_on_the_eodhd_source_is_resolved_not_a_502(chart, monkeypa
 def traces_raw(answer):
     assert answer.status_code == 200, answer.text
     return answer.json()["data"]
+
+
+BOOM = '''
+from openbq_ta.studies import study
+
+def run(frame, params):
+    raise RuntimeError("kaboom")
+
+study(name="boom_line", label="Boom", params={}, colors={"x": "#f00"}, pane="own",
+      iterate=run)
+'''
+
+
+def test_an_iterate_that_raises_on_the_eodhd_source_is_dropped_with_a_note(chart):
+    api, folder = chart
+    (folder / "mid.py").write_text(MID.replace("{label}", "a"))
+    (folder / "boom.py").write_text(BOOM)
+    answer = api.get("/ta_chart", params={"source": "eodhd", "indicators": "mid_line,boom_line"})
+    assert any(y is not None for y in traces(answer)["Mid a"]["y"])
+    title = str(answer.json()["layout"]["title"])
+    assert "dropped" in title and "boom_line" in title and "kaboom" in title

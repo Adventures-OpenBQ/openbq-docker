@@ -232,7 +232,7 @@ def load_file(path: Path, stem: str | None = None) -> list[str]:
     _LOADING.append(stem)
     try:
         spec.loader.exec_module(module)
-    except Exception as exc:
+    except (Exception, SystemExit) as exc:  # a study file's exit() is a refusal, not ours
         unload(stem)
         raise StudyError(f"{path.name}: {type(exc).__name__}: {exc}") from exc
     finally:

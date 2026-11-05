@@ -245,3 +245,17 @@ def test_sync_dir_skips_a_dangling_symlink_and_a_file_deleted_mid_sync(tmp_path,
     monkeypatch.setattr(type(tmp_path), "stat", flaky)
     studies.sync_dir(tmp_path)
     assert "mid_line" not in REGISTRY
+
+
+def test_a_study_file_that_exits_is_a_refusal_not_a_crash(tmp_path, monkeypatch):
+    write(tmp_path, "mid", MID.replace("{label}", "a"))
+    write(tmp_path, "quit", "raise SystemExit(1)", mtime=1_000_000_000)
+    assert set(studies.load_dir(tmp_path)) == {"mid"}
+    studies.unload("mid")
+    studies.sync_dir(tmp_path)
+    assert "mid_line" in REGISTRY
+    calls = []
+    real = studies.load_file
+    monkeypatch.setattr(studies, "load_file", lambda p: calls.append(p) or real(p))
+    studies.sync_dir(tmp_path)
+    assert calls == []                              # same mtime: not re-imported

@@ -111,12 +111,12 @@ class EodhdSource:
         # interval at all -- so on a 5m chart their daily value would be fanned
         # across every bar of the day and passed off as intraday. Compute
         # locally and say so, rather than draw a plausible lie.
+        notes: list = []
         if interval != "1d":
-            # ponytail: no notes on the EODHD path -- an iterate that raises fails the request; thread notes here if a folder study ever runs with source=eodhd.
-            return Result(compute(df, reqs, trades=trades), [
+            return Result(compute(df, reqs, trades=trades, notes=notes), [
                 Annotation(col, "local", "EODHD has no intraday data")
                 for r in reqs for col in _columns(r)
-            ])
+            ], notes=notes)
 
         mapped = [r for r in reqs if get(r.name).eodhd is not None]
         unmapped = [r for r in reqs if get(r.name).eodhd is None]
@@ -125,7 +125,7 @@ class EodhdSource:
             Annotation(col, "local", f"{r.name} has no EODHD equivalent")
             for r in unmapped for col in _columns(r)
         ]
-        frame = compute(df, unmapped, trades=trades) if unmapped else df
+        frame = compute(df, unmapped, trades=trades, notes=notes) if unmapped else df
         calls = 0
         fetched: list[tuple[Req, list[dict] | None]] = []
 
@@ -169,7 +169,7 @@ class EodhdSource:
 
         local_fallback = [r for r, rows in fetched if rows is None]
         if local_fallback:
-            frame = compute(frame, local_fallback, trades=trades)
+            frame = compute(frame, local_fallback, trades=trades, notes=notes)
 
         for req, rows in fetched:
             if rows is None:
@@ -178,7 +178,7 @@ class EodhdSource:
                 frame, absent = self._join(frame, req, rows)
             except Exception as exc:  # noqa: BLE001 - one bad series, not a dead chart
                 log.warning("eodhd %s returned an unusable payload: %s", req.name, exc)
-                frame = compute(frame, [req], trades=trades)
+                frame = compute(frame, [req], trades=trades, notes=notes)
                 annotations.extend(
                     Annotation(col, "local", f"EODHD response unusable: {exc}")
                     for col in _columns(req)
@@ -188,7 +188,7 @@ class EodhdSource:
                 Annotation(col, "eodhd", "EODHD did not supply this field")
                 for col in absent
             )
-        return Result(frame, annotations, calls)
+        return Result(frame, annotations, calls, notes)
 
     @staticmethod
     def _join(

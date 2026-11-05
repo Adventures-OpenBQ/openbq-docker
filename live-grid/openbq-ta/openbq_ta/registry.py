@@ -35,14 +35,14 @@ class Req:
     than bars: `{"period": "bd"}` is `period=50bd`, fifty BUSINESS DAYS. The
     unit is kept beside the value rather than folded into it because the
     number still has to reach an indicator's build() as a number -- what the
-    unit changes is the FRAME the indicator is computed on (see
-    openbq_ta.session.session_closes), not the arithmetic. It is part of the
+    unit changes is the FRAME the indicator is computed on (the service
+    filters bars to the regular session before computing), not the arithmetic. It is part of the
     request's identity for the same reason `source` is: 50 bars and 50
     sessions are two different lines.
 
     A plain dict, exactly like `params`: this dataclass is frozen for intent
-    rather than for hashing (nothing hashes a Req -- panes._key builds a
-    tuple), and a second idiom for the same kind of field would be one more
+    rather than for hashing (nothing hashes a Req; the service builds
+    its own tuple keys), and a second idiom for the same kind of field would be one more
     thing to remember.
     """
 
@@ -98,7 +98,7 @@ class Indicator:
     # dedicated article exists. `param_labels` and `param_steps` are the same
     # story one level down: the human label the editor puts on a parameter,
     # and the spinner increment for a float one (an int steps by 1). The
-    # client never hardcodes any of this; it renders whatever catalog() below
+    # client never hardcodes any of this; it renders whatever the catalog
     # projects, and degrades gracefully (group "Other", title = label, no
     # help text) against an older backend that omits these fields entirely.
     group: str = ""
@@ -111,7 +111,7 @@ class Indicator:
     # Which of this indicator's parameters count BARS -- a lookback window --
     # as opposed to a multiplier, a step or a plot offset. Only a window may
     # wear a unit (`period=50bd`), and because the unit moves the WHOLE
-    # request onto the session frame (openbq_ta.sources._is_bd), every window of
+    # request onto the session frame, every window of
     # a request wears it or none does. Declared per indicator because one
     # name is not one thing: `stoch`'s `k` is a 14-bar lookback while
     # `bbands`' `k` is a standard-deviation multiple. Empty means this
@@ -196,7 +196,7 @@ def resolve(name: str, source: str | None = None,
                 f"expected one of {sorted(ind.params)}"
             )
     # A unit is written on one parameter but acts on the whole request: `bd`
-    # moves every window of it onto the session frame (openbq_ta.sources._is_bd).
+    # moves every window of it onto the session frame.
     # So the grammar has to match the effect. Without these two rules
     # `macd:fast=12bd:slow=26` computes slow and signal on SESSIONS while the
     # legend, the column name and the wire echo all say bars, and
