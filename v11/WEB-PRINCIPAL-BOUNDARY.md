@@ -241,8 +241,24 @@ real bar. Changing knowledge basis to Local receipt produced execution
 `2a3707682c5ad756…`, and pinned hot snapshot 23. No provider acquisition was
 requested by this browser workflow. The execution receipt is visible in the UI.
 
-PR #42 carries the fix and regression coverage. Main integration and final-main
-deployment remain gated on CI. Automatic domain promotion remains off; the
-retained v10 deployment and guarded canonical-domain rollback remain available.
-This acceptance does not qualify desktop release signing or the entire v11.5
-analysis toolset.
+PR #42 merged into main as
+`b769a6f95b7f3ca236d09e0930582411cddbd34c`. Its tree is identical to the
+qualified PR head `aa02937f4af38d90e27b9f06ca85fcd6e42dcb5a`. CI run
+42107366294 passed build, full unit/web tests, lint, typecheck, Cargo checks,
+pivot, reference, scrub and E2E (313 passed, 11 skipped). CodeQL also passed.
+
+An explicit fresh production deployment of that exact main commit reached READY
+and now serves the canonical domain. Anonymous session checks and protected
+TemporalDB denial passed. The final real-user reload preserved all five online
+backends, the retained-data tab, query revision and Local receipt context. The
+widget recovered automatically after backend discovery, displaying execution
+`5115a49f-f20d-4af4-acb8-4bd11fad549d` with the same result hash and snapshot 23.
+During startup it briefly displayed “source unavailable” before discovery
+finished; improve that loading message separately. No query rebinding or
+credential change was needed.
+
+Automatic domain promotion remains off. The retained v10 deployment and guarded
+canonical-domain rollback remain available; the new final-main helper guards
+against unexpected alias changes. The earlier gateway rollback was actually
+rehearsed. This browser acceptance does not qualify desktop release signing,
+resolve the separately tracked dependency alerts, or qualify the v11.5 toolset.
