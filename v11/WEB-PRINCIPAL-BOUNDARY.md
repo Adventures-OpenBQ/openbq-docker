@@ -219,14 +219,30 @@ The four reviewed server settings were imported into the existing Vercel project
 as sensitive production variables. A fresh deployment of tested client commit
 `573fb1bfc1e0fbb74d24d22f4ecc98849f5556ef` reached READY. Its custom-domain switch
 and return to the retained v10 deployment were both verified through Vercel's
-API. Automatic domain assignment remains off. GitHub sign-in succeeded on v11;
-real-user analysis-widget browser acceptance remains open.
+API. Automatic domain assignment remains off. GitHub sign-in succeeded on v11. The subsequent fixed-candidate browser
+acceptance is recorded below.
 
 The browser check reproduced a Connections sign-in loop on both v10 and v11.
 Connections makes an advisory Workspace probe with `credentials: "omit"`; the
 browser shim incorrectly interpreted that expected anonymous 401 as expiry of
 the web session. The isolated fix preserves cookie omission and classifies only
 cookie-bearing same-origin 401s as session expiry. It has four regression cases
-and an independent review; integration remains gated on the test results and a
-repeat of the live browser workflow. The canonical domain currently serves the
-retained v10 deployment during that work.
+and an independent review. A real HTTPS browser regression also reproduces the
+logout against the old shim and passes with the fix, checking that the anonymous
+probe sends no cookies and authenticated requests continue to work.
+
+The fixed candidate at client commit
+`541cb9b254e71b6bf6ef1b21211574ce40a3b120` is temporarily on the canonical domain
+for acceptance. Real GitHub sign-in, account-backed state, Connections, and all
+five backend discoveries passed. Existing backend entries were preserved. A new
+retained-data dashboard opens the saved AAPL.US query cache-only and displays the
+real bar. Changing knowledge basis to Local receipt produced execution
+`ae55a386-f513-48b9-bdf3-ddbb34ebece6`, the same result hash
+`2a3707682c5ad756…`, and pinned hot snapshot 23. No provider acquisition was
+requested by this browser workflow. The execution receipt is visible in the UI.
+
+PR #42 carries the fix and regression coverage. Main integration and final-main
+deployment remain gated on CI. Automatic domain promotion remains off; the
+retained v10 deployment and guarded canonical-domain rollback remain available.
+This acceptance does not qualify desktop release signing or the entire v11.5
+analysis toolset.
