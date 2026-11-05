@@ -14,6 +14,9 @@ import re
 from datetime import datetime
 
 _OBS = re.compile(r"OBS-[1-9][0-9]{0,6}")
+#: The client's LITERAL (chartDocument.ts): extended ISO dates and instants only. Basic
+#: (20260101) and week (2026-W01-1) forms are expressions there, so they are not here.
+_LITERAL = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}([T ][0-9:.]+(Z|[+-][0-9]{2}:?[0-9]{2})?)?")
 
 
 def is_anchor(text) -> bool:
@@ -22,6 +25,8 @@ def is_anchor(text) -> bool:
     text = text.strip()
     if _OBS.fullmatch(text):
         return True
+    if not _LITERAL.fullmatch(text):
+        return False
     try:
         datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
@@ -44,3 +49,14 @@ def is_time_value(value) -> bool:
         expr = value.get("expr")
         return isinstance(expr, str) and 0 < len(expr) <= 64 and instant(value) is not None
     return isinstance(value, str) and 0 < len(value) <= 64
+
+
+def fixed_range(body: dict) -> tuple[str, str] | None:
+    """(start, end) dates of a saved range both of whose ends are literal instants -- a
+    window the user fixed. None for a relative range (stored {expr, at}, S14), an OBS-n end
+    or no range."""
+    window = body.get("range") or {}
+    ends = [window.get("from"), window.get("to")]
+    if all(isinstance(e, str) and instant(e) and not e.strip().startswith("OBS-") for e in ends):
+        return ends[0].strip()[:10], ends[1].strip()[:10]
+    return None

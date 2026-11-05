@@ -26,6 +26,7 @@ import httpx
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, Response
 
+from arts_charts.anchors import fixed_range
 from arts_charts.store import NotFound, Store, is_chart_id
 
 #: The page's origin. It never resolves: every request to it is answered by route().
@@ -61,9 +62,10 @@ class _Page:
     """One render's answers to the page, and what they show about its progress."""
 
     def __init__(self, api: httpx.AsyncClient, render_dir: Path, doc: dict):
-        # The card is handed the document without its saved range, so the picture's window
-        # ends today like describe_chart's (chart_tools.compute_query, ruling 2026-11-05).
-        body = {k: v for k, v in doc["body"].items() if k != "range"}
+        # A relative saved range is withheld from the card, so the picture's window ends
+        # today like describe_chart's; a fixed one is kept (chart_tools.compute_query).
+        body = doc["body"] if fixed_range(doc["body"]) else {
+            k: v for k, v in doc["body"].items() if k != "range"}
         self.api, self.dir, self.doc = api, render_dir, {**doc, "body": body}
         self.framed = False
         #: (status, reason) once the render cannot succeed; settled() raises it at once.

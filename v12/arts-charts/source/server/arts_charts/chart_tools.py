@@ -25,6 +25,7 @@ import httpx
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
+from arts_charts.anchors import fixed_range
 from arts_charts.chart_body import indicators, unresolved
 from arts_charts.chart_ops import OpError, apply
 from arts_charts.documents import WAKE_BY
@@ -101,7 +102,7 @@ def _out(value) -> str:
     return json.dumps(value)
 
 
-def compute_query(body: dict, today: date | None = None) -> dict:
+def compute_query(body: dict, today: date | None = None, honour_range: bool = True) -> dict:
     """The /ta_snapshot query for a document: what its card asks /ta_series_ws for.
 
     The window is the card's own default (window.ts barsWindow): five days
@@ -109,9 +110,10 @@ def compute_query(body: dict, today: date | None = None) -> dict:
     card's padStart does. The studies are the indicator string
     chart_body.validate checked.
 
-    A saved `range` is not read (ruling 2026-11-05): S14 stamps `now` with the save
-    instant, so a watch, describe_chart and a snapshot would otherwise freeze on the
-    save date. Every server reader looks at a window ending today.
+    A fixed saved range (both ends literal instants) is honoured; a relative one is not
+    (rulings 2026-11-05): S14 stamps `now` with the save instant, so describe_chart and a
+    snapshot would otherwise freeze on the save date. A watch passes `honour_range=False`:
+    its window always ends today, so it sees each new bar.
     """
     today = date.today() if today is None else today  # the worker passes its own clock's
     interval, symbol = body["interval"], body["symbol"]
@@ -124,6 +126,8 @@ def compute_query(body: dict, today: date | None = None) -> dict:
     # The card's path (ta/session.regular_only) filters on the same decision.
     if body.get("session") == "regular" and has_regular_session(symbol, interval):
         query["session"] = "regular"
+    if honour_range and (fixed := fixed_range(body)):
+        query["start"], query["end"] = fixed
     return query
 
 

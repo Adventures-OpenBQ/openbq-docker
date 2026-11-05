@@ -213,7 +213,7 @@ class Worker:
             condition = resolve(parse(watch["condition"]), body)
         except ConditionError as exc:
             return await self._broken(watch, f"the condition no longer fits the chart: {exc}", now)
-        query = compute_query(body, today=now.astimezone(timezone.utc).date())
+        query = compute_query(body, today=now.astimezone(timezone.utc).date(), honour_range=False)
         # fresh: a paced read may be from before the bar ended, with its partial prices.
         response = await self.api.get("/ta_snapshot", params={**query, "fresh": "true"})
         if response.status_code != 200:
