@@ -131,10 +131,17 @@ rollback remains available separately.
 The newest client main is `573fb1bfc1e0fbb74d24d22f4ecc98849f5556ef`
 following PR #40. Its Vercel build succeeded at
 [Dzs6zapUMe1DssEVSgA9GgnxMbQ9](https://vercel.com/bdobb-dev/openbq-bdobb/Dzs6zapUMe1DssEVSgA9GgnxMbQ9).
-Its replacement full CI run is `41851055344`; the earlier `3c0fa4d1` run was
-cancelled by the subsequent main push. A successful build is not completed
-browser E2E acceptance.
+Its replacement [full CI run](https://github.com/Adventures-OpenBQ/bdobb/actions/runs/41851055344)
+passed all five jobs, including browser E2E (313 passed, 11 skipped). The earlier
+`3c0fa4d1` run was cancelled by the subsequent main push. These CI results do
+not establish real OAuth acceptance of the public deployment.
 
-The real demo workspace remains empty. Deliberate real-data admission, private
-Vercel credential import, public gateway activation and real OAuth/browser
+The real demo workspace now has a durable Bronze capture: nine actual AAPL
+daily bars for January 2–12, 2024, fetched through the qualified Yahoo adapter
+and received November 4, 2026 (New York). This was an explicit operator bootstrap,
+not an automatic saved-policy acquisition. The receipt uses local-received
+knowledge time; it does not claim the data was known in 2024. Silver acceptance
+and a retained-result widget remain unverified because a preceding FRED capture
+held the catalog lock. The user scope still has no acquisition permission.
+Private Vercel credential import, public gateway activation and real OAuth/browser
 acceptance remain outstanding. Production domain promotion remains manual.
