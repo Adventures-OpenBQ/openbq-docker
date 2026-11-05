@@ -179,3 +179,54 @@ This qualifies the private HTTP service path, not real OAuth browser interaction
 or public Vercel ingress. API, worker, gateway and table image IDs still matched
 the selected November 4 images when checked. NordVPN remained connected while
 the isolated localhost-only userspace Tailscale proxy supplied NAS SSH access.
+
+## November 5 public gateway and browser check
+
+The existing preview Funnel node already has permission for port 10000. Its
+original public port 443 remains the v10 gateway. A separate port-10000 route now
+reaches the v11 gateway through the existing ingress network. The v11 gateway's
+single canonical origin was changed to that preview node. Its former NAS
+port-10000 hostname is therefore no longer the admitted gateway origin. Direct
+TemporalDB API, TemporalDB MCP, storage, and the legacy API remain private.
+No tailnet policy or node permissions were changed. A preliminary Serve flag on
+the NAS node, which lacks Funnel capability, was restored exactly to its prior
+off configuration.
+
+The public checks pinned public DNS addresses and verified the TLS chain and
+hostname. Anonymous requests returned 401; forged/unmapped principal assertions
+returned 403; the real user's query and complete result page were readable with
+the trusted server relay, preserving the same retained result hash. The original
+public port 443 still rejected anonymous access as before.
+
+The guarded NAS bundle is:
+
+```text
+/share/Container/openbq-v11-staging/cutovers/20261105-preview-v11/
+```
+
+Its `rollback.sh` restores both configuration files only if their reviewed hashes
+still match, restarts only the v11 gateway and removes the added network
+attachment. It was actually executed: both original files were restored exactly,
+the new public route disappeared, port 443 remained, and private principal checks
+passed. The change was then reapplied and public checks passed again. The bundle's
+`compose.sh` uses a validated override for future preview-sidecar recreation;
+the merged configuration adds only its existing v11 ingress network attachment.
+The original v10 Compose file was not replaced and no sidecar recreation was
+performed. For a whole-stack rollback, restore the Vercel v10 domain first, run
+this new rollback, then use the older whole-v11 entry-point rollback if needed.
+
+The four reviewed server settings were imported into the existing Vercel project
+as sensitive production variables. A fresh deployment of tested client commit
+`573fb1bfc1e0fbb74d24d22f4ecc98849f5556ef` reached READY. Its custom-domain switch
+and return to the retained v10 deployment were both verified through Vercel's
+API. Automatic domain assignment remains off. GitHub sign-in succeeded on v11;
+real-user analysis-widget browser acceptance remains open.
+
+The browser check reproduced a Connections sign-in loop on both v10 and v11.
+Connections makes an advisory Workspace probe with `credentials: "omit"`; the
+browser shim incorrectly interpreted that expected anonymous 401 as expiry of
+the web session. The isolated fix preserves cookie omission and classifies only
+cookie-bearing same-origin 401s as session expiry. It has four regression cases
+and an independent review; integration remains gated on the test results and a
+repeat of the live browser workflow. The canonical domain currently serves the
+retained v10 deployment during that work.
