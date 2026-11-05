@@ -145,3 +145,37 @@ and a retained-result widget remain unverified because a preceding FRED capture
 held the catalog lock. The user scope still has no acquisition permission.
 Private Vercel credential import, public gateway activation and real OAuth/browser
 acceptance remain outstanding. Production domain promotion remains manual.
+
+
+## November 5 real-data qualification
+
+A separate, explicit operator acquisition retained one actual EODHD AAPL.US daily
+bar for November 3, 2026 in the real user's scope. This uses the admitted Apple
+listing and issuer IDs already present in the live map, within the current
+Security Master observation window. No historical membership or January 2024
+identity coverage is inferred. No identity configuration was changed for this
+check; the original Yahoo January capture remains Bronze only.
+
+The EODHD sample reached accepted Bronze, Silver and Gold. A saved query returned
+one complete row, pinned to hot snapshot 23 and the archived execution runtime
+`ab5a40f74e23ce86a7eff7ff11f153b30af8bd098490b39bfb74876f06a5a772`.
+Its result hash is
+`2a3707682c5ad756c804d6310fe12b638784fe17a839ef4a0372fbac71af7655`.
+The managed table applied a raw view, reported an exact count of one and exported
+one final batch. The original temporal execution ID, hash, snapshot and receipt
+survived ingestion and export. Decimal prices remained exact strings. Adjusted
+close remained null with `unavailable_dependencies`; missing corporate-action
+inputs were not silently supplied.
+
+The desktop credential could not read this user-owned saved query, and all 20
+original desktop queries remained available. Temporary verification sources,
+sessions and exports were disposed; the saved query, execution and source
+capture remain. This was a bounded operator bootstrap, with automatic user
+acquisition permission still off. Two earlier operator probes failed before
+retention (binary-envelope JSON serialization, then a read-only archive write);
+they are recorded privately and excluded from successful-capture claims.
+
+This qualifies the private HTTP service path, not real OAuth browser interaction
+or public Vercel ingress. API, worker, gateway and table image IDs still matched
+the selected November 4 images when checked. NordVPN remained connected while
+the isolated localhost-only userspace Tailscale proxy supplied NAS SSH access.
