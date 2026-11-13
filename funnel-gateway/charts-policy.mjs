@@ -22,6 +22,7 @@ const VALUES = {
   start: INSTANT, end: INSTANT, anchor: INSTANT,
   provider: /^(?:yfinance|eodhd|temporaldb)$/, session: /^(?:extended|regular|24hr)$/,
   source: /^(?:local|eodhd)$/, macro: /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/,
+  // `^` is a cross-symbol study's vs ticker (ratio:vs=^GSPC); the server checks every vs against its own ticker rule.
   indicators: /^[A-Za-z0-9:=.,+_^-]{0,240}$/, basis: /^(?:adjusted|raw)$/,
   warmup: /^(?:auto|none)$/, fresh: /^(?:true|false)$/,
   width: /^[1-9][0-9]{2,3}$/, height: /^[1-9][0-9]{2,3}$/, theme: /^(?:light|dark)$/,
