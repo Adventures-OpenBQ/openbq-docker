@@ -45,6 +45,14 @@ const LIST_REF = /^list:([1-9]\d{0,5})$/;
 export const SYMBOL_REF = /^(?:\$ymbol|\$group:.{1,64}|list:[1-9]\d{0,5}|(?![Ll][Ii][Ss][Tt]:)[^$,][^,]{0,63})$/;
 
 /**
+ * Whether a series of `type` may carry `symbol`. A bar series takes a SYMBOL_REF; a performance
+ * line keeps its pre-list rule -- any 1-64 characters -- so one saved before lists (`$NOPE`,
+ * `LIST:2`, a comma) still re-saves and imports. The server's chart_body makes the same split.
+ */
+export const symbolAllowed = (type: SeriesType, symbol: string): boolean =>
+  type === "performance" ? symbol.length >= 1 && symbol.length <= 64 : SYMBOL_REF.test(symbol);
+
+/**
  * The card's `symbol` parameter as its list: split on commas only, each entry trimmed and
  * upper-cased, empties dropped, duplicates kept in place so `list:2` always means position 2.
  * Entries past the fifth are dropped and `truncated` says so.

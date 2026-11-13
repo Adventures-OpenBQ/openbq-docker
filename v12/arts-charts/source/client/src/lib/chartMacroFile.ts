@@ -3,7 +3,7 @@
 
 import { isFillPattern, isPen } from "./chart/pen";
 import { parsePanels, scaleOrder, type PanelDef } from "./chart/panels";
-import { SYMBOL_REF, seriesId, seriesLabel } from "./chart/series";
+import { seriesId, seriesLabel, symbolAllowed } from "./chart/series";
 import { normalizeExpression, type CatalogEntry } from "./chart/studyExpression";
 import type { ChartLayout } from "./chartLayoutsFile";
 import { importRefusal } from "./importLimits";
@@ -109,7 +109,7 @@ function seriesOf(raw: unknown, name: string, panelIds: string[], lookup: (name:
   // A bar series or a performance line may name a ticker or a position in the card's list
   // (spec 2026-11-13 §3): never the list itself, which stays the widget's setting.
   if (type !== "study" && raw.symbol !== undefined) {
-    if (typeof raw.symbol !== "string" || !SYMBOL_REF.test(raw.symbol)) {
+    if (typeof raw.symbol !== "string" || !symbolAllowed(type, raw.symbol)) {
       return refuse(`${name}: symbol must be a ticker, $ymbol, $group:<Name> or list:<n>.`);
     }
     out.symbol = raw.symbol;

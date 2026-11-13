@@ -44,7 +44,7 @@ MAX_PANEL = 64
 MAX_SYMBOLS = 5
 #: What a series' `symbol` may hold (spec 2026-11-13 §1; mirrors client series.ts SYMBOL_REF):
 #: `$ymbol`, `$group:<Name>`, `list:<n>`, or a ticker -- up to 64 characters with no comma, not
-#: starting `$` or `list:`, which is the performance symbol's rule before lists, narrowed.
+#: starting `$` or `list:`. The five bar types are held to it; a performance series is not.
 SYMBOL_REF = re.compile(r"\$ymbol|\$group:.{1,64}|list:[1-9]\d{0,5}"
                         r"|(?![Ll][Ii][Ss][Tt]:)[^$,][^,]{0,63}")
 SESSIONS = ("extended", "regular", "24hr")
@@ -161,7 +161,10 @@ def _placed(i: int, s) -> None:
     if "symbol" in s:
         if s["type"] == "study":
             raise BodyError(f"{where}: a study follows the chart's symbol (list:1) and takes no symbol")
-        if not isinstance(s["symbol"], str) or SYMBOL_REF.fullmatch(s["symbol"]) is None:
+        # A performance line keeps its pre-list rule (text, above), so one saved before lists
+        # re-saves; client series.ts symbolAllowed makes the same split.
+        if s["type"] != "performance" and (
+                not isinstance(s["symbol"], str) or SYMBOL_REF.fullmatch(s["symbol"]) is None):
             raise BodyError(f"{where}.symbol must be a ticker, $ymbol, $group:<Name> or list:<n>")
     if s["type"] != "study" and s.get("params", {}) != {}:
         raise BodyError(f"{where}: only a study series has params")

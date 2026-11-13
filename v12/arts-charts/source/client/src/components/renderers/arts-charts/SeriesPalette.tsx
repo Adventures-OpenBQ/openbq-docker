@@ -12,7 +12,7 @@ import {
   seriesFromStudy,
   seriesId,
   seriesLabel,
-  SYMBOL_REF,
+  symbolAllowed,
 } from "../../../lib/chart/series";
 import type { PanelDef } from "../../../lib/chart/panels";
 import {
@@ -606,7 +606,7 @@ export function SeriesPalette({
   const performanceIncomplete = staged !== null && staged.type === "performance"
     && (staged.symbol.trim() === "" || staged.anchor.trim() === "");
   // A bar series or performance line naming something that is not a reference (spec 2026-11-13 §1).
-  const symbolInvalid = staged !== null && staged.type !== "study" && !SYMBOL_REF.test(performanceSymbol(staged.symbol));
+  const symbolInvalid = staged !== null && staged.type !== "study" && !symbolAllowed(staged.type, performanceSymbol(staged.symbol));
   const incomplete = (entry !== undefined && entry.params.some(invalidParam)) || performanceIncomplete || symbolInvalid;
   /** What the Symbol field's picker offers; free text is the field itself. */
   const symbolOptions = [PERFORMANCE_SELF, ...symbols.slice(1).map((_t, i) => `list:${i + 2}`), ...symbolGroups.map((g) => `$group:${g}`)];
@@ -776,7 +776,7 @@ export function SeriesPalette({
         target.panel, target.side, id,
       );
     }
-    if (!SYMBOL_REF.test(performanceSymbol(target.symbol))) return null;
+    if (!symbolAllowed(target.type, performanceSymbol(target.symbol))) return null;
     if (target.type === "performance" && (target.symbol.trim() === "" || target.anchor.trim() === "")) return null;
     const isColoured = COLOURED.includes(target.type as PriceType);
     // Only what the NEW type can use survives (T7 review, finding 3): staging
