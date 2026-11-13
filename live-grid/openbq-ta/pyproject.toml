@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openbq-ta"
-version = "0.1.0"
+version = "0.2.0"
 description = "The OpenBQ study engine: registry, two-pass compute, built-in studies and the @study decorator"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }

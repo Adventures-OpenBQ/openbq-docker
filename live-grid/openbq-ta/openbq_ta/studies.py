@@ -77,6 +77,7 @@ def study(
     iterate: Callable[[pl.DataFrame, dict], dict[str, list]] | None = None,
     session_agg: Callable[[dict], dict] | None = None,
     times: tuple[str, ...] = (),
+    tickers: tuple[str, ...] = (),
     render: dict[str, dict] | None = None,
 ) -> Callable:
     """Register a study.
@@ -98,6 +99,10 @@ def study(
     `{"span": {"time_offset": 26}}`). `pens` is a line style per output (PENS), `widths` a
     line width per output, 1 to 4. A study whose outputs include a `_up` and a `_lo` is a
     band, and `shade`, `fill_opacity` and `fill_pattern` (PATTERNS) are its fill defaults.
+
+    `tickers` names the one parameter that holds a second ticker; the engine computes the
+    study on the bars both share, the other's as `vs_open` ... `vs_volume` (spec 2026-11-13
+    cross-symbol §1).
     """
     if pane not in ("price", "own"):
         raise StudyError(f"{name!r}: pane must be 'price' or 'own', got {pane!r}")
@@ -115,6 +120,14 @@ def study(
     stray = sorted(set(times) - set(params))
     if stray:
         raise StudyError(f"{name!r}: times {stray} are not parameters")
+    stray = sorted(set(tickers) - set(params))
+    if stray:
+        raise StudyError(f"{name!r}: tickers {stray} are not parameters")
+    if len(tickers) > 1:
+        raise StudyError(f"{name!r}: a study reads one other ticker; tickers names {list(tickers)}")
+    if tickers and (iterate is not None or session_agg is not None):
+        raise StudyError(f"{name!r}: a ticker study is vectorised; iterate= and session_agg= "
+                         "cannot read a second ticker")
     render = dict(render or {})
     unknown = sorted(set(render) - set(colors))
     if unknown:
@@ -157,6 +170,7 @@ def study(
             windows=tuple(windows), guides=list(guides),
             iterative=iterate is not None, iterate=iterate,
             sessioned=session_agg is not None, session_agg=session_agg, times=tuple(times),
+            tickers=tuple(tickers),
         )
         REGISTRY.pop(name, None)
         register(ind)
@@ -194,6 +208,8 @@ def exprs_of(name: str, **params: Any) -> dict[str, pl.Expr]:
     ind = get(name)
     if ind.iterative or ind.sessioned:
         raise StudyError(f"{name!r} is not an expression study and cannot be nested")
+    if ind.tickers:
+        raise StudyError(f"{name!r} reads a second ticker and cannot be nested")
     req = resolve(name, **params)
     # The study's own Bases, so a build that reads them by key (sma, bbands)
     # composes; they are materialised only if your study declares them too.

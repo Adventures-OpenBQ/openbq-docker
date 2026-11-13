@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_the_package_reports_its_version():
-    assert openbq_ta.__version__ == "0.1.0"
+    assert openbq_ta.__version__ == "0.2.0"
 
 
 def test_every_package_file_is_apache_only():

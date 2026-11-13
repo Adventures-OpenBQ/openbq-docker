@@ -69,14 +69,69 @@ def resolve_times(req: Req, trades: Sequence = ()) -> dict[str, Any]:
                              for k in names if req.params.get(k) is not None}}
 
 
+# The bar columns a ticker study reads from the other ticker, renamed `<param>_<column>` (spec
+# 2026-11-13 cross-symbol §1; adj_close too, because every such study reads adjusted close).
+PRICE_COLUMNS = ("open", "high", "low", "close", "adj_close", "volume")
+
+
+def _has(n: int) -> str:
+    return "has" if n == 1 else "have"
+
+
+def _gaps(vs: str, symbol: str, frame: pl.DataFrame, other: pl.DataFrame) -> str | None:
+    """The note for the dates one side lacks, counted over the union of both sides' dates."""
+    mine, theirs = frame.select("date").unique(), other.select("date").unique()
+    no_vs = mine.join(theirs, on="date", how="anti").height
+    no_own = theirs.join(mine, on="date", how="anti").height
+    total = mine.height + no_own
+    clauses = []
+    if no_vs:
+        clauses.append(f"{no_vs} of {total} dates {_has(no_vs)} no {vs} bar")
+    if no_own:
+        head = f"{no_own}" if clauses else f"{no_own} of {total} dates"
+        clauses.append(f"{head} {_has(no_own)} no {symbol or 'chart'} bar")
+    return f"vs {vs}: {', '.join(clauses)}" if clauses else None
+
+
+def _cross(frame: pl.DataFrame, req: Req, ind: Indicator, params: dict,
+           others: dict[str, pl.DataFrame] | None, symbol: str) -> tuple[pl.DataFrame, str | None]:
+    """A ticker study on the bars both tickers share, its columns left-joined back by date (a
+    date either side lacks is null), and the gap note. Raises StudyError for what it cannot
+    compute."""
+    key = ind.tickers[0]
+    vs = params.get(key)
+    if vs is None or vs == "":
+        raise StudyError(f"{ind.label} needs a second ticker")
+    if req.units:
+        raise StudyError("bd windows are not available on cross-symbol studies")
+    other = (others or {}).get(vs)
+    if other is None:
+        raise StudyError(f"no bars for {vs}")
+    theirs = other.select("date", *[pl.col(c).alias(f"{key}_{c}")
+                                    for c in PRICE_COLUMNS if c in other.columns])
+    shared = frame.join(theirs, on="date", how="inner", maintain_order="left")
+    bases = {b.key: b for b in ind.deps(params)}
+    if bases:
+        shared = shared.with_columns([b.expr().alias(b.key) for b in bases.values()])
+    suffix = col_suffix(req)
+    built = shared.select("date", *[e.alias(e.meta.output_name() + suffix)
+                                    for e in ind.build(params, bases)])
+    return (frame.join(built, on="date", how="left", maintain_order="left"),
+            _gaps(vs, symbol, frame, other))
+
+
 def compute_with_bases(
     df: pl.DataFrame, reqs: list[Req], *, trades: Sequence = (), notes: list | None = None,
+    others: dict[str, pl.DataFrame] | None = None, symbol: str = "",
 ) -> tuple[pl.DataFrame, dict[str, Base]]:
     """Evaluate `reqs` against `df`, keeping the intermediate Base columns.
 
     With `notes` a list, a study whose time does not resolve, or whose iterate/session_agg
     raises, is left out and `(req, message)` appended (spec 2026-11-04 §3); every other
     study computes. With `notes=None`, the error propagates.
+
+    `others` maps a ticker to its bars, for a study that declares `tickers=`; `symbol` names
+    the card's own ticker in that study's gap note.
     """
     if not reqs:
         return df, {}
@@ -92,6 +147,8 @@ def compute_with_bases(
             work.append((req, get(req.name), resolve_times(req, trades)))
         except StudyError as exc:
             drop(req, exc)
+    cross = [w for w in work if w[1].tickers]   # computed last, each on its shared-bar frame
+    work = [w for w in work if not w[1].tickers]
     bases: dict[str, Base] = {}
     for _, ind, params in work:
         for base in ind.deps(params):
@@ -134,11 +191,23 @@ def compute_with_bases(
             column += suffix
             if column not in frame.columns:
                 frame = frame.with_columns(pl.Series(column, series, dtype=pl.Float64))
+    for req, ind, params in cross:
+        if all(c + col_suffix(req) in frame.columns for c in ind.render):
+            continue  # the same study, same params, requested twice
+        try:
+            frame, gap = _cross(frame, req, ind, params, others, symbol)
+        except Exception as exc:  # noqa: BLE001 - one study's join must not take the frame down
+            drop(req, exc)
+            continue
+        if gap is not None and notes is not None:
+            notes.append((req, gap))
     return frame, bases
 
 
 def compute(df: pl.DataFrame, reqs: list[Req], *, trades: Sequence = (),
-            notes: list | None = None) -> pl.DataFrame:
+            notes: list | None = None, others: dict[str, pl.DataFrame] | None = None,
+            symbol: str = "") -> pl.DataFrame:
     """Evaluate `reqs` against `df`. Base columns are an implementation detail."""
-    frame, bases = compute_with_bases(df, reqs, trades=trades, notes=notes)
+    frame, bases = compute_with_bases(df, reqs, trades=trades, notes=notes, others=others,
+                                      symbol=symbol)
     return frame.drop([k for k in bases if k in frame.columns])

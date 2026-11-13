@@ -143,6 +143,10 @@ class Indicator:
     # The parameters that take a time. compute() resolves each with openbq_ta.times.resolve_time
     # before the study runs, so build/iterate/session_agg receive an aware UTC datetime.
     times: tuple[str, ...] = ()
+    # The parameter that names a second ticker (spec 2026-11-13 cross-symbol §1). compute() runs
+    # the study on the bars both tickers share -- the other's columns renamed `<param>_close` and
+    # so on -- and joins its columns back by date, so a date either side lacks is a gap.
+    tickers: tuple[str, ...] = ()
     eodhd: EodhdMap | None = None
 
 
