@@ -119,3 +119,12 @@ def test_without_a_notes_list_a_refusal_raises():
 def test_exprs_of_refuses_a_ticker_study():
     with pytest.raises(StudyError, match="second ticker"):
         studies.exprs_of("t_ratio", vs="MSFT")
+
+
+def test_a_repeated_date_on_the_other_ticker_is_a_note_and_the_card_keeps_its_rows():
+    notes = []
+    dup = pl.concat([bars(MSFT), bars(MSFT).head(1)])   # MSFT's first date, twice
+    out = run(resolve("t_ratio", vs="MSFT"), others={"MSFT": dup}, notes=notes)
+    assert out.height == len(bars(AAPL))
+    assert "r|vs=MSFT" not in out.columns
+    assert [m for _, m in notes] == ["join keys did not fulfill 1:1 validation"]

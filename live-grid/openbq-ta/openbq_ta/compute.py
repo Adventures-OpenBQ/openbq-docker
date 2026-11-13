@@ -109,7 +109,7 @@ def _cross(frame: pl.DataFrame, req: Req, ind: Indicator, params: dict,
         raise StudyError(f"no bars for {vs}")
     theirs = other.select("date", *[pl.col(c).alias(f"{key}_{c}")
                                     for c in PRICE_COLUMNS if c in other.columns])
-    shared = frame.join(theirs, on="date", how="inner", maintain_order="left")
+    shared = frame.join(theirs, on="date", how="inner", maintain_order="left", validate="1:1")
     bases = {b.key: b for b in ind.deps(params)}
     if bases:
         shared = shared.with_columns([b.expr().alias(b.key) for b in bases.values()])
