@@ -311,6 +311,9 @@ def catalog() -> list[dict]:
             "sessioned": ind.sessioned,
             # S14: the card stores each time parameter as {expr, at}; empty is left out.
             **({"times": list(ind.times)} if ind.times else {}),
+            # A cross-symbol study's ticker parameter (spec 2026-11-13 cross-symbol §5): the client
+            # resolves it like a series symbol; empty is left out.
+            **({"tickers": list(ind.tickers)} if ind.tickers else {}),
             # A repainting indicator's history can change after the fact
             # (spec D10); the Charts MCP shows it on each study's capability
             # so a model knows not to trust an old value of one.

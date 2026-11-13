@@ -180,12 +180,16 @@ def indicators(series: list) -> str:
         if not _text(name, 64) or any(c in name for c in ",:= "):
             raise BodyError(f"{where}.name must be a study name")
         times = REGISTRY[name].times if name in REGISTRY else ()
+        tickers = REGISTRY[name].tickers if name in REGISTRY else ()
         if not isinstance(params, dict):
             raise BodyError(f"{where}.params must be an object")
         parts = [name]
         for key, value in params.items():
             if not _text(key, 64) or any(c in key for c in ",:= "):
                 raise BodyError(f"{where}.params has a bad key {key!r}")
+            if key in tickers and not (isinstance(value, str) and SYMBOL_REF.fullmatch(value)):
+                # The series-symbol rule (spec 2026-11-13 cross-symbol §5): vs is a reference.
+                raise BodyError(f"{where}.params.{key} must be a ticker, $ymbol, $group:<Name> or list:<n>")
             if isinstance(value, dict):
                 # S14: a time parameter is saved as {expr, at}; the server reads the instant.
                 if key not in times or not is_time_value(value):
@@ -302,6 +306,22 @@ def ticker_of(body: dict, ref: str | None) -> tuple[str | None, str | None]:
     return ref.upper(), None
 
 
+def versus_of(body: dict, s: dict) -> tuple[dict | None, str | None]:
+    """`s` with each ticker parameter (a study's `tickers=`, spec 2026-11-13 cross-symbol §1)
+    read as ticker_of reads a series symbol -- `vs: list:2` becomes `MSFT` -- or None and why.
+    Any other series, and a study with no ticker parameter, comes back as it is."""
+    keys = REGISTRY[s["name"]].tickers if s["type"] == "study" and s.get("name") in REGISTRY else ()
+    params = dict(s.get("params", {}))
+    for key in keys:
+        if key not in params:
+            continue
+        ticker, why = ticker_of(body, params[key])
+        if ticker is None:
+            return None, f"{key} {params[key]}: {why}"
+        params[key] = ticker
+    return ({**s, "params": params} if keys else s), None
+
+
 def _label(ticker: str, ref: str | None) -> str:
     return f"{ticker} ({ref})" if ref is not None and ref.startswith("list:") else ticker
 
@@ -317,21 +337,25 @@ def series_tickers(body: dict) -> tuple[list[str | None], list[str]]:
         tickers.append(None if ticker is None else _label(ticker, ref))
         if ticker is None:
             notes.append(f"series[{i}] {ref}: {why}")
+        elif (why := versus_of(body, s)[1]) is not None:
+            notes.append(f"series[{i}] {why}")
     return tickers, notes
 
 
 def study_groups(body: dict) -> list[tuple[str, str, list[dict]]]:
     """(ticker, label, studies) per ticker a study draws on -- the card's study sockets
     (spec 2026-11-13 §2-3). list:1 is first and always present, with or without studies; a
-    study whose reference does not resolve is in none (series_tickers notes it)."""
+    study whose reference does not resolve is in none (series_tickers notes it). A cross-symbol
+    study is in its group with `vs` resolved, or in none when `vs` does not resolve."""
     first = (body.get("symbols") or [body["symbol"]])[0]
     groups: dict[str, tuple[str, list[dict]]] = {first: (first, [])}
     for s in body.get("series", []):
         if s["type"] != "study":
             continue
         ticker, _ = ticker_of(body, s.get("symbol"))
-        if ticker is not None:
-            groups.setdefault(ticker, (_label(ticker, s.get("symbol")), []))[1].append(s)
+        resolved, _ = versus_of(body, s)
+        if ticker is not None and resolved is not None:
+            groups.setdefault(ticker, (_label(ticker, s.get("symbol")), []))[1].append(resolved)
     return [(ticker, label, studies) for ticker, (label, studies) in groups.items()]
 
 

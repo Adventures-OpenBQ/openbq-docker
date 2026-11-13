@@ -34,7 +34,7 @@ from arts_charts.ta.macros import to_wire as macro_to_wire
 from arts_charts.ta.panes import all_reqs, assign
 from arts_charts.ta.payload import (
     ChartParams, any_repaints, bars_to_frame, build_payload, chart_subtitle, delta_start,
-    parse_indicators, with_anchor,
+    parse_indicators, vs_of, with_anchor,
 )
 from openbq_ta.registry import REGISTRY, StudyError
 from openbq_ta.studies import installed
@@ -92,6 +92,32 @@ def refuse(params: ChartParams) -> None:
                           f"computed locally in Polars")
 
 
+# The door's `symbol` rule (funnel-gateway policy.mjs TA_SYMBOL_RE) without its "=F" arm, which
+# the indicators grammar cannot carry: the server's ticker rule (spec 2026-11-13 cross-symbol §3).
+TICKER = re.compile(r"[A-Za-z0-9.^_-]{1,24}")
+MAX_VERSUS = 4
+
+
+def versus(params: ChartParams) -> tuple[list[str], dict[str, str]]:
+    """The other tickers this chart's cross-symbol studies read -- at most MAX_VERSUS, each a
+    ticker -- and, for every one not served, the note its studies get instead."""
+    macro = (load_macros_all().get(params.macro)
+             if params.macro and params.macro != "none" else None)
+    wanted: list[str] = []
+    refused: dict[str, str] = {}
+    for req in all_reqs(assign(macro, parse_indicators(params.indicators))):
+        vs = vs_of(req)
+        if vs is None or vs in wanted or vs in refused:
+            continue
+        if TICKER.fullmatch(vs) is None:
+            refused[vs] = f"not a ticker: {vs}"
+        elif len(wanted) == MAX_VERSUS:
+            refused[vs] = f"cross-symbol studies are limited to {MAX_VERSUS} other tickers"
+        else:
+            wanted.append(vs)
+    return wanted, refused
+
+
 def session_seconds(sessions, symbol: str, day: str) -> float | None:
     """The regular session's length on `day`, in seconds, or None.
 
@@ -122,6 +148,15 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
                     session: str = "extended", fresh: bool = False):
         return await bars(symbol, interval, start, end, provider, session=session, fresh=fresh)
 
+    async def fetch_versus(params: ChartParams, tickers: list[str], start: str, end: str,
+                           fresh: bool = False) -> dict[str, object]:
+        """Each `vs` ticker's (bars, meta), or the exception its fetch raised: the card's
+        interval, window, provider and session (spec 2026-11-13 cross-symbol §3)."""
+        got = await asyncio.gather(
+            *(fetch(t, params.interval, start, end, params.provider, params.session, fresh)
+              for t in tickers), return_exceptions=True)
+        return dict(zip(tickers, got))
+
     def window(start: str | None, end: str | None) -> tuple[str, str]:
         today = date.today()
         return (start or str(today - timedelta(days=365)), end or str(today))
@@ -149,13 +184,14 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
             return memo[key]
         return _load
 
-    async def series_state(params: ChartParams, warmup, answer):
+    async def series_state(params: ChartParams, warmup, answer, versus_answers=None, refused=None):
         """One computation of a study chart over an answer already fetched:
         (panes, frame, annotations, meta, bars_error). `answer` is the bar
         source's (bars, meta) or the exception it raised; a failure degrades
         to no bars, as live-grid's socket always did. A bad macro or indicator
         RAISES (KeyError, ValueError) -- the socket closes on it, the snapshot
-        answers 404/422."""
+        answers 404/422. `versus_answers` are fetch_versus's; a failed one leaves only its
+        studies off with `bars unavailable for <vs>`, beside `refused`'s notes."""
         if isinstance(answer, BaseException):
             log.warning("bars unavailable for %s: %s", params.symbol, answer)
             rows, meta, bars_error = [], {}, answer
@@ -163,9 +199,19 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
             (rows, meta), bars_error = answer, None
         if params.session == "regular":
             rows = regular_only(rows, params.symbol, params.interval)
+        others, refused = {}, dict(refused or {})
+        for vs, got in (versus_answers or {}).items():
+            if isinstance(got, BaseException):
+                log.warning("bars unavailable for %s: %s", vs, got)
+                refused[vs] = f"bars unavailable for {vs}"
+                continue
+            vs_rows = got[0]
+            if params.session == "regular":
+                vs_rows = regular_only(vs_rows, vs, params.interval)
+            others[vs] = bars_to_frame(vs_rows, basis=params.basis)
         _, panes, frame, annotations = await build_payload(
             params, bars_to_frame(rows, basis=params.basis),
-            warmup=warmup,
+            warmup=warmup, others=others, refused=refused,
         )
         return panes, frame, annotations, meta, bars_error
 
@@ -310,6 +356,7 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
                 s, warm_start, warm_bars = await auto_warmup(params, query.get("start"), s)
                 params = dataclasses.replace(params, start=s)
                 warm = {"warmup_start": warm_start, "warmup_bars": warm_bars}
+            wanted, refused = versus(params)
         except Exception as exc:  # noqa: BLE001 - a refusal is as permanent as a bad macro
             log.warning("ta_series_ws refused for %s: %s", params.symbol, exc)
             await ws.close(code=1011, reason=close_reason(exc))
@@ -320,6 +367,7 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
         previous_marks: tuple[str, ...] = ()
         rev = 0
         answer: object = None
+        answers_versus: dict = {}
         try:
             while True:
                 started = asyncio.get_running_loop().time()
@@ -328,13 +376,16 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
                                                   params.provider, params.session)
                 except Exception as exc:  # noqa: BLE001 - a bars outage degrades, it does not end the stream
                     fetched = exc
+                fetched_versus = await fetch_versus(params, wanted, s, e)
                 # The source hands back the SAME answer (or the same failure) until
-                # something moved (composed.py): otherwise nothing is pushed.
-                if fetched is not answer:
-                    answer = fetched
+                # something moved (composed.py): otherwise nothing is pushed. A vs
+                # ticker's answer counts like the card's own (spec 2026-11-13 cross-symbol §3).
+                if fetched is not answer or any(
+                        fetched_versus[t] is not answers_versus.get(t) for t in wanted):
+                    answer, answers_versus = fetched, fetched_versus
                     try:
                         panes, frame, annotations, _, bars_error = await series_state(
-                            params, warmup, answer)
+                            params, warmup, answer, answers_versus, refused)
                     except Exception as exc:  # noqa: BLE001 - bad macro/indicator: end the stream
                         log.warning("ta_series_ws failed for %s: %s", params.symbol, exc)
                         await ws.close(code=1011, reason=close_reason(exc))
@@ -389,13 +440,15 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
             if warmup == "auto":
                 s, warm_start, warm_bars = await auto_warmup(params, start, s)
                 params = dataclasses.replace(params, start=s)
+            wanted, refused = versus(params)
             try:
                 answer: object = await fetch(symbol, interval, s, e, params.provider,
                                              params.session, fresh)
             except Exception as exc:  # noqa: BLE001 - becomes the 502 below, never the upstream text
                 answer = exc
             panes, frame, annotations, meta, bars_error = await series_state(
-                params, warmup_for(params), answer)
+                params, warmup_for(params), answer,
+                await fetch_versus(params, wanted, s, e, fresh), refused)
         except Refused as exc:
             return JSONResponse({"detail": str(exc)}, status_code=400)
         except KeyError as exc:

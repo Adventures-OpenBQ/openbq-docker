@@ -63,8 +63,11 @@ class LocalSource:
 
     def series(self, df: pl.DataFrame, reqs: list[Req],
                interval: str = "1d", symbol: str = "",
-               prior: pl.DataFrame | None = None, notes: list | None = None) -> Result:
+               prior: pl.DataFrame | None = None, notes: list | None = None,
+               others: dict | None = None) -> Result:
         """`interval`, `symbol` and `prior` are read only by `bd` windows.
+
+        `others` maps a ticker to its bar frame, for a study that reads a second ticker (spec 2026-11-13 cross-symbol §1).
 
         `prior` (v12.4.5) is a DAILY frame of the sessions before the first
         bar of `df`. A `bd` window used to see only the sessions inside the
@@ -100,7 +103,7 @@ class LocalSource:
         """
         bd = [r for r in reqs if _is_bd(r)]
         if not bd or df.height == 0 or not is_intraday(interval):
-            return Result(compute(df, reqs, notes=notes))
+            return Result(compute(df, reqs, notes=notes, others=others, symbol=symbol))
         feed = classify(symbol)
         wanted = [c for r in bd for c in columns_of(r)]
         # Two frames, one per clock: the bar frame for ordinary requests, the
@@ -118,9 +121,9 @@ class LocalSource:
             closes = pl.concat(
                 [before.select([c for c in closes.columns if c in before.columns]),
                  closes], how="diagonal_relaxed")
-        sessions = compute(closes, bd, notes=notes)
+        sessions = compute(closes, bd, notes=notes, others=others, symbol=symbol)
         wanted = [c for c in wanted if c in sessions.columns]   # a noted study has no column
-        frame = compute(df, [r for r in reqs if not _is_bd(r)], notes=notes)
+        frame = compute(df, [r for r in reqs if not _is_bd(r)], notes=notes, others=others, symbol=symbol)
         joined = (
             frame.with_columns(session_date(feed))
             .join_asof(sessions.select([SESSION_DATE, *wanted]),

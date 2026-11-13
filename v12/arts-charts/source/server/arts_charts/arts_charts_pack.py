@@ -1,10 +1,11 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Business Source License 1.1.
 # SPDX-License-Identifier: BUSL-1.1
-"""Art's Charts' study pack (spec 2026-11-04 S7): the 11 studies only Art's Charts has,
-written with openbq_ta's @study decorator. Art's Charts installs this file into the shared
-studies folder (TA_STUDIES_DIR), so live-grid runs them too; it imports nothing but the
-engine and Polars."""
+"""Art's Charts' study pack (spec 2026-11-04 S7): the 19 studies only Art's Charts has (eight of
+them read a second ticker), written with openbq_ta's @study decorator. Art's Charts installs this
+file into the shared studies folder (TA_STUDIES_DIR), so live-grid runs them too; it imports
+nothing but the engine, Polars and the standard library."""
 import math
+from datetime import timezone
 
 import polars as pl
 
@@ -428,3 +429,139 @@ def pivots_standard(p):
         (pl.col("H") + 2 * (pivot - pl.col("L"))).alias("R3"),
         (pl.col("L") - 2 * (pl.col("H") - pivot)).alias("S3"),
     ]
+
+
+# --- Cross-symbol studies (spec 2026-11-13 cross-symbol §2) ------------------
+# Each reads a second ticker named by `vs`. The engine runs it on the bars both tickers share,
+# the other's columns as vs_open ... vs_adj_close (openbq_ta compute, tickers=), and joins it back
+# by date: a date either side lacks is a gap with a note. Returns are 1-bar percent changes.
+
+_A = pl.col("adj_close")
+_B = pl.col("vs_adj_close")
+
+
+def _returns(price: pl.Expr) -> pl.Expr:
+    return 100 * price.pct_change()
+
+
+def _zscore(x: pl.Expr, n: int) -> pl.Expr:
+    return (x - x.rolling_mean(n)) / x.rolling_std(n)
+
+
+@study(
+    name="ratio", label="RATIO", params={"vs": None}, colors={"ratio": "#e5c07b"},
+    pane="own", price_basis="adjusted", group="Cross-symbol", full="Price ratio",
+    desc="Adjusted close ÷ the other ticker's adjusted close.",
+    param_labels={"vs": "Versus"}, tickers=("vs",), wiki=None,
+    description="Divides this ticker's price by another's on every date both trade, so a rising line means this one is outperforming the other and a falling line means it is lagging behind.",
+    convention="adj_close / vs_adj_close on the dates both tickers have; a date either lacks is a gap.",
+)
+def ratio(p):
+    return [(_A / _B).alias("ratio")]
+
+
+@study(
+    name="spread", label="SPREAD", params={"vs": None, "multiple": 1.0},
+    colors={"spread": "#e5c07b"}, guides=(0,),
+    pane="own", price_basis="adjusted", group="Cross-symbol", full="Price spread",
+    desc="Adjusted close − multiple × the other ticker's adjusted close.",
+    param_labels={"vs": "Versus", "multiple": "Multiple"}, param_steps={"multiple": 0.1},
+    tickers=("vs",), wiki=None,
+    description="Subtracts a multiple of another ticker's price from this one's on every shared date, the classic pairs spread; it crosses zero where the two stand in the chosen balance.",
+    convention="adj_close - multiple * vs_adj_close on shared dates.",
+)
+def spread(p):
+    return [(_A - p["multiple"] * _B).alias("spread")]
+
+
+@study(
+    name="corr", label="CORR", params={"vs": None, "period": 60}, colors={"corr": "#c678dd"},
+    guides=(-1, 0, 1), windows=("period",),
+    pane="own", price_basis="adjusted", group="Cross-symbol", full="Rolling correlation",
+    desc="Correlation of the two tickers' daily returns over N shared bars.",
+    param_labels={"vs": "Versus", "period": "Length"}, tickers=("vs",),
+    wiki="https://www.investopedia.com/terms/c/correlation.asp",
+    description="Measures how closely the two tickers' bar-to-bar returns move together over the window, from minus one (opposite) through zero (unrelated) to one (in lockstep).",
+    convention="Pearson correlation of 100*pct_change(adj_close) and of vs_adj_close over `period` shared bars.",
+)
+def corr(p):
+    return [pl.rolling_corr(_returns(_A), _returns(_B), window_size=p["period"])
+            .fill_nan(None).alias("corr")]
+
+
+@study(
+    name="beta", label="BETA", params={"vs": None, "period": 60}, colors={"beta": "#c678dd"},
+    guides=(1,), windows=("period",),
+    pane="own", price_basis="adjusted", group="Cross-symbol", full="Rolling beta",
+    desc="Covariance of the returns ÷ variance of the other's returns, over N shared bars.",
+    param_labels={"vs": "Versus", "period": "Length"}, tickers=("vs",),
+    wiki="https://www.investopedia.com/terms/b/beta.asp",
+    description="Estimates how far this ticker tends to move for each one percent the other moves over the window; one means it moves with it, above one more, below one less.",
+    convention="rolling sample cov(r, r_vs) / rolling sample var(r_vs) over `period` shared bars, r = 100*pct_change(adj_close).",
+)
+def beta(p):
+    n = p["period"]
+    return [(pl.rolling_cov(_returns(_A), _returns(_B), window_size=n)
+             / _returns(_B).rolling_var(n)).fill_nan(None).alias("beta")]
+
+
+@study(
+    name="retdiff", label="RETDIFF", params={"vs": None}, colors={"retdiff": "#98c379"},
+    guides=(0,), render={"retdiff": {"type": "bar"}},
+    pane="own", price_basis="adjusted", group="Cross-symbol", full="Return difference",
+    desc="This ticker's 1-bar return minus the other's, as a histogram.",
+    param_labels={"vs": "Versus"}, tickers=("vs",), wiki=None,
+    description="Shows, bar by bar, how much more or less this ticker returned than the other one, so runs of bars above zero mark stretches where it kept outperforming.",
+    convention="100*pct_change(adj_close) - 100*pct_change(vs_adj_close) on shared bars.",
+)
+def retdiff(p):
+    return [(_returns(_A) - _returns(_B)).alias("retdiff")]
+
+
+@study(
+    name="relret", label="RELRET", params={"vs": None, "anchor": None},
+    colors={"relret": "#56b6c2"}, guides=(0,), times=("anchor",),
+    pane="own", price_basis="adjusted", group="Cross-symbol", full="Relative return",
+    desc="Return since the anchor relative to the other ticker's; no anchor is the first shared bar.",
+    param_labels={"vs": "Versus", "anchor": "Anchor"}, tickers=("vs",), wiki=None,
+    description="Rebases both tickers to the anchor date and shows how far this one has gained or lost against the other since then, as a fraction where 0.05 means five percent ahead.",
+    convention="(adj_close / adj_close@anchor) / (vs_adj_close / vs_adj_close@anchor) - 1; null before the anchor.",
+)
+def relret(p):
+    anchor = p.get("anchor")   # a UTC datetime (times=("anchor",)) or None: the first shared bar
+    at = (pl.col("date").is_not_null() if anchor is None
+          else pl.col("date").cast(pl.Datetime)
+          >= pl.lit(anchor.astimezone(timezone.utc).replace(tzinfo=None)))
+    return [pl.when(at).then((_A / _A.filter(at).first()) / (_B / _B.filter(at).first()) - 1)
+            .alias("relret")]
+
+
+@study(
+    name="returns", label="RETURNS", params={"vs": None},
+    colors={"r": "#61afef", "r_vs": "#e06c75"}, guides=(0,),
+    pane="own", price_basis="adjusted", group="Cross-symbol", full="Daily returns",
+    desc="Both tickers' 1-bar percent returns, as two lines.",
+    param_labels={"vs": "Versus"}, tickers=("vs",), wiki=None,
+    description="Draws each ticker's bar-to-bar percent return on the dates both trade, so a reader can see side by side which one moved more on any given day.",
+    convention="r = 100*pct_change(adj_close), r_vs = 100*pct_change(vs_adj_close) on shared bars.",
+)
+def returns(p):
+    return [_returns(_A).alias("r"), _returns(_B).alias("r_vs")]
+
+
+@study(
+    name="zscore", label="ZSCORE", params={"vs": None, "of": "ratio", "period": 60, "multiple": 1.0},
+    colors={"zscore": "#d19a66"}, guides=(-2, 0, 2), windows=("period",),
+    pane="own", price_basis="adjusted", group="Cross-symbol", full="Z-score of ratio or spread",
+    desc="How many standard deviations the ratio or spread sits from its N-bar mean.",
+    param_labels={"vs": "Versus", "of": "Of series", "period": "Length", "multiple": "Multiple"},
+    param_steps={"multiple": 0.1}, tickers=("vs",),
+    wiki="https://www.investopedia.com/terms/z/zscore.asp",
+    description="Standardises the price ratio or spread against its own recent mean and spread, so readings beyond two in either direction flag an unusually stretched relationship between the pair.",
+    convention="(x - rolling_mean(x, period)) / rolling_std(x, period, ddof=1), x = ratio or adj_close - multiple * vs_adj_close.",
+)
+def zscore(p):
+    if p["of"] not in ("ratio", "spread"):
+        raise ValueError(f"of must be ratio or spread, got {p['of']!r}")
+    x = _A / _B if p["of"] == "ratio" else _A - p["multiple"] * _B
+    return [_zscore(x, p["period"]).alias("zscore")]

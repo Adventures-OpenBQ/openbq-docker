@@ -32,7 +32,7 @@ def test_the_snapshot_carries_its_busl_licence_and_no_tests():
 def test_requirements_in_is_the_servers_dependencies_plus_its_runtime():
     project = tomllib.loads((HERE / 'source/server/pyproject.toml').read_text())['project']
     # openbq-ta is installed from this repository's live-grid/openbq-ta (the Dockerfile's `openbq-ta` context), not locked.
-    wanted = (set(project['dependencies']) - {'openbq-ta==0.1.0'}) | set(project['optional-dependencies']['postgres']) \
+    wanted = (set(project['dependencies']) - {'openbq-ta==0.2.0'}) | set(project['optional-dependencies']['postgres']) \
         | set(project['optional-dependencies']['snapshots']) | {'uvicorn[standard]>=0.29', 'websockets>=14'}
     lines = {l.strip() for l in (HERE / 'requirements.in').read_text().splitlines() if l.strip() and not l.startswith('#')}
     assert lines == wanted

@@ -27,7 +27,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from arts_charts.anchors import fixed_range
 from arts_charts.chart_body import (MAX_SYMBOLS, indicators, series_tickers, study_groups,
-                                   ticker_of, unresolved)
+                                   ticker_of, unresolved, versus_of)
 from arts_charts.chart_ops import OpError, apply
 from arts_charts.documents import WAKE_BY
 from arts_charts.snapshots import HEIGHT, WIDTH, SnapshotError, Snapshots
@@ -120,8 +120,9 @@ def ticker_query(body: dict, ticker: str, today: date | None = None,
     today = date.today() if today is None else today  # the worker passes its own clock's
     interval = body["interval"]
     days = 5 if is_intraday(interval) else 365
-    own = [s for s in body.get("series", [])
+    own = [s if s["type"] != "study" else versus_of(body, s)[0] for s in body.get("series", [])
            if s["type"] != "study" or ticker_of(body, s.get("symbol"))[0] == ticker]
+    own = [s for s in own if s is not None]   # a vs that does not resolve is noted, not asked for
     query = {"symbol": ticker, "interval": interval, "start": str(today - timedelta(days=days)),
              "end": str(today), "indicators": indicators(own),
              "basis": "raw" if body.get("adjusted") is False else "adjusted", "warmup": "auto"}

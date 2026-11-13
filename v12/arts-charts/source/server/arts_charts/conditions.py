@@ -142,7 +142,11 @@ def _resolve(term: Term, body: dict, served: dict[str, set[str]]) -> Term:
                              f"{'' if len(names) == 1 else 's'} ({', '.join(names)})")
     if any(not a or "=" in a for a in args):
         raise ConditionError(f"{term.text}: a parameter is a value, without '='")
-    chunk = term.name + "".join(f":{k}={v}" for k, v in zip(names, args))
+    values = list(args)
+    for key in entry.tickers:   # a cross-symbol study's vs is a series reference (cross-symbol §3)
+        if key in names[:len(values)]:
+            values[names.index(key)] = _ticker(term, values[names.index(key)], body)
+    chunk = term.name + "".join(f":{k}={v}" for k, v in zip(names, values))
     try:
         columns = _columns(chunk)
     except (KeyError, ValueError) as exc:

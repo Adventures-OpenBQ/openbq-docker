@@ -225,15 +225,26 @@ def chart_subtitle(params: ChartParams) -> str:
     return f"{params.interval} · {params.source} · {params.basis}"
 
 
+def vs_of(req: Req) -> str | None:
+    """The other ticker a cross-symbol study reads -- its `tickers=` parameter's value -- or None
+    (spec 2026-11-13 cross-symbol §3)."""
+    keys = get(req.name).tickers
+    value = req.params.get(keys[0]) if keys else None
+    return None if value is None else str(value)
+
+
 async def build_payload(
     params: ChartParams, frame: pl.DataFrame, eodhd_source=None,
     warmup: Callable[[Any, int], Awaitable[pl.DataFrame | None]] | None = None,
+    others: dict[str, pl.DataFrame] | None = None, refused: dict[str, str] | None = None,
 ) -> tuple[dict, list[Pane], pl.DataFrame, list]:
     """The figure, its panes, the computed frame, and its annotations.
 
     Annotations come back rather than being folded into the title and dropped:
     the title only ships on a FIGURE push, so a caller that cannot see them
     change cannot know to send one (see main.ta_chart_ws).
+
+    `others` are the bars of each `vs` ticker the server fetched; `refused` maps a `vs` it could not serve to the note its studies get instead (spec 2026-11-13 cross-symbol §3).
     """
     macro = None
     if params.macro and params.macro != "none":
@@ -250,6 +261,10 @@ async def build_payload(
     # study with an annotation, never the chart.
     reqs, notes = [], []
     for req in all_reqs(panes):
+        vs = vs_of(req)
+        if vs is not None and vs in (refused or {}):
+            notes.append((req, (refused or {})[vs]))   # only this study is left off
+            continue
         try:
             resolve_times(req)
             reqs.append(req)
@@ -280,7 +295,7 @@ async def build_payload(
     computed = frame
     if local:
         computed = LocalSource().series(
-            computed, local, params.interval, params.symbol, prior, notes).frame
+            computed, local, params.interval, params.symbol, prior, notes, others=others).frame
     if vendor and eodhd_source is not None:
         last_closed = str(frame["date"][-1]) if frame.height else ""
         # `prior` only when there is one: the vendor's signature is a contract
@@ -297,7 +312,7 @@ async def build_payload(
         # No vendor client configured: compute locally and say so, exactly as
         # an intraday request is answered.
         computed = LocalSource().series(
-            computed, vendor, params.interval, params.symbol, prior, notes).frame
+            computed, vendor, params.interval, params.symbol, prior, notes, others=others).frame
         annotations = annotations + [
             Annotation(col, "local", "no EODHD source configured")
             for r in vendor for col in columns_of(r)

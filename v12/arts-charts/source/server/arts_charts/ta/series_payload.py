@@ -43,11 +43,19 @@ def _times(frame: pl.DataFrame, offset: int) -> list[str | None]:
     return [None if s is None else str(s) for s in stamps]
 
 
+def _notes(annotations: Sequence) -> dict[str, str]:
+    """Each annotated column's notes, joined: what its chip says (spec 2026-11-13 cross-symbol §5)."""
+    out: dict[str, str] = {}
+    for a in annotations:
+        out[a.column] = f"{out[a.column]}; {a.note}" if a.column in out else a.note
+    return out
+
+
 def _series_of(
     frame: pl.DataFrame, pane: Pane,
-    annotated: frozenset[str] = frozenset(), source: str = "local",
+    annotated: dict[str, str] | None = None, source: str = "local",
 ) -> list[dict]:
-    """`annotated` is the set of columns an annotation covers -- i.e. every
+    """`annotated` maps each column an annotation covers to its notes -- i.e. every
     column the chosen source did NOT in the end supply -- and `source` is the
     chart-wide default for a request that named none.
 
@@ -58,6 +66,7 @@ def _series_of(
     on exactly the fallback paths EodhdSource annotates -- intraday, an
     unmapped indicator, a failed or throttled fetch.
     """
+    annotated = annotated or {}
     out = []
     for series in pane.series:
         render = dict(series.render)
@@ -100,6 +109,7 @@ def _series_of(
                 "source": series.req.source,
             },
             "render": render,
+            **({"note": annotated[series.column]} if series.column in annotated else {}),
             "data": [{"time": t, "value": v} for t, v in zip(times, values)],
         })
     return out
@@ -107,7 +117,7 @@ def _series_of(
 
 def _panes_of(
     frame: pl.DataFrame, panes: Sequence[Pane], start: int = 0,
-    annotated: frozenset[str] = frozenset(), source: str = "local",
+    annotated: dict[str, str] | None = None, source: str = "local",
 ) -> list[dict]:
     """`start` slices each series' points AFTER the times are computed.
 
@@ -142,7 +152,7 @@ def build_series_payload(
     """The full state: every candle and every series, at revision zero."""
     labels = {s.column: s.label for pane in panes for s in pane.series}
     marks = sorted({labels.get(a.column, a.column) for a in annotations})
-    annotated = frozenset(a.column for a in annotations)
+    annotated = _notes(annotations)
     return {"symbol": symbol, "subtitle": subtitle, "marks": marks,
             "candles": _candles(frame),
             "panes": _panes_of(frame, panes, 0, annotated, source)}
@@ -159,6 +169,6 @@ def series_delta(
     safe and cheaper.
     """
     start = max(0, min(start_row, frame.height))
-    annotated = frozenset(a.column for a in annotations)
+    annotated = _notes(annotations)
     return {"from": start, "candles": _candles(frame.slice(start)),
             "panes": _panes_of(frame, panes, start, annotated, source)}
