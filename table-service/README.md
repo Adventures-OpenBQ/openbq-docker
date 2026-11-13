@@ -87,7 +87,7 @@ Success, error, disconnect and deadlines release the associated lane's capacity.
 
 Standard provider SSRM POSTs are exact entries in `ssrmRoutes`, e.g.
 `/api/api/v1/reviewed_provider/rows`; review each actual provider endpoint before
-registering it. Unset, it defaults to the 23 routes od serves
+registering it. Unset, it defaults to the 41 routes od serves
 (`lanes/ssrm_widgets.json` as door paths); set it
 only to narrow that list, and `[]` turns SSRM through the door off. The web `SSRM_ROUTES_JSON` must contain the same paths. Query rules
 remain the existing bounded API policy; these POSTs use the existing injected Basic

@@ -71,7 +71,7 @@ export function validateConfig(settings, secrets) {
   if (!Number.isInteger(ssrmTimeoutMs) || ssrmTimeoutMs < 1000 || ssrmTimeoutMs > 300000) throw new Error("Invalid SSRM timeout");
   const tableService = settings.tableService ?? false;
   const tableDesktopPrincipal = settings.tableDesktopPrincipal ?? null;
-  // Unset = the 23 routes od serves (lanes/ssrm_widgets.json as door paths).
+  // Unset = the 41 routes od serves (lanes/ssrm_widgets.json as door paths).
   const ssrmRoutes = settings.ssrmRoutes ?? DEFAULT_SSRM_ROUTES;
   if (typeof tableService !== "boolean" || !validSsrmRoutes(ssrmRoutes)) throw new Error("Invalid table settings");
   if (tableDesktopPrincipal !== null && !/^desktop:[A-Za-z0-9_-]{1,100}$/.test(tableDesktopPrincipal)) throw new Error("Invalid desktop table principal");
