@@ -159,8 +159,6 @@ def _placed(i: int, s) -> None:
     elif "anchor" in s:
         raise BodyError(f"{where}: only a performance series has an anchor")
     if "symbol" in s:
-        if s["type"] == "study":
-            raise BodyError(f"{where}: a study follows the chart's symbol (list:1) and takes no symbol")
         # A performance line keeps its pre-list rule (text, above), so one saved before lists
         # re-saves; client series.ts symbolAllowed makes the same split.
         if s["type"] != "performance" and (
@@ -286,32 +284,55 @@ def unresolved(body: dict) -> list[str]:
     return out
 
 
-def series_tickers(body: dict) -> tuple[list[str | None], list[str]]:
-    """Each series' ticker as its card resolves it (spec 2026-11-13 §2) -- `MSFT (list:2)` for a
-    list position -- or None, with a note naming why. Studies follow list:1. A symbol group is
-    the dashboard's, so the server names it rather than resolving it."""
+def ticker_of(body: dict, ref: str | None) -> tuple[str | None, str | None]:
+    """The ticker a series `symbol` names on this document (spec 2026-11-13 §2), or None and why.
+    Absent, `$ymbol` and `list:1` are the list's first entry; a literal is upper-cased. A symbol
+    group is the dashboard's, so the server names it rather than resolving it."""
     symbols = body.get("symbols") or [body["symbol"]]
+    if ref is None or ref == "$ymbol":
+        return symbols[0], None
+    if ref.startswith("list:"):
+        n = int(ref[len("list:"):])
+        if n <= len(symbols):
+            return symbols[n - 1], None
+        entries = "entry" if len(symbols) == 1 else "entries"
+        return None, f"list has {len(symbols)} {entries}, no {ref}"
+    if ref.startswith("$group:"):
+        return None, "a symbol group is resolved by the dashboard, not by the server"
+    return ref.upper(), None
+
+
+def _label(ticker: str, ref: str | None) -> str:
+    return f"{ticker} ({ref})" if ref is not None and ref.startswith("list:") else ticker
+
+
+def series_tickers(body: dict) -> tuple[list[str | None], list[str]]:
+    """Each series' ticker as its card resolves it -- `MSFT (list:2)` for a list position --
+    or None, with a note naming why (ticker_of)."""
     tickers: list[str | None] = []
     notes: list[str] = []
     for i, s in enumerate(body.get("series", [])):
-        ref = s.get("symbol", "$ymbol")
-        if s["type"] == "study" or ref == "$ymbol":
-            tickers.append(symbols[0])
-        elif ref.startswith("list:"):
-            n = int(ref[len("list:"):])
-            if n <= len(symbols):
-                tickers.append(f"{symbols[n - 1]} ({ref})")
-            else:
-                tickers.append(None)
-                entries = "entry" if len(symbols) == 1 else "entries"
-                notes.append(f"series[{i}] {ref}: list has {len(symbols)} {entries}, no {ref}")
-        elif ref.startswith("$group:"):
-            tickers.append(None)
-            notes.append(f"series[{i}] {ref}: a symbol group is resolved by the dashboard, "
-                         "not by the server")
-        else:
-            tickers.append(ref.upper())
+        ref = s.get("symbol")
+        ticker, why = ticker_of(body, ref)
+        tickers.append(None if ticker is None else _label(ticker, ref))
+        if ticker is None:
+            notes.append(f"series[{i}] {ref}: {why}")
     return tickers, notes
+
+
+def study_groups(body: dict) -> list[tuple[str, str, list[dict]]]:
+    """(ticker, label, studies) per ticker a study draws on -- the card's study sockets
+    (spec 2026-11-13 §2-3). list:1 is first and always present, with or without studies; a
+    study whose reference does not resolve is in none (series_tickers notes it)."""
+    first = (body.get("symbols") or [body["symbol"]])[0]
+    groups: dict[str, tuple[str, list[dict]]] = {first: (first, [])}
+    for s in body.get("series", []):
+        if s["type"] != "study":
+            continue
+        ticker, _ = ticker_of(body, s.get("symbol"))
+        if ticker is not None:
+            groups.setdefault(ticker, (_label(ticker, s.get("symbol")), []))[1].append(s)
+    return [(ticker, label, studies) for ticker, (label, studies) in groups.items()]
 
 
 def with_defaults(body: dict) -> dict:

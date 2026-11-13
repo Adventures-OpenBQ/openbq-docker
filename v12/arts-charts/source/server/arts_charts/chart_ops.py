@@ -24,6 +24,7 @@ import json
 import uuid
 
 from arts_charts.anchors import instant, is_anchor
+from arts_charts.chart_body import SYMBOL_REF
 from openbq_ta.registry import REGISTRY
 
 MAX_OPS = 64
@@ -141,8 +142,16 @@ def _times(name: str, params: dict) -> None:
             _instant(params, key, obs=True)
 
 
+def _symbol(op: dict) -> str:
+    """A study's symbol as a series takes one (spec 2026-11-13 §3): refused when malformed."""
+    value = op["symbol"]
+    if not isinstance(value, str) or SYMBOL_REF.fullmatch(value) is None:
+        raise OpError("symbol must be a ticker, $ymbol, $group:<Name> or list:<n>")
+    return value
+
+
 def _add_study(body: dict, op: dict) -> None:
-    _keys(op, ("name",), ("params", "panel", "side", "color", "style"))
+    _keys(op, ("name",), ("params", "symbol", "panel", "side", "color", "style"))
     name = op["name"]
     if not isinstance(name, str) or name not in REGISTRY:
         raise OpError(f"unknown indicator {str(name)[:64]!r}")
@@ -160,6 +169,8 @@ def _add_study(body: dict, op: dict) -> None:
     defaults = {k: v for k, v in REGISTRY[name].params.items() if v is not None}
     entry = {"id": str(uuid.uuid4()), "type": "study", "name": name,
              "params": {**defaults, **params}, "panel": panel, "side": side}
+    if "symbol" in op:
+        entry["symbol"] = _symbol(op)
     entry["color"] = op["color"] if "color" in op else _next_color(series)
     if style:
         entry["style"] = style
@@ -173,11 +184,16 @@ def _remove_study(body: dict, op: dict) -> None:
 
 
 def _retune_study(body: dict, op: dict) -> None:
-    _keys(op, ("series",), ("params", "color", "style"))
+    _keys(op, ("series",), ("params", "symbol", "color", "style"))
     found = _study(body, op["series"])
     if "params" in op:
         found["params"] = _merge(found.get("params", {}), _object(op, "params"))
         _times(found["name"], found["params"])
+    if "symbol" in op:
+        if op["symbol"] is None:
+            found.pop("symbol", None)
+        else:
+            found["symbol"] = _symbol(op)
     if "style" in op:
         found["style"] = _merge(found.get("style", {}), _object(op, "style"))
         if not found["style"]:

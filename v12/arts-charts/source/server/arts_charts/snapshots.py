@@ -128,7 +128,11 @@ class _Page:
         if url.path != "/ta_series_ws":
             await ws.close()
             return
-        response = await self.api.get("/ta_snapshot", params=url.query)
+        self.inflight += 1
+        try:
+            response = await self.api.get("/ta_snapshot", params=url.query)
+        finally:
+            self.inflight -= 1
         if response.status_code == 200:
             payload = response.json()
             ws.send(json.dumps({"type": "series", "rev": 0, **{k: payload[k] for k in FRAME}}))

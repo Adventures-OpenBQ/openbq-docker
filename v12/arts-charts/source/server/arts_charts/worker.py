@@ -69,7 +69,7 @@ import httpx
 
 from arts_charts.auth import StackAuth, odp_credentials
 from arts_charts.calendar import XNYS, ExchangeCalendar, UsEquitySessions
-from arts_charts.chart_tools import WAKE_TOOLS, compute_query
+from arts_charts.chart_tools import WAKE_TOOLS, ticker_query
 from arts_charts.classify import classify
 from arts_charts.conditions import (
     SETTLE, ConditionError, bar_end, complete_index, evaluate, parse, resolve,
@@ -213,17 +213,26 @@ class Worker:
             condition = resolve(parse(watch["condition"]), body)
         except ConditionError as exc:
             return await self._broken(watch, f"the condition no longer fits the chart: {exc}", now)
-        query = compute_query(body, today=now.astimezone(timezone.utc).date(), honour_range=False)
-        # fresh: a paced read may be from before the bar ended, with its partial prices.
-        response = await self.api.get("/ta_snapshot", params={**query, "fresh": "true"})
-        if response.status_code != 200:
-            return await self._failed(watch, "bars unavailable", now)
+        # One fresh read per ticker the condition names (spec 2026-11-13 §3); the left side's
+        # ticker is the clock (plan Q3). fresh: a paced read may be from before the bar ended.
+        clock = condition.left.ticker
+        today = now.astimezone(timezone.utc).date()
+        read: dict[str, dict] = {}
+        for ticker in dict.fromkeys(t.ticker for t in (condition.left, condition.right)
+                                    if t.ticker is not None):
+            response = await self.api.get("/ta_snapshot", params={
+                **ticker_query(body, ticker, today=today, honour_range=False), "fresh": "true"})
+            if response.status_code != 200:
+                return await self._failed(
+                    watch, "bars unavailable" if ticker == clock else f"{ticker}: bars unavailable",
+                    now)
+            read[ticker] = response.json()
         if watch["failures"] or watch["state"] != "ok":  # failures are consecutive (ruling 6)
             self.store.set_watch(watch["id"], {"failures": 0, "state": "ok", "error": None})
-        snapshot = response.json()
+        snapshot = read.pop(clock)
         candles = snapshot["candles"]
-        self._due[watch["id"]] = self._next_look(body, candles, now)
-        i = complete_index(candles, body["symbol"], body["interval"], now, self.sessions)
+        self._due[watch["id"]] = self._next_look(body, clock, candles, now)
+        i = complete_index(candles, clock, body["interval"], now, self.sessions)
         if i is None:
             return
         bar_time = datetime.fromisoformat(candles[i]["time"]).isoformat()
@@ -233,15 +242,15 @@ class Worker:
                                                   "state": "ok", "error": None},
                                     where={"last_bar": watch["last_bar"]}):
             return  # another worker took this bar
-        result = evaluate(condition, snapshot, i)
+        result = evaluate(condition, snapshot, i, read)
         if result["fired"]:
             await self._fire(watch, doc, bar_time, result["values"], now)
 
-    def _next_look(self, body: dict, candles: list[dict], now: datetime) -> datetime:
+    def _next_look(self, body: dict, symbol: str, candles: list[dict], now: datetime) -> datetime:
         """When the bar being formed completes; or, when every served bar is complete (after
         the close, or a bar late from ODP), one bar's width from now, 1-15 minutes."""
         if candles:
-            end = bar_end(body["symbol"], body["interval"],
+            end = bar_end(symbol, body["interval"],
                           datetime.fromisoformat(candles[-1]["time"]), self.sessions).replace(tzinfo=timezone.utc)
             if end + SETTLE > now:
                 return end + SETTLE

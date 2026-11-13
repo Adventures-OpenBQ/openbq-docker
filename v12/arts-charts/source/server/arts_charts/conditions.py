@@ -19,12 +19,13 @@ never fires.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from arts_charts.anchors import instant
 from arts_charts.calendar import UsEquitySessions
-from arts_charts.chart_body import indicators
+from arts_charts.chart_body import SYMBOL_REF, indicators, study_groups, ticker_of
 from arts_charts.classify import classify
 from arts_charts.history_pacer import interval_step
 from arts_charts.ta.panes import assign
@@ -45,6 +46,7 @@ _SPLIT = (re.compile(r"\s*(.+?)\s+(crosses_above|crosses_below)\s+(.+?)\s*"),
           re.compile(r"\s*([^<>]+?)\s*([<>])\s*([^<>]+?)\s*"))
 _TERM = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)(?:\(([^()]*)\))?(?:\.([A-Za-z_][A-Za-z0-9_]*))?")
 _NUMBER = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
+_WINDOW = re.compile(r"\d+bd", re.I)
 
 
 class ConditionError(ValueError):
@@ -59,6 +61,8 @@ class Term:
     output: str | None = None
     number: float | None = None
     column: str | None = None  # after resolve: a price name or a served study column
+    symbol: str | None = None  # a leading symbol as written (spec 2026-11-13 §3)
+    ticker: str | None = None  # after resolve: the ticker it reads; None for a number
 
 
 @dataclass(frozen=True)
@@ -98,23 +102,47 @@ def _columns(chunk: str) -> list[str]:
     return [s.column for pane in assign(None, parse_indicators(chunk)) for s in pane.series]
 
 
-def _resolve(term: Term, served: set[str]) -> Term:
+def _leading(arg: str) -> bool:
+    """Whether a first argument can be a symbol (plan R1): the series-symbol rule, and not a
+    number, a bd window or a time literal. The caller adds the text-parameter rule."""
+    return (SYMBOL_REF.fullmatch(arg) is not None and _NUMBER.fullmatch(arg) is None
+            and _WINDOW.fullmatch(arg) is None and instant(arg) is None and "@" not in arg)
+
+
+def _ticker(term: Term, symbol: str | None, body: dict) -> str:
+    if symbol is not None and symbol.startswith("$group:"):
+        raise ConditionError(f"{term.text}: a symbol group is resolved by the dashboard; "
+                             "a watch cannot name one")
+    ticker, why = ticker_of(body, symbol)
+    if ticker is None:
+        raise ConditionError(f"{term.text}: {why}")
+    return ticker
+
+
+def _resolve(term: Term, body: dict, served: dict[str, set[str]]) -> Term:
     if term.number is not None:
         return term
+    args, symbol = term.args, None
     if term.name in PRICES:
-        if term.args or term.output or "(" in term.text:
+        if len(args) == 1 and term.output is None and _leading(args[0]):
+            symbol, args = args[0], ()
+        elif args or term.output or "(" in term.text:
             raise ConditionError(f"{term.text}: {term.name} takes no parameters or output")
-        return term
+        return replace(term, args=(), symbol=symbol, ticker=_ticker(term, symbol, body))
     entry = REGISTRY.get(term.name)
     if entry is None:
         raise ConditionError(f"{term.text}: no study {term.name!r}")
     names = list(entry.params)
-    if len(term.args) > len(names):
+    first_is_text = bool(names) and (entry.params[names[0]] is None
+                                     or isinstance(entry.params[names[0]], str))
+    if args and _leading(args[0]) and not (first_is_text and len(args) <= len(names)):
+        symbol, args = args[0], args[1:]
+    if len(args) > len(names):
         raise ConditionError(f"{term.text}: {term.name} takes at most {len(names)} parameter"
                              f"{'' if len(names) == 1 else 's'} ({', '.join(names)})")
-    if any(not a or "=" in a for a in term.args):
+    if any(not a or "=" in a for a in args):
         raise ConditionError(f"{term.text}: a parameter is a value, without '='")
-    chunk = term.name + "".join(f":{k}={v}" for k, v in zip(names, term.args))
+    chunk = term.name + "".join(f":{k}={v}" for k, v in zip(names, args))
     try:
         columns = _columns(chunk)
     except (KeyError, ValueError) as exc:
@@ -123,24 +151,35 @@ def _resolve(term: Term, served: set[str]) -> Term:
     if term.output is not None and term.output not in stems:
         raise ConditionError(f"{term.text}: no output {term.output!r}; outputs: {', '.join(stems)}")
     column = columns[stems.index(term.output) if term.output else 0]
-    if column not in served:
-        raise ConditionError(f"{term.text}: that study is not on this chart")
-    return Term(term.text, term.name, term.args, term.output, column=column)
+    ticker = _ticker(term, symbol, body)
+    if column not in served.get(ticker, set()):
+        where = "" if symbol is None else f" for {symbol}"
+        raise ConditionError(f"{term.text}: that study is not on this chart{where}")
+    return Term(term.text, term.name, args, term.output, column=column, symbol=symbol,
+                ticker=ticker)
 
 
 def resolve(condition: Condition, body: dict) -> Condition:
-    """The condition with every series bound to a column this chart is served."""
+    """The condition with every series bound to a ticker and a column it is served there."""
     if body.get("interval") not in WATCHABLE:
         raise ConditionError(f"a {body.get('interval')} chart cannot be watched; "
                              f"watchable: {', '.join(WATCHABLE)} (5d bars have no fixed end)")
-    served = set(_columns(indicators(body.get("series", []))))
-    return Condition(_resolve(condition.left, served), condition.op,
-                     _resolve(condition.right, served))
+    served = {ticker: set(_columns(indicators(studies)))
+              for ticker, _, studies in study_groups(body)}
+    return Condition(_resolve(condition.left, body, served), condition.op,
+                     _resolve(condition.right, body, served))
 
 
-def _value(term: Term, snapshot: dict, i: int):
+def _value(term: Term, snapshot: dict, i: int, others: dict):
     if term.number is not None:
         return term.number
+    if term.ticker in others:
+        # Another ticker's side, read at the clock bar's time (plan R7): no bar there is a gap.
+        at = snapshot["candles"][i]["time"]
+        snapshot = others[term.ticker]
+        i = next((j for j, c in enumerate(snapshot["candles"]) if c["time"] == at), None)
+        if i is None:
+            return None
     candle = snapshot["candles"][i]
     if term.column in PRICES:
         return candle.get(term.column)
@@ -152,9 +191,12 @@ def _value(term: Term, snapshot: dict, i: int):
     return None
 
 
-def evaluate(condition: Condition, snapshot: dict, i: int) -> dict:
-    """{fired, values} for candle `i` of a /ta_snapshot payload (crosses read `i - 1` too)."""
-    left, right = _value(condition.left, snapshot, i), _value(condition.right, snapshot, i)
+def evaluate(condition: Condition, snapshot: dict, i: int, others: dict | None = None) -> dict:
+    """{fired, values} for candle `i` of a /ta_snapshot payload (crosses read `i - 1` too).
+    `others` holds the snapshots of the other tickers the condition names, by ticker."""
+    others = others or {}
+    left = _value(condition.left, snapshot, i, others)
+    right = _value(condition.right, snapshot, i, others)
     values = {"bar_time": snapshot["candles"][i]["time"],
               condition.left.text: left, condition.right.text: right}
     if None in (left, right):
@@ -163,7 +205,8 @@ def evaluate(condition: Condition, snapshot: dict, i: int) -> dict:
         return {"fired": left > right, "values": values}
     if condition.op == "<":
         return {"fired": left < right, "values": values}
-    before = ((_value(condition.left, snapshot, i - 1), _value(condition.right, snapshot, i - 1))
+    before = ((_value(condition.left, snapshot, i - 1, others),
+             _value(condition.right, snapshot, i - 1, others))
               if i > 0 else (None, None))
     values["previous"] = {condition.left.text: before[0], condition.right.text: before[1]}
     if None in before:

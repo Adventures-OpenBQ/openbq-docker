@@ -26,7 +26,8 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from arts_charts.anchors import fixed_range
-from arts_charts.chart_body import MAX_SYMBOLS, indicators, series_tickers, unresolved
+from arts_charts.chart_body import (MAX_SYMBOLS, indicators, series_tickers, study_groups,
+                                   ticker_of, unresolved)
 from arts_charts.chart_ops import OpError, apply
 from arts_charts.documents import WAKE_BY
 from arts_charts.snapshots import HEIGHT, WIDTH, SnapshotError, Snapshots
@@ -102,33 +103,48 @@ def _out(value) -> str:
     return json.dumps(value)
 
 
-def compute_query(body: dict, today: date | None = None, honour_range: bool = True) -> dict:
-    """The /ta_snapshot query for a document: what its card asks /ta_series_ws for.
+def ticker_query(body: dict, ticker: str, today: date | None = None,
+                 honour_range: bool = True) -> dict:
+    """The /ta_snapshot query for one ticker's study socket: what the card asks /ta_series_ws
+    for on that ticker (spec 2026-11-13 §2) -- the document's window, interval, basis and
+    provider, and only the studies on that ticker. The session decision is list:1's, as the
+    card sends list:1's to every socket (plan R6).
 
-    The window is the card's own default (window.ts barsWindow): five days
-    intraday, a year otherwise, ending today; `warmup=auto` pads it as the
-    card's padStart does. The studies are the indicator string
-    chart_body.validate checked.
-
-    A fixed saved range (both ends literal instants) is honoured; a relative one is not
-    (rulings 2026-11-05): S14 stamps `now` with the save instant, so describe_chart and a
-    snapshot would otherwise freeze on the save date. A watch passes `honour_range=False`:
-    its window always ends today, so it sees each new bar.
+    The window is the card's own default (window.ts barsWindow): five days intraday, a year
+    otherwise, ending today; `warmup=auto` pads it as the card's padStart does. A fixed saved
+    range (both ends literal instants) is honoured; a relative one is not (rulings 2026-11-05):
+    S14 stamps `now` with the save instant, so describe_chart and a snapshot would otherwise
+    freeze on the save date. A watch passes `honour_range=False`: its window always ends today,
+    so it sees each new bar.
     """
     today = date.today() if today is None else today  # the worker passes its own clock's
-    interval, symbol = body["interval"], body["symbol"]
+    interval = body["interval"]
     days = 5 if is_intraday(interval) else 365
-    query = {"symbol": symbol, "interval": interval, "start": str(today - timedelta(days=days)),
-             "end": str(today), "indicators": indicators(body.get("series", [])),
+    own = [s for s in body.get("series", [])
+           if s["type"] != "study" or ticker_of(body, s.get("symbol"))[0] == ticker]
+    query = {"symbol": ticker, "interval": interval, "start": str(today - timedelta(days=days)),
+             "end": str(today), "indicators": indicators(own),
              "basis": "raw" if body.get("adjusted") is False else "adjusted", "warmup": "auto"}
     if "provider" in body:
         query["provider"] = body["provider"]
     # The card's path (ta/session.regular_only) filters on the same decision.
-    if body.get("session") == "regular" and has_regular_session(symbol, interval):
+    if body.get("session") == "regular" and has_regular_session(body["symbol"], interval):
         query["session"] = "regular"
     if honour_range and (fixed := fixed_range(body)):
         query["start"], query["end"] = fixed
     return query
+
+
+def compute_query(body: dict, today: date | None = None, honour_range: bool = True) -> dict:
+    """list:1's query: what the card's main study socket is asked for (ticker_query)."""
+    return ticker_query(body, body["symbol"], today, honour_range)
+
+
+def study_queries(body: dict, today: date | None = None,
+                  honour_range: bool = True) -> list[tuple[str, str, dict]]:
+    """(ticker, label, query) per study socket the card opens, list:1 first (study_groups)."""
+    return [(ticker, label, ticker_query(body, ticker, today, honour_range))
+            for ticker, label, _ in study_groups(body)]
 
 
 def readout(snapshot: dict) -> dict:
@@ -162,14 +178,24 @@ async def describe(api: httpx.AsyncClient, doc: dict) -> dict:
     result["series_tickers"], unresolved_refs = series_tickers(doc["body"])
     if notes := notes + unresolved_refs:
         result["notes"] = notes
-    response = await api.get("/ta_snapshot", params=query)
-    if response.status_code == 200:
-        result["readout"] = readout(response.json())
-    elif response.status_code == 502:
-        result["readout_error"] = "bars unavailable"
-    else:
-        result["readout_error"] = response.json().get("detail", f"HTTP {response.status_code}")
+    result.update(_reading(await api.get("/ta_snapshot", params=query)))
+    # Each other ticker's studies, from its own socket's query (spec 2026-11-13 §3).
+    # study_groups adds a ticker after list:1 only for a study, so each entry has one.
+    others = [(label, q) for _, label, q in study_queries(doc["body"])[1:]]
+    if others:
+        result["ticker_readouts"] = [
+            {"ticker": label, **_reading(await api.get("/ta_snapshot", params=q))}
+            for label, q in others]
     return _bounded(result)
+
+
+def _reading(response: httpx.Response) -> dict:
+    """A /ta_snapshot answer as describe reports it: the readout, or why there is none."""
+    if response.status_code == 200:
+        return {"readout": readout(response.json())}
+    if response.status_code == 502:
+        return {"readout_error": "bars unavailable"}
+    return {"readout_error": response.json().get("detail", f"HTTP {response.status_code}")}
 
 
 def _bounded(result: dict) -> dict:
@@ -190,6 +216,11 @@ def _bounded(result: dict) -> dict:
     while studies and len(_out(result)) > DESCRIBE_MAX:
         studies.pop()
         omitted["studies"] = omitted.get("studies", 0) + 1
+    for entry in reversed(result.get("ticker_readouts", [])):
+        studies = entry.get("readout", {}).get("studies", [])
+        while studies and len(_out(result)) > DESCRIBE_MAX:
+            studies.pop()
+            omitted["studies"] = omitted.get("studies", 0) + 1
     if len(_out(result)) > DESCRIBE_MAX:
         # Whatever is left (a long title, 64 series) is still too big: identity only.
         doc = result["document"]
@@ -324,8 +355,9 @@ def chart_mcp(api: httpx.AsyncClient, snapshots: Snapshots, store: Store) -> MCP
     @tools.tool(structured_output=False, description=(
         "Create a chart in the library and return it. `symbol` is one ticker, or a comma list of "
         "up to 5 as the card's symbol box takes it (AAPL,MSFT): the first is the chart's symbol and "
-        "its studies follow it. `studies` is a list of "
-        "{name, params?, panel?, side?, color?, style?}; an overlay goes on the price panel, "
+        "its studies follow it unless a study names a symbol: a ticker, $ymbol or list:<n>. "
+        "`studies` is a list of "
+        "{name, params?, symbol?, panel?, side?, color?, style?}; an overlay goes on the price panel, "
         f"an own-pane study in the last panel, unless panel/side are given. Studies: {menu}"))
     async def create_chart(ctx: Context, symbol: str, interval: str,
                            studies: list[dict] | None = None, title: str | None = None) -> str:
@@ -353,13 +385,15 @@ def chart_mcp(api: httpx.AsyncClient, snapshots: Snapshots, store: Store) -> MCP
         "the revision you described; if the chart moved since, nothing is written and the "
         "current document comes back with status 'stale'. Ops (chart-ops/1): "
         "{op:'set_interval', interval}; {op:'set_range', from, to} (ISO-8601 instants, e.g. "
-        "2026-10-01T13:30:00Z; never an expression); {op:'clear_range'}; {op:'add_study', name, params?, panel?, side?, "
+        "2026-10-01T13:30:00Z; never an expression); {op:'clear_range'}; {op:'add_study', name, params?, symbol?, panel?, side?, "
         "color?, style?}; {op:'remove_study', series}; {op:'retune_study', series, params?, "
-        "color?, style?} (params merge; null removes a key); {op:'add_anchor', anchor} (an ISO-8601 instant or OBS-n); "
+        "symbol?, color?, style?} (params merge; null removes a key); {op:'add_anchor', anchor} (an ISO-8601 instant or OBS-n); "
         "{op:'remove_anchor', anchor}; {op:'add_level', price}; {op:'remove_level', index}; "
         "{op:'add_drawing', drawing}; {op:'remove_drawing', index}; {op:'set_title', title}. "
         "`series` is a series id or its index in describe_chart's series list. "
         "A study's time parameter (avwap anchor) is an ISO-8601 instant or OBS-n. "
+        "A study's symbol is a ticker, $ymbol, $group:<Name> or list:<n> (the chart's n-th "
+        "symbol); omitted, it follows list:1; null in retune_study removes it. "
         f"Studies: {menu}"))
     async def arrange_chart(ctx: Context, chart_id: str, expected_revision: int,
                             ops: list[dict]) -> str:
@@ -405,7 +439,10 @@ def chart_mcp(api: httpx.AsyncClient, snapshots: Snapshots, store: Store) -> MCP
         "condition is '<series> <op> <value|series>'. A series is close, high, low, volume, or "
         "a study on the chart as name(params in registry order)[.output]: rsi(14), "
         "bbands(20,2).bb_up; without an output, a study's first line (AVWAP cannot be watched yet: "
-        "no tick source). Ops: "
+        "no tick source). "
+        "A series may name its ticker first -- close(list:2), rsi(MSFT, 14), sma(list:2, 50) -- "
+        "a ticker, $ymbol or list:<n> (not a $group:); without one it is list:1, and the two "
+        "sides may name different tickers, read at the same bar. Ops: "
         "> < crosses_above crosses_below. cooldown: seconds after a firing before the next "
         f"one (default {DEFAULT_COOLDOWN}). Checked against the chart when saved."))
     async def create_watch(ctx: Context, chart_id: str, condition: str, note: str = "",
