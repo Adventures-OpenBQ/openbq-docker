@@ -777,7 +777,7 @@ export function SeriesPalette({
       );
     }
     if (!SYMBOL_REF.test(performanceSymbol(target.symbol))) return null;
-    if (target.type === "performance" && (target.symbol.trim() === ""|| target.anchor.trim() === "")) return null;
+    if (target.type === "performance" && (target.symbol.trim() === "" || target.anchor.trim() === "")) return null;
     const isColoured = COLOURED.includes(target.type as PriceType);
     // Only what the NEW type can use survives (T7 review, finding 3): staging
     // another row while an edit is open is a supported gesture, and spreading
