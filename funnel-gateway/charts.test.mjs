@@ -345,3 +345,10 @@ test("companion widgets: token required, pair injected, no query, path tricks ne
     assert.notEqual((await call(port, path)).status, 200, path);
   assert.equal(seen.length, count);
 });
+
+test("/ta_snapshot passes a cross-symbol study's caret ticker; space and % stay refused (spec 2026-11-13 cross-symbol §4)", () => {
+  assert.equal(chartsRoute(u("/ta_snapshot?symbol=AAPL&interval=1d&indicators=ratio:vs=^GSPC"), "GET")?.kind, "json");
+  for (const bad of ["/ta_snapshot?indicators=ratio:vs=^GSPC%20x", "/ta_snapshot?indicators=ratio:vs=%25GSPC"]) {
+    assert.equal(chartsRoute(u(bad), "GET"), null, bad);
+  }
+});
