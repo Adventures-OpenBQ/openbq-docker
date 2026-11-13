@@ -129,10 +129,9 @@ const PROVIDER_RE = /^(?:kdb|eodhd)$/;
 //            colons and dashes (avwap:anchor=2026-08-28T14:30:00). A bounded character
 //            class with NO space (parse_indicators strips them, but what leaves this door
 //            should be exactly what a client wrote) and no "%", capped at 240 characters.
-//            "^" is a cross-symbol study's vs ticker (ratio:vs=^GSPC, spec 2026-11-13); the server checks every vs against its own ticker rule.
 const SOURCE_RE = /^(?:local|eodhd)$/;
 const MACRO_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
-const INDICATORS_RE = /^[A-Za-z0-9:=.,+_^-]{0,240}$/;
+const INDICATORS_RE = /^[A-Za-z0-9:=.,+_-]{0,240}$/;
 // live-grid's /ticks `limit`: 1..1000. live-grid caps anything larger itself and
 // 422s a value below 1, so the door refuses outside that window rather than
 // relaying a value it knows will be clamped or rejected -- a clamped parameter

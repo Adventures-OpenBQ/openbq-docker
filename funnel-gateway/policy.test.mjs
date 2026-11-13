@@ -368,11 +368,3 @@ test("managed table routes and explicitly registered SSRM POSTs are method bound
   for (const path of ["/table/sources/s_1", "/table/sessions/session_1", "/table/exports/export_1"]) assert.ok(route(path, "DELETE"));
   for (const [path, method] of [["/table/sessions", "GET"], ["/table/healthz", "POST"], ["/table/sessions/x/commands?url=http://evil", "POST"], ["/table/exports/x/batches?sequence=-1", "GET"], ["/table/exports/x/batches?sequence=0&sequence=1", "GET"], ["/api/api/v1/test/other", "POST"], ["/table/sessions/x/anything", "POST"]]) assert.equal(route(path, method), null);
 });
-test("indicators carry a cross-symbol study's caret ticker; space and % stay refused (spec 2026-11-13 cross-symbol §4)", () => {
-  assert.equal(route("/grid/ta_chart?symbol=AAPL&indicators=ratio:vs=^GSPC"),
-    "/grid/ta_chart?symbol=AAPL&indicators=ratio%3Avs%3D%5EGSPC");
-  for (const bad of ["/grid/ta_chart?symbol=AAPL&indicators=ratio:vs=^GSPC%20x",
-                     "/grid/ta_chart?symbol=AAPL&indicators=ratio:vs=%25GSPC"]) {
-    assert.equal(route(bad), null, bad);
-  }
-});
