@@ -26,7 +26,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from arts_charts.anchors import fixed_range
-from arts_charts.chart_body import indicators, unresolved
+from arts_charts.chart_body import MAX_SYMBOLS, indicators, series_tickers, unresolved
 from arts_charts.chart_ops import OpError, apply
 from arts_charts.documents import WAKE_BY
 from arts_charts.snapshots import HEIGHT, WIDTH, SnapshotError, Snapshots
@@ -156,9 +156,12 @@ async def describe(api: httpx.AsyncClient, doc: dict) -> dict:
     /ta_series_ws sends a card -- and bounded to DESCRIBE_MAX characters."""
     query = compute_query(doc["body"])
     result = {"document": doc, "window": {"start": query["start"], "end": query["end"]}}
-    if skipped := unresolved({k: v for k, v in doc["body"].items() if k != "range"}):
-        result["notes"] = [f"{entry} has no saved instant; it is skipped until the chart is next saved in BDOBB"
-                           for entry in skipped]
+    skipped = unresolved({k: v for k, v in doc["body"].items() if k != "range"})
+    notes = [f"{entry} has no saved instant; it is skipped until the chart is next saved in BDOBB"
+             for entry in skipped]
+    result["series_tickers"], unresolved_refs = series_tickers(doc["body"])
+    if notes := notes + unresolved_refs:
+        result["notes"] = notes
     response = await api.get("/ta_snapshot", params=query)
     if response.status_code == 200:
         result["readout"] = readout(response.json())
@@ -319,15 +322,21 @@ def chart_mcp(api: httpx.AsyncClient, snapshots: Snapshots, store: Store) -> MCP
                       **meta, "bytes": len(png), **described})]
 
     @tools.tool(structured_output=False, description=(
-        "Create a chart in the library and return it. `studies` is a list of "
+        "Create a chart in the library and return it. `symbol` is one ticker, or a comma list of "
+        "up to 5 as the card's symbol box takes it (AAPL,MSFT): the first is the chart's symbol and "
+        "its studies follow it. `studies` is a list of "
         "{name, params?, panel?, side?, color?, style?}; an overlay goes on the price panel, "
         f"an own-pane study in the last panel, unless panel/side are given. Studies: {menu}"))
     async def create_chart(ctx: Context, symbol: str, interval: str,
                            studies: list[dict] | None = None, title: str | None = None) -> str:
         who = caller(ctx)
         who.check("create_chart")
-        symbol = symbol.strip().upper()
-        body = {"schema": "chart/1", "symbol": symbol, "interval": interval}
+        # The text the card's symbol box takes (spec 2026-11-13 §4): a ticker or a comma list.
+        symbols = [t.strip().upper() for t in symbol.split(",") if t.strip()] or [""]
+        if len(symbols) > MAX_SYMBOLS:
+            raise Refused(f"a chart holds at most {MAX_SYMBOLS} symbols")
+        body = {"schema": "chart/1", "symbol": symbols[0], "interval": interval,
+                **({"symbols": symbols} if len(symbols) > 1 else {})}
         if studies:
             if not all(isinstance(s, dict) for s in studies):
                 raise Refused("studies must be a list of objects")
@@ -335,7 +344,7 @@ def chart_mcp(api: httpx.AsyncClient, snapshots: Snapshots, store: Store) -> MCP
                 body, _ = apply(body, [{**s, "op": "add_study"} for s in studies])
             except OpError as exc:
                 raise Refused(str(exc).replace("ops[", "studies[")) from None
-        response = await api.post("/charts", json={"title": title or symbol, "body": body},
+        response = await api.post("/charts", json={"title": title or symbols[0], "body": body},
                                   headers={"X-Updated-By": who.by})
         return _out({"status": "saved", "document": await _json(response, 201)})
 

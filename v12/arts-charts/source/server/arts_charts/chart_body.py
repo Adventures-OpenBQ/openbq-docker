@@ -9,7 +9,9 @@ series are checked by `router.refuse` over the same indicator string
 accepts, and the studies are checked against the one registry `/ta_registry`
 lists. What only the card reads to reproduce itself -- `series` placement,
 colour and style, `session`, `panels`, the display flags -- is checked for
-shape, type and size and stored as written (S12, S13).
+shape, type and size and stored as written (S12, S13). `symbols` (spec 2026-11-13) is the
+card's list when it has two or more tickers; `symbol` is always its first, and every server
+reader keeps reading `symbol`.
 """
 from __future__ import annotations
 
@@ -24,8 +26,8 @@ from openbq_ta.registry import REGISTRY
 
 SCHEMA = "chart/1"
 FLAGS = ("studyValues", "seriesPills", "snapshotHeader", "adjusted", "railHidden")
-KEYS = {"schema", "symbol", "provider", "interval", "range", "series", "session", "anchors",
-        "levels", "drawings", "panels", *FLAGS}
+KEYS = {"schema", "symbol", "symbols", "provider", "interval", "range", "series", "session",
+        "anchors", "levels", "drawings", "panels", *FLAGS}
 ORIGINS = ("rita", "eodhd")
 #: The drawing kinds and the geometry each records (bdobb-v2 ChartDrawing).
 DRAWINGS = {"segment": {"a": "point", "b": "point"}, "ray": {"a": "point", "slope": "number"},
@@ -38,6 +40,13 @@ TYPES = ("candlestick", "ohlc", "line", "area", "volume", "performance", "study"
 SERIES_KEYS = {"id", "type", "name", "params", "panel", "side", "color", "style", "symbol", "anchor"}
 MAX_SERIES = 64
 MAX_PANEL = 64
+#: A card's symbol list holds one primary plus the four extra-bars slots (spec 2026-11-13 §1).
+MAX_SYMBOLS = 5
+#: What a series' `symbol` may hold (spec 2026-11-13 §1; mirrors client series.ts SYMBOL_REF):
+#: `$ymbol`, `$group:<Name>`, `list:<n>`, or a ticker -- up to 64 characters with no comma, not
+#: starting `$` or `list:`, which is the performance symbol's rule before lists, narrowed.
+SYMBOL_REF = re.compile(r"\$ymbol|\$group:.{1,64}|list:[1-9]\d{0,5}"
+                        r"|(?![Ll][Ii][Ss][Tt]:)[^$,][^,]{0,63}")
 SESSIONS = ("extended", "regular", "24hr")
 #: A series' own colour, and a banded study's shade: `#RRGGBB` (bdobb-v2 Series.color).
 COLOR = re.compile(r"#[0-9a-fA-F]{6}")
@@ -147,8 +156,13 @@ def _placed(i: int, s) -> None:
     if s["type"] == "performance":
         if not is_time_value(s.get("anchor")) or ("symbol" in s and not _text(s["symbol"], 64)):
             raise BodyError(f"{where}: a performance series needs an anchor, and its symbol is text")
-    elif "symbol" in s or "anchor" in s:
-        raise BodyError(f"{where}: only a performance series has a symbol and an anchor")
+    elif "anchor" in s:
+        raise BodyError(f"{where}: only a performance series has an anchor")
+    if "symbol" in s:
+        if s["type"] == "study":
+            raise BodyError(f"{where}: a study follows the chart's symbol (list:1) and takes no symbol")
+        if not isinstance(s["symbol"], str) or SYMBOL_REF.fullmatch(s["symbol"]) is None:
+            raise BodyError(f"{where}.symbol must be a ticker, $ymbol, $group:<Name> or list:<n>")
     if s["type"] != "study" and s.get("params", {}) != {}:
         raise BodyError(f"{where}: only a study series has params")
 
@@ -200,6 +214,14 @@ def validate(body) -> None:
     symbol = body.get("symbol")
     if not _text(symbol, 32) or symbol != symbol.strip():
         raise BodyError("symbol must be 1-32 characters with no surrounding space")
+    if "symbols" in body:
+        symbols = body["symbols"]
+        if not (isinstance(symbols, list) and 2 <= len(symbols) <= MAX_SYMBOLS
+                and all(_text(t, 32) and t == t.strip() and "," not in t for t in symbols)):
+            raise BodyError(f"symbols must be 2-{MAX_SYMBOLS} tickers, each 1-32 characters "
+                            "with no comma or surrounding space")
+        if symbols[0] != symbol:
+            raise BodyError("symbols[0] must equal symbol")
     for key in ("interval", "provider"):
         if key in body and not _text(body[key], 32):
             raise BodyError(f"{key} must be text")
@@ -259,6 +281,34 @@ def unresolved(body: dict) -> list[str]:
             if value is not None and instant(value) is None:
                 out.append(f"series[{i}] {s['name']} {key} {value!r}")
     return out
+
+
+def series_tickers(body: dict) -> tuple[list[str | None], list[str]]:
+    """Each series' ticker as its card resolves it (spec 2026-11-13 §2) -- `MSFT (list:2)` for a
+    list position -- or None, with a note naming why. Studies follow list:1. A symbol group is
+    the dashboard's, so the server names it rather than resolving it."""
+    symbols = body.get("symbols") or [body["symbol"]]
+    tickers: list[str | None] = []
+    notes: list[str] = []
+    for i, s in enumerate(body.get("series", [])):
+        ref = s.get("symbol", "$ymbol")
+        if s["type"] == "study" or ref == "$ymbol":
+            tickers.append(symbols[0])
+        elif ref.startswith("list:"):
+            n = int(ref[len("list:"):])
+            if n <= len(symbols):
+                tickers.append(f"{symbols[n - 1]} ({ref})")
+            else:
+                tickers.append(None)
+                entries = "entry" if len(symbols) == 1 else "entries"
+                notes.append(f"series[{i}] {ref}: list has {len(symbols)} {entries}, no {ref}")
+        elif ref.startswith("$group:"):
+            tickers.append(None)
+            notes.append(f"series[{i}] {ref}: a symbol group is resolved by the dashboard, "
+                         "not by the server")
+        else:
+            tickers.append(ref.upper())
+    return tickers, notes
 
 
 def with_defaults(body: dict) -> dict:

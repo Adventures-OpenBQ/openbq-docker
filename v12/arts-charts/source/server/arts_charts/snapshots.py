@@ -58,6 +58,11 @@ class SnapshotError(Exception):
         self.status, self.reason = status, reason
 
 
+def _symbols(body: dict) -> str:
+    """The card's symbol box as the document holds it: the whole list (spec 2026-11-13 §4)."""
+    return ",".join(body.get("symbols") or [body["symbol"]])
+
+
 class _Page:
     """One render's answers to the page, and what they show about its progress."""
 
@@ -68,6 +73,8 @@ class _Page:
             k: v for k, v in doc["body"].items() if k != "range"}
         self.api, self.dir, self.doc = api, render_dir, {**doc, "body": body}
         self.framed = False
+        #: Requests the page is still waiting on: an overlay's /series may outlast QUIET.
+        self.inflight = 0
         #: (status, reason) once the render cannot succeed; settled() raises it at once.
         self.failure: tuple[int, str] | None = None
         self.last = asyncio.get_running_loop().time()
@@ -89,7 +96,7 @@ class _Page:
         if path == "/charts":
             body = self.doc["body"]
             await route.fulfill(json=[{**{k: v for k, v in self.doc.items() if k != "body"},
-                                       "symbol": body["symbol"], "interval": body["interval"]}])
+                                       "symbol": _symbols(body), "interval": body["interval"]}])
             return
         self.touch()
         if path == "/" or path.startswith("/assets/"):
@@ -103,8 +110,12 @@ class _Page:
             await route.fulfill(json=self.doc)
         else:
             request = route.request
-            response = await self.api.request(
-                request.method, path, params=url.query, content=request.post_data_buffer)
+            self.inflight += 1
+            try:
+                response = await self.api.request(
+                    request.method, path, params=url.query, content=request.post_data_buffer)
+            finally:
+                self.inflight -= 1
             if path == "/series" and response.status_code != 200:
                 self.failure = (502, "bars unavailable")
             await route.fulfill(status=response.status_code, body=response.content,
@@ -135,7 +146,7 @@ class _Page:
         while True:
             if self.failure:
                 raise SnapshotError(*self.failure)
-            if self.framed and loop.time() - self.last >= QUIET:
+            if self.framed and self.inflight == 0 and loop.time() - self.last >= QUIET:
                 return
             await asyncio.sleep(0.05)
 
@@ -203,7 +214,7 @@ class Snapshots:
             answers = _Page(self.api, self.dir, doc)
             await page.route("**/*", answers.http)
             await page.route_web_socket("**", answers.ws)
-            query = urlencode({"chart_id": doc["id"], "symbol": doc["body"]["symbol"],
+            query = urlencode({"chart_id": doc["id"], "symbol": _symbols(doc["body"]),
                                "interval": doc["body"]["interval"], "theme": theme})
             await page.goto(f"{ORIGIN}/?{query}")
             await answers.settled()
