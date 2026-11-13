@@ -451,9 +451,9 @@ class SsrmCatalogTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body["other_obb"], {"name": "Other", "type": "table", "endpoint": "/api/v1/other"})
         self.assertNotIn("absent_widget_obb", body)              # listed-but-absent skipped, no error
 
-    def test_the_committed_list_has_23_widgets_with_ssrm_routes(self):
+    def test_the_committed_list_has_41_widgets_with_ssrm_routes(self):
         routes = openbq_lanes._load_ssrm_widgets(Path(__file__).parent.parent / "ssrm_widgets.json")
-        self.assertEqual(len(routes), 23)
+        self.assertEqual(len(routes), 41)
         self.assertTrue(all(r.startswith("/api/v1/") for r in routes))
 
 
