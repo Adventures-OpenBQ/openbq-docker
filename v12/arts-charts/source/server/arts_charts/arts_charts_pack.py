@@ -482,7 +482,7 @@ def spread(p):
     param_labels={"vs": "Versus", "period": "Length"}, tickers=("vs",),
     wiki="https://www.investopedia.com/terms/c/correlation.asp",
     description="Measures how closely the two tickers' bar-to-bar returns move together over the window, from minus one (opposite) through zero (unrelated) to one (in lockstep).",
-    convention="Pearson correlation of 100*pct_change(adj_close) and of vs_adj_close over `period` shared bars.",
+    convention="Pearson correlation of 100*pct_change(adj_close) and 100*pct_change(vs_adj_close) over `period` shared bars.",
 )
 def corr(p):
     return [pl.rolling_corr(_returns(_A), _returns(_B), window_size=p["period"])
@@ -564,4 +564,4 @@ def zscore(p):
     if p["of"] not in ("ratio", "spread"):
         raise ValueError(f"of must be ratio or spread, got {p['of']!r}")
     x = _A / _B if p["of"] == "ratio" else _A - p["multiple"] * _B
-    return [_zscore(x, p["period"]).alias("zscore")]
+    return [_zscore(x, p["period"]).fill_nan(None).alias("zscore")]
