@@ -124,7 +124,7 @@ The list is committed data, `lanes/ssrm_widgets.json`:
 
 Settings (`credentials.env`): `OPENBQ_SSRM_WIDGETS` (path of that list, default `/workspace/ssrm_widgets.json`), `OPENBQ_SSRM_CACHE_BYTES` (default 3 GiB), `OPENBQ_SSRM_TTL` (seconds, default 900), `OPENBQ_SSRM_DEADLINE` (seconds per first acquisition, default 300). As with widget settings, restart the API after editing them.
 
-The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults to the 41 paths `/api<route>/ssrm`, one per row above, derived from `lanes/ssrm_widgets.json` (the gateway image copies that file); leave the setting out unless you mean to narrow it (`[]` turns SSRM through the door off). `funnel-gateway/ssrm-routes.test.mjs` checks the derived list (23 unique routes, each admitted for POST, a listed route's GET and an unlisted sibling refused). The door never passes od's `x-openbq-ssrm` cache marker to the client.
+The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults to the 41 paths `/api<route>/ssrm`, one per row above, derived from `lanes/ssrm_widgets.json` (the gateway image copies that file); leave the setting out unless you mean to narrow it (`[]` turns SSRM through the door off). `funnel-gateway/ssrm-routes.test.mjs` checks the derived list (41 unique routes, each admitted for POST, a listed route's GET and an unlisted sibling refused). The door never passes od's `x-openbq-ssrm` cache marker to the client.
 
 ## Credentials and restart
 
@@ -134,8 +134,8 @@ The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults
 (api.data.gov's `DEMO_KEY` for EIA and Congress.gov), so those cards answer before you have keys of
 your own. Compose loads it first and `credentials.env` second, so any key you set wins; keep a
 demo-covered line commented out in `credentials.env` (an empty `NAME=` would replace the demo key with
-nothing). Demo keys are rate-limited (30 requests an hour, 50 a day per IP). BLS, CFTC and EconDB need
-no key. The live check of each value is in [the receipt](docs/credentials-demo-receipt.md);
+nothing). Demo keys are rate-limited (30 requests an hour, 50 a day per IP). BLS and CFTC need no key;
+EconDB asks for a temporary token, which its service may refuse, so supply your own EconDB key or skip that card. The live check of each value is in [the receipt](docs/credentials-demo-receipt.md);
 `tests/test_credentials_demo.py` allows no other names or values in the file.
 
 Optional vendor keys go in `credentials.env`, ignored by Git and excluded from the image. Use official variable names; no inline comments after empty values. Recreate the API after editing an environment file. Its settings and OpenBBUserData persist in separate named volumes; Tailscale identity persists in `ts-state/`.
