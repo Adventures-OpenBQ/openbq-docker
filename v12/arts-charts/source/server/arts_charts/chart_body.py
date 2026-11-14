@@ -46,7 +46,7 @@ MAX_SYMBOLS = 5
 #: `$ymbol`, `$group:<Name>`, `list:<n>`, or a ticker -- up to 64 characters with no comma, not
 #: starting `$` or `list:`. The five bar types are held to it; a performance series is not.
 LIST_REF = re.compile(r"list:([1-9]\d{0,5})")
-SYMBOL_REF = re.compile(r"\$ymbol|\$group:.{1,64}|list:[1-9]\d{0,5}"
+SYMBOL_REF = re.compile(rf"\$ymbol|\$group:.{{1,64}}|{LIST_REF.pattern}"
                         r"|(?![Ll][Ii][Ss][Tt]:)[^$,][^,]{0,63}")
 SESSIONS = ("extended", "regular", "24hr")
 #: A series' own colour, and a banded study's shade: `#RRGGBB` (bdobb-v2 Series.color).
