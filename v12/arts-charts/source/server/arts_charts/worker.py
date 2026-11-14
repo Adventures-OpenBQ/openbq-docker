@@ -385,12 +385,16 @@ class Worker:
         if (not schedule["enabled"] or schedule["when"] != when
                 or at < datetime.fromisoformat(schedule["armed_at"])):
             return self.store.set_run(schedule_id, key, "cancelled")
+        # One inbox item per occurrence, whichever post makes it: a crash between a post and
+        # set_run leaves the run `new`, and its re-run gets the first item back (worker._post key).
+        # shortcut: a re-run past LATE files the first item as "missed" though it was the report.
+        once = f"schedule:{schedule_id}:{key}"
         if self.clock() - at > LATE:
             item = await self._post(
                 "system", f"Schedule missed: {when}",
                 f"The scheduled report ({when}, New York time) due at {key.replace('T', ' ')} "
                 "was not run: the worker was not running then. The next one runs as usual.",
-                schedule["chart_ids"], [])
+                schedule["chart_ids"], [], key=once)
             return self.store.set_run(schedule_id, key, "missed", item["id"])
         docs, deleted = [], []
         for chart_id in schedule["chart_ids"]:
@@ -404,7 +408,7 @@ class Worker:
             item = await self._post(
                 "system", f"Schedule stopped: {when}",
                 f"Every chart of the scheduled report ({when}, New York time) was deleted, so "
-                "the schedule is now disabled.", schedule["chart_ids"], [])
+                "the schedule is now disabled.", schedule["chart_ids"], [], key=once)
             self.store.set_schedule(schedule_id, {"enabled": False})
             return self.store.set_run(schedule_id, key, "empty", item["id"])
         try:
@@ -414,7 +418,7 @@ class Worker:
             reply = _plain_schedule(schedule, key, docs, deleted)
         ids = [d["id"] for d in docs]
         title = f"Scheduled: {', '.join(d['body']['symbol'] for d in docs)}"[:200]
-        item = await self._post("schedule", title, reply, ids, ids)
+        item = await self._post("schedule", title, reply, ids, ids, key=once)
         self.store.set_run(schedule_id, key, "delivered", item["id"])
         self._queue(item, self.clock())
 
