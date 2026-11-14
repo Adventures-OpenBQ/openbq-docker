@@ -45,6 +45,7 @@ MAX_SYMBOLS = 5
 #: What a series' `symbol` may hold (spec 2026-11-13 §1; mirrors client series.ts SYMBOL_REF):
 #: `$ymbol`, `$group:<Name>`, `list:<n>`, or a ticker -- up to 64 characters with no comma, not
 #: starting `$` or `list:`. The five bar types are held to it; a performance series is not.
+LIST_REF = re.compile(r"list:([1-9]\d{0,5})")
 SYMBOL_REF = re.compile(r"\$ymbol|\$group:.{1,64}|list:[1-9]\d{0,5}"
                         r"|(?![Ll][Ii][Ss][Tt]:)[^$,][^,]{0,63}")
 SESSIONS = ("extended", "regular", "24hr")
@@ -295,8 +296,8 @@ def ticker_of(body: dict, ref: str | None) -> tuple[str | None, str | None]:
     symbols = body.get("symbols") or [body["symbol"]]
     if ref is None or ref == "$ymbol":
         return symbols[0], None
-    if ref.startswith("list:"):
-        n = int(ref[len("list:"):])
+    if (at := LIST_REF.fullmatch(ref)) is not None:  # `list:x` on a performance line is a literal
+        n = int(at[1])
         if n <= len(symbols):
             return symbols[n - 1], None
         entries = "entry" if len(symbols) == 1 else "entries"
@@ -323,7 +324,7 @@ def versus_of(body: dict, s: dict) -> tuple[dict | None, str | None]:
 
 
 def _label(ticker: str, ref: str | None) -> str:
-    return f"{ticker} ({ref})" if ref is not None and ref.startswith("list:") else ticker
+    return f"{ticker} ({ref})" if ref is not None and LIST_REF.fullmatch(ref) else ticker
 
 
 def series_tickers(body: dict) -> tuple[list[str | None], list[str]]:
