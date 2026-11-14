@@ -11,16 +11,17 @@ evaluates watches. Each change is announced on /charts/events as
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 from datetime import datetime, timedelta, timezone
+from functools import partial
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from arts_charts.conditions import ConditionError, parse, resolve
-from arts_charts.documents import Feed, _by
-from arts_charts.store import NotFound, Store, is_chart_id
+from arts_charts.documents import Feed, _by, _call, id_of
+from arts_charts.documents import announce as _announce
+from arts_charts.store import Store, is_chart_id
 from arts_charts.tokens import TokenError, verify
 
 MAX_NOTE = 500
@@ -55,11 +56,7 @@ async def _fields(request: Request, allowed: set[str]) -> dict:
 def watches_router(store: Store, feed: Feed) -> APIRouter:
     api = APIRouter()
 
-    async def call(fn, *args, missing="no such watch", **kwargs):
-        try:
-            return await asyncio.to_thread(fn, *args, **kwargs)
-        except NotFound:
-            raise HTTPException(404, missing) from None
+    call = partial(_call, missing="no such watch")
 
     async def checked(chart_id: str, condition: str, written: bool = True) -> None:
         """422 unless `condition` resolves on the chart as it is now. AVWAP is refused only
@@ -74,13 +71,8 @@ def watches_router(store: Store, feed: Feed) -> APIRouter:
         except ConditionError as exc:
             raise HTTPException(422, str(exc)) from None
 
-    def announce(watch_id: str, by: str) -> None:
-        feed.publish({"kind": "watch", "id": watch_id, "revision": 0, "by": by})
-
-    def watch_id_of(watch_id: str) -> str:
-        if not is_chart_id(watch_id):  # a uuid, as create_watch mints
-            raise HTTPException(404, "no such watch")
-        return watch_id
+    announce = partial(_announce, feed, "watch")
+    watch_id_of = partial(id_of, missing="no such watch")  # a uuid, as create_watch mints
 
     @api.get("/watches")
     async def list_watches(chart_id: str | None = None):

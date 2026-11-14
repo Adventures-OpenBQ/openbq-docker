@@ -14,12 +14,13 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from functools import partial
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from arts_charts.chart_body import BodyError, validate, with_defaults
-from arts_charts.store import Conflict, NotFound, Store
+from arts_charts.store import Conflict, NotFound, Store, is_chart_id
 
 #: A request body larger than this is refused with 413 before it is parsed.
 MAX_BYTES = 1_000_000
@@ -97,6 +98,26 @@ def _by(request: Request) -> str:
     return by
 
 
+async def _call(fn, *args, missing: str, **kwargs):
+    """A store call off the event loop; NotFound is a 404 saying `missing`. The routers bind
+    `missing` with functools.partial; a call may still pass its own."""
+    try:
+        return await asyncio.to_thread(fn, *args, **kwargs)
+    except NotFound:
+        raise HTTPException(404, missing) from None
+
+
+def id_of(value: str, missing: str) -> str:
+    """`value` when it is a uuid, as the store mints them; anything else is a 404 `missing`."""
+    if not is_chart_id(value):
+        raise HTTPException(404, missing)
+    return value
+
+
+def announce(feed: Feed, kind: str, record_id: str, by: str) -> None:
+    feed.publish({"kind": kind, "id": record_id, "revision": 0, "by": by})
+
+
 def _base(request: Request) -> int:
     raw = request.headers.get("if-match")
     if raw is None:
@@ -113,12 +134,7 @@ def documents_router(store: Store, feed: Feed | None = None) -> APIRouter:
     api = APIRouter()
     feed = Feed() if feed is None else feed
 
-    async def call(fn, *args, **kwargs):
-        """A store call off the event loop; a missing or deleted chart is a 404."""
-        try:
-            return await asyncio.to_thread(fn, *args, **kwargs)
-        except NotFound:
-            raise HTTPException(404, "no such chart") from None
+    call = partial(_call, missing="no such chart")  # a missing or deleted chart
 
     async def write(fn, *args, **kwargs):
         """A store write, announced on the feed. A stale base revision is a

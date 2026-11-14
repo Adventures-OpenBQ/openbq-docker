@@ -14,19 +14,19 @@ to whoever shows it.
 """
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
 import os
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from functools import partial
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 
-from arts_charts.documents import Feed
+from arts_charts.documents import Feed, _call, id_of
+from arts_charts.documents import announce as _announce
 from arts_charts.snapshots import SnapshotError
-from arts_charts.store import NotFound, Store, is_chart_id
+from arts_charts.store import Store, _now, is_chart_id
 from arts_charts.tokens import TokenError, verify
 
 KINDS = ("watch", "schedule", "system")
@@ -81,19 +81,9 @@ def _item(data) -> dict:
 def inbox_router(store: Store, feed: Feed, render: Render) -> APIRouter:
     api = APIRouter()
 
-    async def call(fn, *args):
-        try:
-            return await asyncio.to_thread(fn, *args)
-        except NotFound:
-            raise HTTPException(404, "no such inbox item") from None
-
-    def item_id_of(item_id: str) -> str:
-        if not is_chart_id(item_id):  # a uuid, as add_inbox mints
-            raise HTTPException(404, "no such inbox item")
-        return item_id
-
-    def announce(item_id: str, by: str) -> None:
-        feed.publish({"kind": "inbox", "id": item_id, "revision": 0, "by": by})
+    call = partial(_call, missing="no such inbox item")
+    item_id_of = partial(id_of, missing="no such inbox item")  # a uuid, as add_inbox mints
+    announce = partial(_announce, feed, "inbox")
 
     @api.get("/inbox")
     async def list_inbox(before: str | None = None, limit: int = Query(MAX_PAGE, ge=1, le=MAX_PAGE)):
@@ -145,8 +135,7 @@ def inbox_router(store: Store, feed: Feed, render: Render) -> APIRouter:
 
     @api.post("/inbox/{item_id}/read")
     async def read_item(item_id: str):
-        item = await call(store.read_inbox, item_id_of(item_id),
-                          datetime.now(timezone.utc).isoformat(timespec="microseconds"))
+        item = await call(store.read_inbox, item_id_of(item_id), _now())
         announce(item_id, "user")
         return item
 

@@ -20,18 +20,19 @@ second pass has the same key, so it does not run again.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from datetime import datetime, time, timedelta, timezone
+from functools import partial
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from arts_charts.calendar import UsEquitySessions
 from arts_charts.classify import classify
-from arts_charts.documents import Feed, _by
-from arts_charts.store import NotFound, Store, is_chart_id
+from arts_charts.documents import Feed, _by, _call, id_of
+from arts_charts.documents import announce as _announce
+from arts_charts.store import Store, _now, is_chart_id
 
 MAX_NOTE = 500
 #: Charts in one schedule: each is described for Rita and pictured in the item.
@@ -86,10 +87,6 @@ def latest(when: str, now: datetime, sessions=NO_CALENDAR) -> tuple[str, datetim
     return None
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
-
-
 async def _fields(request: Request, allowed: set[str]) -> dict:
     """The request's schedule fields, typed and in normal form; 422 with the reason."""
     try:
@@ -119,23 +116,14 @@ async def _fields(request: Request, allowed: set[str]) -> dict:
 def schedules_router(store: Store, feed: Feed) -> APIRouter:
     api = APIRouter()
 
-    async def call(fn, *args, missing="no such schedule"):
-        try:
-            return await asyncio.to_thread(fn, *args)
-        except NotFound:
-            raise HTTPException(404, missing) from None
+    call = partial(_call, missing="no such schedule")
 
     async def charts_exist(chart_ids: list[str]) -> None:
         for chart_id in chart_ids:
             await call(store.get, chart_id, missing=f"no such chart: {chart_id}")
 
-    def announce(schedule_id: str, by: str) -> None:
-        feed.publish({"kind": "schedule", "id": schedule_id, "revision": 0, "by": by})
-
-    def schedule_id_of(schedule_id: str) -> str:
-        if not is_chart_id(schedule_id):  # a uuid, as create_schedule mints
-            raise HTTPException(404, "no such schedule")
-        return schedule_id
+    announce = partial(_announce, feed, "schedule")
+    schedule_id_of = partial(id_of, missing="no such schedule")  # a uuid, as create_schedule mints
 
     @api.get("/schedules")
     async def list_schedules():
