@@ -213,12 +213,10 @@ def _bounded(result: dict) -> dict:
         body["series"] = [{k: v for k, v in s.items() if k != "style"} for s in body["series"]]
     result["document"]["body"] = body
     result["omitted"] = omitted
-    studies = result.get("readout", {}).get("studies", [])
-    while studies and len(_out(result)) > DESCRIBE_MAX:
-        studies.pop()
-        omitted["studies"] = omitted.get("studies", 0) + 1
-    for entry in reversed(result.get("ticker_readouts", [])):
-        studies = entry.get("readout", {}).get("studies", [])
+    # The other tickers' readouts go before list:1's: the card's own ticker is the last to lose detail.
+    readouts = [entry.get("readout", {}) for entry in reversed(result.get("ticker_readouts", []))]
+    for readout in [*readouts, result.get("readout", {})]:
+        studies = readout.get("studies", [])
         while studies and len(_out(result)) > DESCRIBE_MAX:
             studies.pop()
             omitted["studies"] = omitted.get("studies", 0) + 1

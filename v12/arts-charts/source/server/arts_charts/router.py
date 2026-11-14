@@ -371,12 +371,11 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
         try:
             while True:
                 started = asyncio.get_running_loop().time()
-                try:
-                    fetched: object = await fetch(params.symbol, params.interval, s, e,
-                                                  params.provider, params.session)
-                except Exception as exc:  # noqa: BLE001 - a bars outage degrades, it does not end the stream
-                    fetched = exc
-                fetched_versus = await fetch_versus(params, wanted, s, e)
+                # The card's bars and each vs ticker's are fetched together; an exception is the
+                # answer (a bars outage degrades, it does not end the stream).
+                fetched, fetched_versus = await asyncio.gather(
+                    fetch(params.symbol, params.interval, s, e, params.provider, params.session),
+                    fetch_versus(params, wanted, s, e), return_exceptions=True)
                 # The source hands back the SAME answer (or the same failure) until
                 # something moved (composed.py): otherwise nothing is pushed. A vs
                 # ticker's answer counts like the card's own (spec 2026-11-13 cross-symbol §3).
@@ -448,7 +447,9 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
                 answer = exc
             panes, frame, annotations, meta, bars_error = await series_state(
                 params, warmup_for(params), answer,
-                await fetch_versus(params, wanted, s, e, fresh), refused)
+                # A failed card fetch is a 502 below, so its vs bars are not asked for.
+                {} if isinstance(answer, BaseException) else await fetch_versus(params, wanted, s, e, fresh),
+                refused)
         except Refused as exc:
             return JSONResponse({"detail": str(exc)}, status_code=400)
         except KeyError as exc:

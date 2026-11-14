@@ -3,8 +3,8 @@
   "image": "openbq-arts-charts:12.0.0",
   "source_repository": "https://github.com/Adventures-OpenBQ/arts-charts-openbq",
   "tag": null,
-  "source_commit": "e75298ffce4dc29749d4f9cac409e1901643be57",
-  "source_tree_sha256": "265c886730f1dee9d5a8c3996495d8fa938d37010f91b16a97e804fd19a55600",
+  "source_commit": "14a7ac06ea1a41d690b56579f7f82cb312c7b360",
+  "source_tree_sha256": "f642720a9eacfdf60fa3f7bcdfa1e7dab8ef8ca5cb2bdd7f06ac1a88bf6017ed",
   "license": "BUSL-1.1",
   "paths": [
     "LICENSE",
