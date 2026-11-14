@@ -557,6 +557,31 @@ async function tableExchange(req, res, route, config) {
  */
 const RITA_QUERY_MAX = 1024 * 1024, RITA_STREAM_MAX = 16 * 1024 * 1024, RITA_STREAM_MS = 300000;
 const RITA_AGENTS_MAX = 65536, RITA_HOUR_MS = 3600000;
+/**
+ * A per-principal "limit per hour" counter, in memory. `full` is the cheap pre-check (refuse before
+ * reading a body); `charge` re-reads the hour and records one use, false when the hour is already full.
+ * Only a token holder can name a principal, but it can name many: past 1000 entries `full` and
+ * `charge` sweep the ones with nothing left in the hour.
+ */
+function hourlyLimiter(limit, now) {
+  const uses = new Map();
+  const recent = principal => (uses.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
+  const sweep = () => { if (uses.size > 1000) for (const [who, times] of uses) if (!times.some(at => now() - at < RITA_HOUR_MS)) uses.delete(who); };
+  return {
+    full(principal) {
+      sweep();
+      const hour = recent(principal);
+      if (hour.length < limit) return false;
+      uses.set(principal, hour); return true;
+    },
+    charge(principal) {
+      const hour = recent(principal);
+      if (hour.length >= limit) { uses.set(principal, hour); return false; }
+      sweep();
+      uses.set(principal, [...hour, now()]); return true;
+    },
+  };
+}
 // The Spark's vLLM runs four sequences at most; two turns leave room for the desktop's own Rita.
 const RITA_CONCURRENT = 2;
 export function getRitaAgents(config, signal) {
@@ -665,7 +690,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
   // ponytail: in memory, so a restart forgets the hour; persist it if the cap ever has to survive one.
   // MCP sessions: id -> the principal whose initialize opened it (oldest dropped past MCP_SESSIONS),
   // and each principal's message times this hour. ponytail: in memory, like Rita's.
-  const mcpSessions = new Map(), mcpUse = new Map();
+  const mcpSessions = new Map(), mcpUse = hourlyLimiter(config.mcpPerHour, now);
   async function handleMcp(req, res, url) {
     if (!mcpRoute(url, req.method)) return reply(res, 404);
     const principal = previewPrincipal(req);
@@ -676,9 +701,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     // session the server does not know, so the client re-initializes.
     if (session !== undefined && mcpSessions.get(session) !== principal) return reply(res, 404);
     if (inflight >= config.maxConcurrent) return reply(res, 429);
-    if (mcpUse.size > 1000) for (const [who, times] of mcpUse) if (!times.some(at => now() - at < RITA_HOUR_MS)) mcpUse.delete(who);
-    const recent = (mcpUse.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
-    if (recent.length >= config.mcpPerHour) { mcpUse.set(principal, recent); return reply(res, 429); }
+    if (mcpUse.full(principal)) return reply(res, 429);
     const raw = await jsonBody(req, MCP_BODY_MAX);
     if (typeof raw === "number") { if (raw === 413) res.setHeader("Connection", "close"); return reply(res, raw); }
     const message = mcpMessage(raw);
@@ -686,9 +709,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     // Reading the body yields; another request may have taken the slot.
     if (inflight >= config.maxConcurrent) return reply(res, 429);
     // Re-read the hour: a parallel message from the same user may have been charged while this body was read.
-    const charged = (mcpUse.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
-    if (charged.length >= config.mcpPerHour) { mcpUse.set(principal, charged); return reply(res, 429); }
-    mcpUse.set(principal, [...charged, now()]);
+    if (!mcpUse.charge(principal)) return reply(res, 429);
     inflight++;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), MCP_MS);
@@ -724,7 +745,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     } finally { clearTimeout(timer); res.off("close", disconnect); controller.abort(); inflight--; }
   }
   let ritaInflight = 0;
-  const ritaBusy = new Set(), ritaUse = new Map();
+  const ritaBusy = new Set(), ritaUse = hourlyLimiter(config.ritaPerHour, now);
   async function handleRita(req, res, url) {
     const route = ritaRoute(url, req.method);
     if (!route) return reply(res, 404);
@@ -736,11 +757,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       return doc ? reply(res, 200, doc) : reply(res, 502);
     }
     if (ritaInflight >= RITA_CONCURRENT || ritaBusy.has(principal)) return reply(res, 429);
-    // Only a token holder can name a principal, but it can name many: past 1000, sweep the hour.
-    if (ritaUse.size > 1000) for (const [who, times] of ritaUse) if (!times.some(at => now() - at < RITA_HOUR_MS)) ritaUse.delete(who);
-    const recent = (ritaUse.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
-    if (recent.length) ritaUse.set(principal, recent); else ritaUse.delete(principal);
-    if (recent.length >= config.ritaPerHour) return reply(res, 429);
+    if (ritaUse.full(principal)) return reply(res, 429);
     ritaInflight++; ritaBusy.add(principal);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), RITA_STREAM_MS);
@@ -752,7 +769,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       const body = ritaQuery(raw, config.ritaModel);
       if (!body) return reply(res, 400);
       // Charged once the body is one she could be sent: a refused body costs nothing.
-      ritaUse.set(principal, [...recent, now()]);
+      ritaUse.charge(principal); // cannot refuse: ritaBusy keeps this principal's hour from moving since `full`
       const upstream = await postQuery(Buffer.from(JSON.stringify(body)), config, controller.signal);
       if (upstream.statusCode !== 200 || !/^text\/event-stream(?:\s*;|$)/i.test(upstream.headers["content-type"] ?? "")) {
         upstream.destroy(); return reply(res, 502);
@@ -815,7 +832,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       return message ? reply(res, answer.status, { detail: message }) : reply(res, 502);
     } finally { inflight--; }
   }
-  const chartsMcpUse = new Map();
+  const chartsMcpUse = hourlyLimiter(CHARTS_MCP_PER_HOUR, now);
   /** One /charts exchange. `credential` false = a token-only route: no Authorization at all. */
   async function handleCharts(req, res, route, credential) {
     if (route.kind === "sse") return relayChartsEvents(req, res);
@@ -824,8 +841,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     if (route.kind === "mcp" && version !== undefined && !MCP_VERSION_RE.test(version)) return reply(res, 400);
     const principal = route.kind === "mcp" ? previewPrincipal(req) : undefined;
     if (principal === null) return reply(res, 400);
-    const hour = () => (chartsMcpUse.get(principal) ?? []).filter(at => now() - at < RITA_HOUR_MS);
-    if (principal && hour().length >= CHARTS_MCP_PER_HOUR) return reply(res, 429);
+    if (principal && chartsMcpUse.full(principal)) return reply(res, 429);
     if (inflight >= config.maxConcurrent) return reply(res, 429);
     let body;
     if (route.body) {
@@ -834,12 +850,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     } else if (!noBody(req)) return reply(res, 405);
     // Reading the body yields: re-check the slot and the hour.
     if (inflight >= config.maxConcurrent) return reply(res, 429);
-    if (principal) {
-      const charged = hour();
-      if (charged.length >= CHARTS_MCP_PER_HOUR) { chartsMcpUse.set(principal, charged); return reply(res, 429); }
-      if (chartsMcpUse.size > 1000) for (const [who, times] of chartsMcpUse) if (!times.some(at => now() - at < RITA_HOUR_MS)) chartsMcpUse.delete(who);
-      chartsMcpUse.set(principal, [...charged, now()]);
-    }
+    if (principal && !chartsMcpUse.charge(principal)) return reply(res, 429);
     const headers = { Accept: route.kind === "png" ? "image/png, application/json"
       : route.kind === "mcp" ? "application/json, text/event-stream" : "application/json" };
     if (credential) headers.Authorization = config.apiAuthorization;
