@@ -33,6 +33,7 @@ KINDS = ("watch", "schedule", "system")
 MAX_TITLE = 200
 MAX_BODY = 20_000
 MAX_CHARTS = 16
+MAX_KEY = 200
 WORKER_HEADER = "x-arts-charts-worker"
 #: GET /inbox returns at most this many items; with no `limit` it returns this many.
 MAX_PAGE = 200
@@ -57,10 +58,13 @@ def _after(cursor: str) -> tuple[str, str]:
 
 
 def _item(data) -> dict:
-    """The worker's `{kind, title, body, chart_ids, snapshots}`, checked."""
+    """The worker's `{kind, title, body, chart_ids, snapshots}` and an optional `key`, checked."""
     keys = {"kind", "title", "body", "chart_ids", "snapshots"}
-    if not isinstance(data, dict) or set(data) != keys:
-        raise HTTPException(422, f"an inbox item is exactly {', '.join(sorted(keys))}")
+    if not isinstance(data, dict) or not keys <= set(data) <= keys | {"key"}:
+        raise HTTPException(422, f"an inbox item is exactly {', '.join(sorted(keys))}"
+                                 " (and optionally key)")
+    if "key" in data and not (isinstance(data["key"], str) and 1 <= len(data["key"]) <= MAX_KEY):
+        raise HTTPException(422, f"key is text of 1 to {MAX_KEY} characters")
     if data["kind"] not in KINDS:
         raise HTTPException(422, f"kind is one of {', '.join(KINDS)}")
     for key, limit in (("title", MAX_TITLE), ("body", MAX_BODY)):
@@ -113,6 +117,11 @@ def inbox_router(store: Store, feed: Feed, render: Render) -> APIRouter:
             data = _item(json.loads(await request.body()))
         except ValueError:
             raise HTTPException(400, "the request body is not JSON") from None
+        key = data.get("key")
+        if key is not None and (first := await call(store.inbox_by_key, key)) is not None:
+            # The worker's retry of a post that did land: the same item, nothing new made,
+            # rendered or announced. 200 where the first answer was 201.
+            return JSONResponse({**first, "snapshot_errors": []}, status_code=200)
         pngs, errors = [], []
         for chart_id in dict.fromkeys(data["snapshots"]):  # once each, in order
             try:
@@ -120,7 +129,7 @@ def inbox_router(store: Store, feed: Feed, render: Render) -> APIRouter:
             except SnapshotError as exc:  # the item still goes out, saying what is missing
                 errors.append({"chart_id": chart_id, "reason": exc.reason})
         item = await call(store.add_inbox, data["kind"], data["title"], data["body"],
-                          data["chart_ids"], pngs)
+                          data["chart_ids"], pngs, key)
         announce(item["id"], "worker")
         return {**item, "snapshot_errors": errors}
 

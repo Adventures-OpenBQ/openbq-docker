@@ -329,7 +329,10 @@ class Worker:
             log.warning("watch %s: %s", watch["id"], exc)
             reply = _plain(watch, values)
         title = f"{doc['body']['symbol']}: {watch['condition']}"[:200]
-        item = await self._post("watch", title, reply, [watch["chart_id"]], [watch["chart_id"]])
+        # Keyed by the firing: a crash between this post and the filing below makes `_refile`
+        # post again, and the inbox hands back the first item instead of making a second.
+        item = await self._post("watch", title, reply, [watch["chart_id"]], [watch["chart_id"]],
+                                key=f"watch:{watch_id}:{bar_time}")
         self.store.set_event(watch["id"], bar_time, "delivered", item["id"])
         self._queue(item, self.clock(), self._buttons(watch["id"]))
 
@@ -432,12 +435,12 @@ class Worker:
         return await self.rita.turn(_schedule_prompt(schedule, key, charts, deleted), tools, token)
 
     async def _post(self, kind: str, title: str, body: str, chart_ids: list[str],
-                    snapshots: list[str]) -> dict:
+                    snapshots: list[str], key: str | None = None) -> dict:
         # Each snapshot may wait up to 20 s for the renderer.
         response = await self.api.post("/inbox", timeout=60 + 20 * len(snapshots), headers={
             WORKER_HEADER: sign(self.secret, "worker", 60)}, json={
             "kind": kind, "title": title, "body": body, "chart_ids": chart_ids,
-            "snapshots": snapshots})
+            "snapshots": snapshots, **({} if key is None else {"key": key})})
         response.raise_for_status()
         return response.json()
 

@@ -20,7 +20,6 @@ import polars as pl
 
 from openbq_ta.compute import resolve_times
 from openbq_ta.exprs import price_col
-from arts_charts.ta.figure import build_ta_figure
 from arts_charts.ta.macros import load_all
 from arts_charts.ta.panes import Pane, all_reqs, assign
 from openbq_ta.registry import Req, StudyError, get, resolve
@@ -234,11 +233,11 @@ def vs_of(req: Req) -> str | None:
 
 
 async def build_payload(
-    params: ChartParams, frame: pl.DataFrame, eodhd_source=None,
+    params: ChartParams, frame: pl.DataFrame,
     warmup: Callable[[Any, int], Awaitable[pl.DataFrame | None]] | None = None,
     others: dict[str, pl.DataFrame] | None = None, refused: dict[str, str] | None = None,
-) -> tuple[dict, list[Pane], pl.DataFrame, list]:
-    """The figure, its panes, the computed frame, and its annotations.
+) -> tuple[list[Pane], pl.DataFrame, list]:
+    """The panes, the computed frame, and its annotations.
 
     Annotations come back rather than being folded into the title and dropped:
     the title only ships on a FIGURE push, so a caller that cannot see them
@@ -271,16 +270,6 @@ async def build_payload(
         except StudyError as exc:
             notes.append((req, str(exc)))
 
-    # The chart-wide `source` is now only a DEFAULT: each request may name its
-    # own (v12.3.0 studies), so the split is per request rather than one
-    # branch for the whole chart. Local runs first and the vendor joins onto
-    # its frame, so one frame carries both and nothing downstream has to know
-    # which engine produced which column.
-    def effective(req: Req) -> str:
-        return req.source or params.source
-
-    vendor = [r for r in reqs if effective(r) == "eodhd"]
-    local = [r for r in reqs if effective(r) != "eodhd"]
     # `warmup(first_bar, sessions)` (v12.4.5) fetches the daily bars before
     # the frame's first bar, for a `bd` window that reaches further back than
     # the chart does (see LocalSource.series). It is the
@@ -293,37 +282,13 @@ async def build_payload(
     if warmup is not None and sessions and frame.height and is_intraday(params.interval):
         prior = await warmup(frame["date"][0], sessions)
     computed = frame
-    if local:
+    if reqs:
         computed = LocalSource().series(
-            computed, local, params.interval, params.symbol, prior, notes, others=others).frame
-    if vendor and eodhd_source is not None:
-        last_closed = str(frame["date"][-1]) if frame.height else ""
-        # `prior` only when there is one: the vendor's signature is a contract
-        # other sources (and every test double) already implement, and the
-        # daily path -- the only one a vendor actually serves -- never has one.
-        result = await eodhd_source.series(
-            computed, vendor, params.symbol, params.interval, last_closed,
-            **({} if prior is None else {"prior": prior}),
-        )
-        # Extend, not reassign -- a vendor request in the same chart must not
-        # silently erase an annotation already collected.
-        computed, annotations = result.frame, annotations + result.annotations
-    elif vendor:
-        # No vendor client configured: compute locally and say so, exactly as
-        # an intraday request is answered.
-        computed = LocalSource().series(
-            computed, vendor, params.interval, params.symbol, prior, notes, others=others).frame
-        annotations = annotations + [
-            Annotation(col, "local", "no EODHD source configured")
-            for r in vendor for col in columns_of(r)
-        ]
+            computed, reqs, params.interval, params.symbol, prior, notes, others=others).frame
 
     annotations = annotations + [Annotation(col, "local", msg)
                                  for req, msg in notes for col in columns_of(req)]
-    figure = build_ta_figure(
-        params.symbol, computed, panes, annotations, chart_subtitle(params)
-    )
-    return figure, panes, computed, annotations
+    return panes, computed, annotations
 
 
 def any_repaints(panes: list[Pane]) -> bool:

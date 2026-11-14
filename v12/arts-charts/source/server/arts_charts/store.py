@@ -135,6 +135,11 @@ MIGRATIONS: list[list[str]] = [
             created_at TEXT NOT NULL
         )""",
     ],
+    [  # an idempotency key on the inbox: a repeated POST /inbox returns the first item
+        "ALTER TABLE inbox ADD COLUMN idem_key TEXT",
+        # NULLs never collide (SQLite and Postgres alike), so keyless items are untouched.
+        "CREATE UNIQUE INDEX inbox_idem_key ON inbox (idem_key)",
+    ],
 ]
 
 #: A watch's columns, in the order _watch reads them.
@@ -435,16 +440,30 @@ class Store:
                               for n, c in shots]}
 
     def add_inbox(self, kind: str, title: str, body: str, chart_ids: list[str],
-                  pngs: list[tuple[str, bytes]]) -> dict:
+                  pngs: list[tuple[str, bytes]], key: str | None = None) -> dict:
+        """File an item. With a `key`, one already filed under it is returned instead
+        (see `inbox_by_key`); two filings racing on one key leave one item."""
         item_id, at = str(uuid.uuid4()), _now()
-        with self._tx() as run:
-            run("INSERT INTO inbox (id, kind, created_at, title, body, chart_ids, read_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (item_id, kind, at, title, body, json.dumps(chart_ids), None))
-            for n, (chart_id, png) in enumerate(pngs):
-                run("INSERT INTO inbox_snapshots (inbox_id, n, chart_id, png, created_at)"
-                    " VALUES (?, ?, ?, ?, ?)", (item_id, n, chart_id, png, at))
+        try:
+            with self._tx() as run:
+                run("INSERT INTO inbox (id, kind, created_at, title, body, chart_ids, read_at,"
+                    " idem_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (item_id, kind, at, title, body, json.dumps(chart_ids), None, key))
+                for n, (chart_id, png) in enumerate(pngs):
+                    run("INSERT INTO inbox_snapshots (inbox_id, n, chart_id, png, created_at)"
+                        " VALUES (?, ?, ?, ?, ?)", (item_id, n, chart_id, png, at))
+        except Exception:  # noqa: BLE001 - either driver's unique violation; a lookup tells
+            first = self.inbox_by_key(key) if key else None
+            if first is None:
+                raise
+            return first
         return self.get_inbox(item_id)
+
+    def inbox_by_key(self, key: str) -> dict | None:
+        """The item filed under this idempotency key, or None."""
+        with self._tx() as run:
+            row = run("SELECT id FROM inbox WHERE idem_key = ?", (key,)).fetchone()
+        return None if row is None else self.get_inbox(row[0])
 
     def get_inbox(self, item_id: str) -> dict:
         with self._tx() as run:

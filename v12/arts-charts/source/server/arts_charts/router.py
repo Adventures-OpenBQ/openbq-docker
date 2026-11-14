@@ -209,7 +209,7 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
             if params.session == "regular":
                 vs_rows = regular_only(vs_rows, vs, params.interval)
             others[vs] = bars_to_frame(vs_rows, basis=params.basis)
-        _, panes, frame, annotations = await build_payload(
+        panes, frame, annotations = await build_payload(
             params, bars_to_frame(rows, basis=params.basis),
             warmup=warmup, others=others, refused=refused,
         )

@@ -4,9 +4,7 @@
 """The local engine: Polars compute over the bars already in hand.
 
 live-grid carried a second, EODHD, engine behind the same shape; it does not
-come over (arts-charts-openbq spec, R8/R9). `build_payload` still accepts an
-`eodhd_source` -- any vendor with that contract -- but the router never
-passes one, and refuses `source=eodhd` before it would matter.
+come over (arts-charts-openbq spec, R8/R9); the router refuses `source=eodhd`.
 """
 
 from __future__ import annotations
