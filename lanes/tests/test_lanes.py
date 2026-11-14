@@ -201,6 +201,29 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(busy), 1)
         self.assertIn("retry-after", busy[0].headers)
 
+    async def test_a_client_that_leaves_the_queue_frees_its_place(self):
+        # A page that gives up on a card (the regression render, a closed dashboard) must not hold its
+        # queue place until the lane reaches it: 16 such waiters filled the queue (v4/v5 CFTC 503s).
+        self.make(queue_max=1)
+        await self.client.get("/api/v1/cftc/echo")
+        busy = asyncio.ensure_future(self.client.get("/api/v1/cftc/sleep?seconds=3"))
+        await asyncio.sleep(0.5)
+        sent = []
+
+        async def receive():
+            if not sent:
+                sent.append(1)
+                return {"type": "http.request", "body": b"", "more_body": False}
+            return {"type": "http.disconnect"}
+
+        gone = Request({"type": "http", "method": "GET", "path": "/api/v1/cftc/echo", "raw_path": b"/api/v1/cftc/echo",
+                        "query_string": b"", "headers": [], "scheme": "http", "server": ("api", 80),
+                        "app": FastAPI()}, receive)
+        await asyncio.wait_for(self.lane.handle(gone, None), 1.5)
+        self.assertEqual(self.lane.waiting, 0)
+        self.assertEqual((await self.client.get("/api/v1/cftc/echo")).status_code, 200)
+        self.assertEqual((await busy).status_code, 200)
+
     async def test_a_dead_worker_answers_502_and_is_respawned(self):
         self.make()
         pid = (await self.client.get("/api/v1/cftc/echo")).json()["pid"]
