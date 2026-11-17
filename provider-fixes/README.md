@@ -22,3 +22,27 @@ NY Fed SOFR, EFFR and OBFR return fractional rates. Their rate, target-range, pe
 The provider serves a static `assets/regional/ny_widgets.json` catalogue in preference to generated column definitions. Apply the same correction there and in the router metadata; testing only the router does not qualify `/widgets.json`. Both copies are covered by the pristine-package hash guard and the rate-unit regression tests.
 
 Validation errors from QueryParams subclasses with short names such as BalanceQuery are also client-input errors when their locations are present in the query. They return 422 with query locations, including rejected balance-sheet TTM requests; provider Data validation errors retain 500. The named-query value and enum regressions live in test_core.py.
+
+## Sources that moved or changed shape (2026-11-17)
+
+Found by the v5 regression of 2026-11-17 (`release/v5` 1d69be8): 18 Atlanta Fed cases, 7 Cboe options cases and 2 Minneapolis cases answered HTTP 500, and four Congress cases answered 500 while the first bulk load was running. Each file below is the pinned upstream source with only the change described.
+
+**Atlanta Fed data files moved, not removed.** The bank moved its downloads under `/-/media/Project/Atlanta/FRBA/Documents/research-and-data/`; the old paths redirect to `https://www.atlantafed.org/error` (404), so every Atlanta data command failed with `HTTPError -> 404 Client Error: Not Found for url: https://www.atlantafed.org/error`. The seven `URL` constants in `openbb_federal_reserve/models/regional/atlanta_*.py` now read as in upstream PR [7822](https://github.com/openbq-org/OpenBB/pull/7822) (open, not ours). Two file names changed too. All seven new URLs answered 200 on 2026-11-17. The workbook layouts are unchanged, so the parsers are untouched.
+
+| Model (commands) | Old path under `…/FRBA/Documents` | New path |
+|---|---|---|
+| `atlanta_bie.py` (business_inflation_expectations) | `/research/inflationproject/bie/data/bie.xlsx` | `/research-and-data/data/business-inflation-expectations/bie-data.xlsx` |
+| `atlanta_gdpnow.py` (gdpnow) | `/cqer/researchcq/gdpnow/GDPTrackingModelDataAndForecasts.xlsx` | `/research-and-data/data/gdpnow/GDPTrackingModelDataAndForecasts.xlsx` |
+| `atlanta_market_probability.py` (market_probability) | `/cenfis/market-probability-tracker/mpt_histdata.xlsx` | `/research-and-data/data/market-probability-tracker/mpt_histdata.xlsx` |
+| `atlanta_sbu.py` (business_uncertainty) | `/datafiles/research/surveys/business-uncertainty/sbu-data.xlsx` | `/research-and-data/surveys/business-uncertainty/sbu-data.xlsx` |
+| `atlanta_sticky_cpi.py` (sticky_cpi) | `/datafiles/research/inflationproject/stickprice/stickyprice.xlsx` | `/research-and-data/data/sticky-price/sticky-price-data.xlsx` |
+| `atlanta_taylor_rule.py` (taylor_rule, taylor_rule_measures, taylor_rule_heatmap) | `/datafiles/cqer/research/taylor-rule/taylor-rule-data.xlsx` | `/research-and-data/data/taylor-rule/taylor-rule-data.xlsx` |
+| `atlanta_wage_growth.py` (wage_growth) | `/datafiles/chcs/wage-growth-tracker/wage-growth-data.xlsx` | `/research-and-data/data/wage-growth-tracker/wage-growth-data.xlsx` |
+
+**Minneapolis business conditions.** `business_conditions_prices.csv` now heads its period column `month` (it was `Date`), which raised `KeyError: 'Date'`. `openbb_federal_reserve/models/regional/minneapolis_business_conditions.py` reads the first column of both CSVs as the period whatever it is called. Local fix, no upstream PR yet.
+
+**Cboe options chains with a digit in the contract root.** Adjusted contracts such as `B1SPY261120C00710000` did not fit the contract-symbol pattern, left a NaN expiration and raised `TypeError: strptime() argument 1 must be str, not float` for the whole chain (SPY on 2026-11-17: 224 of 12,380 contracts). `openbb_cboe/models/options_chains.py` is the file at the head of upstream PR [7841](https://github.com/openbq-org/OpenBB/pull/7841) (`bf6879b`, open, not ours). Those contracts stay in the chain with their own root (`B1SPY`) as `underlying_symbol`.
+
+**Congress bulk loader lock.** `openbb_government_us/congress/utils/bulk.py` kept one `asyncio.Lock` per cache key. A lock belongs to the event loop that first waits on it, and the Congress commands run on more than one loop (the provider's loop and the server's), so a request arriving during a load raised `RuntimeError: <asyncio.locks.Lock …> is bound to a different event loop`. The locks are now kept per (loop, key), as `_WRITE_LOCKS` in the same file already is; two loops can each run a load once, with the same result. Local fix, no upstream PR yet.
+
+Covered by `tests/test_moved_sources.py`.
