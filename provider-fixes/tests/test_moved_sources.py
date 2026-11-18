@@ -54,6 +54,27 @@ class CboeDigitRootContractsTest(unittest.TestCase):
         self.assertEqual(set(result.strike), {710.0})
         self.assertEqual(set(result.underlying_symbol), {"SPY", "B1SPY"})
 
+    def test_term_structure_skips_a_side_with_no_otm_strike(self):
+        from openbb_cboe.models.options_chains import CboeOptionsChainsFetcher as fetcher
+        from openbb_cboe.utils.options.create_term_structure import create_term_structure
+
+        quote = {"bid": 1.0, "ask": 1.1, "bid_size": 1, "ask_size": 1, "iv": 0.2, "open_interest": 5,
+                 "volume": 2, "delta": 0.5, "gamma": 0.1, "theta": -0.1, "vega": 0.1, "rho": 0.0,
+                 "theo": 1.05, "change": 0.0, "open": 1.0, "high": 1.0, "low": 1.0, "tick": "up",
+                 "last_trade_price": 1.0, "last_trade_time": "2026-11-17T15:59:59",
+                 "percent_change": 0.0, "prev_day_close": 1.0}
+        # The second expiry lists one strike, above the price: no out-of-the-money put.
+        symbols = ["SPY271119C00710000", "SPY271119P00690000",
+                   "SPY271202C00825000", "SPY271202P00825000"]
+        data = {"data": {"symbol": "SPY", "current_price": 700.0,
+                         "options": [{**quote, "option": s} for s in symbols]}}
+        chain = fetcher.transform_data(fetcher.transform_query({"symbol": "SPY"}), data).result
+        # Upstream raised "unsupported operand type(s) for -: 'float' and 'NoneType'" here.
+        rows = create_term_structure(chain, metric="price").results
+        self.assertEqual(sorted((str(r.expiration)[:10], r.option_type, r.strike) for r in rows),
+                         [("2027-11-19", "call", 710.0), ("2027-11-19", "put", 690.0),
+                          ("2027-12-02", "call", 825.0)])
+
 
 class CongressLoadLockAcrossLoopsTest(unittest.TestCase):
     def test_a_second_event_loop_waits_for_nothing_and_does_not_raise(self):
