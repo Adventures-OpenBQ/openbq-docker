@@ -49,4 +49,18 @@ assert r.status_code == 200, r.text
 assert r.json()['results'][0]['value'] == 100
 assert r.json()['results'][1]['value'] is None
 assert obb.yfinance.equity.historical(symbol='AAPL').results[0].close == 11
+assert 'yfinance_options_chains_long_yfinance_obb' in widgets
+from types import SimpleNamespace
+from openbq_yfinance.models import options
+class Chain:
+    options = ('2025-01-17', '2025-02-21')
+    def option_chain(self, expiration):
+        frame = pd.DataFrame([{'contractSymbol': 'C' + expiration, 'strike': 100, 'impliedVolatility': .25}])
+        return SimpleNamespace(calls=frame, puts=frame, underlying={'regularMarketPrice': 101., 'regularMarketTime': 1735851600, 'exchangeTimezoneName': 'America/New_York'})
+options.ticker = lambda symbol: Chain()
+r = client.get('/api/v1/yfinance/options/chains_long', params={'symbol':'AAPL'})
+assert r.status_code == 200, r.text
+rows = r.json()['results']
+assert [(x['expiration'], x['option_type'], x['dte']) for x in rows] == [('2025-01-17','call',15), ('2025-01-17','put',15), ('2025-02-21','call',50), ('2025-02-21','put',50)], rows
+assert {(x['underlying_symbol'], x['eod_date'], x['underlying_price'], x['implied_volatility']) for x in rows} == {('AAPL', '2025-01-02', 101., .25)}, rows
 print('PASS: original yfinance V5 extension, four example widgets, historical prices and long-form statement/null handling')
