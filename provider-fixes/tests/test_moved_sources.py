@@ -248,5 +248,15 @@ class AtlantaPublicationsDoiOnlyItemsTest(unittest.TestCase):
         )
 
 
+class OecdPresentationTableAppStateTest(unittest.TestCase):
+    def test_the_app_opens_the_table_without_an_end_date(self):
+        from pathlib import Path
+
+        import openbb_oecd
+
+        # With end_date=2020-01-01 and the widget's row limit, OECD answered with no data (400).
+        self.assertNotIn('"end_date"', (Path(openbb_oecd.__file__).parent / "apps.json").read_text())
+
+
 if __name__ == "__main__":
     unittest.main()
