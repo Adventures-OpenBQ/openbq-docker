@@ -179,5 +179,31 @@ class CongressLoadLockAcrossLoopsTest(unittest.TestCase):
         self.assertEqual(len(outcome["first"]), 2)
 
 
+class CongressMandatedReportsFallbackTest(unittest.TestCase):
+    def test_reports_come_from_the_search_when_the_link_route_fails(self):
+        from unittest import mock
+
+        from openbb_government_us.congress.models.congress_mandated_reports import (
+            CongressMandatedReportsFetcher as fetcher,
+        )
+        from openbb_government_us.congress.utils import bulk
+
+        async def broken(url, **kwargs):
+            # GovInfo answers 500 with this body; upstream read it as an empty list.
+            return {"message": "No static resource cmr/tableofreports for request '/link/cmr/tableofreports'."}
+
+        async def search(query, **kwargs):
+            return {"resultSet": [{
+                "line1": "Quarterly Report",
+                "line2": "Congressionally Mandated Reports. Department of Veterans Affairs. 119th Congress. November 6, 2026.",
+                "fieldMap": {"packageid": "CMR-VA1-00203071"}}]}
+
+        with mock.patch("openbb_core.provider.utils.helpers.amake_request", broken), \
+                mock.patch.object(bulk, "wssearch", search):
+            rows = asyncio.run(fetcher.fetch_data({"limit": 3}))
+        self.assertEqual([(r.package_id, r.submitting_agency, str(r.publication_date), r.is_on_time) for r in rows],
+                         [("CMR-VA1-00203071", "Department of Veterans Affairs", "2026-11-06", None)])
+
+
 if __name__ == "__main__":
     unittest.main()
