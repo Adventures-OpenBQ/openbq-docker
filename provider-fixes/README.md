@@ -64,3 +64,13 @@ Found by the v5 regression of 2026-11-17 (`release/v5` 1d69be8): 18 Atlanta Fed 
 **Congress bulk loader lock.** `openbb_government_us/congress/utils/bulk.py` kept one `asyncio.Lock` per cache key. A lock belongs to the event loop that first waits on it, and the Congress commands run on more than one loop (the provider's loop and the server's), so a request arriving during a load raised `RuntimeError: <asyncio.locks.Lock …> is bound to a different event loop`. The locks are now kept per (loop, key), as `_WRITE_LOCKS` in the same file already is; two loops can each run a load once, with the same result. Local fix, no upstream PR yet.
 
 Covered by `tests/test_moved_sources.py`.
+
+Validation errors from QueryParams subclasses with short names such as BalanceQuery are also client-input errors when their locations are present in the query. They return 422 with query locations, including rejected balance-sheet TTM requests; provider Data validation errors retain 500. The named-query value and enum regressions live in test_core.py.
+
+## Items ruled on after the v4/v5 regression (2026-11-18)
+
+**US Treasury prices.** TreasuryDirect rebuilt FedInvest: the CSV download now answers 403 unless the request carries the session cookie and the `_csrf` token from the price form, and the cookies are set for `www.treasurydirect.gov`. `openbb_government_us/treasury/models/treasury_prices.py` reads the form (`selectSecurityPriceDate`) and posts the download on the same session with the token. The page is public; no account or sign-in is involved, and nothing is stored between requests. Checked 2026-11-18: 462 rows for 2026-11-17.
+
+**Options strategies on an expiration with strikes on one side only.** On 2026-11-17 SPY's 2026-12-02 expiry listed one strike (825, above the price), so the straddle chose it as the nearest expiration and failed with "No premium data found for the selected strikes. Call: 825.0, Put: None" (400). `openbb_core/provider/utils/options_chains_properties.py` (`_get_nearest_expiration`, days-to-expiry branch) passes over an expiration whose strikes do not span the underlying price and takes the next nearest; if none spans it, the choice is unchanged. This applies to every strategy that picks its expiration by days.
+
+**FINRA Security Search and Security Profile are not offered.** Both read FINRA's retired Market Data Center and can only fail. `openbb_finra/routers/equity.py` marks the two widgets `exclude`, and `openbb_finra/assets/apps.json` drops their cards (and the profile from the Symbol group) from the FINRA app; short interest and OTC volume move to the top row. The REST routes remain. A deployment choice, not filed upstream.
