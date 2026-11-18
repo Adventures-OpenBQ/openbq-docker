@@ -61,5 +61,9 @@
   "openbb_federal_reserve/utils/fedinprint.py": "aabcfa339c6c3e35d187dd346beea25792c396a12ffa8f38c7926af647bb2e72",
   "openbb_oecd/apps.json": "4efa077b3e0b19d45f68bf62661fff51e0414e75469450963408267a3eb7dbde",
   "openbb_government_us/congress/congress_router.py": "530f9401ba71f90a12d13c01a48284d064dea12b9249cb3ef0b5872165627db6",
-  "openbb_federal_reserve/models/ffiec/bhcpr.py": "d706a9743e3a762a74c4cda5b03914ac3e909bea3d3b86cc72a9f939bbe6fac7"
+  "openbb_federal_reserve/models/ffiec/bhcpr.py": "d706a9743e3a762a74c4cda5b03914ac3e909bea3d3b86cc72a9f939bbe6fac7",
+  "openbb_government_us/treasury/models/treasury_prices.py": "154e38a86f36e91af2acdbb08642a217f94e6e4548581430b86fcfe144dc00c1",
+  "openbb_core/provider/utils/options_chains_properties.py": "093a02177c2ccc0cb89cedfc0c305204ace4021c21c75d0d8c9134269acea527",
+  "openbb_finra/routers/equity.py": "32a6d95b35c9adfba9f95c5f93ac77a65a6293fd70d2f9a4203b743a7e94b5be",
+  "openbb_finra/assets/apps.json": "bdc9e51d580872815f790140e1e410aa045b5c7b421c7997486bc4a9cd9b75b7"
 }
