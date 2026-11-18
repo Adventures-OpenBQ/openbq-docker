@@ -158,6 +158,32 @@ class DeadlineTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, name):
                     command_runner._read_deadlines({name: bad})
 
+    def test_request_timeout_default_is_45_seconds(self):
+        """A fetcher's amake_request gets 45 s, not openbb-core's 10 s; an explicit timeout still wins."""
+        import openbb_core.app.command_runner  # noqa: F401 (applies the default)
+        from openbb_core.provider.utils import helpers
+
+        seen = []
+
+        async def fake_session(**_):
+            async def request(method, url, **kwargs):
+                seen.append(kwargs["timeout"])
+                return SimpleNamespace()
+
+            async def close():
+                pass
+
+            return SimpleNamespace(request=request, close=close)
+
+        async def callback(response, session):
+            return {}
+
+        with mock.patch.object(helpers, "get_async_requests_session", fake_session):
+            asyncio.run(helpers.amake_request("http://t", response_callback=callback))
+            asyncio.run(helpers.amake_request("http://t", timeout=5, response_callback=callback))
+            asyncio.run(helpers.amake_requests(["http://t"], response_callback=callback))
+        self.assertEqual(seen, [45, 5, 45])
+
     def test_timeout_releases_the_cftc_lock(self):
         async def sleeper(**_):
             await asyncio.sleep(70)
