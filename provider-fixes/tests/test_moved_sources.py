@@ -258,5 +258,16 @@ class OecdPresentationTableAppStateTest(unittest.TestCase):
         self.assertNotIn('"end_date"', (Path(openbb_oecd.__file__).parent / "apps.json").read_text())
 
 
+class CongressAmendmentTextDefaultTest(unittest.TestCase):
+    def test_the_viewer_opens_on_an_amendment_that_has_text(self):
+        from openbb_core.api.rest_api import app
+        from openbb_platform_api.utils.widgets import build_json
+
+        widget = build_json(app.openapi(), [])["uscongress_amendment_text_congress_gov_obb"]
+        value = {p["paramName"]: p.get("value") for p in widget["params"]}["amendment_id"]
+        # House amendments carry no published text, so 119-hamdt-2 opened an empty viewer.
+        self.assertEqual(value, "119-samdt-2")
+
+
 if __name__ == "__main__":
     unittest.main()
