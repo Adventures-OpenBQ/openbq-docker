@@ -35,7 +35,7 @@
       "reviewed_commit": "44f51b1c93eb737b007ab85344e7314bf3c889a9"
     },
     "yfinance": {
-      "reviewed_commit": "d867c8bb64fda4dc843146a44f46ec7ca17e0ae8"
+      "reviewed_commit": "0a79a60d12e0d8aecdf82e5dd8f66491e287a903"
     }
   },
   "qualification_report": "qualification-2026-11-03/platform.json",
