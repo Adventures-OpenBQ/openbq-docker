@@ -50,5 +50,7 @@
   "openbb_federal_reserve/models/regional/atlanta_wage_growth.py": "38b1d3ee3728e0cfbe992fdb86c7af01224820fb92ea7f5f6bb03b73aa3bdc05",
   "openbb_federal_reserve/models/regional/minneapolis_business_conditions.py": "c25fb126d5f220abd93997505293017f9cebf488ec24f3a357f920303d937388",
   "openbb_government_us/congress/utils/bulk.py": "a202fef22fb0d45585d71fda47a6a18eeda944f7849bb7f1df7f53e1181aa9ef",
-  "openbb_cboe/utils/options/create_term_structure.py": "d147265820b4d2aa16c4735f072431a242567fb1f793658f3cfbb1e3e44da64d"
+  "openbb_cboe/utils/options/create_term_structure.py": "d147265820b4d2aa16c4735f072431a242567fb1f793658f3cfbb1e3e44da64d",
+  "openbb_federal_reserve/models/regional/dallas_tmos.py": "490ad046935e2ae1ebba8948e80cd11b02f15eab4a1925102e1f69c90cf673a1",
+  "openbb_federal_reserve/models/regional/dallas_tssos.py": "2969b0b61dcb3c06d1d61378699cc92993a8d08e1a4546a15076efdc6cff9aa4"
 }
