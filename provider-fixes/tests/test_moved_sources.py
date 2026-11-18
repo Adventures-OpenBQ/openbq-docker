@@ -205,5 +205,48 @@ class CongressMandatedReportsFallbackTest(unittest.TestCase):
                          [("CMR-VA1-00203071", "Department of Veterans Affairs", "2026-11-06", None)])
 
 
+class UsdaLivestockTradeLayoutTest(unittest.TestCase):
+    def test_workbook_with_descriptor_columns_on_every_row(self):
+        from io import BytesIO
+
+        from openbb_government_us.usda.utils import ers_livestock_and_meat_international_trade_data as ers
+        from openpyxl import Workbook
+
+        book, raw = Workbook(), BytesIO()
+        for row in (
+            ["Commodity description", "Trade flow", "Unit description", "Geography code",
+             "Geography description", 2024, 2025, "Jan-Sep-25"],
+            ["Beef and veal", "Imports", "1,000 pounds", 6021, "Australia", 1.0, 2.0, 3.0],
+            ["Beef and veal", "Imports", "1,000 pounds", 0, "World total", 9.0, 9.0, 9.0],
+            ["Beef and veal", "Exports", "1,000 pounds", 1220, "Canada", 4.0, 5.0, 6.0],
+        ):
+            book.active.append(row)
+        book.save(raw)
+        entry = ers.SPECIES["beef_veal"]
+        # Upstream looked for an "Import/export" header and found no products (204).
+        self.assertEqual(ers.parse_products(raw.getvalue(), entry, "imports"), ["Beef and veal"])
+        records = ers.parse_workbook(raw.getvalue(), entry, "imports", "Beef and veal")
+        self.assertEqual({r["country"] for r in records}, {"Australia"})
+        self.assertEqual(len(records), 3)
+
+
+class AtlantaPublicationsDoiOnlyItemsTest(unittest.TestCase):
+    def test_an_item_with_only_a_doi_resolves_through_its_landing_page(self):
+        from openbb_federal_reserve.utils import fedinprint
+
+        pages = {
+            "https://fedinprint.org/item/fedawp/1/original": '<meta name="citation_doi" content="10.29338/wp2026-19">',
+            "https://doi.org/10.29338/wp2026-19": (
+                '<meta property="og:url" content="https://www.atlantafed.org/research-and-data/publications/wp/19">'
+                '<a href="/-/media/Project/Atlanta/FRBA/Documents/wp/19.pdf">Full text</a>'
+            ),
+        }
+        # Upstream found no file link on the item page and dropped every recent Atlanta item (204).
+        self.assertEqual(
+            fedinprint.resolve_file("https://fedinprint.org/item/fedawp/1/original", pages.__getitem__),
+            "https://www.atlantafed.org/-/media/Project/Atlanta/FRBA/Documents/wp/19.pdf",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
