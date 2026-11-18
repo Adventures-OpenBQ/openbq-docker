@@ -13,10 +13,10 @@ const widgets = JSON.parse(readFileSync(join(here, "..", "lanes", "ssrm_widgets.
 // The door prefixes the client route with /api and the handler suffixes /ssrm.
 const doorPaths = widgets.map(w => `/api${w.route}/ssrm`);
 
-test("the committed list is 23 unique routes the gateway's validator accepts", () => {
-  assert.equal(widgets.length, 23);
-  assert.equal(new Set(widgets.map(w => w.id)).size, 23);
-  assert.equal(new Set(doorPaths).size, 23);
+test("the committed list is 41 unique routes the gateway's validator accepts", () => {
+  assert.equal(widgets.length, 41);
+  assert.equal(new Set(widgets.map(w => w.id)).size, 41);
+  assert.equal(new Set(doorPaths).size, 41);
   assert.ok(validSsrmRoutes(doorPaths));
 });
 
@@ -33,7 +33,7 @@ test("every committed SSRM route admits a POST and an unlisted sibling does not"
   assert.equal(tableRoute(new URL(doorPaths[0], "https://example.com"), "GET", config), null);
 });
 
-test("a settings file without ssrmRoutes admits the 23 routes; an explicit list still wins", () => {
+test("a settings file without ssrmRoutes admits the 41 routes; an explicit list still wins", () => {
   const settings = { origin: `https://openbq.${["example-tailnet", "ts", "net"].join(".")}:10000` };
   const secrets = { token: "t".repeat(32), apiUsername: "u", apiPassword: "p" };
   assert.deepEqual(validateConfig(settings, secrets).ssrmRoutes, doorPaths);
