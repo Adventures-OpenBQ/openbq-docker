@@ -36,6 +36,29 @@ class MinneapolisPeriodColumnTest(unittest.TestCase):
                 self.assertEqual([r.is_flash for r in rows], [False, True])
 
 
+class DallasSurveySheetNameTest(unittest.TestCase):
+    def test_survey_sheet_named_index_or_sheet1(self):
+        from io import BytesIO
+
+        from openpyxl import Workbook
+
+        cases = (("dallas_tmos", "FederalReserveDallasManufacturing", ["date", "Prod", "Fprod"]),
+                 ("dallas_tssos", "FederalReserveDallasServiceSector", ["date ", "rev", "frev"]))
+        for module_name, prefix, header in cases:
+            module = importlib.import_module(f"{REGIONAL}.{module_name}")
+            fetcher = getattr(module, prefix + "Fetcher")
+            for sheet in ("Index", "Sheet1"):
+                with self.subTest(model=module_name, sheet=sheet):
+                    book, raw = Workbook(), BytesIO()
+                    book.active.title = sheet
+                    book.active.append(header)
+                    book.active.append(["Jun-04", 38, 50])
+                    book.save(raw)
+                    # Upstream raised "Worksheet named 'Index' not found" for Sheet1.
+                    rows = fetcher.transform_data(fetcher.transform_query({}), [{"_raw": raw.getvalue()}])
+                    self.assertEqual([str(r.date) for r in rows], ["2004-06-01"])
+
+
 class CboeDigitRootContractsTest(unittest.TestCase):
     def test_contracts_with_a_digit_in_the_root_parse(self):
         from openbb_cboe.models.options_chains import CboeOptionsChainsFetcher as fetcher
