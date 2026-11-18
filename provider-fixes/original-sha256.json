@@ -60,5 +60,6 @@
   "openbb_government_us/usda/utils/ers_livestock_and_meat_international_trade_data.py": "713133b6d3cb10762029a5802ebb33ffd4af4e7f725ea8d10d1939935077940a",
   "openbb_federal_reserve/utils/fedinprint.py": "aabcfa339c6c3e35d187dd346beea25792c396a12ffa8f38c7926af647bb2e72",
   "openbb_oecd/apps.json": "4efa077b3e0b19d45f68bf62661fff51e0414e75469450963408267a3eb7dbde",
-  "openbb_government_us/congress/congress_router.py": "530f9401ba71f90a12d13c01a48284d064dea12b9249cb3ef0b5872165627db6"
+  "openbb_government_us/congress/congress_router.py": "530f9401ba71f90a12d13c01a48284d064dea12b9249cb3ef0b5872165627db6",
+  "openbb_federal_reserve/models/ffiec/bhcpr.py": "d706a9743e3a762a74c4cda5b03914ac3e909bea3d3b86cc72a9f939bbe6fac7"
 }

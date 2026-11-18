@@ -269,5 +269,21 @@ class CongressAmendmentTextDefaultTest(unittest.TestCase):
         self.assertEqual(value, "119-samdt-2")
 
 
+class BhcprUnpublishedQuarterTest(unittest.TestCase):
+    def test_a_listed_quarter_with_no_report_yet_is_not_the_default(self):
+        from unittest import mock
+
+        from openbb_federal_reserve.models.ffiec import bhcpr
+
+        listing = {"BHCPR": {"periods": [
+            {"year": 2026, "quarter": 3, "pdf_available": False},
+            {"year": 2026, "quarter": 2, "pdf_available": True},
+        ]}}
+        # Upstream defaulted to 20260930, whose CSV is an error page (204).
+        with mock.patch("openbb_federal_reserve.utils.ffiec.fetch_institution_financial_reports",
+                        return_value=listing):
+            self.assertEqual(bhcpr._filed_periods("1039502"), ["20260630"])
+
+
 if __name__ == "__main__":
     unittest.main()
