@@ -59,6 +59,26 @@ class DallasSurveySheetNameTest(unittest.TestCase):
                     self.assertEqual([str(r.date) for r in rows], ["2004-06-01"])
 
 
+class FinraSecuritiesWithoutRetiredLookupTest(unittest.TestCase):
+    def test_new_symbols_are_listed_without_the_market_data_lookup(self):
+        from unittest import mock
+
+        from openbb_finra.utils import client, directory
+
+        async def universe():
+            return {"AAPL": {"tier": "NMS Tier 1"}, "ZZNEW": {"tier": "OTC"}}
+
+        known = ["ST", "Apple Inc", "Common Shares", "0P000000GY", "0P000000GY", "XNAS", "19", "126",
+                 "USA", "USA", "USD", "126.1.AAPL"]
+        # FINRA retired the lookup service; upstream called it for ZZNEW and raised "not readable".
+        with mock.patch.object(directory, "load_universe", universe), \
+                mock.patch.object(directory, "read_asset", lambda: {"securities": {"AAPL": known}}), \
+                mock.patch.object(client, "market_data_session", side_effect=AssertionError("lookup called")):
+            rows = asyncio.run(directory.list_securities())
+        self.assertEqual([(r["symbol"], r.get("security_type")) for r in rows],
+                         [("AAPL", "ST"), ("ZZNEW", None)])
+
+
 class CboeDigitRootContractsTest(unittest.TestCase):
     def test_contracts_with_a_digit_in_the_root_parse(self):
         from openbb_cboe.models.options_chains import CboeOptionsChainsFetcher as fetcher
