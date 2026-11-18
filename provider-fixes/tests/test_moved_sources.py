@@ -119,6 +119,29 @@ class CboeDigitRootContractsTest(unittest.TestCase):
                           ("2027-12-02", "call", 825.0)])
 
 
+class CboeConstituentsWithoutAFileTest(unittest.TestCase):
+    def test_an_index_with_no_file_is_a_clear_error_and_the_app_opens_on_one_that_has(self):
+        import json
+        from pathlib import Path
+        from unittest import mock
+
+        import openbb_cboe
+        from aiohttp import ClientResponseError
+        from openbb_cboe.models.index_constituents import CboeIndexConstituentsFetcher as fetcher
+        from openbb_core.app.model.abstract.error import OpenBBError
+
+        async def forbidden(url, **kwargs):
+            raise ClientResponseError(mock.Mock(real_url=url), (), status=403, message="Forbidden")
+
+        # Upstream let the 403 surface as "Unexpected Error -> ContentTypeError" (500).
+        with mock.patch("openbb_core.provider.utils.helpers.amake_request", forbidden), \
+                self.assertRaisesRegex(OpenBBError, "no constituents for BUKENGY"):
+            asyncio.run(fetcher.aextract_data(fetcher.transform_query({"symbol": "BUKENGY"}), None))
+        apps = (Path(openbb_cboe.__file__).parent / "assets" / "apps.json").read_text()
+        self.assertNotIn("BUKENGY", apps)
+        self.assertIn('"BUK100P"', json.dumps(json.loads(apps)))
+
+
 class CongressLoadLockAcrossLoopsTest(unittest.TestCase):
     def test_a_second_event_loop_waits_for_nothing_and_does_not_raise(self):
         from openbb_government_us.congress.utils import bulk

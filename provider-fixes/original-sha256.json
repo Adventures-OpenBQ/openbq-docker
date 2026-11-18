@@ -53,5 +53,7 @@
   "openbb_cboe/utils/options/create_term_structure.py": "d147265820b4d2aa16c4735f072431a242567fb1f793658f3cfbb1e3e44da64d",
   "openbb_federal_reserve/models/regional/dallas_tmos.py": "490ad046935e2ae1ebba8948e80cd11b02f15eab4a1925102e1f69c90cf673a1",
   "openbb_federal_reserve/models/regional/dallas_tssos.py": "2969b0b61dcb3c06d1d61378699cc92993a8d08e1a4546a15076efdc6cff9aa4",
-  "openbb_finra/utils/directory.py": "b844ffde7991b902d57c506db52f67ae71bc112e92e4f52b577785753cb2097b"
+  "openbb_finra/utils/directory.py": "b844ffde7991b902d57c506db52f67ae71bc112e92e4f52b577785753cb2097b",
+  "openbb_cboe/models/index_constituents.py": "ec8304cbe116f11d46a5b293c373943d29757d0e2366d7777c6d26e150452a67",
+  "openbb_cboe/assets/apps.json": "74b35cb043f26f02b9bc9f005127299a934845642e67c1af887a3e20f6f2ae93"
 }
