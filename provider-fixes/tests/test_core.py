@@ -13,7 +13,8 @@ from unittest import mock
 
 import httpx
 from fastapi import FastAPI, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+from typing import Literal
 
 from openbb_core.api.app_loader import AppLoader
 from openbb_core.app.command_runner import StaticCommandRunner
@@ -30,6 +31,14 @@ class BalanceQuery(QueryParams):
     """Named like openbq-yfinance's query models: no "QueryParams" in the title."""
 
     symbol: str
+    period: Literal["annual", "quarter", "ttm"] = "annual"
+
+    @field_validator("period")
+    @classmethod
+    def no_trailing_balance(cls, value):
+        if value == "ttm":
+            raise ValueError("Balance sheets do not support trailing (ttm) periods.")
+        return value
 
 
 class ItemData(BaseModel):
@@ -109,6 +118,19 @@ class ErrorMappingTest(unittest.TestCase):
         detail = response.json()["detail"]
         self.assertEqual(detail[0]["loc"], ["query", "limit"])
         self.assertEqual(detail[0]["type"], "int_parsing")
+
+    def test_invalid_value_of_named_query_model_is_422(self):
+        response = _get(self.app, "/balance?symbol=NVDA&period=ttm")
+        self.assertEqual(response.status_code, 422, response.text)
+        detail = response.json()["detail"]
+        self.assertEqual(detail[0]["loc"], ["query", "period"])
+        self.assertEqual(detail[0]["type"], "value_error")
+        self.assertNotIn("ctx", detail[0])
+
+    def test_invalid_enum_of_named_query_model_is_422(self):
+        response = _get(self.app, "/balance?symbol=NVDA&period=invalid")
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(response.json()["detail"][0]["loc"], ["query", "period"])
 
     def test_timeout_is_504_with_message(self):
         response = _get(self.app, "/timeout?message=EIA%20timed%20out")
