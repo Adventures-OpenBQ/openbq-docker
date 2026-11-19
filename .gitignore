@@ -47,3 +47,6 @@ __pycache__/
 # Downloaded release images
 SHA256SUMS
 release-assets/
+
+# Public provider demonstration tokens, explicitly safe to publish
+!credentials.demo.env

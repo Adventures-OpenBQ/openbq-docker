@@ -2,6 +2,8 @@
 
 # openbq-docker — Episode 1
 
+For a separate source-build reader installation using only public demonstration tokens, follow [DEMO-VERIFY.md](DEMO-VERIFY.md). Historical image qualification records below describe the archived original rehearsal.
+
 A headless Open Data Platform backend on Docker, with private HTTPS through a separate Tailscale sidecar. Companion to **Adventures in OpenBQ**. This is an independent packaging recipe for the official OpenBQ-stewarded OpenBB V5 packages, whose names and commands remain `openbb-*`.
 
 ## Scope

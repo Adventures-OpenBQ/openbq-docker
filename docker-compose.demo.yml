@@ -1,0 +1,9 @@
+# Use only in the separate reader checkout described in DEMO-VERIFY.md.
+services:
+  tailscale:
+    hostname: openbq-reader
+    environment:
+      TS_HOSTNAME: openbq-reader
+  openbq-api:
+    image: openbq-local:1.0.0-reader
+    env_file: !override [./credentials.demo.env]
