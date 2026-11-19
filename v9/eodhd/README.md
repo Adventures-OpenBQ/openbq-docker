@@ -3,7 +3,7 @@
 # openbq-eodhd in ODP v9
 
 `source/` is the openbq-eodhd provider extension 9.0.1, vendored from
-Adventures-OpenBQ/openbq-eodhd at commit `0cfe6da4d7bd589423eb8831f7374a78e24547f6`. That package is bdobb-dev/openbb-docker's
+Adventures-OpenBQ/openbq-eodhd at commit `349f2de40773cf2e1d9e2993ebabf3184871c07d`. That package is bdobb-dev/openbb-docker's
 `openbb-eodhd` (v9.6.3, fixes through v9.6.6), renamed `openbq-eodhd` (module `openbq_eodhd`)
 (`source.json`; per-file record in [docs/v9/eodhd-port.md](../../docs/v9/eodhd-port.md)),
 plus the released 9.0.1 fixes and guarded earnings-versus-estimates model.

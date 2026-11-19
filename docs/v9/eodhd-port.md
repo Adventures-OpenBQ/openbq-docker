@@ -128,6 +128,6 @@ User ruling: "openbq-docker v9 should have openbq-eodhd" and "it should be Adven
 
 ## Financial-chart provider pin (2026-11-19)
 
-The local chart stack uses canonical commit `0cfe6da4d7bd589423eb8831f7374a78e24547f6` at distribution version 9.0.1. Its 53 mirrors include `/api/v1/eodhd/equity/estimates/earnings_vs_estimates`. The default EODHD app still has eight cards. The seven-chart example lives in the paired BDOBB repository.
+The local chart stack uses canonical commit `349f2de40773cf2e1d9e2993ebabf3184871c07d` at distribution version 9.0.1. Its 53 mirrors include `/api/v1/eodhd/equity/estimates/earnings_vs_estimates`. The default EODHD app still has eight cards. The seven-chart example lives in the paired BDOBB repository.
 
 The reviewed inventory starts with the prior vendored tracked files and adds `openbq_eodhd/models/earnings_vs_estimates.py` and `tests/test_earnings_vs_estimates.py`. Compare this list with `git ls-tree -r --name-only <commit>` in the canonical checkout. For each listed path copy the bytes from `git show <commit>:<path>` and calculate SHA-256. The 118 entries under `files_sha256` in `v9/eodhd/source.json` record these canonical bytes. There are zero packaging edits. The source-pin test checks the file set as well as the hashes. Run it from a checkout alongside the stack and image tests. The released tag `v9.0.1` remains at `59603cc1957b01af98b75be257520b0f48a637fc`.
