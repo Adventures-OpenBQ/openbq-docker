@@ -9,7 +9,7 @@ from pathlib import Path
 def test_vendored_source_matches_pinned_manifest():
     package = Path(__file__).resolve().parents[1]
     pin = json.loads((package / "source.json").read_text())
-    assert pin["commit"] == "349f2de40773cf2e1d9e2993ebabf3184871c07d"
+    assert pin["commit"] == "5c54b403513ef5759a9c1d461da54669e2a6d91c"
     source = package / "source"
     vendored_manifest = {
         path.relative_to(source).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()

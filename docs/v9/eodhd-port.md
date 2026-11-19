@@ -131,3 +131,20 @@ User ruling: "openbq-docker v9 should have openbq-eodhd" and "it should be Adven
 The local chart stack uses canonical commit `349f2de40773cf2e1d9e2993ebabf3184871c07d` at distribution version 9.0.1. Its 53 mirrors include `/api/v1/eodhd/equity/estimates/earnings_vs_estimates`. The default EODHD app still has eight cards. The seven-chart example lives in the paired BDOBB repository.
 
 The reviewed inventory starts with the prior vendored tracked files and adds `openbq_eodhd/models/earnings_vs_estimates.py` and `tests/test_earnings_vs_estimates.py`. Compare this list with `git ls-tree -r --name-only <commit>` in the canonical checkout. For each listed path copy the bytes from `git show <commit>:<path>` and calculate SHA-256. The 118 entries under `files_sha256` in `v9/eodhd/source.json` record these canonical bytes. There are zero packaging edits. The source-pin test checks the file set as well as the hashes. Run it from a checkout alongside the stack and image tests. The released tag `v9.0.1` remains at `59603cc1957b01af98b75be257520b0f48a637fc`.
+
+## Screening, dividends and income evidence pin (2026-11-19)
+
+The screening and income chart stack pins canonical commit
+`5c54b403513ef5759a9c1d461da54669e2a6d91c` at distribution version 9.0.1.
+The 121 SHA-256 entries in `v9/eodhd/source.json` cover the complete tracked
+tree using the procedure above. The Docker copy preserves the generated
+mirror router and its 53 commands. The existing widget generator takes the
+five-day return's percent formatter from the provider response schema.
+
+The screener, dividends and income routes expose acquisition evidence at
+`extra.results_metadata.chart_evidence` for `chart_source=true`.
+`results` remains the row selector. The dividend event supplies payment
+currency and the income statement supplies reporting currency. Ordinary
+responses carry unknown dividend coverage or income scale, respectively.
+The packaged stack tests exercise these receipts and the default route
+behavior with fictional SDK responses.
