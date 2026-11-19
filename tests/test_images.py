@@ -55,6 +55,10 @@ class ApiImages(unittest.TestCase):
                 self.assertTrue(re.search(r"(?m)^WORKDIR /workspace$", text))
 
     def test_every_api_image_builds_installs_and_gates_openbq_eodhd(self):
+        source = ROOT / "v9/eodhd/source/openbq_eodhd"
+        self.assertTrue((source / "models/earnings_vs_estimates.py").is_file())
+        for module in source.rglob("*.py"):
+            self.assertNotRegex(module.read_text(), r"(?m)^\s*(?:import|from) openbb_eodhd\b")
         # v9: the api stage installs openbq-eodhd from v9/eodhd/source; the v3 stage builds FROM api.
         for name in API_DOCKERFILES:
             text = dockerfile(name)

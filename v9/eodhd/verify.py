@@ -27,4 +27,4 @@ assert not stray, f'{sorted(stray)} installed; v9/eodhd/tests assume no standard
 
 suite = unittest.defaultTestLoader.discover(str(Path(__file__).with_name('tests')))
 assert unittest.TextTestRunner(verbosity=1).run(suite).wasSuccessful()
-print('PASS: openbq-eodhd 9.0.1, 52 obb.eodhd.* mirrors, the EODHD app, a stubbed price query, and the app under OPENBB_API_AUTH')
+print('PASS: openbq-eodhd 9.0.1, 53 obb.eodhd.* mirrors, the EODHD app, a stubbed price query, and the app under OPENBB_API_AUTH')

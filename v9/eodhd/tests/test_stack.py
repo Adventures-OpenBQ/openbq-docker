@@ -77,7 +77,8 @@ class MirrorNamespace(unittest.TestCase):
         cls.widgets = build_json(app.openapi(), [])
 
     def test_every_mirror_is_mounted_with_its_own_model(self):
-        self.assertEqual(len(self.mirrors), 52)
+        self.assertEqual(len(self.mirrors), 53)
+        self.assertIn("/api/v1/eodhd/equity/estimates/earnings_vs_estimates", self.paths)
         for path, model in self.mirrors.items():
             self.assertIn("/api/v1/eodhd" + path, self.paths)
             self.assertEqual(self.models["/eodhd" + path], model)
@@ -191,7 +192,7 @@ class ApiAuth(unittest.TestCase):
             """,
             OPENBB_API_AUTH="true", OPENBB_API_USERNAME="check", OPENBB_API_PASSWORD="check",
         )
-        self.assertEqual(out["eodhd"], 52)
+        self.assertEqual(out["eodhd"], 53)
 
 
 if __name__ == "__main__":

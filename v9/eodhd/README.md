@@ -3,10 +3,10 @@
 # openbq-eodhd in ODP v9
 
 `source/` is the openbq-eodhd provider extension 9.0.1, vendored from
-Adventures-OpenBQ/openbq-eodhd at tag `v9.0.1`. That package is bdobb-dev/openbb-docker's
+Adventures-OpenBQ/openbq-eodhd at commit `0cfe6da4d7bd589423eb8831f7374a78e24547f6`. That package is bdobb-dev/openbb-docker's
 `openbb-eodhd` (v9.6.3, fixes through v9.6.6), renamed `openbq-eodhd` (module `openbq_eodhd`)
 (`source.json`; per-file record in [docs/v9/eodhd-port.md](../../docs/v9/eodhd-port.md)),
-plus the v9 review fixes released as 9.0.1.
+plus the released 9.0.1 fixes and guarded earnings-versus-estimates model.
 Its own README describes the data. The `Dockerfile` builds it as a wheel and
 installs it on the locked ODP recipe with the provider-fixes overlay applied.
 
@@ -14,7 +14,7 @@ installs it on the locked ODP recipe with the provider-fixes overlay applied.
 
 This line installs no standard routers (no openbb-equity, openbb-etf and so
 on), so `provider="eodhd"` has no `obb.equity...` home here. The extension's
-own namespace carries it: 52 commands under `/api/v1/eodhd/` (`obb.eodhd.*`),
+own namespace carries it: 53 commands under `/api/v1/eodhd/` (`obb.eodhd.*`),
 one per standard model EODHD implements, each offering only `eodhd`. Their
 widgets are `eodhd_<path>_eodhd_obb`, category EODHD; for example
 `eodhd_equity_price_historical_eodhd_obb` is `/api/v1/eodhd/equity/price/historical`.
@@ -37,7 +37,7 @@ EODHD plan. Both API images (the `Dockerfile` stages `api` and `v3`) install the
 - `source/tests`: the extension's own unit tests (mocked SDK). The parity tests
   in `test_eodhd_router.py` compare the mirrors with the standard routes, so
   run them where the standard routers are installed, as the donor's CI does.
-- `tests/test_stack.py`: this line's checks, without standard routers: the 52
+- `tests/test_stack.py`: this line's checks, without standard routers: the 53
   mirrors, their widgets, the EODHD app on `/apps.json`, a price query through
   `/api/v1/eodhd` against saved bars (`tests/fixtures`, fictional values), a
   missing key, and the app under `OPENBB_API_AUTH=true`.
