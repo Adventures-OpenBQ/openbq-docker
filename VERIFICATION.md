@@ -1,11 +1,11 @@
-# Episode 1 verification
+# Historical Episode 1 verification
 
-Passed on October 5, 2026, on the x86-64 QNAP NAS. Release source is identified by tag `v1.0.0`; this is a local NAS image, not a published registry image.
+Passed on October 5, 2026, on the x86-64 QNAP NAS at source commit `627396863ee32f2dff74e5fd336eb896d3bb9427`. This historical record does not describe later revisions of the movable `v1.0.0` tag. The image was local to that NAS, not a published registry image; current release qualification is recorded in the release receipts.
 
 - Docker `27.1.2-qnap8`; Compose `v2.29.1-qnap2`.
 - Final locked image: `sha256:4b6bbfc98174821d97c3b33cd5c7eaa908f6e6cd91a3939ab6437a6bc420d96f`.
 - Python base: `python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d`.
-- Exact installed package inventory: `requirements.lock`; `pip check` returned no broken requirements.
+- Exact installed package inventory was `requirements.lock` at source `627396863ee32f2dff74e5fd336eb896d3bb9427`; `pip check` passed for that image. The current lock contains later updates and is qualified separately.
 - After force-recreating both containers, the API became healthy. From the Mac over private Tailscale HTTPS, smoke passed: 927 widgets, 1,148 schema paths, app/agent catalogues, and one nonempty CBOE AAPL quote result.
 - HTTPS catalogue access passed and raw sidecar port 6900 was unreachable. NAS LAN and tailnet port 6900 also rejected connections; Docker reports no published API ports.
 - Markers in both settings and OpenBBUserData volumes survived recreation. The dedicated Tailscale node retained its node ID, domain, and IP.

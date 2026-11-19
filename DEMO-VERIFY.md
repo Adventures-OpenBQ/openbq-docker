@@ -22,6 +22,17 @@ Do not copy a registered installation's OpenBB data volumes or Tailscale identit
 
 From another trusted tailnet device, run the recipe's `scripts/smoke.py` and `scripts/verify-isolation.sh` against the node's actual HTTPS hostname. Smoke acceptance requires nonempty catalogues/OpenAPI and a nonempty Cboe quote. TCP 6900 must remain inaccessible from that device. Verify the same APIs from the Docker host separately; host access does not prove tailnet isolation.
 
+For a single bounded EIA demo-data check after the API is healthy, substitute your node's actual HTTPS URL:
+
+```sh
+OPENBQ_READER_URL=https://YOUR_ACTUAL_HOST
+curl --fail --silent --show-error "${OPENBQ_READER_URL}/api/v1/eia/coal/aggregate_production?provider=eia&limit=1"
+```
+
+Confirm that `results` contains a data row. This uses the public token already selected by the reader Compose override; no key belongs in the URL. It consumes demo quota. If the source reports a quota error, respect its retry instruction instead of repeatedly rerunning the check. Public-demo proof and the maintainer's full registered-key regression are separate receipts.
+
+Anonymous BLS series requests return values with lower limits; catalog metadata and calculated changes can be disabled by BLS without registration. Those provider warnings do not make a nonempty values response a registered-key result.
+
 The public demo tokens have provider-imposed request limits. Use the widget's documented choices, valid dates/facets and bounded limits. The large EIA widgets open with a bounded newest-page selection; full datasets need explicit filters/limits or their bulk-download facilities. A 200 response must contain the expected data; an empty response or a displayed error is not a data pass. Deliberately invalid input tests are recorded separately.
 
 Demo tokens are documented by [EIA](https://www.eia.gov/opendata/documentation.php) and [api.data.gov](https://api.data.gov/docs/api-key/). Do not put registered keys in logs, source files or published receipts. Registered credentials for the maintainer's qualification are supplied from the secret store at runtime.

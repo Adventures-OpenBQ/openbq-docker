@@ -1,4 +1,4 @@
-> Historical v1.0.0 environment: start with [REPRODUCE.md](REPRODUCE.md) for the archived original images and measured qualification. The development notes below describe the original rehearsal.
+> Build this release from its pinned source recipe: start with [REPRODUCE.md](REPRODUCE.md). Current qualification receipts are attached to the release; the original NAS rehearsal is retained as historical evidence.
 
 # openbq-docker — Episode 1
 
@@ -10,7 +10,7 @@ A headless Open Data Platform backend on Docker, with private HTTPS through a se
 
 Official core/API, seventeen providers, news, and technical/quantitative/econometric extensions. No desktop frontend, custom providers, running MCP service, agent, or later storage stack. `requirements.in` declares the intended direct packages; `requirements.lock` records the full resolved environment used by the Docker build.
 
-The verified Episode 1 image is `openbq-local:1.0.0`, built on the NAS from the `v1.0.0` source checkpoint. NAS and second-device rehearsal passed. See [verification](VERIFICATION.md).
+Docker Compose builds the local image `openbq-local:1.0.0` from this checkout. Current source and platform receipts identify the qualified builds. The October 5 NAS and second-device rehearsal describes an earlier immutable source checkpoint; see its [historical verification](VERIFICATION.md).
 
 ## Start
 
