@@ -1,18 +1,23 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
-"""openbb-core overlay: error mapping and required provider inputs."""
+"""openbb-core overlay: error mapping, required provider inputs, command deadlines."""
 import asyncio
 import json
+import urllib.parse
 import os
 import sys
+import time
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 import httpx
 from fastapi import FastAPI, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+from typing import Literal
 
 from openbb_core.api.app_loader import AppLoader
+from openbb_core.app.command_runner import StaticCommandRunner
 from openbb_core.app.model.abstract.error import OpenBBError
 from openbb_core.provider.abstract.query_params import QueryParams
 
@@ -26,6 +31,14 @@ class BalanceQuery(QueryParams):
     """Named like openbq-yfinance's query models: no "QueryParams" in the title."""
 
     symbol: str
+    period: Literal["annual", "quarter", "ttm"] = "annual"
+
+    @field_validator("period")
+    @classmethod
+    def no_trailing_balance(cls, value):
+        if value == "ttm":
+            raise ValueError("Balance sheets do not support trailing (ttm) periods.")
+        return value
 
 
 class ItemData(BaseModel):
@@ -65,6 +78,14 @@ def _app() -> FastAPI:
     async def widgets():
         return {}
 
+    @app.get("/slow")
+    async def slow():
+        async def sleeper(**_):
+            await asyncio.sleep(70)
+
+        provider = SimpleNamespace(provider="slowfake")
+        return await StaticCommandRunner._command(sleeper, {"provider_choices": provider})
+
     return app
 
 
@@ -98,12 +119,32 @@ class ErrorMappingTest(unittest.TestCase):
         self.assertEqual(detail[0]["loc"], ["query", "limit"])
         self.assertEqual(detail[0]["type"], "int_parsing")
 
+    def test_invalid_value_of_named_query_model_is_422(self):
+        response = _get(self.app, "/balance?symbol=NVDA&period=ttm")
+        self.assertEqual(response.status_code, 422, response.text)
+        detail = response.json()["detail"]
+        self.assertEqual(detail[0]["loc"], ["query", "period"])
+        self.assertEqual(detail[0]["type"], "value_error")
+        self.assertNotIn("ctx", detail[0])
+
+    def test_invalid_enum_of_named_query_model_is_422(self):
+        response = _get(self.app, "/balance?symbol=NVDA&period=invalid")
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(response.json()["detail"][0]["loc"], ["query", "period"])
+
     def test_timeout_is_504_with_message(self):
         response = _get(self.app, "/timeout?message=EIA%20timed%20out")
         self.assertEqual((response.status_code, response.json()["detail"]), (504, "EIA timed out"))
         response = _get(self.app, "/timeout")
         self.assertEqual(response.status_code, 504)
         self.assertIn("did not respond in time", response.json()["detail"])
+
+    def test_error_text_hides_provider_keys(self):
+        response = _get(self.app, "/timeout?message=" + urllib.parse.quote(
+            "Connection timeout to host https://api.stlouisfed.org/x?series_id=GDP&api_key=SEKRET&file_type=json"))
+        self.assertEqual(response.status_code, 504)
+        self.assertNotIn("SEKRET", response.text)
+        self.assertIn("api_key=***&file_type=json", response.json()["detail"])
 
     def test_non_json_is_502(self):
         response = _get(self.app, "/non_json")
@@ -119,6 +160,103 @@ class ErrorMappingTest(unittest.TestCase):
     def test_openbb_error_still_400(self):
         response = _get(self.app, "/openbb")
         self.assertEqual((response.status_code, response.json()["detail"]), (400, "bad input"))
+
+
+class DeadlineTest(unittest.TestCase):
+    def test_defaults(self):
+        from openbb_core.app import command_runner
+
+        def deadlines(env):
+            with mock.patch.dict(command_runner._DEADLINES, command_runner._read_deadlines(env), clear=True):
+                return command_runner._deadline("cftc"), command_runner._deadline("fred")
+
+        self.assertEqual(deadlines({}), (150, 55))
+        self.assertEqual(deadlines({"OPENBQ_COMMAND_TIMEOUT": ""}), (150, 55))
+        self.assertEqual(deadlines({"OPENBQ_COMMAND_TIMEOUT": "30"}), (150, 30))  # CFTC keeps its 150
+        env = {"OPENBQ_COMMAND_TIMEOUT": "30", "OPENBQ_COMMAND_TIMEOUT_CFTC": "120"}
+        self.assertEqual(deadlines(env), (120, 30))
+        for bad in ("abc", "0", "-5", "nan"):
+            for name in ("OPENBQ_COMMAND_TIMEOUT", "OPENBQ_COMMAND_TIMEOUT_FRED"):
+                with self.assertRaisesRegex(RuntimeError, name):
+                    command_runner._read_deadlines({name: bad})
+
+    def test_request_timeout_default_is_45_seconds(self):
+        """A fetcher's amake_request gets 45 s, not openbb-core's 10 s; an explicit timeout still wins."""
+        import openbb_core.app.command_runner  # noqa: F401 (applies the default)
+        from openbb_core.provider.utils import helpers
+
+        seen = []
+
+        async def fake_session(**_):
+            async def request(method, url, **kwargs):
+                seen.append(kwargs["timeout"])
+                return SimpleNamespace()
+
+            async def close():
+                pass
+
+            return SimpleNamespace(request=request, close=close)
+
+        async def callback(response, session):
+            return {}
+
+        with mock.patch.object(helpers, "get_async_requests_session", fake_session):
+            asyncio.run(helpers.amake_request("http://t", response_callback=callback))
+            asyncio.run(helpers.amake_request("http://t", timeout=5, response_callback=callback))
+            asyncio.run(helpers.amake_requests(["http://t"], response_callback=callback))
+        self.assertEqual(seen, [45, 5, 45])
+
+    def test_timeout_releases_the_cftc_lock(self):
+        async def sleeper(**_):
+            await asyncio.sleep(70)
+
+        async def quick(**_):
+            return "ok"
+
+        cftc = {"provider_choices": SimpleNamespace(provider="cftc")}
+
+        async def run():
+            started = time.monotonic()
+            with self.assertRaises(TimeoutError) as raised:
+                await StaticCommandRunner._command(sleeper, cftc)
+            self.assertLess(time.monotonic() - started, 5)
+            self.assertIn("cftc", str(raised.exception))
+            started = time.monotonic()
+            self.assertEqual(await StaticCommandRunner._command(quick, cftc), "ok")
+            self.assertLess(time.monotonic() - started, 2)
+
+        from openbb_core.app import command_runner
+
+        with mock.patch.dict(command_runner._DEADLINES, {"cftc": 1.0}):
+            asyncio.run(run())
+
+    def test_default_deadline_is_504_and_server_keeps_answering(self):
+        """The D4 acceptance test: a 70 s command answers 504 at about 55 s."""
+        app = _app()
+
+        async def run():
+            transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+            async with httpx.AsyncClient(transport=transport, base_url="http://t", timeout=120) as client:
+                started = time.monotonic()
+                slow = asyncio.create_task(client.get("/slow"))
+                polls = []
+                while not slow.done():
+                    t = time.monotonic()
+                    polls.append(((await client.get("/widgets.json")).status_code, time.monotonic() - t))
+                    await asyncio.sleep(1)
+                return (await slow), time.monotonic() - started, polls
+
+        from openbb_core.app import command_runner
+
+        with mock.patch.dict(command_runner._DEADLINES, {"cftc": 90.0}, clear=True):
+            response, seconds, polls = asyncio.run(run())
+        print(f"\n/slow -> {response.status_code} after {seconds:.1f} s; "
+              f"{len(polls)} /widgets.json polls, max {max(s for _, s in polls):.2f} s", file=sys.stderr)
+        self.assertEqual(response.status_code, 504, response.text)
+        self.assertIn("slowfake", response.json()["detail"])
+        self.assertTrue(54 < seconds < 60, seconds)
+        self.assertGreater(len(polls), 40)
+        self.assertTrue(all(code == 200 and s < 2 for code, s in polls), polls)
 
 
 class SharedRouteTest(unittest.TestCase):

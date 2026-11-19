@@ -5,7 +5,10 @@
 """Command runner module."""
 
 import asyncio
+import contextvars
+import os
 import threading
+import warnings
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import asdict, is_dataclass
@@ -14,7 +17,7 @@ from inspect import Parameter, iscoroutinefunction, signature
 from sys import exc_info
 from time import perf_counter_ns
 from typing import TYPE_CHECKING, Any, Optional
-from warnings import catch_warnings, showwarning, warn
+from warnings import showwarning, warn
 
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, ConfigDict, create_model
@@ -250,8 +253,11 @@ class ParametersBuilder:
 # provider's loop-bound caches (cboe, deribit, nasdaq, tmx) still only ever
 # see one loop. One loop per process matters too: a fresh loop per command
 # leaked ~115 MB of native memory per CFTC swap_trades call.
-# ponytail: work on a loop cannot be cancelled, and a provider's commands
-# still queue behind its own heavy ones; per-route threads would be next.
+# A command past its provider's deadline is cancelled at its next await, which
+# also releases its provider's lock below, and its request gets a 504.
+# ponytail: synchronous CPU sections cannot be cancelled and run to their next
+# await, and a provider's commands still queue behind its own heavy ones;
+# per-route processes would be next.
 _PROVIDER_LOOPS: dict[str, asyncio.AbstractEventLoop] = {}
 _PROVIDER_LOOPS_LOCK = threading.Lock()
 
@@ -261,6 +267,46 @@ _PROVIDER_LOOPS_LOCK = threading.Lock()
 # per process (openbb_cftc/utils/store.py), so concurrent writers of one
 # shard corrupt it.
 _ONE_AT_A_TIME = {"cboe": asyncio.Lock(), "cftc": asyncio.Lock()}
+
+def _read_deadlines(environ) -> dict[str, float]:
+    """Read OPENBQ_COMMAND_TIMEOUT[_<PROVIDER>] once, failing at startup on a bad value."""
+    deadlines = {"cftc": 150.0}  # cold rates swap_trades ~100 s, forex ~70 s (D8 ruling Q2)
+    for name, value in environ.items():
+        if value and (
+            name == "OPENBQ_COMMAND_TIMEOUT"
+            or name.startswith("OPENBQ_COMMAND_TIMEOUT_")
+        ):
+            try:
+                seconds = float(value)
+            except ValueError:
+                seconds = 0.0
+            if not seconds > 0:  # also rejects nan
+                raise RuntimeError(
+                    f"{name}={value!r} must be a positive number of seconds."
+                )
+            deadlines[name[len("OPENBQ_COMMAND_TIMEOUT_") :].lower()] = seconds
+    return deadlines
+
+
+# Seconds a command may run: OPENBQ_COMMAND_TIMEOUT_<PROVIDER>, else the
+# provider's built-in deadline, else OPENBQ_COMMAND_TIMEOUT, else 55.
+_DEADLINES = _read_deadlines(os.environ)
+
+
+# openbb-core's amake_request gives a whole request (download included) 10 s,
+# and fetchers rarely pass the user's request_timeout, so USDA's 18.8 MB ERS
+# feed-grains file (12 s on its own) could never load. 45 s stays under the
+# 55 s command deadline; a fetcher's explicit timeout (FRED's 5 s) still wins.
+# The defaults are set on the function itself, so fetchers that imported it by
+# name get them too; amake_requests forwards to it.
+from openbb_core.provider.utils import helpers as _helpers
+
+_helpers.amake_request.__defaults__ = ("GET", 45, None)
+
+
+def _deadline(key: str) -> float:
+    """Return the provider's command deadline in seconds."""
+    return _DEADLINES.get(key, _DEADLINES.get("", 55.0))
 
 
 def _provider_loop(name: str) -> tuple[str, asyncio.AbstractEventLoop]:
@@ -276,8 +322,34 @@ def _provider_loop(name: str) -> tuple[str, asyncio.AbstractEventLoop]:
         return key, _PROVIDER_LOOPS[key]
 
 
-async def _run_command(key: str, func: Callable, kwargs: dict[str, Any]):
+# Each command's warnings, scoped per request. catch_warnings(record=True)
+# swaps one process-global hook, so overlapping requests (and the provider
+# threads above) recorded into whichever request entered last. One hook routes
+# every warning to the collector of the context that raised it instead.
+# ponytail: code outside openbb that enters catch_warnings concurrently can
+# still take the hook for its span (3.12 warnings are process-global); the
+# hook is re-installed per command, and 3.14's context_aware_warnings ends it.
+_WARNINGS: contextvars.ContextVar[list | None] = contextvars.ContextVar(
+    "openbq_warnings", default=None
+)
+
+
+def _route_warning(message, category, filename, lineno, file=None, line=None):
+    """Send a warning to the current command's collector, else show it as before."""
+    collected = _WARNINGS.get()
+    if collected is None:
+        showwarning(message, category, filename, lineno, file, line)
+    else:
+        collected.append(
+            warnings.WarningMessage(message, category, filename, lineno, file, line)
+        )
+
+
+async def _run_command(
+    key: str, func: Callable, kwargs: dict[str, Any], collected: list | None = None
+):
     """Run a command on its provider's loop, one at a time where it must be."""
+    _WARNINGS.set(collected)  # this task's own context; the request's collector
     if key not in _ONE_AT_A_TIME:
         return await maybe_coroutine(func, **kwargs)
 
@@ -298,9 +370,20 @@ class StaticCommandRunner:
         """Run a command and return the output."""
         provider = getattr(kwargs.get("provider_choices"), "provider", None)
         key, loop = _provider_loop(provider or func.__module__.split(".")[0])
-        obbject = await asyncio.wrap_future(
-            asyncio.run_coroutine_threadsafe(_run_command(key, func, kwargs), loop)
+        future = asyncio.wrap_future(
+            asyncio.run_coroutine_threadsafe(
+                _run_command(key, func, kwargs, _WARNINGS.get()), loop
+            )
         )
+        deadline = _deadline(key)
+        try:
+            obbject = await asyncio.wait_for(future, deadline)
+        except TimeoutError:
+            if not future.cancelled():  # the command's own timeout
+                raise
+            raise TimeoutError(
+                f"The {key} provider did not answer within {deadline:g} seconds."
+            ) from None
         if isinstance(obbject, (OBBject, OBBStream)):
             obbject.provider = getattr(
                 kwargs.get("provider_choices"),
@@ -374,76 +457,81 @@ class StaticCommandRunner:
         raised_warnings: list = []
         custom_headers: dict[str, Any] | None = None
 
+        # Collect this context's warnings; the token is reset when done.
+        warnings.showwarning = _route_warning
+        warnings._filters_mutated()  # as catch_warnings did: "default" filters re-show per command
+        warning_list: list = []
+        token = _WARNINGS.set(warning_list)
         try:
-            with catch_warnings(record=True) as warning_list:
-                # If we're on Jupyter we need to pop here because we will lose "chart" after
-                # ParametersBuilder.build. This needs to be fixed in a way that chart is
-                # added to the function signature and shared for jupyter and api
-                # We can check in the router decorator if the given function has a chart
-                # in the charting extension then we add it there. This way we can remove
-                # the chart parameter from the commands.py and package_builder, it will be
-                # added to the function signature in the router decorator
-                # If the ProviderInterface is not in use, we need to pass a copy of the
-                # kwargs dictionary before it is validated, otherwise we lose those items.
-                kwargs_copy = deepcopy(kwargs)
-                chart = kwargs.pop("chart", False)
-                kwargs_copy = deepcopy(kwargs)
-                kwargs = ParametersBuilder.build(
-                    args=args,
-                    execution_context=execution_context,
-                    func=func,
-                    kwargs=kwargs,
+            # If we're on Jupyter we need to pop here because we will lose "chart" after
+            # ParametersBuilder.build. This needs to be fixed in a way that chart is
+            # added to the function signature and shared for jupyter and api
+            # We can check in the router decorator if the given function has a chart
+            # in the charting extension then we add it there. This way we can remove
+            # the chart parameter from the commands.py and package_builder, it will be
+            # added to the function signature in the router decorator
+            # If the ProviderInterface is not in use, we need to pass a copy of the
+            # kwargs dictionary before it is validated, otherwise we lose those items.
+            kwargs_copy = deepcopy(kwargs)
+            chart = kwargs.pop("chart", False)
+            kwargs_copy = deepcopy(kwargs)
+            kwargs = ParametersBuilder.build(
+                args=args,
+                execution_context=execution_context,
+                func=func,
+                kwargs=kwargs,
+            )
+            kwargs = kwargs if kwargs is not None else {}
+            # If **kwargs is in the function signature, we need to make sure to pass
+            # All kwargs to the function so dependency injection happens
+            # and kwargs are actually made available as locals within the function.
+            if "kwargs" in kwargs_copy:
+                for k, v in kwargs_copy["kwargs"].items():
+                    if k not in kwargs:
+                        kwargs[k] = v
+            # If we're on the api we need to remove "chart" here because the parameter is added on
+            # commands.py and the function signature does not expect "chart"
+            kwargs.pop("chart", None)
+            # We also pop custom headers
+            model_headers = system_settings.api_settings.custom_headers or {}
+            custom_headers = {
+                name: kwargs.pop(name.replace("-", "_"), default)
+                for name, default in model_headers.items() or {}
+            } or None
+
+            obbject = await cls._command(func, kwargs)
+            # The output might be from a router command with 'no_validate=True'
+            # It might be of a different type than OBBject.
+            # In this case, we avoid accessing those attributes.
+            if isinstance(obbject, OBBject):
+                # This section prepares the obbject to pass to the charting service.
+                obbject._route = route
+                std_params = cls._extract_params(kwargs, "standard_params") or (
+                    kwargs if "data" in kwargs else {}
                 )
-                kwargs = kwargs if kwargs is not None else {}
-                # If **kwargs is in the function signature, we need to make sure to pass
-                # All kwargs to the function so dependency injection happens
-                # and kwargs are actually made available as locals within the function.
-                if "kwargs" in kwargs_copy:
-                    for k, v in kwargs_copy["kwargs"].items():
-                        if k not in kwargs:
-                            kwargs[k] = v
-                # If we're on the api we need to remove "chart" here because the parameter is added on
-                # commands.py and the function signature does not expect "chart"
-                kwargs.pop("chart", None)
-                # We also pop custom headers
-                model_headers = system_settings.api_settings.custom_headers or {}
-                custom_headers = {
-                    name: kwargs.pop(name.replace("-", "_"), default)
-                    for name, default in model_headers.items() or {}
-                } or None
+                extra_params = cls._extract_params(kwargs, "extra_params") or kwargs
+                obbject._standard_params = std_params
+                obbject._extra_params = extra_params
+                if chart and obbject.results:
+                    if "extra_params" not in kwargs_copy:
+                        kwargs_copy["extra_params"] = {}
+                    # Restore any kwargs passed that were removed by the ParametersBuilder
+                    for k in kwargs_copy.copy():
+                        if k == "chart":
+                            kwargs_copy.pop("chart", None)
+                            continue
+                        if (
+                            not extra_params or k not in extra_params
+                        ) and k != "extra_params":
+                            kwargs_copy["extra_params"][k] = kwargs_copy.pop(
+                                k, None
+                            )
 
-                obbject = await cls._command(func, kwargs)
-                # The output might be from a router command with 'no_validate=True'
-                # It might be of a different type than OBBject.
-                # In this case, we avoid accessing those attributes.
-                if isinstance(obbject, OBBject):
-                    # This section prepares the obbject to pass to the charting service.
-                    obbject._route = route
-                    std_params = cls._extract_params(kwargs, "standard_params") or (
-                        kwargs if "data" in kwargs else {}
-                    )
-                    extra_params = cls._extract_params(kwargs, "extra_params") or kwargs
-                    obbject._standard_params = std_params
-                    obbject._extra_params = extra_params
-                    if chart and obbject.results:
-                        if "extra_params" not in kwargs_copy:
-                            kwargs_copy["extra_params"] = {}
-                        # Restore any kwargs passed that were removed by the ParametersBuilder
-                        for k in kwargs_copy.copy():
-                            if k == "chart":
-                                kwargs_copy.pop("chart", None)
-                                continue
-                            if (
-                                not extra_params or k not in extra_params
-                            ) and k != "extra_params":
-                                kwargs_copy["extra_params"][k] = kwargs_copy.pop(
-                                    k, None
-                                )
+                    cls._chart(obbject, **kwargs_copy)
 
-                        cls._chart(obbject, **kwargs_copy)
-
-                raised_warnings = warning_list if warning_list else []
+            raised_warnings = warning_list if warning_list else []
         finally:
+            _WARNINGS.reset(token)
             if raised_warnings:
                 if isinstance(obbject, (OBBject, OBBStream)):
                     obbject.warnings = [cast_warning(w) for w in raised_warnings]

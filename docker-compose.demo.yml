@@ -1,0 +1,18 @@
+# Use only in the separate reader checkout described in DEMO-VERIFY.md.
+services:
+  tailscale:
+    hostname: openbq-reader
+    environment:
+      TS_HOSTNAME: openbq-reader
+  openbq-api:
+    image: openbq-local:2.0.0-reader
+    env_file: !override [./credentials.demo.env]
+  workspace:
+    image: openbq-workspace-local:2.0.0-reader
+  workspace-tailscale:
+    hostname: openbq-reader-workspace
+    environment:
+      TS_HOSTNAME: openbq-reader-workspace
+volumes:
+  workspace-data:
+    name: ${COMPOSE_PROJECT_NAME:-openbq-reader}-workspace-data

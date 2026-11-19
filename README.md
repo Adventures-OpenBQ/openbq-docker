@@ -1,101 +1,50 @@
-> Historical v2.0.0 environment: start with [REPRODUCE.md](REPRODUCE.md) for the archived original images and measured qualification. The development notes below describe the original rehearsal.
+# OpenBQ — Episode 2: original Workspace companion
 
-# openbq-docker — Episode 1
+A source-built OpenBB V5 backend and an optional self-hosted original OpenBB Workspace/Lite, with separate private HTTPS Tailscale sidecars. This is an independent recipe using the OpenBQ-stewarded packages whose commands remain `openbb-*`.
 
-A headless Open Data Platform backend on Docker, with private HTTPS through a separate Tailscale sidecar. Companion to **Adventures in OpenBQ**. This is an independent packaging recipe for the official OpenBQ-stewarded OpenBB V5 packages, whose names and commands remain `openbb-*`.
+Start with [REPRODUCE.md](REPRODUCE.md). Readers can verify the backend using [keyless sources and public demo credentials](DEMO-VERIFY.md); registered-key regression evidence is separate. The release's source archive and checksums describe this recipe. Historical image IDs in older receipts are not downloadable-image promises.
 
-## Scope
-
-Official core/API, seventeen providers, news, and technical/quantitative/econometric extensions. No desktop frontend, custom providers, running MCP service, agent, or later storage stack. `requirements.in` declares the intended direct packages; `requirements.lock` records the full resolved environment used by the Docker build.
-
-The verified Episode 1 image is `openbq-local:1.0.0`, built on the NAS from the `v1.0.0` source checkpoint. NAS and second-device rehearsal passed. See [verification](VERIFICATION.md).
-
-## Start
+## Backend
 
 ```sh
 cp ts.env.example ts.env
 cp credentials.env.example credentials.env
 chmod 600 ts.env credentials.env
 mkdir -p ts-state
-# Edit ts.env to supply a dedicated auth key.
+# Configure a dedicated Tailscale auth key and optional provider credentials.
 docker compose config --quiet
 docker compose build
 docker compose up -d
 docker compose ps
 ```
 
-On QNAP, use `./scripts/nas-docker.sh` in place of `docker` if Docker is missing from the SSH PATH or its default client home is unwritable. Run it from this checkout.
+For a fresh reader rehearsal, use the separate checkout and demo override in [DEMO-VERIFY.md](DEMO-VERIFY.md). It selects only the public EIA and Congress.gov tokens; BLS supports anonymous series queries. FRED requires registration. Do not copy another installation's credentials, account stores or Tailscale identity.
 
-Generate an auth key from [Tailscale's Keys page](https://login.tailscale.com/admin/settings/keys). For this one persistent node, turn Reusable and Ephemeral off; enable Pre-approved if your tailnet requires device approval. Apply existing server tags only if their access policy is appropriate. Enable MagicDNS and HTTPS certificates. Never copy another node's identity state.
+Generate a dedicated, non-reusable, non-ephemeral auth key in [Tailscale](https://login.tailscale.com/admin/settings/keys). Use pre-approval if your existing policy requires it. Enable MagicDNS and HTTPS certificates, and use server tags only when their existing access policy is appropriate. Read the actual node hostname from `docker compose exec tailscale tailscale status --json`.
 
-Compose project `openbq-stack` keeps its network and settings volume separate from existing stacks. No host ports are published. `openbq-api` listens on its Docker bridge; kernel-mode Tailscale Serve forwards HTTPS port 443. Funnel is disabled. The Docker host and authorized bridge members can reach the API, so this is not isolation from host administrators.
+From an authorized tailnet client, run `python3 scripts/smoke.py https://YOUR_ACTUAL_HOST` and the isolation check described by `scripts/verify-isolation.sh`. A smoke pass needs a nonempty catalogue, OpenAPI and Cboe quote. Provider data tests require real observations, not merely HTTP200. The host administrator and authorized Docker bridge members can also reach the API; the recipe does not isolate it from host administrators.
 
-## Test
+## Optional original Workspace
 
-Read the actual hostname from:
-
-```sh
-docker compose exec -T tailscale tailscale status
-docker compose exec -T tailscale tailscale serve status
-```
-
-From another trusted tailnet device:
+Follow [workspace/README.md](workspace/README.md) to assemble and build the archived original snapshot, then:
 
 ```sh
-python3 scripts/smoke.py https://openbq.YOUR-TAILNET.ts.net
-scripts/verify-isolation.sh openbq.YOUR-TAILNET.ts.net
-nc -z -w 5 YOUR-NAS-ADDRESS 6900
+cp workspace/runtime.env.example workspace/runtime.env
+cp workspace/ts.env.example workspace/ts.env
+chmod 600 workspace/runtime.env workspace/ts.env
+mkdir -p workspace/ts-state
+# Configure the companion's own identity and actual HTTPS origin.
+docker compose --profile workspace up -d
 ```
 
-The first two commands must pass; the last must fail. Check the NAS LAN and tailnet addresses. `smoke.py` validates widget discovery, OpenAPI routes, app/agent catalogues, and a nonempty CBOE quote response. It verifies one data request, not every endpoint.
+Workspace has its own node, bridge and account/dashboard volume. Its login protects Workspace accounts; the backend remains a separate tailnet service. Both Serve configurations disable Funnel. The base recipe preserves the former standalone Workspace volume for migration. The reader override instead gives each rehearsal project its own Workspace volume and image tags.
 
-To diagnose before the sidecar is ready:
+The original Workspace source is pinned at `be00e95019a55d57af146919ee46b7e1a4859226`. It is an archived control, with explicit packaging patches and recorded locks, rather than a claim of ongoing original-vendor updates. FINOS Workspace is a separate successor; compatibility with unchanged OpenBB widget catalogues must be measured rather than assumed. No FINOS renderer migration is included here.
 
-```sh
-docker compose up -d --no-deps openbq-api
-docker compose exec -T openbq-api curl -fsS http://127.0.0.1:6900/widgets.json
-docker compose exec -T openbq-api curl -fsS 'http://127.0.0.1:6900/api/v1/cboe/equity/quote?symbol=AAPL&provider=cboe'
-```
+Keep generated account credentials, private logs, provider keys and identity state out of source and published evidence. Workspace state is separate from backend settings and from BDOBB. Copilot/model services are disabled in this episode; later Rita functionality belongs to its own release.
 
-`ts.env` must still exist, even if it contains an empty key. API-only startup does not prove HTTPS access.
+## Build and historical evidence
 
-### Heavy routes
+The backend uses the pinned package lock and hash-gated provider overlay. Original provider attribution is retained in [provider-fixes](provider-fixes/README.md). Backend source builds target Linux AMD64 and ARM64; the original Workspace runtime build is the AMD64 path and needs emulation on an ARM host.
 
-CFTC (`/api/v1/cftc/*`) and FINRA bonds run in a second `openbb-api` process, the "heavy" lane (`lanes/openbq_lanes.py`), so their CPU work and 30–160 MB responses cannot stall `/widgets.json` or other routes. One request runs at a time and the rest queue. A request still running after 165 s gets 504 and the lane is restarted; a full queue, or a lane still starting, gets 503 with `Retry-After`; a result over 256 MB gets 413. `/widgets.json` and `/apps.json` are built once per process and then served from memory (restart the API after editing workspace apps or widget settings). `GET /openbq/lanes` shows the lane's pid, memory and restarts (behind the API's Basic auth when that is on, open otherwise). Settings (`credentials.env`): `OPENBQ_ISOLATE` (path prefixes; empty turns the lane off), `OPENBQ_LANE_DEADLINE`, `OPENBQ_LANE_QUEUE_MAX`, `OPENBQ_LANE_RSS_MB` (restart above, default 3584), `OPENBQ_LANE_STARTUP_LIMIT` (replace a worker still starting after this, default 180 s), `OPENBQ_MAX_RESULT_BYTES`. Check them with:
-
-```sh
-python3 scripts/verify-heavy-routes.py http://127.0.0.1:6900   # widgets.json keeps answering under load
-python3 scripts/verify-lane-contract.py LANE_URL IN_PROCESS_URL  # same answers with OPENBQ_ISOLATE empty
-docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:2.0.0 python -m unittest discover -s lanes/tests
-```
-
-## Credentials and restart
-
-Optional vendor keys go in `credentials.env`, ignored by Git and excluded from the image. Use official variable names; no inline comments after empty values. Recreate the API after editing an environment file. Its settings and OpenBBUserData persist in separate named volumes; Tailscale identity persists in `ts-state/`.
-
-```sh
-docker compose up -d --force-recreate
-# Recheck identity, catalogue, real data, and isolation.
-docker compose stop
-# Resume later:
-docker compose start
-```
-
-Do not remove the volume or identity directory to stop the stack. V5 providers and command paths differ from V4; use this build's `/openapi.json`, not old Yahoo Finance or FMP examples. Provider keys and upstream availability are separate from server health.
-
-Full reader instructions and troubleshooting: [Episode 1](https://github.com/artcashin/adventures-in-openbq-articles/tree/main/articles/01-openbq-on-the-nas).
-
-Copyright 2026 SecretoftheUniverse.com LLC. Apache-2.0 for this backend companion; upstream components retain their own licences.
-
-## Public repository checks
-
-Enable the local gates after cloning:
-
-```sh
-git config core.hooksPath .githooks
-python3 scripts/check-public.py --history
-```
-
-Commits scan tracked, staged and unignored files; pushes also scan the history reachable from the pushed refs; CI and a bare `--history` scan every branch and tag. Local deployment evidence and the machine-specific `scripts/scrub-private-patterns.txt` remain ignored. Reports use placeholder hostnames and addresses. The scanner reports filenames and finding categories, never matched values.
-
-Real `credentials.env` files may be used on the NAS, but stay out of Git and Docker build contexts. Demo/example credentials must contain empty values or obvious placeholders; an `.example` suffix does not make a real key safe to publish. Screenshots still need visual review before publication.
+These are version-pinned recipes, not a promise of byte-identical image rebuilds: OS packages and original frontend font downloads can change independently. Consult the release receipts for actual source/image/platform and live-test results. [VERIFICATION.md](VERIFICATION.md) retains historical evidence and must not be interpreted as a new physical NAS test of every retagged source.

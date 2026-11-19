@@ -15,15 +15,20 @@ if [[ -n "$(git -C "$source_dir" status --porcelain --untracked-files=all)" ]]; 
   exit 1
 fi
 python3 - "$source_dir" "$workspace_dir" <<'PY'
-import shutil,sys
+import hashlib,json,shutil,sys
 from pathlib import Path
 src,root=map(Path,sys.argv[1:])
+lock=root/'resolved-poetry.lock'
+expected=json.loads((root/'source.json').read_text())['observed_build']['resolved_lock_sha256']
+if hashlib.sha256(lock.read_bytes()).hexdigest()!=expected:
+ raise SystemExit('Resolved Workspace lock does not match source.json')
 out=root/'build-context'
 if out.exists(): raise SystemExit('build-context already exists; preserve or remove it explicitly before reassembly')
 if src==out or out in src.parents or src in out.parents: raise SystemExit('Unsafe source/output overlap')
 ignore=shutil.ignore_patterns('.git','node_modules','.venv','venv','__pycache__','dist','._*','.DS_Store','.env.local')
 shutil.copytree(src/'lite',out,ignore=ignore)
 shutil.copytree(src/'backend-api/backend',out/'backend',ignore=ignore)
+shutil.copyfile(lock,out/'backend/poetry.lock')
 shutil.copytree(src/'terminalpro',out/'terminalpro',ignore=ignore)
 print(out)
 PY

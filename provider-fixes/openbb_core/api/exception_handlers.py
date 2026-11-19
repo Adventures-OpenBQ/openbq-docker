@@ -6,6 +6,9 @@
 
 import json
 import logging
+import os
+import traceback
+import re
 from collections.abc import Iterable
 from typing import Any
 
@@ -20,6 +23,57 @@ from openbb_core.env import Env
 from openbb_core.provider.utils.errors import EmptyDataError, UnauthorizedError
 
 logger = logging.getLogger("uvicorn.error")
+
+# Providers put keys in the URL (FRED api_key, EconDB token, ...); aiohttp errors quote the URL.
+_SECRET = re.compile(r"(?i)((?:api_?key|apikey|token|registrationkey)=)[^&\s'\"\\]+")
+
+
+def _redact(text: str) -> str:
+    text = _SECRET.sub(r"\1***", text)
+    # Tracebacks may mention a credential without its query parameter name.
+    values = {value for name, value in os.environ.items()
+              if value and len(value) >= 4 and re.search(
+                  r"(?:API_?KEY|APP_TOKEN|TOKEN|PASSWORD|SECRET|SECRET_ACCESS_KEY)$", name)}
+    for value in sorted(values, key=len, reverse=True):
+        text = text.replace(value, "***")
+    return text
+
+
+def _redact_log_value(value):
+    if isinstance(value, str):
+        return _redact(value)
+    if isinstance(value, tuple):
+        return tuple(_redact_log_value(item) for item in value)
+    if isinstance(value, list):
+        return [_redact_log_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _redact_log_value(item) for key, item in value.items()}
+    return value
+
+
+class _SecretLogFilter(logging.Filter):
+    """Sanitize complete server records, including chained exception formatting."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = _redact_log_value(record.msg)
+        # Preserve the structured tuple expected by Uvicorn's AccessFormatter.
+        record.args = _redact_log_value(record.args)
+        if record.exc_info:
+            record.exc_text = _redact("".join(traceback.format_exception(*record.exc_info)))
+            record.exc_info = None
+        elif record.exc_text:
+            record.exc_text = _redact(record.exc_text)
+        if record.stack_info:
+            record.stack_info = _redact(record.stack_info)
+        return True
+
+
+def install_log_redaction() -> None:
+    """Install after Uvicorn config as well as at app construction."""
+    for name in ("uvicorn.error", "uvicorn.access"):
+        target = logging.getLogger(name)
+        if not any(isinstance(item, _SecretLogFilter) for item in target.filters):
+            target.addFilter(_SecretLogFilter())
 
 
 def _is_query_model(title: str) -> bool:
@@ -43,11 +97,11 @@ class ExceptionHandlers:
         """Exception handler."""
         if Env().DEBUG_MODE:
             raise exception
-        logger.error(exception)
+        logger.error(_redact(str(exception)))
         return JSONResponse(
             status_code=status_code,
             content={
-                "detail": detail,
+                "detail": json.loads(_redact(json.dumps(jsonable_encoder(detail)))),
             },
         )
 
@@ -133,7 +187,7 @@ class ExceptionHandlers:
             for err in errors  # ty: ignore[not-iterable]
             for loc in err.get("loc", ())
         )
-        if "QueryParams" in error.title and all_in_query:
+        if ("QueryParams" in error.title or _is_query_model(error.title)) and all_in_query:
             detail = [
                 {
                     **{k: v for k, v in err.items() if k != "ctx"},
