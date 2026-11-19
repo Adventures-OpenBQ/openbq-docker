@@ -125,21 +125,46 @@ def indented_name(label: str | None, name: str | None) -> str | None:
     return (match.group(0) if match else "") + name
 
 
-def _report_concept_types(section: str, cycle_ids: str | None = None) -> dict[str, str]:
-    """Read explicit CDR datatype IDs from the report's period-cell metadata.
-
-    IDs are published in /Public/Reports/MyUbprReport.js. The reference bank
-    identifies the layout; its amounts are never used as report results.
-    """
+def report_concept_types(rows: list[dict]) -> dict[str, str]:
+    """Read explicit datatype IDs from the actual CDR report response rows."""
     import re
     from openbb_core.app.model.abstract.error import OpenBBError
-    from openbb_federal_reserve.utils.ubpr_report import _post, _section_id, report_cycles
 
     labels = {
         "9": "Monetary", "10": "Text", "11": "Integer", "12": "Abstract",
         "17": "Boolean", "93": "Decimal", "94": "Percentage", "95": "Date",
         "96": "Ratio", "155": "Monetary", "162": "Decimal", "163": "Integer",
     }
+    types: dict[str, str] = {}
+    def add(code: str, type_id: str) -> None:
+        if type_id not in labels:
+            raise OpenBBError(f"Unknown FFIEC report datatype {type_id!r} for {code}; cannot safely scale values.")
+        label = labels[type_id]
+        if code in types and types[code] != label:
+            raise OpenBBError(f"Conflicting FFIEC report datatypes for {code}.")
+        types[code] = label
+    for row in rows:
+        code = str(row.get("conceptname") or "").strip()
+        if code:
+            add(code, str(row.get("datatypeid") or "").strip())
+        for key, cell in row.items():
+            if not re.fullmatch(r"\d{2}_\d{2}_\d{4}", key) or not cell or ";" not in str(cell):
+                continue
+            for part in str(cell).split(", "):
+                fields = part.split(";")
+                if len(fields) < 2 or not fields[1].strip().strip("'"):
+                    continue
+                code = fields[1].strip().strip("'")
+                add(code, fields[2].strip() if len(fields) > 2 else "")
+    if not types:
+        raise OpenBBError("FFIEC report metadata has no explicit concept datatypes; cannot safely scale values.")
+    return types
+
+
+def _report_concept_types(section: str, cycle_ids: str | None = None, rssd_id: str = "112837") -> dict[str, str]:
+    """Resolve types for the actual target and requested window when rendering HTML."""
+    from openbb_federal_reserve.utils.ubpr_report import _post, _section_id, report_cycles
+
     page_id, _ = _section_id(section, 283)
     requested = cycle_ids.split(",") if cycle_ids else [
         c["reportingcycleid"] for c in report_cycles()[:5]
@@ -147,37 +172,19 @@ def _report_concept_types(section: str, cycle_ids: str | None = None) -> dict[st
     rows = []
     for start in range(0, len(requested), 5):
         batch = _post("MyUbprLinesData", {
-            "ID_RSSD": "112837", "ScheduleID": page_id,
+            "ID_RSSD": str(rssd_id), "ScheduleID": page_id,
             "ReportingCycleIdList": ",".join(requested[start:start + 5]),
             "PeerDefinition": "",
         })
         if isinstance(batch, list):
             rows.extend(batch)
-    types: dict[str, str] = {}
-    for row in rows if isinstance(rows, list) else []:
-        for key, cell in row.items():
-            if not re.fullmatch(r"\d{2}_\d{2}_\d{4}", key) or not cell:
-                continue
-            for part in str(cell).split(", "):
-                fields = part.split(";")
-                if len(fields) < 2 or not fields[1].strip().strip("'"):
-                    continue
-                code = fields[1].strip().strip("'")
-                type_id = fields[2].strip() if len(fields) > 2 else ""
-                if type_id not in labels:
-                    raise OpenBBError(f"Unknown FFIEC report datatype {type_id!r} for {code}; cannot safely scale values.")
-                label = labels[type_id]
-                if code in types and types[code] != label:
-                    raise OpenBBError(f"Conflicting FFIEC report datatypes for {code}.")
-                types[code] = label
-    if not types:
-        raise OpenBBError("FFIEC report metadata has no explicit concept datatypes; cannot safely scale values.")
-    return types
+    return report_concept_types(rows)
 
 
 def concept_index(
     product: str = "ubpr_ratio_single", form_type: str | None = None,
-    *, section: str | None = None, cycle_ids: str | None = None
+    *, section: str | None = None, cycle_ids: str | None = None,
+    report_rows: list[dict] | None = None, rssd_id: str | None = None
 ) -> dict[str, dict[str, Any]]:
     """Return ``{CODE: {"name", "narrative", "monetary", "is_text"}}`` per concept."""
     from openbb_federal_reserve.utils.cache import cached, seconds_until_next_release
@@ -199,10 +206,10 @@ def concept_index(
                 for concept in parse_taxonomy(fetch_taxonomy(product, form_type))
             }
         except zipfile.BadZipFile:
-            if not product.startswith("ubpr_") or section is None:
+            if not product.startswith("ubpr_") or (section is None and report_rows is None):
                 raise
             warn("FFIEC taxonomy archive is invalid; using explicit report datatype metadata.", UserWarning, stacklevel=2)
-            types = _report_concept_types(section, cycle_ids)
+            types = report_concept_types(report_rows) if report_rows is not None else _report_concept_types(section, cycle_ids, rssd_id or "112837")
         names = fetch_mdrm_dictionary()
         definitions = fetch_mdrm_definitions()
         return {
@@ -215,9 +222,11 @@ def concept_index(
             for code, data_type in types.items()
         }
 
+    from hashlib import sha256
+    source_key = sha256(repr(report_rows).encode()).hexdigest() if report_rows is not None else None
     return cached(
-        ("concept_index_report_types_v2", product, form_type or "", section, cycle_ids)
-        if section is not None else ("concept_index", product, form_type or ""),
+        ("concept_index_report_types_v3", product, form_type or "", section, cycle_ids, rssd_id, source_key)
+        if section is not None or report_rows is not None else ("concept_index", product, form_type or ""),
         lambda: seconds_until_next_release("quarterly"),
         _producer,
     )

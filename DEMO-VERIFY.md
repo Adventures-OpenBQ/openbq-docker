@@ -18,7 +18,7 @@ docker compose -p openbq-reader -f docker-compose.yml -f docker-compose.demo.yml
 docker compose -p openbq-reader -f docker-compose.yml -f docker-compose.demo.yml ps
 ```
 
-Do not copy a registered installation's OpenBB data volumes or Tailscale identity state. The public demo file contains only EIA and Congress.gov demonstration tokens; FRED and the BLS API series endpoint require separate registration. Most BLS publication endpoints and CFTC fetchers work without a registered key, even though their provider metadata declares credential fields.
+Do not copy a registered installation's OpenBB data volumes or Tailscale identity state. The public demo file contains only EIA and Congress.gov demonstration tokens; FRED requires separate registration. BLS series requests support anonymous access with lower provider limits; a registered BLS key raises those limits. BLS publication endpoints and CFTC fetchers also work without a registered key, even though their provider metadata declares credential fields.
 
 From another trusted tailnet device, run the recipe's `scripts/smoke.py` and `scripts/verify-isolation.sh` against the node's actual HTTPS hostname. Smoke acceptance requires nonempty catalogues/OpenAPI and a nonempty Cboe quote. TCP 6900 must remain inaccessible from that device. Verify the same APIs from the Docker host separately; host access does not prove tailnet isolation.
 
