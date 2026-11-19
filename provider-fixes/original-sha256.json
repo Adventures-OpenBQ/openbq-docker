@@ -102,5 +102,6 @@
   "openbb_us_eia/eia_router.py": "5e34022b0085c74fa36c835084857884b69d7132ea4389b53a851f4bb70a8b0e",
   "openbb_us_eia/models/petroleum_status_report.py": "47881630bc5f1ee8aaa7dce43bcf8b68e0eda828b33a747d2334b387eb3c8365",
   "openbb_us_eia/utils/constants.py": "680c7a0d2d5820381e19b1384e37215d8f012f9bbbd87b6b51fc1ee144c43ddf",
-  "openbb_us_eia/utils/helpers.py": "e784ccf959655e15f283a6cf8bbcc152022b540ed0149247165751c457012880"
+  "openbb_us_eia/utils/helpers.py": "e784ccf959655e15f283a6cf8bbcc152022b540ed0149247165751c457012880",
+  "openbb_cboe/models/equity_quote.py": "b261e97f78070837b03dcbacbec58359c489d19939008afcfe69151e0344f916"
 }
