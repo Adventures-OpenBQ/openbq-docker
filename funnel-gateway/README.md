@@ -52,6 +52,12 @@ Caller headers, cookies and credentials are never relayed.
 | any other WebSocket upgrade | — | 401 without the token, else 403 (foreign Origin) or 404 |
 | everything else | — | 404 |
 
+The declared reference `/ref/html_widget` may return `text/html`; the gateway
+relays its bounded bytes as `text/plain` with `nosniff`, for the widget renderer
+to consume. HTML returned by other routes is still refused. This does not add
+POST/Omni forwarding: use the direct tailnet reference connection for those
+native exercises.
+
 Caps (settings): `maxConcurrent` (8, ≤ 32) and `maxSockets` (4, ≤ 32). There is no daily vendor
 cap and no per-minute request budget (removed 2026-10-17; `quoteDailyLimit` and `requestsPerMinute`
 are refused at startup by name, so delete them from an older settings file). Counters are in
