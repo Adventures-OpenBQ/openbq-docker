@@ -113,5 +113,7 @@
   "openbb_us_eia/rss.py": "52317eb414851ae24107bfcf1d3c650dc0f17d28cc7be210d6e565c7e8d05a01",
   "openbb_ecb/models/currency_reference_rates.py": "9758c34eefed524363e6da35dacd34d1b7fbb65493ba40f8894aa19b5b480056",
   "openbb_platform_api/utils/openapi.py": "6a56f718f9a572cd7ae958ff21e8c35460d9cea6d966215c11825f8cd3bf7b8f",
-  "openbb_tmx/routers/currency.py": "b2f7d748d69517a36bb8cdaabbc9904dca999507f6cbfd90c1d571a18f655cee"
+  "openbb_tmx/routers/currency.py": "b2f7d748d69517a36bb8cdaabbc9904dca999507f6cbfd90c1d571a18f655cee",
+  "openbb_government_us/congress/utils/member_cards.py": "7effb4ddce513e9e1027d822cb893ec982de7ed250e04e45b972cb5514a8d200",
+  "openbb_government_us/congress/assets/member_bio.html": "fd49fe337da9f82ae26b67f9064a6fe8b635644909e9cf5837ada18fa906f974"
 }

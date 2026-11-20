@@ -32,3 +32,16 @@ protocol regressions run with `node --test scripts/test-eia-rss-protocol.mjs`.
 Reader/demo, registered, actual data, empty and source-denial outcomes remain
 separate in the published regression evidence. These repairs require fresh
 source/image binding and targeted live retests before release sign-off.
+
+### Bounded Congress member voting history
+
+The current117-file overlay bounds the optional complete-career vote index wait
+to15seconds. A cold or unavailable index no longer hides an otherwise valid bio.
+Unknown totals remain null with an explicit unavailable state in both the page
+and published profile markdown; completed zero-vote and complete-career results
+retain their existing behavior. The underlying full-career ingestion is unchanged; tally publication also verifies
+that every required Congress/chamber is indexed. Partial totals and automatic
+retry loops are not introduced.
+
+The current suite contains183 Python regressions. JavaScript coverage adds four
+member-voting UI/markdown regressions alongside the four RSS protocol tests.

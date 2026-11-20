@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Build the pinned release image, applying its guarded overlay, then run source tests.
 set -eu
-cd "$(git rev-parse --show-toplevel)"
+cd "$(dirname "$0")/.."
 test_image="${OPENBQ_TEST_IMAGE:-openbq-provider-tests}"
 docker build -q -t "$test_image" . >/dev/null
 exec docker run --rm -v "$PWD:/src:ro" -w /src "$test_image" \

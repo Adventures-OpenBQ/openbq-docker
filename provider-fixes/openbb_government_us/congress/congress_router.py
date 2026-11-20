@@ -1,5 +1,6 @@
 """US Congress Router."""
 
+import asyncio
 import logging
 from typing import Any
 
@@ -22,6 +23,9 @@ from openbb_government_us.congress.utils.constants import (
     SUBCOMMITTEES,
     chamber_options,
 )
+
+# Keep optional cold-cache career indexing inside the API request budget.
+_MEMBER_VOTING_TIMEOUT = 15.0
 
 NO_SUBCOMMITTEES = [{"label": "None (Parent Committee)", "value": None}]
 router = Router(prefix="", description="Data connector to Congress.gov API.")
@@ -1135,13 +1139,20 @@ async def member_info_data(bioguide_id: str = "A000055") -> dict:
         member_committees,
         member_passage_record,
         member_photo_url,
+        unavailable_passage_record,
     )
     from openbb_government_us.congress.utils.member_cards import member_bio_payload
 
     record = await load_member_record(bioguide_id)
     committees = await member_committees(bioguide_id)
     social = (await load_social_media()).get(bioguide_id, {})
-    voting = await member_passage_record(bioguide_id)
+    try:
+        voting = await asyncio.wait_for(
+            member_passage_record(bioguide_id), timeout=_MEMBER_VOTING_TIMEOUT
+        )
+    except TimeoutError:
+        # Never label a partial career index as complete or turn unknown into zero.
+        voting = unavailable_passage_record()
     photo_url = await member_photo_url(bioguide_id)
 
     return member_bio_payload(record, committees, social, voting, photo_url)

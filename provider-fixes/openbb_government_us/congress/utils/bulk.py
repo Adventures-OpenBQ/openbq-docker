@@ -2241,17 +2241,34 @@ async def ensure_member_passage(bioguide: str) -> None:
     await asyncio.gather(*[_unit(c, ch) for c, ch in missing])
 
 
+def unavailable_passage_record() -> dict:
+    """Describe an unknown complete-career tally without inventing zero counts."""
+    return {
+        "yea": None,
+        "nay": None,
+        "total": None,
+        "yea_pct": None,
+        "status": "unavailable",
+        "message": "Complete career vote history is not available yet. Refresh to try again.",
+    }
+
+
 async def member_passage_record(bioguide: str) -> dict:
     """Return a member's career Yea/Nay record on final-passage votes from the store."""
     from openbb_government_us.congress.utils import store
 
     try:
         await ensure_member_passage(bioguide)
+        record = await load_member_record(bioguide)
+        loaded = store.loaded_keys("passage")
+        if any(f"{c}-{ch}" not in loaded for c, ch in member_service(record)):
+            return unavailable_passage_record()
     except Exception as exc:  # noqa: BLE001
         # A bio page is still worth rendering without its voting panel.
         logger.error(
             "congress_gov: could not build the passage index for %s: %s", bioguide, exc
         )
+        return unavailable_passage_record()
 
     row = store.get_passage(bioguide)
     yea, nay = row if row else (0, 0)
