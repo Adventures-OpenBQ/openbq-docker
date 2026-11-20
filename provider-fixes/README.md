@@ -25,9 +25,9 @@ wire field names. Converting `USD` to `usd` or `netAssetValue` to
 The overlay preserves normalized classification for formatting, pinning and
 other styling, while keeping each column's `field` exact. Explicit author
 field overrides and exclusions remain supported. The pinned platform-api
-2.0.1 baseline is SHA guarded like provider sources. Three focused regressions
+2.0.1 baseline is SHA guarded like provider sources. Four focused regressions
 cover uppercase ISO rates, mixed-case aliases and existing snake-case styling;
-the complete source suite now contains 168 tests. The ECB singleton-record
+the complete source suite contains171 tests including the TMX checks below. The ECB singleton-record
 response is a separate frontend compatibility question, not a reason to
 change its SDK return contract. Upstream candidate: OpenBQ/OpenBB platform-api.
 
@@ -36,4 +36,43 @@ UDF asset prefixes: futures `CGB` must be `/CGB`, and forex `USDCAD` must be
 `$USDCAD`. Only widget defaults change; the regular SDK examples and query
 conventions remain intact. Two regressions verify that the actual declared
 defaults classify as futures/forex rather than stock. These two guarded router
-files bring the overlay to110 sources and the full source suite to170 tests.
+files bring the overlay to110 sources and the full source suite to171 tests.
+
+A follow-up regression keeps mixed-case option fields hidden/formatted through
+normalized styling keys while their serialized wire names remain exact.
+
+### HTTPS sidecar EIA browsers
+
+Browser-facing EIA endpoints, nested proxy resources and RSS article links use
+origin-relative paths from the actual request. This keeps a TLS-terminating
+sidecar from embedding the API's internal HTTP URL, without broadening proxy
+header trust. Direct SDK rendering without request context keeps its existing
+configured-host fallback. Saved-view/Home URL parsing now supplies the browser
+origin explicitly. Home navigation assigns its destination immediately rather
+than leaving about:blank while a hidden widget waits for a paint callback.
+Six network-free regressions cover HTTPS proxy paths,
+mount prefixes, URL-only request info, RSS links and the direct SDK fallback.
+These three EIA sources plus the ECB schema correction below bring the final
+overlay to115 files and the source suite to178 tests. Live nested application
+qualification remains a separate gate.
+
+### ECB reference-rate schema aliases
+
+The real ECB model generates lowercase serialization aliases in its JSON
+schema, while the SDK's default serialization and the actual endpoint retain
+uppercase ISO field names. Preserving schema keys alone cannot correct this
+additional mismatch. The guarded ECB model supplies widget field overrides
+from its declared model field names through json_schema_extra. The singleton
+record, numeric values, parsing aliases and SDK interface remain unchanged.
+A real-model schema/columns/serialized-record regression covers this contract;
+the actual served catalogue and sidecar browser reference-rate check are
+qualified independently.
+
+The retired International overview/world destination is replaced with EIA's
+current official international/data/ CSV portal. The description explicitly
+reflects downloadable data rather than promising the removed interactive app.
+
+The RSS bridge reloads only when feed/theme actually change, preventing a
+connect→same-parameters→reload loop. Four JavaScript protocol regressions run
+with `node --test scripts/test-eia-rss-protocol.mjs`; they are separate from
+the178 Python source tests.

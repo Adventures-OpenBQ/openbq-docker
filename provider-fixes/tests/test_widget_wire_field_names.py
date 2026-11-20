@@ -30,6 +30,18 @@ class WireFieldNames(unittest.TestCase):
         self.assertEqual(columns[0]['pinned'], 'left')
         self.assertEqual(columns[1]['formatterFn'], 'percent')
 
+    def test_real_ecb_schema_columns_match_default_serialized_record(self):
+        from openbb_ecb.models.currency_reference_rates import ECBCurrencyReferenceRatesData
+        model = ECBCurrencyReferenceRatesData(date='2026-11-19', EUR=1, USD=1.1)
+        wire = model.model_dump(exclude_none=True)
+        schema = ECBCurrencyReferenceRatesData.model_json_schema(mode='serialization')
+        with patch('openbb_platform_api.utils.openapi.get_data_schema_for_widget', return_value=schema):
+            columns = data_schema_to_columns_defs({}, 'test', 'ecb')
+        declared = {column['field'] for column in columns}
+        self.assertTrue(set(wire).issubset(declared), (set(wire), declared))
+        self.assertEqual(wire['USD'], 1.1)
+        self.assertIsInstance(wire, dict)  # preserve the SDK singleton contract
+
     def test_mixed_case_wire_keys_keep_normalized_option_styling(self):
         fields = ['underlyingSymbol', 'contractSymbol', 'underlyingPrice', 'impliedVolatility', 'Theta', 'Change']
         schema = {'type': 'object', 'properties': {key: {'type': 'number'} for key in fields}}
