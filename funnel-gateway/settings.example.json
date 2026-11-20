@@ -1,6 +1,7 @@
 {
   "origin": "https://openbq.YOUR-TAILNET.ts.net:10000",
   "stateDir": "/var/lib/bdobb/state",
+  "apiTimeoutMs": 170000,
   "maxConcurrent": 8,
   "maxSockets": 4
 }

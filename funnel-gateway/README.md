@@ -120,3 +120,5 @@ docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web exec
 `git checkout ts-config/serve.json` and a sidecar restart close the door again. Then test from a
 device off the tailnet. Neither preflight queries a quote or prints a credential. Tests: `cd
 funnel-gateway && npm ci --ignore-scripts && npm test`. In Docker, mount the repo root (`-v "$PWD:/r" -w /r/funnel-gateway`), because the version test reads `../docker-compose.yml`.
+
+Ordinary `/api/` GET requests allow cold provider acquisition for up to 170 seconds, matching the API lane deadline plus transport overhead. Set `apiTimeoutMs` between 1000 and 170000 to choose a shorter limit. Local `/ref/` requests retain their 12-second limit. Disconnect cancellation, response byte limits and concurrency admission still apply.
