@@ -4,7 +4,7 @@
 
 `source/` is the openbq-eodhd provider extension 9.0.1, vendored from
 Adventures-OpenBQ/openbq-eodhd at commit
-`6f9f1cb20475c3204867bf03c3f3dc5f7141ca96`. That package is bdobb-dev/openbb-docker's
+`f8f0166603f0b59f3f879b704b23582bd893e67d`. That package is bdobb-dev/openbb-docker's
 `openbb-eodhd` (v9.6.3, fixes through v9.6.6), renamed `openbq-eodhd` (module `openbq_eodhd`)
 (`source.json`; per-file record in [docs/v9/eodhd-port.md](../../docs/v9/eodhd-port.md)),
 plus the released 9.0.1 fixes, guarded earnings-versus-estimates model and
@@ -37,6 +37,17 @@ The income receipt reports the statement's own currency. Ordinary EODHD
 responses leave dividend coverage and income scale unknown. The provider
 contract defines the receipt and the explicit snapshot authority for these
 facts. [Provider receipt contract](source/docs/chart-source-contracts.md)
+
+## Additional chart sources
+
+The CompanyNews, ShareStatistics, KeyMetrics, FinancialRatios and ETF holdings
+mirrors accept `chart_source=true`. They return eligible receipts at
+`extra.results_metadata.chart_sources` alongside the `results` rows. The
+opt-in can verify one delivered news page, independent US primary common-stock
+ownership bars, reported trailing P/E and dividend yield, or delivered US ETF
+holdings. Eligibility depends on the acquired data. Cached fundamentals need
+their original credible retrieval time. Timestamp-less entries still serve the
+ordinary data. [Canonical source contracts](source/docs/chart-contracts/)
 
 ## Key
 

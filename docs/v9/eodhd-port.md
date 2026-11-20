@@ -149,3 +149,22 @@ currency and the income statement supplies reporting currency. Ordinary
 responses carry unknown dividend coverage or income scale, respectively.
 The packaged stack tests exercise these receipts and the default route
 behavior with fictional SDK responses.
+
+## Next eight chart source pin (2026-11-20)
+
+The local candidate vendors the complete 149-path tracked tree of canonical
+commit `f8f0166603f0b59f3f879b704b23582bd893e67d`, tree
+`aad6d9c74450cfc5ae9f7fa38c4697b85f58e93c`. Distribution version 9.0.1,
+53 mirror commands and the eight-card provider app remain compatible. The
+new chart evidence uses the same acquired rows on five existing mirrors.
+The cache adapter reads the payload and its metadata from one library version.
+The image ships without ArcticDB. Its installed adapter can be tested with
+paired versioned-record fixtures, and its ordinary runtime uses L1.
+
+The local stack tests cover generated route parameters, eligible and legacy
+HTTP envelopes, the original cache vintage, and refusal for old unstamped
+entries. News coverage is one delivered page. Ownership percentages, two
+reported KPI headlines and delivered ETF holdings have narrower scopes than
+partitions, comparisons or complete funds. An adjusted-return contract,
+prepared overlays, observed estimate vintages and completed-session market
+maps require separate acquired evidence in this candidate. [Source contracts](../../v9/eodhd/source/docs/chart-contracts/)

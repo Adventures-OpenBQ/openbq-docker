@@ -4,6 +4,8 @@
 """Tests for the shared /fundamentals helper and its single-flight cache."""
 
 import asyncio
+from datetime import datetime, timezone
+
 import pytest
 
 from openbq_eodhd.models import _fundamentals as F
@@ -90,7 +92,8 @@ def test_l2_hit_within_ttl_skips_eodhd(monkeypatch):
     """A fresh ArcticDB entry is served without any EODHD call."""
     calls = {"n": 0}
     monkeypatch.setattr(F, "_fetch_sync", lambda s, c: (calls.__setitem__("n", calls["n"] + 1) or BUNDLE))
-    monkeypatch.setattr(F, "_l2_get", lambda sym: BUNDLE)     # L2 fresh hit
+    entry = F._FundamentalsCacheEntry(BUNDLE, None, datetime.now(timezone.utc))
+    monkeypatch.setattr(F, "_l2_get", lambda sym: entry)  # L2 fresh hit
     monkeypatch.setattr(F, "_l2_put", lambda sym, b: None)
 
     out = asyncio.run(F.get_bundle("AAPL", "US", {"eodhd_api_key": "PLACEHOLDER"}))
@@ -152,7 +155,7 @@ def test_l2_unavailable_falls_back_to_live_fetch(monkeypatch):
     assert calls["n"] == 1
     # _l2_get / _l2_put must swallow the missing library rather than raise
     assert F._l2_get("AAPL.US") is None
-    F._l2_put("AAPL.US", BUNDLE)  # no exception
+    F._l2_put("AAPL.US", F.FundamentalsAcquisition(BUNDLE, None))  # no exception
 
 
 EARNINGS = {"History": {}, "Trend": {"Quarterly": {}, "Annual": {}}, "Annual": {}}
@@ -184,7 +187,12 @@ def test_earnings_v11_is_cached_apart_from_the_bundle(monkeypatch):
     calls = _stub_rest(monkeypatch, EARNINGS)
     l2 = {}
     monkeypatch.setattr(F, "_l2_get", l2.get)
-    monkeypatch.setattr(F, "_l2_put", l2.__setitem__)
+    def persist(key, acquisition):
+        stored_at = datetime.now(timezone.utc)
+        l2[key] = F._FundamentalsCacheEntry(acquisition.payload, acquisition.retrieved_at, stored_at)
+        return stored_at
+
+    monkeypatch.setattr(F, "_l2_put", persist)
     monkeypatch.setattr(F, "_fetch_sync", lambda symbol, credentials: BUNDLE)
 
     async def go():
@@ -195,7 +203,9 @@ def test_earnings_v11_is_cached_apart_from_the_bundle(monkeypatch):
     asyncio.run(go())
     assert len(calls) == 1
     assert set(F._cache) == {"AAPL.US", "AAPL.US#earnings-v1.1"}
-    assert l2 == {"AAPL.US": BUNDLE, "AAPL.US#earnings-v1.1": EARNINGS}
+    assert {key: acquisition.payload for key, acquisition in l2.items()} == {
+        "AAPL.US": BUNDLE, "AAPL.US#earnings-v1.1": EARNINGS,
+    }
 
     F._reset_cache_for_tests()
     asyncio.run(go())
