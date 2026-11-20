@@ -64,3 +64,14 @@ and is not the default reader verification case.
 Regression coverage checks the two-download bound, the unchanged five-period
 output, session isolation and explicit deadline override. The complete provider
 suite now includes 187 tests; source guards cover 118 runtime files.
+
+
+## Covered-call expiry filtering
+
+The exchange form takes month numbers 1-12. The documented `YYYY-MM` API input
+is normalized to that month, then returned contracts are filtered to the
+requested year and month. Legacy month-only callers retain all matching years;
+invalid input names `expiration` in its validation error. Unfiltered requests
+retain their previous payload and results. The suite now has191 regressions
+and119 guarded runtime files. Publisher-confirmed empty screens remain empty
+and are not called data passes.
