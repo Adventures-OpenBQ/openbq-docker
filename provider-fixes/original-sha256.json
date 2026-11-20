@@ -105,5 +105,13 @@
   "openbb_us_eia/utils/helpers.py": "e784ccf959655e15f283a6cf8bbcc152022b540ed0149247165751c457012880",
   "openbb_cboe/models/equity_quote.py": "b261e97f78070837b03dcbacbec58359c489d19939008afcfe69151e0344f916",
   "openbb_cboe/models/equity_historical.py": "68b6135327310a814654857c8a041cbdafff46bf43ebbdb13af79f6c1b507b39",
-  "openbb_cboe/models/index_snapshots.py": "49830d39181076c6f4ae14dcfc57322118bde974b536d9168736e06c661b6d65"
+  "openbb_cboe/models/index_snapshots.py": "49830d39181076c6f4ae14dcfc57322118bde974b536d9168736e06c661b6d65",
+  "openbb_us_eia/assets/rss_feed.html": "248a9835b1017523eee61bfaf9b7051707f00391be4ecd38fa60c11dc8abf230",
+  "openbb_tmx/routers/futures.py": "f27e3b7d0c8667c89d7cb8f3e9ae70341354ce66b56d44b3655c307b643fb160",
+  "openbb_us_eia/browsers.py": "a16ca882f9868867a7d69b9fe0c2d48a9d81a26a116cbe6ddc82ba88c3695a96",
+  "openbb_us_eia/assets/data_browser.html": "5d9d8f7706990ad2b7a27dca3c7ad752c225f0db59e03e1262d653a9cf2a3d9e",
+  "openbb_us_eia/rss.py": "52317eb414851ae24107bfcf1d3c650dc0f17d28cc7be210d6e565c7e8d05a01",
+  "openbb_ecb/models/currency_reference_rates.py": "9758c34eefed524363e6da35dacd34d1b7fbb65493ba40f8894aa19b5b480056",
+  "openbb_platform_api/utils/openapi.py": "6a56f718f9a572cd7ae958ff21e8c35460d9cea6d966215c11825f8cd3bf7b8f",
+  "openbb_tmx/routers/currency.py": "b2f7d748d69517a36bb8cdaabbc9904dca999507f6cbfd90c1d571a18f655cee"
 }
