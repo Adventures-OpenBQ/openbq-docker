@@ -96,13 +96,18 @@ export function connectRef(config) {
     handshakeTimeout: 10000, followRedirects: false, maxPayload: MAX_SOCKET, perMessageDeflate: false });
 }
 
-/** Bounded JSON or text/plain request (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
+/** Bounded JSON or inert text (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
 export async function getJson(path, config, signal) {
   const { url, headers } = target(path, config);
   const svg = path === LOGO, limit = svg ? MAX_SVG : MANIFESTS.has(path) ? MANIFEST_MAX : MAX_BODY;
   return new Promise((resolve, rejectPromise) => {
     const request = httpRequest(url, { method: "GET", headers, signal }, response => {
-      const type = response.headers["content-type"] ?? "", plain = !svg && /^text\/plain(?:\s*;|$)/i.test(type);
+      // Only the reference's declared HTML widget may return markup. Other
+      // routes still refuse an HTML login/error page. The renderer consumes
+      // it as inert, nosniff text/plain rather than an executable gateway page.
+      const type = response.headers["content-type"] ?? "";
+      const plain = !svg && (/^text\/plain(?:\s*;|$)/i.test(type) ||
+        (path.split("?")[0] === "/ref/html_widget" && /^text\/html(?:\s*;|$)/i.test(type)));
       if (response.statusCode !== 200 ||
           !(plain || (svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(type))) {
         response.destroy(); return rejectPromise(new Error("Invalid upstream response"));
@@ -257,7 +262,7 @@ async function tableExchange(req, res, route, config) {
 
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openRef = connectRef,
-  now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
+  now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs } = {}) {
   let inflight = 0, controlInflight = 0, sockets = 0;
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
   const admitted = new Map();
@@ -291,7 +296,10 @@ export function createGateway(config, { requestJson = getJson, openRef = connect
       if (inflight >= config.maxConcurrent) return reply(res, 429);
       inflight++;
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), requestMs);
+      // Cold provider acquisitions may use the API lane's full 165 s deadline.
+      // Local reference fixtures retain their short limit; test overrides remain exact.
+      const deadline = requestMs ?? (path.startsWith("/api/") ? config.apiTimeoutMs ?? 170000 : 12000);
+      const timer = setTimeout(() => controller.abort(), deadline);
       const disconnect = () => { if (!res.writableEnded) controller.abort(); };
       res.once("close", disconnect);
       try { reply(res, 200, await requestJson(path, config, controller.signal)); }

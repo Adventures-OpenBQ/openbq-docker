@@ -4,10 +4,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """FX forward and option valuation from DTCC PPD forex prints."""
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from datetime import date as dateType
+from typing import TYPE_CHECKING
 
 from openbb_cftc.utils.dtcc import qualified_keys
+
+if TYPE_CHECKING:
+    from openbb_cftc.utils.fx_vol import ObservationCurve
 
 PRICEABLE_FORWARDS = frozenset({"Forward", "Non-Deliverable Forward"})
 OPTION_FAMILIES = frozenset({"Van", "NDO"})
@@ -250,9 +254,11 @@ def pair_records(fx_records: Iterable[dict], base: str, quote: str) -> list[dict
     return subset
 
 
-def _pair_subset(fx_records: Iterable[dict], trade: dict, memo: dict) -> list[dict]:
+def _pair_subset(
+    fx_records: Iterable[dict], trade: dict, curve_date: dateType, memo: dict
+) -> list[dict]:
     """Return the pair's own prints, extracted once per day and reused across trades."""
-    key = f"fx-pair:{trade['base']}/{trade['quote']}"
+    key = f"fx-pair:{trade['base']}/{trade['quote']}:{curve_date.isoformat()}"
 
     if key not in memo:
         memo[key] = pair_records(fx_records, trade["base"], trade["quote"])
@@ -260,124 +266,22 @@ def _pair_subset(fx_records: Iterable[dict], trade: dict, memo: dict) -> list[di
     return memo[key]
 
 
-def _discount_for(
-    rates_records: Iterable[dict],
-    currency: str,
-    curve_date: dateType,
-    min_trades: int,
-    memo: dict,
-) -> Callable[[float], float] | None:
-    """Return the currency's discount function, built once per day, or None."""
-    from openbb_core.provider.utils.errors import EmptyDataError
-
-    from openbb_cftc.utils.fx_vol import rate_discount_factor
-
-    key = f"fx-df:{currency}:{min_trades}"
-
-    if key not in memo:
-        try:
-            memo[key] = rate_discount_factor(
-                rates_records, currency, curve_date, min_trades
-            )
-        except EmptyDataError:
-            memo[key] = None
-
-    return memo[key]
-
-
 def _pair_curve(
     fx_records: Iterable[dict], trade: dict, curve_date: dateType, memo: dict
-) -> dict:
+) -> "ObservationCurve":
     """Return the pair's forward curve for the day, built once and shared by its prints."""
-    from openbb_cftc.utils.fx import extract_fx_observations
-    from openbb_cftc.utils.fx_vol import ndf_forward_curve
+    from openbb_cftc.utils.fx_vol import pair_curve
 
     key = f"fx-curve:{trade['pair']}:{curve_date.isoformat()}"
 
     if key not in memo:
-        records = _pair_subset(fx_records, trade, memo)
-        observations = extract_fx_observations(
-            records,
-            pair=trade["pair"],
-            trade_date=curve_date,
-            min_notional=CURVE_MIN_NOTIONAL,
+        memo[key] = pair_curve(
+            _pair_subset(fx_records, trade, curve_date, memo),
+            trade["pair"],
+            curve_date,
         )
-        spot, forward = ndf_forward_curve(
-            records, trade["pair"], curve_date, min_notional=CURVE_MIN_NOTIONAL
-        )
-        memo[key] = {
-            "nodes": len({o["days"] for o in observations if o["days"] > 2}),
-            "near": [o["rate"] for o in observations if o["days"] <= 9],
-            "spot": spot,
-            "forward": forward,
-        }
 
     return memo[key]
-
-
-def _cip_market(
-    near: list[float],
-    rates_records: Iterable[dict],
-    trade: dict,
-    curve_date: dateType,
-    min_trades: int,
-    memo: dict,
-) -> dict | None:
-    """Both legs' curves and a covered-interest-parity forward, when prints are sparse."""
-    from statistics import median
-
-    if not near:
-        return None
-
-    spot = median(near)
-
-    if spot <= 0.0:
-        return None
-
-    df_base = _discount_for(rates_records, trade["base"], curve_date, min_trades, memo)
-    df_quote = _discount_for(
-        rates_records, trade["quote"], curve_date, min_trades, memo
-    )
-
-    if df_base is None or df_quote is None:
-        return None
-
-    def forward(years: float, _s=spot, _b=df_base, _q=df_quote) -> float:
-        return _s * _b(years) / _q(years)
-
-    return {"spot": spot, "forward": forward, "df_base": df_base, "df_quote": df_quote}
-
-
-def _curve_market(
-    spot: float,
-    forward: Callable[[float], float],
-    rates_records: Iterable[dict],
-    trade: dict,
-    curve_date: dateType,
-    min_trades: int,
-    memo: dict,
-) -> dict | None:
-    """Both legs' discount curves around an observed forward curve."""
-    from openbb_cftc.utils.fx_vol import implied_df
-
-    df_base = _discount_for(rates_records, trade["base"], curve_date, min_trades, memo)
-
-    if df_base is not None:
-        df_quote = implied_df(df_base, spot, forward)
-    else:
-        df_quote = _discount_for(
-            rates_records, trade["quote"], curve_date, min_trades, memo
-        )
-
-        if df_quote is None:
-            return None
-
-        def _base_df(years: float, _quote=df_quote) -> float:
-            return _quote(years) * forward(years) / spot
-
-        df_base = _base_df
-
-    return {"spot": spot, "forward": forward, "df_base": df_base, "df_quote": df_quote}
 
 
 def fx_market(
@@ -388,34 +292,33 @@ def fx_market(
     min_trades: int = 1,
     memo: dict | None = None,
 ) -> dict | None:
-    """Spot, forward interpolator and both legs' discount curves for a pair, or None."""
+    """Return the pair's shared market for a trade, its own print left out of the curve."""
+    from openbb_cftc.utils.fx_vol import build_market, market_discount
+
     memo = {} if memo is None else memo
+    curve = _pair_curve(fx_records, trade, curve_date, memo)
+    own = trade["dissemination_identifier"]
+    shared = own not in curve
     key = f"fx-market:{trade['pair']}:{curve_date.isoformat()}:{min_trades}"
 
-    if key in memo:
+    if shared and key in memo:
         return memo[key]
 
-    curve = _pair_curve(fx_records, trade, curve_date, memo)
-    spot, forward = curve["spot"], curve["forward"]
+    market = build_market(
+        curve,
+        fx_records,
+        trade["base"],
+        trade["quote"],
+        curve_date,
+        market_discount(rates_records, curve_date, min_trades, memo),
+        own,
+    )
 
-    if (
-        curve["nodes"] < MIN_FORWARD_NODES
-        or spot is None
-        or forward is None
-        or spot <= 0.0
-    ):
-        market = _cip_market(
-            curve["near"], rates_records, trade, curve_date, min_trades, memo
-        )
-    else:
-        market = _curve_market(
-            spot, forward, rates_records, trade, curve_date, min_trades, memo
-        )
+    if shared:
+        if market is not None:
+            market["key"] = key
 
-    if market is not None:
-        market["key"] = key
-
-    memo[key] = market
+        memo[key] = market
 
     return market
 
@@ -443,10 +346,17 @@ def option_vol(
     curve_date: dateType,
     memo: dict | None = None,
 ) -> float | None:
-    """Implied volatility for a trade's strike, from the day's prints of its own family."""
+    """Implied volatility for a trade, read from its cell of the empirical surface."""
     from statistics import median
 
-    from openbb_cftc.utils.fx_vol import extract_vanilla_options, price_options
+    from openbb_cftc.utils.constants import MAJOR_FX_PAIRS
+    from openbb_cftc.utils.fx_vol import (
+        _snap_strike,
+        _tenor_of,
+        extract_vanilla_options,
+        price_options,
+        surface_points,
+    )
 
     family = trade.get("option_family")
 
@@ -455,12 +365,15 @@ def option_vol(
 
     memo = {} if memo is None else memo
     key = f"fx-options:{market['key']}:{family}" if market.get("key") else None
+    # Pairs off the surface's pip table sit on its moneyness grid, as its NDF pairs do.
+    spec = MAJOR_FX_PAIRS.get(trade.get("pair") or "", {})
+    pip, moneyness = spec.get("pip", 1.0), "pip" not in spec or bool(spec.get("ndf"))
 
     if key is not None and key in memo:
-        priced = memo[key]
+        priced, points = memo[key]
     else:
         options = extract_vanilla_options(
-            _pair_subset(fx_records, trade, memo),
+            _pair_subset(fx_records, trade, curve_date, memo),
             trade["base"],
             trade["quote"],
             curve_date,
@@ -470,13 +383,24 @@ def option_vol(
         priced = price_options(
             options, market["spot"], market["df_quote"], market["df_base"]
         )
+        points = surface_points(priced, market["spot"], pip, moneyness)
 
         if key is not None:
-            memo[key] = priced
+            memo[key] = priced, points
 
     if not priced:
         return None
 
+    at_expiry = points.get(_tenor_of(trade["days"]) or "", [])
+    offset = _snap_strike(trade["strike"], market["spot"], pip, moneyness)
+    vols = [vol for step, vol in at_expiry if step == offset] or [
+        vol for _, vol in at_expiry
+    ]
+
+    if vols:
+        return median(vols)
+
+    # No option priced in the trade's expiry bucket: the nearest expiry's vols.
     nearest = min(abs(o["tenor_days"] - trade["days"]) for o in priced)
     at_tenor = [o for o in priced if abs(o["tenor_days"] - trade["days"]) == nearest]
 
