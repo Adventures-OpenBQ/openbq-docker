@@ -24,7 +24,7 @@
 -# moving deps into an optional group). --no-update keeps existing pins.
 -RUN poetry lock --no-update || poetry lock
 +# Use the recorded resolved lock; never re-resolve dependencies during build.
-+RUN echo "d491646f3ee25c2da599a079e285084a2768eb2929f220fc4001839dc7a59f86  poetry.lock" | sha256sum -c - \
++RUN echo "853205dec793eef98b292629706c8ccaa654af46e3dce5b9d617080ae1e6c518  poetry.lock" | sha256sum -c - \
 +    && poetry check --lock
  RUN poetry install --only main
  

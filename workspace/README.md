@@ -23,4 +23,24 @@ Run it from the repository root with `docker compose --profile workspace up -d`;
 
 Privacy gates are installed with `git config core.hooksPath .githooks` from the repository root. Keep actual node domains, IDs, credential files and raw runtime logs in ignored `local-rehearsal/` records; publish placeholder-based instructions only.
 
-The preserved image rendered the login screen, accepted local login, and discovered the backend catalogue in the browser. See [REPRODUCE.md](../REPRODUCE.md) for the original image and remaining dashboard persistence qualification.
+The historical qualification rendered the login screen, accepted local login, discovered the backend catalogue and checked dashboard persistence. Current image and reader qualification are recorded in the release regression evidence. This legacy client is a measured compatibility checkpoint; full reference-widget support is a separate BDOBB V3 gate.
+
+## Certificate trust-store repair
+
+The recorded backend lock pins `certifi==2026.10.19` with its published artifact
+hashes. This incorporates the upstream [emSign trust-store repair](https://github.com/certifi/python-certifi/security/advisories/GHSA-6q48-6c7w-9gw2)
+without changing any other resolved package, the pinned Workspace source or the
+frontend lock. A dependency change requires rebuilding the Workspace runtime;
+unchanged SDK images can still be reused by digest.
+
+After building the reader image, verify the actual runtime trust store:
+
+```sh
+docker run --rm --network none --entrypoint python \
+  -v "$PWD/workspace/runtime-checks:/checks:ro" \
+  openbq-workspace-local:2.0.0-reader /checks/test_certifi_trust.py
+```
+
+The check rejects the compromised emSign G3 root, retains valid public roots,
+and requires certificate and hostname verification to stay enabled. It does
+not replace the login, refusal, persistence or browser-data regression checks.
