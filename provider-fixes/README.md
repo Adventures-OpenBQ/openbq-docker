@@ -9,3 +9,10 @@ Upstream reference: [openbq-org/OpenBB](https://github.com/openbq-org/OpenBB). A
 Offline source regressions run against the built image with this directory mounted read-only. The Cboe upstream cache suite additionally needs pytest; that test tooling is not part of the production image. A passing offline suite is not a live provider regression, reader installation pass or registered-key acceptance.
 
 Remove an overlay only after a pinned published package demonstrably includes its corrections and the affected acceptance tests pass.
+
+Cboe CDN requests now carry its required public `Referer` across cached/uncached
+helpers and direct historical/snapshot requests. Explicit caller headers and
+timeouts are preserved. HTTP errors are rejected before response decoding, and
+futures directories validate their JSON data shape. This extends the earlier
+quote-only header repair; uncached live controls reproduced403without the
+header and200JSONwith it on both old and new transports.

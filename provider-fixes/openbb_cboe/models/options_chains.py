@@ -79,6 +79,7 @@ class CboeOptionsChainsFetcher(
 
         from openbb_cboe.utils.helpers import (
             TICKER_EXCEPTIONS,
+            with_cboe_headers,
             get_company_directory,
             get_index_directory,
         )
@@ -97,7 +98,7 @@ class CboeOptionsChainsFetcher(
             else f"https://cdn.cboe.com/api/global/delayed_quotes/options/{symbol}.json"
         )
 
-        return await amake_request(quotes_url)  # ty: ignore[invalid-return-type]
+        return await amake_request(quotes_url, **with_cboe_headers(kwargs))  # ty: ignore[invalid-return-type]
 
     @staticmethod
     def transform_data(
