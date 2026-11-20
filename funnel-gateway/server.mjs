@@ -200,7 +200,7 @@ async function handleState(req, res, url, config) {
 
 /** Test dependency injection is not exposed through environment variables. */
 export function createGateway(config, { requestJson = getJson, openRef = connectRef,
-  now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs = 12000 } = {}) {
+  now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs } = {}) {
   let inflight = 0, sockets = 0;
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
   const admitted = new Map();
@@ -225,7 +225,10 @@ export function createGateway(config, { requestJson = getJson, openRef = connect
       if (inflight >= config.maxConcurrent) return reply(res, 429);
       inflight++;
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), requestMs);
+      // Cold provider acquisitions may use the API lane's full 165 s deadline.
+      // Local reference fixtures retain their short limit; test overrides remain exact.
+      const deadline = requestMs ?? (path.startsWith("/api/") ? config.apiTimeoutMs ?? 170000 : 12000);
+      const timer = setTimeout(() => controller.abort(), deadline);
       const disconnect = () => { if (!res.writableEnded) controller.abort(); };
       res.once("close", disconnect);
       try { reply(res, 200, await requestJson(path, config, controller.signal)); }

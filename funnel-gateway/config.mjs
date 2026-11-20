@@ -24,7 +24,7 @@ function httpsOrigin(value, tailnet = true, allowedPort = "10000") {
 // rssOrigin/rssAddress/feeds at v8, liveGrid at v10) is refused rather than ignored: a stack at this tag has no such upstream, and a
 // silently ignored setting is how an operator believes a door is configured when it is not.
 // openbq-docker serves no /ai (Rita), so ritaOrigin, ritaAddress and socksProxy are refused too.
-const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "maxConcurrent", "maxSockets"]);
+const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir", "maxConcurrent", "maxSockets", "apiTimeoutMs"]);
 // The daily vendor cap and the per-minute request budget were removed (user ruling 2026-10-17).
 // A settings file that still names them is refused by name, so the operator deletes them knowingly.
 const REMOVED_KEYS = new Set(["quoteDailyLimit", "requestsPerMinute"]);
@@ -46,6 +46,8 @@ export function validateConfig(settings, secrets) {
       /[\r\n\0]/.test(secrets.apiPassword) || secrets.apiPassword.length > 1024) {
     throw new Error("Invalid machine or API credential");
   }
+  const apiTimeoutMs = settings.apiTimeoutMs === undefined ? 170000 : settings.apiTimeoutMs;
+  if (!Number.isInteger(apiTimeoutMs) || apiTimeoutMs < 1000 || apiTimeoutMs > 170000) throw new Error("Invalid API timeout");
   const maxConcurrent = bounded(settings.maxConcurrent ?? 8, "Max concurrent");
   const maxSockets = bounded(settings.maxSockets ?? 4, "Max sockets");
   // The web preview's own origin. Naming it turns on socket tickets (server.mjs): the one
@@ -58,7 +60,7 @@ export function validateConfig(settings, secrets) {
     throw new Error("State directory must be a normalized absolute path");
   }
   return {
-    origin, previewOrigin, maxConcurrent, maxSockets, stateDir,
+    origin, previewOrigin, maxConcurrent, maxSockets, stateDir, apiTimeoutMs,
     token: secrets.token,
     apiAuthorization: "Basic " + Buffer.from(`${secrets.apiUsername}:${secrets.apiPassword}`).toString("base64"),
     // Never accept a caller-supplied upstream or a configurable generic proxy.
