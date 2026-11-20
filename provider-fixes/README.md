@@ -16,3 +16,20 @@ timeouts are preserved. HTTP errors are rejected before response decoding, and
 futures directories validate their JSON data shape. This extends the earlier
 quote-only header repair; uncached live controls reproduced403without the
 header and200JSONwith it on both old and new transports.
+
+
+### Current provider and embedded-browser compatibility
+
+Eight guarded sources bring this release to115 provider overlays. Platform-api
+columns retain exact fields and normalized formatting; the ECB reference model
+explicitly describes uppercase SDK record fields without changing its singleton
+response. TMX UDF defaults use /CGB and $USDCAD. EIA nested browsers and RSS links
+follow the HTTPS browser origin through sidecars, Home navigates immediately,
+and repeated unchanged RSS parameters do not cause a reload loop. International
+uses EIA's current official CSV portal after retirement of the legacy browser.
+
+The complete Python suite contains178 tests. Four additional JavaScript RSS
+protocol regressions run with `node --test scripts/test-eia-rss-protocol.mjs`.
+Reader/demo, registered, actual data, empty and source-denial outcomes remain
+separate in the published regression evidence. These repairs require fresh
+source/image binding and targeted live retests before release sign-off.
