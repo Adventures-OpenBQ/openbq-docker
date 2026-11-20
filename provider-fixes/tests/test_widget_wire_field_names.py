@@ -30,5 +30,19 @@ class WireFieldNames(unittest.TestCase):
         self.assertEqual(columns[0]['pinned'], 'left')
         self.assertEqual(columns[1]['formatterFn'], 'percent')
 
+    def test_mixed_case_wire_keys_keep_normalized_option_styling(self):
+        fields = ['underlyingSymbol', 'contractSymbol', 'underlyingPrice', 'impliedVolatility', 'Theta', 'Change']
+        schema = {'type': 'object', 'properties': {key: {'type': 'number'} for key in fields}}
+        with patch('openbb_platform_api.utils.openapi.get_data_schema_for_widget', return_value=schema):
+            columns = data_schema_to_columns_defs({}, 'test', 'cboe', route='/api/v1/cboe/options/chains')
+        by_field = {column['field']: column for column in columns}
+        self.assertEqual(list(by_field), fields)
+        for field in fields[:3]:
+            self.assertTrue(by_field[field].get('hide'))
+        self.assertEqual(by_field['impliedVolatility']['formatterFn'], 'normalizedPercent')
+        self.assertEqual(by_field['Theta']['formatterFn'], 'none')
+        self.assertEqual(by_field['Theta']['renderFn'], 'greenRed')
+        self.assertEqual(by_field['Change']['renderFn'], 'greenRed')
+
 if __name__ == '__main__':
     unittest.main()
