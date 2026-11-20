@@ -115,5 +115,6 @@
   "openbb_us_eia/assets/data_browser.html": "5d9d8f7706990ad2b7a27dca3c7ad752c225f0db59e03e1262d653a9cf2a3d9e",
   "openbb_us_eia/assets/rss_feed.html": "248a9835b1017523eee61bfaf9b7051707f00391be4ecd38fa60c11dc8abf230",
   "openbb_government_us/congress/utils/member_cards.py": "7effb4ddce513e9e1027d822cb893ec982de7ed250e04e45b972cb5514a8d200",
-  "openbb_government_us/congress/assets/member_bio.html": "fd49fe337da9f82ae26b67f9064a6fe8b635644909e9cf5837ada18fa906f974"
+  "openbb_government_us/congress/assets/member_bio.html": "fd49fe337da9f82ae26b67f9064a6fe8b635644909e9cf5837ada18fa906f974",
+  "openbb_federal_reserve/models/call_report_router.py": "9064c6f33d8e0b77623850dc63e8038675bb3bac761a796dfcd8089793c48a36"
 }

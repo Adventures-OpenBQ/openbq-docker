@@ -270,7 +270,9 @@ _ONE_AT_A_TIME = {"cboe": asyncio.Lock(), "cftc": asyncio.Lock()}
 
 def _read_deadlines(environ) -> dict[str, float]:
     """Read OPENBQ_COMMAND_TIMEOUT[_<PROVIDER>] once, failing at startup on a bad value."""
-    deadlines = {"cftc": 150.0}  # cold rates swap_trades ~100 s, forex ~70 s (D8 ruling Q2)
+    # FFIEC's cold five-period report needs bulk downloads before taxonomy.
+    # Two bounded concurrent downloads preserve all five periods within this budget.
+    deadlines = {"cftc": 150.0, "federal_reserve": 150.0}
     for name, value in environ.items():
         if value and (
             name == "OPENBQ_COMMAND_TIMEOUT"
