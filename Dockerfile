@@ -16,6 +16,8 @@ ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 COPY requirements.lock /tmp/requirements.lock
 RUN python -m pip install -r /tmp/requirements.lock && python -m pip check
+COPY scripts/verify-requests-trust-bundle.py /tmp/verify-requests-trust-bundle.py
+RUN python /tmp/verify-requests-trust-bundle.py && rm /tmp/verify-requests-trust-bundle.py
 
 # Pristine pinned packages end here; scripts/test-provider-fixes.sh tests the overlay on this stage.
 FROM odp AS api
