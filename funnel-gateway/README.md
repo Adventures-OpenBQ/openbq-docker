@@ -53,6 +53,16 @@ Caller headers, cookies and credentials are never relayed.
 | any other WebSocket upgrade | — | 401 without the token, else 403 (foreign Origin) or 404 |
 | everything else | — | 404 |
 
+The declared reference `/ref/html_widget` may return `text/html`; the gateway
+relays its bounded bytes as `text/plain` with `nosniff`, for the widget renderer
+to consume. HTML returned by other routes is still refused. This does not add
+POST/Omni forwarding: use the direct tailnet reference connection for those
+native exercises.
+
+The gateway base is pinned to a multi-architecture Node 22 Alpine digest in
+`Dockerfile`. The qualified runtime is Node 22.23.5 with ws 8.21.3 on both ARM64
+and AMD64; the source and installed image modules are checked for identical bytes.
+
 Caps (settings): `maxConcurrent` (8, ≤ 32) and `maxSockets` (4, ≤ 32). There is no daily vendor
 cap and no per-minute request budget (removed 2026-10-17; `quoteDailyLimit` and `requestsPerMinute`
 are refused at startup by name, so delete them from an older settings file). Counters are in
@@ -111,3 +121,5 @@ docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile web exec
 `git checkout ts-config/serve.json` and a sidecar restart close the door again. Then test from a
 device off the tailnet. Neither preflight queries a quote or prints a credential. Tests: `cd
 funnel-gateway && npm ci --ignore-scripts && npm test`. In Docker, mount the repo root (`-v "$PWD:/r" -w /r/funnel-gateway`), because the version test reads `../docker-compose.yml`.
+
+Ordinary `/api/` GET requests allow cold provider acquisition for up to 170 seconds, matching the API lane deadline plus transport overhead. Set `apiTimeoutMs` between 1000 and 170000 to choose a shorter limit. Local `/ref/` requests retain their 12-second limit. Disconnect cancellation, response byte limits and concurrency admission still apply.

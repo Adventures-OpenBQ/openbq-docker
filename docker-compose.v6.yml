@@ -24,6 +24,7 @@ services:
     env_file: [./rita.env]
     volumes:
       - ./rita-resolv.conf:/etc/resolv.conf:ro
+      - openbq-rita-data:/data
   openbq-mcp:
     build:
       context: ./mcp
@@ -56,3 +57,4 @@ services:
     networks: [openbq-internal]
 volumes:
   openbq-mcp-data:
+  openbq-rita-data:
