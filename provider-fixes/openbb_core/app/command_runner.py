@@ -293,6 +293,17 @@ def _read_deadlines(environ) -> dict[str, float]:
 _DEADLINES = _read_deadlines(os.environ)
 
 
+# openbb-core's amake_request gives a whole request (download included) 10 s,
+# and fetchers rarely pass the user's request_timeout, so USDA's 18.8 MB ERS
+# feed-grains file (12 s on its own) could never load. 45 s stays under the
+# 55 s command deadline; a fetcher's explicit timeout (FRED's 5 s) still wins.
+# The defaults are set on the function itself, so fetchers that imported it by
+# name get them too; amake_requests forwards to it.
+from openbb_core.provider.utils import helpers as _helpers
+
+_helpers.amake_request.__defaults__ = ("GET", 45, None)
+
+
 def _deadline(key: str) -> float:
     """Return the provider's command deadline in seconds."""
     return _DEADLINES.get(key, _DEADLINES.get("", 55.0))

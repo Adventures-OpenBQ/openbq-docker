@@ -3,4 +3,4 @@ multitasking==0.0.13
 peewee==4.5.2
 protobuf==7.36.2
 pytz==2026.5
-yfinance==1.7.0
+yfinance==1.8.0
