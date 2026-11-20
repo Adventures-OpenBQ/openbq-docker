@@ -3,6 +3,19 @@
   "tag": "v3.0.0",
   "commit": "11ea134ed11fba5c7296be52ea14a250cf0a5ea6",
   "version": "3.0.0",
-  "sdk": "yfinance==1.7.0",
-  "license": "Apache-2.0"
+  "sdk": "yfinance==1.8.0",
+  "license": "Apache-2.0",
+  "vendored_modifications": [
+    {
+      "repository": "Adventures-OpenBQ/openbq-docker",
+      "commit": "117f62c0a2359bd4b2e3d64b7eb84f3d55a463f5",
+      "pull_request": 23,
+      "change": "all-expiration options/chains_long provider port"
+    },
+    {
+      "change": "Raise the packaged SDK minimum to yfinance1.8.0; required curl_cffi0.17.0 and certifi2026.10.19 pinned in release requirements.lock",
+      "upstream_fix_commit": "9a4cf3fbb435032a65e13480defc0b75f0e6229e",
+      "upstream_repository": "ranaroussi/yfinance"
+    }
+  ]
 }

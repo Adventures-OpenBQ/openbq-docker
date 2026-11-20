@@ -16,12 +16,12 @@ beautifulsoup4==4.15.0
 cachebox==5.2.3
 cachetools==7.2.1
 caio==0.12.9
-certifi==2026.10.18
+certifi==2026.10.19
 cffi==2.1.1
 charset-normalizer==3.5.2
 click==8.5.0
 cryptography==50.0.2
-curl_cffi==0.16.3
+curl_cffi==0.17.0
 cyclopts==5.1.1
 deepdiff==9.1.0
 defusedxml==0.7.1
