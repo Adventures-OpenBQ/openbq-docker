@@ -89,3 +89,29 @@ retry loops are not introduced.
 
 The current suite contains183 Python regressions. JavaScript coverage adds four
 member-voting UI/markdown regressions alongside the four RSS protocol tests.
+
+## Cold FFIEC five-period reports
+
+The sectioned Call Report keeps its five most recent reporting periods. Two
+independent download workers fetch and parse older bulk archives, with a thread-local
+browser session so concurrent workers cannot share cookies or view state.
+Custom peer-group setup and rendering retain the same session within their thread. Only the selected bank's parsed facts are retained by completed jobs.
+The Federal Reserve provider has a bounded 150-second command deadline, like
+CFTC; `OPENBQ_COMMAND_TIMEOUT_FEDERAL_RESERVE` overrides it. The former 55-second
+default could expire during the first two cold downloads. A warm-cache pass does
+not qualify this path. Archive-wide `all_periods=true` can still be much larger
+and is not the default reader verification case.
+
+Regression coverage checks the two-download bound, the unchanged five-period
+output, session isolation and explicit deadline override. The complete provider
+suite now includes 187 tests; source guards cover 118 runtime files.
+
+## Covered-call expiry filtering
+
+The exchange form takes month numbers 1-12. The documented `YYYY-MM` API input
+is normalized to that month, then returned contracts are filtered to the
+requested year and month. Legacy month-only callers retain all matching years;
+invalid input names `expiration` in its validation error. Unfiltered requests
+retain their previous payload and results. The suite now has191 regressions
+and119 guarded runtime files. Publisher-confirmed empty screens remain empty
+and are not called data passes.

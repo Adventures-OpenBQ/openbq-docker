@@ -5,10 +5,11 @@ from __future__ import annotations
 import csv
 import io
 import re
+import threading
 import zipfile
 from typing import Any
 
-from openbb_federal_reserve.utils.curl_session import get_session
+from curl_cffi.requests import Session
 
 URL = "https://cdr.ffiec.gov/public/PWS/DownloadBulkData.aspx"
 
@@ -24,9 +25,20 @@ PRODUCTS = {
 _PREFIX = "ctl00$MainContentHolder$"
 
 
+_sessions = threading.local()
+
+
 def _get_session() -> Any:
-    """Return a browser-impersonating ``curl_cffi`` session."""
-    return get_session("cdr")
+    """Reuse one browser session per thread, isolated from download workers.
+
+    UBPR custom peer-group setup and rendering must share session cookies.
+    Separate bulk-download worker threads must not share their ASP.NET state.
+    """
+    session = getattr(_sessions, "session", None)
+    if session is None:
+        session = Session(impersonate="chrome")
+        _sessions.session = session
+    return session
 
 
 def _viewstate(html: str) -> dict[str, str]:
