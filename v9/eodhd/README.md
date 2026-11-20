@@ -3,10 +3,12 @@
 # openbq-eodhd in ODP v9
 
 `source/` is the openbq-eodhd provider extension 9.0.1, vendored from
-Adventures-OpenBQ/openbq-eodhd at tag `v9.0.1`. That package is bdobb-dev/openbb-docker's
+Adventures-OpenBQ/openbq-eodhd at commit
+`f8f0166603f0b59f3f879b704b23582bd893e67d`. That package is bdobb-dev/openbb-docker's
 `openbb-eodhd` (v9.6.3, fixes through v9.6.6), renamed `openbq-eodhd` (module `openbq_eodhd`)
 (`source.json`; per-file record in [docs/v9/eodhd-port.md](../../docs/v9/eodhd-port.md)),
-plus the v9 review fixes released as 9.0.1.
+plus the released 9.0.1 fixes, guarded earnings-versus-estimates model and
+opt-in financial chart evidence.
 Its own README describes the data. The `Dockerfile` builds it as a wheel and
 installs it on the locked ODP recipe with the provider-fixes overlay applied.
 
@@ -14,7 +16,7 @@ installs it on the locked ODP recipe with the provider-fixes overlay applied.
 
 This line installs no standard routers (no openbb-equity, openbb-etf and so
 on), so `provider="eodhd"` has no `obb.equity...` home here. The extension's
-own namespace carries it: 52 commands under `/api/v1/eodhd/` (`obb.eodhd.*`),
+own namespace carries it: 53 commands under `/api/v1/eodhd/` (`obb.eodhd.*`),
 one per standard model EODHD implements, each offering only `eodhd`. Their
 widgets are `eodhd_<path>_eodhd_obb`, category EODHD; for example
 `eodhd_equity_price_historical_eodhd_obb` is `/api/v1/eodhd/equity/price/historical`.
@@ -23,6 +25,29 @@ widgets are `eodhd_<path>_eodhd_obb`, category EODHD; for example
 Ownership and Markets tabs, eight cards). The extension serves it on
 `/api/v1/eodhd/apps.json` and openbb-api merges it into `/apps.json`, as it
 does the other provider apps. It does not go in `examples/bdobb/apps.json`.
+
+## Financial chart evidence
+
+The screener, dividends and income mirrors accept `chart_source=true`.
+Select rows at `results` and read the receipt from the same completed
+response at `extra.results_metadata.chart_evidence`. The generated
+screener widget formats the fractional five-day change as a percentage.
+Dividends expose the events' payment currency and split-adjusted amount.
+The income receipt reports the statement's own currency. Ordinary EODHD
+responses leave dividend coverage and income scale unknown. The provider
+contract defines the receipt and the explicit snapshot authority for these
+facts. [Provider receipt contract](source/docs/chart-source-contracts.md)
+
+## Additional chart sources
+
+The CompanyNews, ShareStatistics, KeyMetrics, FinancialRatios and ETF holdings
+mirrors accept `chart_source=true`. They return eligible receipts at
+`extra.results_metadata.chart_sources` alongside the `results` rows. The
+opt-in can verify one delivered news page, independent US primary common-stock
+ownership bars, reported trailing P/E and dividend yield, or delivered US ETF
+holdings. Eligibility depends on the acquired data. Cached fundamentals need
+their original credible retrieval time. Timestamp-less entries still serve the
+ordinary data. [Canonical source contracts](source/docs/chart-contracts/)
 
 ## Key
 
@@ -37,12 +62,22 @@ EODHD plan. Both API images (the `Dockerfile` stages `api` and `v3`) install the
 - `source/tests`: the extension's own unit tests (mocked SDK). The parity tests
   in `test_eodhd_router.py` compare the mirrors with the standard routes, so
   run them where the standard routers are installed, as the donor's CI does.
-- `tests/test_stack.py`: this line's checks, without standard routers: the 52
+- `tests/test_stack.py`: this line's checks, without standard routers: the 53
   mirrors, their widgets, the EODHD app on `/apps.json`, a price query through
   `/api/v1/eodhd` against saved bars (`tests/fixtures`, fictional values), a
-  missing key, and the app under `OPENBB_API_AUTH=true`.
-- `verify.py` runs `tests/` at image build time, after checking package
-  versions and the EODHD SDK pin.
+  missing key, the chart-source and legacy responses, and the app under
+  `OPENBB_API_AUTH=true`.
+- `tests/test_source_pin.py` checks the local source inventory and hashes
+  against `source.json`.
+- `verify.py` runs the runtime tests at image build time, after checking package
+  versions and the EODHD SDK pin. To rerun the runtime verifier against
+  the built API image, run these commands from the repository root.
+
+```sh
+docker build --target v3 -t openbq-eodhd-chart-candidate .
+docker run --rm --network none -v "$PWD/v9/eodhd:/check:ro" \
+  openbq-eodhd-chart-candidate python /check/verify.py
+```
 
 None of these call EODHD. `source/scripts/smoke.py` is a live check against
 EODHD's public `demo` token; it uses the standard routes, so it needs them.

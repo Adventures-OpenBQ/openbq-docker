@@ -5,7 +5,7 @@ RUN python -m pip install hatchling==1.32.4 packaging==26.3 pathspec==1.1.1 plug
 COPY v3/videos/source /videos
 COPY v3/econdb/source /econdb
 RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /videos /econdb
-# v9: openbq-eodhd 9.0.1 (Adventures-OpenBQ/openbq-eodhd v9.0.1: bdobb-dev/openbb-docker's openbb-eodhd v9.6.3,
+# v9: openbq-eodhd 9.0.1 (Adventures-OpenBQ/openbq-eodhd commit in source.json: bdobb-dev/openbb-docker's openbb-eodhd v9.6.3,
 # fixes through v9.6.6, renamed, plus the v9 review fixes; v9/eodhd/source.json), with the official
 # EODHD SDK vendored at openbq_eodhd/_vendor/eodhd.
 COPY v9/eodhd/source /eodhd

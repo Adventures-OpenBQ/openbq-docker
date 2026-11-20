@@ -125,3 +125,46 @@ User ruling: "openbq-docker v9 should have openbq-eodhd" and "it should be Adven
 - Not renamed, for the OpenBB contract: the provider name `eodhd` (the `openbb_provider_extension` entry point), the core extension `eodhd` (`openbb_core_extension`, so `obb.eodhd.*` and `/api/v1/eodhd`), and therefore every widget id `eodhd_*_eodhd_obb`; the SDK distribution `eodhd`; and the donor's name in this ledger's rows above, `source.json`'s donor block and NOTICE's provenance.
 - PROVISIONAL: the version is 9.0.0, matching the episode as openbq-yfinance 3.0.0 does, instead of the donor's 9.6.3.
 - Tests: the package's own suite gave 314 passed, 1 skipped, and the same 6 failures before and after the rename. Five are the SDK tests, because the SDK archive cannot be fetched here; the sixth is `test_no_extra_mirror_routes`, which fails identically on the unrenamed tree in this venv. `v9/eodhd/tests`: 9 passed with openbq-eodhd 9.0.0 installed in place of openbb-eodhd.
+
+## Financial-chart provider pin (2026-11-19)
+
+The local chart stack uses canonical commit `349f2de40773cf2e1d9e2993ebabf3184871c07d` at distribution version 9.0.1. Its 53 mirrors include `/api/v1/eodhd/equity/estimates/earnings_vs_estimates`. The default EODHD app still has eight cards. The seven-chart example lives in the paired BDOBB repository.
+
+The reviewed inventory starts with the prior vendored tracked files and adds `openbq_eodhd/models/earnings_vs_estimates.py` and `tests/test_earnings_vs_estimates.py`. Compare this list with `git ls-tree -r --name-only <commit>` in the canonical checkout. For each listed path copy the bytes from `git show <commit>:<path>` and calculate SHA-256. The 118 entries under `files_sha256` in `v9/eodhd/source.json` record these canonical bytes. There are zero packaging edits. The source-pin test checks the file set as well as the hashes. Run it from a checkout alongside the stack and image tests. The released tag `v9.0.1` remains at `59603cc1957b01af98b75be257520b0f48a637fc`.
+
+## Screening, dividends and income evidence pin (2026-11-19)
+
+The screening and income chart stack pins canonical commit
+`6f9f1cb20475c3204867bf03c3f3dc5f7141ca96` at distribution version 9.0.1.
+The 121 SHA-256 entries in `v9/eodhd/source.json` cover the complete tracked
+tree using the procedure above. The Docker copy preserves the generated
+mirror router and its 53 commands. The existing widget generator takes the
+five-day return's `normalizedPercent` formatter from the provider response schema.
+A stored fraction of 0.05 displays as 5% in the BDOBB source table.
+
+The screener, dividends and income routes expose acquisition evidence at
+`extra.results_metadata.chart_evidence` for `chart_source=true`.
+`results` remains the row selector. The dividend event supplies payment
+currency and the income statement supplies reporting currency. Ordinary
+responses carry unknown dividend coverage or income scale, respectively.
+The packaged stack tests exercise these receipts and the default route
+behavior with fictional SDK responses.
+
+## Next eight chart source pin (2026-11-20)
+
+The local candidate vendors the complete 149-path tracked tree of canonical
+commit `f8f0166603f0b59f3f879b704b23582bd893e67d`, tree
+`aad6d9c74450cfc5ae9f7fa38c4697b85f58e93c`. Distribution version 9.0.1,
+53 mirror commands and the eight-card provider app remain compatible. The
+new chart evidence uses the same acquired rows on five existing mirrors.
+The cache adapter reads the payload and its metadata from one library version.
+The image ships without ArcticDB. Its installed adapter can be tested with
+paired versioned-record fixtures, and its ordinary runtime uses L1.
+
+The local stack tests cover generated route parameters, eligible and legacy
+HTTP envelopes, the original cache vintage, and refusal for old unstamped
+entries. News coverage is one delivered page. Ownership percentages, two
+reported KPI headlines and delivered ETF holdings have narrower scopes than
+partitions, comparisons or complete funds. An adjusted-return contract,
+prepared overlays, observed estimate vintages and completed-session market
+maps require separate acquired evidence in this candidate. [Source contracts](../../v9/eodhd/source/docs/chart-contracts/)
