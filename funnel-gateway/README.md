@@ -54,6 +54,10 @@ markup is relayed as inert `text/plain` with `nosniff`. Other routes still refus
 HTML responses, and POST/Omni forwarding remains refused. The direct tailnet
 reference connection supports those native exercises.
 
+The gateway base is pinned to a multi-architecture Node 22 Alpine digest in
+`Dockerfile`. The qualified runtime is Node 22.23.5 with ws 8.21.3 on both ARM64
+and AMD64; the source and installed image modules are checked for identical bytes.
+
 Caps (settings): `maxConcurrent` (8, ≤ 32) and `maxSockets` (4, ≤ 32). There is no daily vendor
 cap and no per-minute request budget (removed 2026-10-17; `quoteDailyLimit` and `requestsPerMinute`
 are refused at startup by name, so delete them from an older settings file). Counters are in
