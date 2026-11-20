@@ -146,6 +146,9 @@ async def response_callback(response, _) -> Any:
     Any
         Parsed JSON, decoded text, or raw bytes.
     """
+    if getattr(response, "status", 200) >= 400:
+        response.raise_for_status()
+
     content_type = response.headers.get("Content-Type", "")
 
     if "application/json" in content_type:
@@ -537,6 +540,14 @@ def _forget_after_fork() -> None:
 _forget_after_fork()
 
 
+def with_cboe_headers(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Supply Cboe's required public origin without mutating caller options."""
+    headers = dict(kwargs.get("headers") or {})
+    if not any(key.lower() == "referer" for key in headers):
+        headers["Referer"] = "https://www.cboe.com/"
+    return {**kwargs, "headers": headers}
+
+
 async def get_cboe_data(url: str, use_cache: bool = True, **kwargs) -> Any:
     """Make a request to a Cboe endpoint, optionally through the on-disk cache.
 
@@ -555,11 +566,12 @@ async def get_cboe_data(url: str, use_cache: bool = True, **kwargs) -> Any:
     """
     from aiohttp_client_cache.session import CachedSession
 
+    kwargs = with_cboe_headers(kwargs)
     if use_cache is not True:
         return await amake_request(url, response_callback=response_callback, **kwargs)
 
     async with cache_backend() as backend, CachedSession(cache=backend) as session:
-        response = await session.get(url, timeout=10, **kwargs)
+        response = await session.get(url, **{"timeout": 10, **kwargs})
 
         return await response_callback(response, None)
 
@@ -676,9 +688,13 @@ async def list_futures(**kwargs) -> list[dict]:
         One record per futures root.
     """
     response = await get_cboe_data(
-        "https://cdn.cboe.com/api/global/delayed_quotes/symbol_book/futures-roots.json"
+        "https://cdn.cboe.com/api/global/delayed_quotes/symbol_book/futures-roots.json",
+        **kwargs,
     )
-    data = response.get("data")
+    if not isinstance(response, dict) or not isinstance(response.get("data"), list) or not all(isinstance(item, dict) for item in response["data"]):
+        from openbb_core.app.model.abstract.error import OpenBBError
+        raise OpenBBError("Cboe futures directory did not return a JSON data list.")
+    data = response["data"]
 
     for item in data:
         item.pop("sort_order", None)
