@@ -145,3 +145,23 @@ class InstalledDailyPrice(unittest.TestCase):
                 self.assertTrue(result.json()["results"])
                 self.assertIsNone(source_envelope(result.json()))
                 self.daily.assert_called_once_with(**sdk_call(symbol, "w" if interval == "1W" else "d").kwargs)
+
+    def test_dropped_contradictory_declaration_prevents_proof_on_each_mirror(self):
+        for route in HISTORY:
+            for conflict in ({"period": "w"}, {"interval": "1W"}, {"unit": "cents"}, {"currency": "EUR"}):
+                with self.subTest(route=route, conflict=conflict):
+                    def observations(*, symbol, **kwargs):
+                        first = dict(BAR, period="d", interval="1d", unit="dollars", currency="USD")
+                        second = dict(first, date="2026-10-13")
+                        if symbol == "AAPL.US":
+                            second.update(close=None, **conflict)
+                        return [first, second]
+
+                    self.daily.reset_mock()
+                    self.daily.side_effect = observations
+                    response = self.get(route, chart_source="true")
+                    self.assertEqual(response.status_code, 200, response.text)
+                    self.assertEqual(self.daily.call_args_list, [sdk_call(symbol) for symbol in SYMBOLS])
+                    receipt, = source_envelope(response.json())["receipts"]
+                    self.assertEqual(receipt["delivered_count"], 3)
+                    self.assertEqual(receipt["diagnostics"], ["invalid_response"])

@@ -179,3 +179,8 @@ The equity and ETF historical mirrors expose `chart_source` and select
 daily-price receipt at `extra.results_metadata.chart_sources` for eligible
 bounded acquisitions. The shared standard equity and ETF fetcher keys resolve
 to the same code. This image serves the generated mirrors.
+
+The final declaration checks use canonical commit `adb2e2e410552863bcbfbd5584e3e7c9720d0cbc`, tree
+`757335c861fead6e500414eef46b3c080f053fdf`. Every raw row contributes its interval, SDK period
+and per-listing currency and unit declarations before normalization or dropping.
+The earlier image remains recorded above.
