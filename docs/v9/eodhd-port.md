@@ -135,11 +135,12 @@ The reviewed inventory starts with the prior vendored tracked files and adds `op
 ## Screening, dividends and income evidence pin (2026-11-19)
 
 The screening and income chart stack pins canonical commit
-`5c54b403513ef5759a9c1d461da54669e2a6d91c` at distribution version 9.0.1.
+`6f9f1cb20475c3204867bf03c3f3dc5f7141ca96` at distribution version 9.0.1.
 The 121 SHA-256 entries in `v9/eodhd/source.json` cover the complete tracked
 tree using the procedure above. The Docker copy preserves the generated
 mirror router and its 53 commands. The existing widget generator takes the
-five-day return's percent formatter from the provider response schema.
+five-day return's `normalizedPercent` formatter from the provider response schema.
+A stored fraction of 0.05 displays as 5% in the BDOBB source table.
 
 The screener, dividends and income routes expose acquisition evidence at
 `extra.results_metadata.chart_evidence` for `chart_source=true`.

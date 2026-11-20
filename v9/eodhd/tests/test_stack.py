@@ -104,7 +104,7 @@ class MirrorNamespace(unittest.TestCase):
         widget = self.widgets["eodhd_equity_screener_eodhd_obb"]
         columns = {c["field"]: c for c in widget["data"]["table"]["columnsDefs"]}
         self.assertIn("price_change_5d", columns)
-        self.assertEqual(columns["price_change_5d"]["formatterFn"], "percent")
+        self.assertEqual(columns["price_change_5d"]["formatterFn"], "normalizedPercent")
         self.assertEqual(columns["currency_symbol"]["cellDataType"], "text")
 
     def test_app_cards_are_served_widgets(self):
@@ -311,7 +311,11 @@ class ChartSource(unittest.TestCase):
             with self.subTest(source=source):
                 legacy = self.body("legacy_" + source)
                 self.assertNotIn("results_metadata", legacy["extra"])
-                self.assertEqual(legacy["results"], self.body(source)["results"])
+                row, = self.body(source)["results"]
+                if source == "income":
+                    self.assertIsNone(row.get("fiscal_year"))
+                    row = {**row, "fiscal_year": 2026}
+                self.assertEqual(legacy["results"], [row])
         self.assertEqual(self.responses["legacy_empty_dividends"], [204, None])
 
     def test_opt_in_does_not_add_sdk_requests(self):
