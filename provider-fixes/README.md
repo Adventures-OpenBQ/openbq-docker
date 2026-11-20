@@ -16,3 +16,24 @@ timeouts are preserved. HTTP errors are rejected before response decoding, and
 futures directories validate their JSON data shape. This extends the earlier
 quote-only header repair; uncached live controls reproduced403without the
 header and200JSONwith it on both old and new transports.
+
+### V3 browser-audit supplement: serialized widget field names
+
+The platform-api column generator must preserve OpenAPI property keys as the
+wire field names. Converting `USD` to `usd` or `netAssetValue` to
+`net_asset_value` creates columns that cannot address the actual response.
+The overlay preserves normalized classification for formatting, pinning and
+other styling, while keeping each column's `field` exact. Explicit author
+field overrides and exclusions remain supported. The pinned platform-api
+2.0.1 baseline is SHA guarded like provider sources. Three focused regressions
+cover uppercase ISO rates, mixed-case aliases and existing snake-case styling;
+the complete source suite now contains 168 tests. The ECB singleton-record
+response is a separate frontend compatibility question, not a reason to
+change its SDK return contract. Upstream candidate: OpenBQ/OpenBB platform-api.
+
+The same V3 browser audit found two advanced-chart defaults that lacked TMX
+UDF asset prefixes: futures `CGB` must be `/CGB`, and forex `USDCAD` must be
+`$USDCAD`. Only widget defaults change; the regular SDK examples and query
+conventions remain intact. Two regressions verify that the actual declared
+defaults classify as futures/forex rather than stock. These two guarded router
+files bring the overlay to110 sources and the full source suite to170 tests.
