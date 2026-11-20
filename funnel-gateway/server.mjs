@@ -96,13 +96,18 @@ export function connectRef(config) {
     handshakeTimeout: 10000, followRedirects: false, maxPayload: MAX_SOCKET, perMessageDeflate: false });
 }
 
-/** Bounded JSON or text/plain request (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
+/** Bounded JSON or inert text (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
 export async function getJson(path, config, signal) {
   const { url, headers } = target(path, config);
   const svg = path === LOGO, limit = svg ? MAX_SVG : MANIFESTS.has(path) ? MANIFEST_MAX : MAX_BODY;
   return new Promise((resolve, rejectPromise) => {
     const request = httpRequest(url, { method: "GET", headers, signal }, response => {
-      const type = response.headers["content-type"] ?? "", plain = !svg && /^text\/plain(?:\s*;|$)/i.test(type);
+      // Only the reference's declared HTML widget may return markup. Other
+      // routes still refuse an HTML login/error page. The renderer consumes
+      // it as inert, nosniff text/plain rather than an executable gateway page.
+      const type = response.headers["content-type"] ?? "";
+      const plain = !svg && (/^text\/plain(?:\s*;|$)/i.test(type) ||
+        (path.split("?")[0] === "/ref/html_widget" && /^text\/html(?:\s*;|$)/i.test(type)));
       if (response.statusCode !== 200 ||
           !(plain || (svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(type))) {
         response.destroy(); return rejectPromise(new Error("Invalid upstream response"));

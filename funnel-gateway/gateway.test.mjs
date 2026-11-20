@@ -842,3 +842,21 @@ test("the package version is this release", () => {
   assert.match(compose, new RegExp(`image: openbq-funnel-gateway:${version.replaceAll(".", "\\.")}\\n`));
   assert.match(readFileSync(new URL("./README.md", import.meta.url), "utf8"), new RegExp(`v${version.replaceAll(".", "\\.")}`));
 });
+
+test('reference HTML widgets relay bounded markup as inert text without upstream cookies', async t => {
+  const markup='<html><body><h1>Reference dashboard</h1><script>globalThis.example=true</script></body></html>';
+  const upstream=createServer((req,res)=>{res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Set-Cookie':'synthetic=secret'});res.end(markup);});
+  upstream.listen(0,'127.0.0.1');await once(upstream,'listening');t.after(()=>new Promise(resolve=>upstream.close(resolve)));
+  const {port}=await fixture(t,{refOrigin:`http://127.0.0.1:${upstream.address().port}`},{requestJson:getJson});
+  const response=await http(port,'/ref/html_widget?theme=light');
+  assert.equal(response.status,200);assert.equal(response.text,markup);
+  assert.equal(response.headers['content-type'],'text/plain; charset=utf-8');
+  assert.equal(response.headers['x-content-type-options'],'nosniff');assert.equal(response.headers['set-cookie'],undefined);
+});
+
+test('HTML widget relay keeps the ordinary two MiB response ceiling', async t => {
+ const upstream=createServer((req,res)=>{res.writeHead(200,{'Content-Type':'text/html'});res.end('x'.repeat(2*1024*1024+1));});
+ upstream.listen(0,'127.0.0.1');await once(upstream,'listening');t.after(()=>new Promise(resolve=>upstream.close(resolve)));
+ const {port}=await fixture(t,{refOrigin:`http://127.0.0.1:${upstream.address().port}`},{requestJson:getJson});
+ assert.equal((await http(port,'/ref/html_widget')).status,502);
+});
