@@ -1,7 +1,3 @@
-# Derived from the OpenBB Platform (https://github.com/OpenBB-finance/OpenBB),
-# Copyright (c) 2021-2026 OpenBB Inc., licensed under the Apache License, Version 2.0.
-# Modifications Copyright 2026 SecretoftheUniverse.com LLC.
-# SPDX-License-Identifier: Apache-2.0
 """Constants for the Fama French datasets API."""
 
 from typing import Any, Literal
@@ -1061,7 +1057,7 @@ INTERNATIONAL_INDEX_PORTFOLIOS_URLS = {
 
 INTERNATIONAL_INDEX_PORTFOLIO_FILES = {
     "uk": "Ind_UK.Dat",
-    "scandinavia": "Ind_Scandinavia.Dat",
+    "scandinavia": "Ind_Scandanavia.Dat",
     "europe": "Ind_Eur_With_UK.Dat",
     "europe_ex_uk": "Ind_Eur_WOut_UK.Dat",
     "asia_pacific": "Ind_Asia_Pacific.Dat",

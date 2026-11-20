@@ -16,6 +16,7 @@ RUN python -m pip install -r /tmp/requirements.lock && python -m pip check
 FROM odp AS api
 COPY provider-fixes /tmp/provider-fixes
 RUN python /tmp/provider-fixes/apply.py && rm -rf /tmp/provider-fixes
+RUN python -m pip install pip==26.2.0
 # v3: the Video Library (openbb-videos 3.0.1, v3/videos) and EconDB (openbb-econdb, OpenBB's MIT-era
 # provider ported to openbb-core 2, v3/econdb) extensions. No PyPI release fits the lock; their
 # dependencies are all in requirements.lock, so --no-deps.
