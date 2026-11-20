@@ -76,3 +76,16 @@ The RSS bridge reloads only when feed/theme actually change, preventing a
 connect→same-parameters→reload loop. Four JavaScript protocol regressions run
 with `node --test scripts/test-eia-rss-protocol.mjs`; they are separate from
 the178 Python source tests.
+
+### Bounded Congress member voting history
+
+The current117-file overlay bounds the optional complete-career vote index wait
+to15seconds. A cold or unavailable index no longer hides an otherwise valid bio.
+Unknown totals remain null with an explicit unavailable state in both the page
+and published profile markdown; completed zero-vote and complete-career results
+retain their existing behavior. The underlying full-career ingestion is unchanged; tally publication also verifies
+that every required Congress/chamber is indexed. Partial totals and automatic
+retry loops are not introduced.
+
+The current suite contains183 Python regressions. JavaScript coverage adds four
+member-voting UI/markdown regressions alongside the four RSS protocol tests.
