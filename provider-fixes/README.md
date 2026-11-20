@@ -17,65 +17,22 @@ futures directories validate their JSON data shape. This extends the earlier
 quote-only header repair; uncached live controls reproduced403without the
 header and200JSONwith it on both old and new transports.
 
-### V3 browser-audit supplement: serialized widget field names
 
-The platform-api column generator must preserve OpenAPI property keys as the
-wire field names. Converting `USD` to `usd` or `netAssetValue` to
-`net_asset_value` creates columns that cannot address the actual response.
-The overlay preserves normalized classification for formatting, pinning and
-other styling, while keeping each column's `field` exact. Explicit author
-field overrides and exclusions remain supported. The pinned platform-api
-2.0.1 baseline is SHA guarded like provider sources. Four focused regressions
-cover uppercase ISO rates, mixed-case aliases and existing snake-case styling;
-the complete source suite contains171 tests including the TMX checks below. The ECB singleton-record
-response is a separate frontend compatibility question, not a reason to
-change its SDK return contract. Upstream candidate: OpenBQ/OpenBB platform-api.
+### Current provider and embedded-browser compatibility
 
-The same V3 browser audit found two advanced-chart defaults that lacked TMX
-UDF asset prefixes: futures `CGB` must be `/CGB`, and forex `USDCAD` must be
-`$USDCAD`. Only widget defaults change; the regular SDK examples and query
-conventions remain intact. Two regressions verify that the actual declared
-defaults classify as futures/forex rather than stock. These two guarded router
-files bring the overlay to110 sources and the full source suite to171 tests.
+Eight guarded sources bring this release to115 provider overlays. Platform-api
+columns retain exact fields and normalized formatting; the ECB reference model
+explicitly describes uppercase SDK record fields without changing its singleton
+response. TMX UDF defaults use /CGB and $USDCAD. EIA nested browsers and RSS links
+follow the HTTPS browser origin through sidecars, Home navigates immediately,
+and repeated unchanged RSS parameters do not cause a reload loop. International
+uses EIA's current official CSV portal after retirement of the legacy browser.
 
-A follow-up regression keeps mixed-case option fields hidden/formatted through
-normalized styling keys while their serialized wire names remain exact.
-
-### HTTPS sidecar EIA browsers
-
-Browser-facing EIA endpoints, nested proxy resources and RSS article links use
-origin-relative paths from the actual request. This keeps a TLS-terminating
-sidecar from embedding the API's internal HTTP URL, without broadening proxy
-header trust. Direct SDK rendering without request context keeps its existing
-configured-host fallback. Saved-view/Home URL parsing now supplies the browser
-origin explicitly. Home navigation assigns its destination immediately rather
-than leaving about:blank while a hidden widget waits for a paint callback.
-Six network-free regressions cover HTTPS proxy paths,
-mount prefixes, URL-only request info, RSS links and the direct SDK fallback.
-These three EIA sources plus the ECB schema correction below bring the final
-overlay to115 files and the source suite to178 tests. Live nested application
-qualification remains a separate gate.
-
-### ECB reference-rate schema aliases
-
-The real ECB model generates lowercase serialization aliases in its JSON
-schema, while the SDK's default serialization and the actual endpoint retain
-uppercase ISO field names. Preserving schema keys alone cannot correct this
-additional mismatch. The guarded ECB model supplies widget field overrides
-from its declared model field names through json_schema_extra. The singleton
-record, numeric values, parsing aliases and SDK interface remain unchanged.
-A real-model schema/columns/serialized-record regression covers this contract;
-the actual served catalogue and sidecar browser reference-rate check are
-qualified independently.
-
-The retired International overview/world destination is replaced with EIA's
-current official international/data/ CSV portal. The description explicitly
-reflects downloadable data rather than promising the removed interactive app.
-
-The RSS bridge reloads only when feed/theme actually change, preventing a
-connect→same-parameters→reload loop. Four JavaScript protocol regressions run
-with `node --test scripts/test-eia-rss-protocol.mjs`; they are separate from
-the178 Python source tests.
+The complete Python suite contains178 tests. Four additional JavaScript RSS
+protocol regressions run with `node --test scripts/test-eia-rss-protocol.mjs`.
+Reader/demo, registered, actual data, empty and source-denial outcomes remain
+separate in the published regression evidence. These repairs require fresh
+source/image binding and targeted live retests before release sign-off.
 
 ### Bounded Congress member voting history
 
@@ -89,6 +46,7 @@ retry loops are not introduced.
 
 The current suite contains183 Python regressions. JavaScript coverage adds four
 member-voting UI/markdown regressions alongside the four RSS protocol tests.
+
 
 
 ## Cold FFIEC five-period reports
@@ -106,3 +64,14 @@ and is not the default reader verification case.
 Regression coverage checks the two-download bound, the unchanged five-period
 output, session isolation and explicit deadline override. The complete provider
 suite now includes 187 tests; source guards cover 118 runtime files.
+
+
+## Covered-call expiry filtering
+
+The exchange form takes month numbers 1-12. The documented `YYYY-MM` API input
+is normalized to that month, then returned contracts are filtered to the
+requested year and month. Legacy month-only callers retain all matching years;
+invalid input names `expiration` in its validation error. Unfiltered requests
+retain their previous payload and results. The suite now has191 regressions
+and119 guarded runtime files. Publisher-confirmed empty screens remain empty
+and are not called data passes.
