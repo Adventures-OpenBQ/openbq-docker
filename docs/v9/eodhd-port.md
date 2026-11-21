@@ -168,3 +168,26 @@ reported KPI headlines and delivered ETF holdings have narrower scopes than
 partitions, comparisons or complete funds. An adjusted-return contract,
 prepared overlays, observed estimate vintages and completed-session market
 maps require separate acquired evidence in this candidate. [Source contracts](../../v9/eodhd/source/docs/chart-contracts/)
+
+## Live observed returns source pin (2026-11-20)
+
+The v9 qualification image vendors all 151 tracked paths from canonical
+commit `8c06e57ea08f85c3b48a6eff8d99068486b180dc`, tree
+`848e07485337ccc942f50872fdb43bcb9cb84954`, at distribution version 9.0.1.
+The equity and ETF historical mirrors expose `chart_source` and select
+`results` through the generated widgets' `data.dataKey`. Both return the
+daily-price receipt at `extra.results_metadata.chart_sources` for eligible
+bounded acquisitions. The shared standard equity and ETF fetcher keys resolve
+to the same code. This image serves the generated mirrors.
+
+The earlier interval and denomination checks used canonical commit `adb2e2e410552863bcbfbd5584e3e7c9720d0cbc`, tree
+`757335c861fead6e500414eef46b3c080f053fdf`. Every raw row contributes its interval, SDK period
+and per-listing currency and unit declarations before normalization or dropping.
+The earlier image remains recorded above.
+
+### Published PR follow-up
+
+The provider pin `75a902664054b3afbd23c5b6328efe7eedcf429c` checks all case variants of listing
+declarations and partial markers before normalization. Installed mirror tests cover a
+dropped conflicting code and continuation in the second listing. The paired client
+records the new image and captures. [Follow-up qualification](https://github.com/Adventures-OpenBQ/bdobb/blob/codex/v9-live-observed-returns/docs/releases/validation/v9/live-observed-returns/published-pr-follow-up.md)

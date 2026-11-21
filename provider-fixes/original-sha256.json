@@ -34,6 +34,8 @@
   "openbb_federal_reserve/models/regional/kansas_city_ag_finance.py": "8e0c1a78aeb4183a7c91d8ed9d9e84084f1fa808d31a5f53365add44efa5773f",
   "openbb_us_eia/eia_router.py": "5e34022b0085c74fa36c835084857884b69d7132ea4389b53a851f4bb70a8b0e",
   "openbb_tmx/routers/equity.py": "2dc08ad4738b2bdff2d402608e0600a10dd75c7dea9a650411eeb14c248680ff",
+  "openbb_core/api/rest_api.py": "1d15258594fb30e516c90de10b27f0adad92ad126391c9fb0cf4a85e993cd5cc",
+  "openbb_platform_api/app/bootstrap.py": "279de218b7de81da6b1d073010ea5a0b73621645aad5971babcfbb3f12294e5b",
   "openbb_core/api/app_loader.py": "ca9b4b2b7ce6ca37f59a18d77eaf62c9014ccaaa951af8b863aacdad04a831a4",
   "openbb_government_us/usda/models/weather_bulletin_download.py": "b12ea04f2427a87d8c5cce94edb55882d715ac46a47b260f3de5bf9db0b64045",
   "openbb_deribit/assets/apps.json": "539acd98d219315d18cc353af817d013e4af9619e9a9c89d35361a6fb571a2d7",

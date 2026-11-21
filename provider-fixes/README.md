@@ -189,3 +189,7 @@ the current develop file still makes these requests without the explicit profile
 ## Nasdaq filing PDF transport (V8 walk)
 
 `openbb_nasdaq/utils/helpers.py` (openbb-nasdaq2.0.0, Apache-2.0) requests the selected filing with the existing PDF Accept profile, checks HTTP status and refuses HTML or incomplete PDF bodies before base64 encoding. A real AAPL8-K download previously returned a Cloudflare HTML error labelled as a PDF; the PDF request profile returned the actual document. Four transport regressions cover HTML, HTTP403, truncation and PDF-byte round-trip. Upstream `openbq-org/OpenBB` develop blob `dbd7c9f1ff99a284c0569aed9c6d211a7344578a` still has the text header and unchecked body; this scoped repair is an upstream PR candidate. The viewer still reports upstream download refusals truthfully.
+
+## V9 daily-price acquisition CORS exposure
+
+The pinned OpenBB Core and Platform API 2.0.1 files `openbb_core/api/rest_api.py` and `openbb_platform_api/app/bootstrap.py` expose `Link`, `Content-Range` and `Access-Control-Expose-Headers` through their existing CORS middleware. A browser can then read both daily-price continuation declarations and the exposure policy itself. The default app configures middleware in Core before the launcher runs. The bootstrap helper covers apps that use the launcher's CORS defaults and leaves existing custom middleware in place. The overlay keeps the configured origins, methods, request headers and credentials policy.

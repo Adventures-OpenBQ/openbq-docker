@@ -59,3 +59,7 @@ GHCR `9.0.0`, built for amd64 and arm64:
 - `openbq-key-maint` `sha256:ba2d3d252680be8c5c804296f29aea2ebde935ad1294dce65df56295728445b5`, the 8.0.0 image re-tagged, unchanged.
 
 The funnel gateway stays at 8.0.0. `latest` was not moved.
+
+## Shared acquisition transport follow-up — 21 November 2026
+
+Client PR #89 now refuses partial/paged daily acquisitions and requires observable paging headers in direct cross-origin browsers. This Docker follow-up exposes only `Link`, `Content-Range`, and `Access-Control-Expose-Headers` at both existing API CORS registrations, retaining origins, authentication, credentials and provider receipts. [Installed image/browser qualification](acquisition-transport-qualification.md) · [Independent approval](acquisition-transport-review.md). The qualified local image is a review artifact; these PRs remain unmerged.
