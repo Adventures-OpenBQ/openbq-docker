@@ -225,7 +225,7 @@ async def get_nasdaq_data(path: str, use_cache: bool = True, **kwargs) -> Any:
     Raises
     ------
     OpenBBError
-        If Nasdaq returns a non-200 response code in the envelope.
+        If Nasdaq reports a non-200 response or an explicit vendor failure.
     """
     from openbb_core.app.model.abstract.error import OpenBBError
 
@@ -241,8 +241,15 @@ async def get_nasdaq_data(path: str, use_cache: bool = True, **kwargs) -> Any:
 
     status = response.get("status") or {}
 
-    if status.get("rCode") != 200:
-        messages = status.get("bCodeMessage") or []
+    messages = status.get("bCodeMessage") or []
+    # A successful transport envelope can still report a failed vendor call.
+    # Returning None here turns that upstream failure into a misleading 204.
+    vendor_errors = [
+        message for message in messages
+        if isinstance(message, dict) and str(message.get("code")) == "3004"
+    ] if isinstance(messages, list) else []
+    if status.get("rCode") != 200 or vendor_errors:
+        messages = vendor_errors or messages
         detail = (
             messages[0].get("errorMessage", "")
             if isinstance(messages, list) and messages
