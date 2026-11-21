@@ -24,8 +24,8 @@ bind_host: 0.0.0.0
 # Live TV: public YouTube channels, resolved on demand and cached for five minutes.
 # Connect this server as a backend (https://openbq.YOUR-TAILNET.ts.net:8088)
 # and add its single Live TV widget. The first channel is the default. The same
-# card plays inline or in BDOBB's desktop Picture in Picture window; iPad is inline.
-# The Channel picker also offers Picture in Picture grab for Chrome's floating player.
+# YouTube streams play inline. The Channel picker also offers Picture in Picture
+# grab for Chrome's existing floating player on desktop; iPad stays inline.
 # Remove this list (or set live_tv: []) to disable Live TV. No API key is needed.
 live_tv:
   - key: bloomberg-tv

@@ -20,6 +20,9 @@ const MAX_BODY = 2 * 1024 * 1024;
 const MANIFESTS = new Set(["/api/widgets.json", "/api/apps.json", "/ref/widgets.json", "/ref/apps.json"]);
 const MANIFEST_MAX = 16 * 1024 * 1024; // ponytail: manifests are buffered and parsed (~6x their size at peak); 8 concurrent 16 MiB manifests could pass mem_limit 512m — stream them unparsed if that ever matters.
 const MAX_SOCKET = 65536;
+// Up to 50 feed records may each carry a bounded inline favicon. This is
+// an upstream subscription reply budget; client frames/articles stay 64 KiB.
+const MAX_NEWS_REPLY = 2 * 1024 * 1024;
 /**
  * The packaged desktop app's webview origins (V10-P1, user ruling 2026-10-15). Tauri's http
  * plugin stamps one of these on every request it makes (tauri://localhost on macOS, iOS and
@@ -111,7 +114,7 @@ function target(path, config) {
  * The wire's socket. One connection per admitted client, opened only once that client's
  * single subscription frame has passed newsSubscription -- so an invalid or missing frame
  * never opens anything upstream at all. `maxPayload` caps what the pool can push at the
- * same MAX_SOCKET the client side is held to, compression is off (a compressed frame's
+ * bounded MAX_NEWS_REPLY (client frames stay MAX_SOCKET), compression is off (a compressed frame's
  * expanded size is not what maxPayload measures), and a redirect is never followed.
  */
 export function connectNews(config) {
@@ -119,7 +122,7 @@ export function connectNews(config) {
   return new WebSocket(url, {
     ...rssOptions(config), headers: { Origin: config.rssOrigin },
     handshakeTimeout: 10000, followRedirects: false,
-    maxPayload: MAX_SOCKET, perMessageDeflate: false,
+    maxPayload: MAX_NEWS_REPLY, perMessageDeflate: false,
   });
 }
 
@@ -421,14 +424,15 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
           // subscription must never open an upstream connection at all.
           try { upstream = openNews(config); } catch { return close(); }
           upstream.on("message", (message, isBinary) => {
-            if (isBinary || message.length > MAX_SOCKET || client.readyState !== WebSocket.OPEN ||
-                client.bufferedAmount > 262144) return close();
+            if (isBinary || message.length > MAX_NEWS_REPLY || client.readyState !== WebSocket.OPEN ||
+                client.bufferedAmount > MAX_NEWS_REPLY) return close();
             // The door is the only trust boundary: rss-ticker is unauthenticated on the tailnet,
             // so the door forwards the {"feeds"} reply and approved-feed articles, nothing else.
             let out;
             try { out = JSON.parse(message.toString()); } catch { return close(); }
-            if (out && Object.keys(out).join() === "feeds" ||
-                approvedIds.has(out?.feed_id)) client.send(message, { binary: false });
+            const feedReply = out && Object.keys(out).join() === "feeds";
+            if (!feedReply && message.length > MAX_SOCKET) return close();
+            if (feedReply || approvedIds.has(out?.feed_id)) client.send(message, { binary: false });
           });
           upstream.on("error", close);
           upstream.once("close", close);

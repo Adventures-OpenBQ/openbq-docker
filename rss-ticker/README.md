@@ -49,8 +49,10 @@ fragment follows the path), nothing cleverer — the same rule bdobb-v2's
     {"feeds": [{"id": 3, "url": "https://feeds.example/markets.rss", "title": "Markets", "favicon": "data:image/png;base64,..."}]}
 
 `favicon` is the publisher's icon resolved against the feed's own host (each
-Substack newsletter gets its own), or `null` until it resolves. An icon over
-16 KiB is skipped and stays `null`, so the reply fits the public door's 64 KiB frame.
+Substack newsletter gets its own), or `null` until it resolves. Inline icons
+are capped at 16 KiB. A known larger publisher icon can use its validated public
+URL instead. Subscription replies have a bounded 2 MiB allowance in the relay;
+client requests and individual articles retain their 64 KiB limit.
 
 **Articles** (server → client, every other frame, only for the socket's subscribed feeds; the same shape on `/api/news`):
 

@@ -685,7 +685,7 @@ test("a client too far behind is closed rather than queued behind, and hands the
   const real = Object.getOwnPropertyDescriptor(WebSocket.prototype, "bufferedAmount");
   const restore = () => Object.defineProperty(WebSocket.prototype, "bufferedAmount", real);
   t.after(restore);
-  Object.defineProperty(WebSocket.prototype, "bufferedAmount", { configurable: true, get: () => 262145 });
+  Object.defineProperty(WebSocket.prototype, "bufferedAmount", { configurable: true, get: () => 2097153 });
   const closed = within(ws, "close");
   up.send('{"type":"news"}');
   await closed;
@@ -1247,4 +1247,31 @@ test('HTML widget relay keeps the ordinary two MiB response ceiling', async t =>
  upstream.listen(0,'127.0.0.1');await once(upstream,'listening');t.after(()=>new Promise(resolve=>upstream.close(resolve)));
  const {port}=await fixture(t,{refOrigin:`http://127.0.0.1:${upstream.address().port}`},{requestJson:getJson});
  assert.equal((await http(port,'/ref/html_widget')).status,502);
+});
+
+
+test("the News subscription reply carries fifteen inline favicons beyond the client request budget", async t => {
+  const f = await wireFixture(t);
+  const {ws,up} = await relayed(f);
+  const payload = JSON.stringify({feeds:Array.from({length:15},(_,id)=>({
+    id:id+1,url:`https://feeds.example.com/${id}.xml`,title:`Source ${id}`,
+    favicon:'data:image/png;base64,'+'A'.repeat(7000),
+  }))});
+  assert.ok(Buffer.byteLength(payload)>65536);
+  const message=within(ws,"message");
+  up.send(payload);
+  const [received]=await message;
+  assert.equal(received.toString(),payload);
+});
+test("News replies remain bounded even when they carry inline favicons",async t=>{
+  const f=await wireFixture(t);const {ws,up}=await relayed(f);
+  const closed=within(ws,"close");
+  up.send(JSON.stringify({feeds:[{id:7,favicon:'x'.repeat(2097152)}]}));
+  await closed;await slotReleased(f);
+});
+test("an oversized article does not acquire the larger favicon reply budget",async t=>{
+  const f=await wireFixture(t);const {ws,up}=await relayed(f);
+  const closed=within(ws,"close");
+  up.send(JSON.stringify({feed_id:7,title:'x'.repeat(65537)}));
+  await closed;await slotReleased(f);
 });
