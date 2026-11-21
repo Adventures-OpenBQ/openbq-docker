@@ -42,3 +42,16 @@ def test_static_widget_tool_ids_carry_the_router_prefix():
     for path in assets.rglob('*widgets.json'):
         for widget in json.loads(path.read_text()).values():
             assert widget['mcp_tool']['tool_id'].startswith('federal_reserve_'), path
+
+
+def test_private_rita_profile_starts_tcp_probes_in_the_namespace_owner():
+    services = yaml.safe_load((ROOT / 'docker-compose.v6.yml').read_text())['services']
+    # Rita cannot apply namespace sysctls on a shared network_mode container.
+    assert services['openbq-rita']['network_mode'] == 'service:tailscale'
+    assert 'sysctls' not in services['openbq-rita']
+    probes = services['tailscale'].get('sysctls', {})
+    assert probes.get('net.ipv4.tcp_mtu_probing') == 2
+    assert probes.get('net.ipv4.tcp_base_mss') == 1024
+    # Keep the workaround scoped to the optional private-model profile.
+    base = yaml.safe_load((ROOT / 'docker-compose.yml').read_text())['services']
+    assert 'net.ipv4.tcp_mtu_probing' not in base['tailscale'].get('sysctls', {})
