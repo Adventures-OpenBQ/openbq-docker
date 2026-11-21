@@ -21,21 +21,17 @@ max_concurrent_polls: 8
 # is what decides who can reach the port. There is no authentication.
 bind_host: 0.0.0.0
 
-# Live TV, off until you list channels. Uncomment and edit: each channel is a YouTube
-# @handle whose /live page the server checks on demand (cached 5 minutes). The first is
-# the widget's default. With channels listed, /widgets.json publishes one "Live TV"
-# youtube widget; connect this server as a backend (https://openbq.YOUR-TAILNET.ts.net:8088)
-# to add it. Only these handles are ever fetched.
-# live_tv:
-#   - key: bloomberg-tv
-#     label: Bloomberg TV
-#     handle: "@markets"
-#   - key: yahoo-finance
-#     label: Yahoo Finance
-#     handle: "@YahooFinance"
-#   - key: schwab-network
-#     label: Schwab Network
-#     handle: "@SchwabNetwork"
-#   - key: cnbc-television
-#     label: CNBC Television
-#     handle: "@CNBCtelevision"   # events only: off-air between shows
+# Live TV: public YouTube channels, resolved on demand and cached for five minutes.
+# Connect this server as a backend (https://openbq.YOUR-TAILNET.ts.net:8088)
+# and add its single Live TV widget. The first channel is the default. The same
+# card plays inline or in BDOBB's desktop Picture in Picture window; iPad is inline.
+# Remove this list (or set live_tv: []) to disable Live TV. No API key is needed.
+live_tv:
+  - key: bloomberg-tv
+    label: Bloomberg TV
+    handle: "@markets"
+  - key: schwab-network
+    label: Schwab Network
+    handle: "@SchwabNetwork"
+# Channels can be off-air; an unavailable stream is reported, never replaced
+# with a recording or with another channel. Only configured handles are fetched.
