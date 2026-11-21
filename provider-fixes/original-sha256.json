@@ -117,5 +117,6 @@
   "openbb_government_us/congress/utils/member_cards.py": "7effb4ddce513e9e1027d822cb893ec982de7ed250e04e45b972cb5514a8d200",
   "openbb_government_us/congress/assets/member_bio.html": "fd49fe337da9f82ae26b67f9064a6fe8b635644909e9cf5837ada18fa906f974",
   "openbb_federal_reserve/models/call_report_router.py": "9064c6f33d8e0b77623850dc63e8038675bb3bac761a796dfcd8089793c48a36",
-  "openbb_tmx/models/covered_call_screener.py": "d214e6037d4c753a6cbaf6cb85d0fcfab8b5f83f2c4db8cabb643007755079e1"
+  "openbb_tmx/models/covered_call_screener.py": "d214e6037d4c753a6cbaf6cb85d0fcfab8b5f83f2c4db8cabb643007755079e1",
+  "openbb_federal_reserve/utils/ddp.py": "38067d250cf1d0cf1fe7575c43a3edcc89e13626d119474dfb02908ccd4e05bc"
 }

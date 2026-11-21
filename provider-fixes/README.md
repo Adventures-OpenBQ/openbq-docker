@@ -172,3 +172,16 @@ Found by the v5 regression of 2026-11-17 (`release/v5` 1d69be8): 18 Atlanta Fed 
 **Congress bulk loader lock.** `openbb_government_us/congress/utils/bulk.py` kept one `asyncio.Lock` per cache key. A lock belongs to the event loop that first waits on it, and the Congress commands run on more than one loop (the provider's loop and the server's), so a request arriving during a load raised `RuntimeError: <asyncio.locks.Lock …> is bound to a different event loop`. The locks are now kept per (loop, key), as `_WRITE_LOCKS` in the same file already is; two loops can each run a load once, with the same result. Local fix, no upstream PR yet.
 
 Covered by `tests/test_moved_sources.py`.
+
+### Federal Reserve DDP public-client compatibility
+
+The catalogue, release calendar, structure XML and SDMX downloads send a
+consistent browser-compatible User-Agent and Accept profile. The current public
+site rejects the default programmatic client profile: the live baseline returned
+403 or timed out, while the scoped headers returned 200 with the actual release
+catalogue through the same SDK transport. Each request gets a fresh header mapping
+because the core helper merges caller settings into it. This adds one guarded
+source (120 total). Three offline regressions exercise the catalogue, structure
+and economic-row download boundaries. Live cold-container acceptance remains a
+separate gate. Upstream candidate: openbq-org/OpenBB's Federal Reserve DDP client;
+the current develop file still makes these requests without the explicit profile.
