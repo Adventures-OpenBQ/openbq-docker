@@ -193,3 +193,12 @@ the current develop file still makes these requests without the explicit profile
 ## V9 daily-price acquisition CORS exposure
 
 The pinned OpenBB Core and Platform API 2.0.1 files `openbb_core/api/rest_api.py` and `openbb_platform_api/app/bootstrap.py` expose `Link`, `Content-Range` and `Access-Control-Expose-Headers` through their existing CORS middleware. A browser can then read both daily-price continuation declarations and the exposure policy itself. The default app configures middleware in Core before the launcher runs. The bootstrap helper covers apps that use the launcher's CORS defaults and leaves existing custom middleware in place. The overlay keeps the configured origins, methods, request headers and credentials policy.
+
+Nasdaq transport can report `rCode=200` with business error `3004` (vendor
+failure). The shared helper rejects that response, including partial payloads.
+Quote, company-profile and fund-info fetchers preserve the original exception
+when every requested symbol fails, so the API can report a source failure
+instead of an empty 204. Working symbols still return their data when another
+symbol fails; ordinary empty responses retain their existing behavior. The
+regressions cover integer/string business codes, partial payload refusal,
+all-symbol failures and mixed successful/failed symbols.
