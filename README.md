@@ -33,6 +33,9 @@ Unchanged build steps stay cached; changed Dockerfile inputs rebuild normally.
 It preserves Docker's normal data-directory ownership initialization, including
 Rita's unprivileged feedback directory. It does not apply `volume-nocopy` to
 application data and never prunes images or another installation's resources.
+The runnable API image targets also remove provider caches left by build-time
+checks and verify that no cache files remain. This prevents a fresh state volume
+from inheriting cached responses from the image itself.
 
 For example, pass a reader-check driver that provisions a temporary private
 Tailscale route, runs the existing provider checks and removes its route:

@@ -47,6 +47,11 @@ COPY examples/episode3/assets/bdobb-logo.svg /workspace/bdobb-logo.svg
 COPY v5/fixtures /workspace/openbq-fixtures
 COPY lanes/openbb.toml /workspace/openbb.toml
 COPY scripts/healthcheck.py /usr/local/bin/openbq-healthcheck.py
+COPY scripts/verify-provider-cache-empty.py /usr/local/bin/verify-provider-cache-empty.py
+# Build gates import real providers and can leave responses in their caches.
+# Ship an empty cache without disabling Docker's normal volume initialization.
+RUN rm -rf /root/OpenBBUserData/cache /root/.openbb_platform/cache /root/.cache \
+    && python /usr/local/bin/verify-provider-cache-empty.py
 HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=5 CMD ["python", "/usr/local/bin/openbq-healthcheck.py", "http://127.0.0.1:6900/widgets.json"]
 CMD ["openbb-api", "--host", "0.0.0.0", "--port", "6900"]
 
@@ -78,3 +83,6 @@ RUN python -m pip install --no-deps /tmp/openbq_routes-4.0.0-py3-none-any.whl &&
     && python /tmp/verify-routes.py && rm /tmp/verify-routes.py /tmp/openbq_routes-4.0.0-py3-none-any.whl
 COPY lanes/ssrm_widgets.json /workspace/ssrm_widgets.json
 COPY v3/openbb.toml /workspace/openbb.toml
+# Later extension checks can populate caches again after the api-stage gate.
+RUN rm -rf /root/OpenBBUserData/cache /root/.openbb_platform/cache /root/.cache \
+    && python /usr/local/bin/verify-provider-cache-empty.py
