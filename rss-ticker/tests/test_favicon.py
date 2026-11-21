@@ -491,3 +491,16 @@ async def test_google_news_feed_without_a_site_resolves_against_google():
 
     await call(handler, feed_url="https://news.google.com/rss/search?q=fed+rates")
     assert seen["url"] == "https://news.google.com/favicon.ico"
+
+
+async def test_bbc_syndication_resolves_the_publishers_icon_instead_of_the_feed_host():
+    seen = []
+    def handler(request):
+        seen.append(str(request.url))
+        if str(request.url) == "https://www.bbc.co.uk/favicon.ico":
+            return httpx.Response(200, content=SMALL_PNG, headers={"Content-Type": "image/png"})
+        return httpx.Response(404)
+    out = await call(handler, "https://feeds.bbci.co.uk/news/business/rss.xml")
+    assert out is not None
+    _b64_roundtrip(out, SMALL_PNG, "image/png")
+    assert seen == ["https://www.bbc.co.uk/favicon.ico"]

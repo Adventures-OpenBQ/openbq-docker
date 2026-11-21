@@ -42,6 +42,8 @@ _KNOWN_PROVIDER_HOSTS: dict[str, str] = {
     "feeds.bloomberg.com": "bloomberg.com",
     "feeds.content.dowjones.io": "wsj.com",
     "search.cnbc.com": "cnbc.com",
+    # BBC syndication serves RSS but no site icon; the publisher icon is 15 KiB.
+    "feeds.bbci.co.uk": "www.bbc.co.uk",
 }
 
 # Hosts whose bot wall 403s /favicon.ico and the homepage alike, whatever
