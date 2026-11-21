@@ -24,6 +24,47 @@ docker compose up -d
 docker compose ps
 ```
 
+### Isolated regression runs
+
+`scripts/compose-run.py --regression` runs a check against a fresh, temporary
+Compose project. It builds the selected services and their dependencies using
+Docker's normal layer cache, then starts new containers and state volumes.
+Unchanged build steps stay cached; changed Dockerfile inputs rebuild normally.
+It preserves Docker's normal data-directory ownership initialization, including
+Rita's unprivileged feedback directory. It does not apply `volume-nocopy` to
+application data and never prunes images or another installation's resources.
+
+For example, pass a reader-check driver that provisions a temporary private
+Tailscale route, runs the existing provider checks and removes its route:
+
+```sh
+python3 scripts/compose-run.py --regression \
+  -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.v6.yml \
+  --service openbq-api --report output/regression-reader.json \
+  -- python3 YOUR_READER_CHECK_DRIVER.py
+```
+
+The check receives `OPENBQ_REGRESSION_PROJECT` and
+`OPENBQ_REGRESSION_CONTAINERS` (a JSON mapping of service names to container
+IDs). Keep public/demo and registered-key drivers separate; this flag does not
+choose credentials or replace actual-data acceptance checks. Service env files
+are not resolved into the generated model or receipt. Use private QA credential
+configuration, and pass secrets through environment variables rather than command
+arguments. Inspect a recipe without starting anything with `--plan`.
+
+Writable directory binds become new test-owned volumes. Read-only configuration
+binds remain. Writable file binds, external volumes/networks, fixed container
+names, published host ports and host/existing-container namespaces are refused;
+provide an isolated QA configuration for those services. A service with no build
+context requires `--verified-images FILE`, mapping its service name to the exact
+previously qualified image ID. The wrapper does not silently trust a mutable tag.
+
+After the check, successful or failed, the wrapper removes only its temporary
+project's containers, volumes and networks. The private JSON receipt records
+actual image IDs, recipe-file hashes, the check result and verified cleanup.
+Existing receipts are never overwritten. A copied source archive is identified
+by its input hashes rather than an unrelated enclosing repository's revision.
+
 On a NAS, use `./scripts/nas-docker.sh` in place of `docker` if Docker is missing from the SSH PATH or its default client home is unwritable. Run it from this checkout.
 
 Generate an auth key from [Tailscale's Keys page](https://login.tailscale.com/admin/settings/keys). For this one persistent node, turn Reusable and Ephemeral off; enable Pre-approved if your tailnet requires device approval. Apply existing server tags only if their access policy is appropriate. Enable MagicDNS and HTTPS certificates. Never copy another node's identity state.
