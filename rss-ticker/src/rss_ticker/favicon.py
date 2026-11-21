@@ -23,11 +23,9 @@ log = logging.getLogger(__name__)
 # A favicon is a cosmetic nicety, not something ingest should ever wait on.
 # Short total deadline so a slow/hostile host can't stall a poll cycle.
 FAVICON_TIMEOUT_S = 10.0
-# One favicon is stored per feed (as a data URI, in the feeds table) and sent
-# whole in the subscribe reply, which the public door caps at 64 KiB per
-# frame. 16 KiB raw (about 22 KB as base64) keeps a reply of a few feeds
-# under that; a larger icon -- CNBC's favicon.ico is a 101 KB multi-resolution
-# bundle -- is skipped and the feed has none (BDOBB shows the source name).
+# One favicon is stored per feed and sent in the subscription reply. Keep
+# inline icons at 16 KiB raw (about 22 KiB base64); the relays allow a bounded
+# aggregate feed reply. Known larger publisher icons retain their public URL.
 MAX_FAVICON_BYTES = 16 * 1024
 
 
@@ -56,6 +54,13 @@ _KNOWN_ICON_URLS: dict[str, str] = {
         "?source=next&format=png&width=32"
     ),
 }
+
+# Original publisher icons that exceed the inline wire budget. Validate a
+# bounded response, then retain its public URL without changing the image.
+_KNOWN_LARGE_ICONS = {
+    "cnbc.com": "https://fm.cnbc.com/applications/cnbc.com/resources/img/CNBC_LOGO_FAVICON_1C_KO_RGB.ico",
+}
+MAX_LINKED_ICON_BYTES = 128 * 1024
 
 # Two of the three known-provider domains (wsj.com, cnbc.com) 403 a request
 # that doesn't look like a browser; bloomberg.com doesn't care either way.
@@ -183,6 +188,22 @@ async def _try_fetch_icon(
     return _data_uri(mime, body)
 
 
+async def _large_icon_fallback(
+    client: httpx.AsyncClient, host: str, headers: dict[str, str] | None
+) -> str | None:
+    url = _KNOWN_LARGE_ICONS.get(host.removeprefix("www."))
+    if url is None:
+        return None
+    response = await _bounded_get(client, url, MAX_LINKED_ICON_BYTES, headers=headers)
+    if response is None:
+        return None
+    body = response._favicon_body
+    mime = _mime_for(response.headers.get("content-type"), body)
+    if mime is None:
+        return None
+    return _data_uri(mime, body) if len(body) <= MAX_FAVICON_BYTES else url
+
+
 def _google_news_site(parts) -> str | None:
     """The `site:<domain>` a news.google.com search feed is scoped to, if any."""
     if parts.hostname != "news.google.com":
@@ -193,7 +214,7 @@ def _google_news_site(parts) -> str | None:
 
 
 async def resolve_favicon(client: httpx.AsyncClient, feed_url: str) -> str | None:
-    """Best-effort resolution of a feed's site favicon as a data URI.
+    """Best-effort resolution of a feed's site favicon as a data URI or public URL.
 
     Tries `https://<host>/favicon.ico` first (the feed's own host, unless
     it's a known syndication endpoint -- see `_KNOWN_PROVIDER_HOSTS`), then
@@ -238,7 +259,7 @@ async def resolve_favicon(client: httpx.AsyncClient, feed_url: str) -> str | Non
             homepage_url = f"https://{resolve_host}/"
             homepage = await _bounded_get(client, homepage_url, MAX_HTML_BYTES, headers=headers)
             if homepage is None:
-                return None
+                return await _large_icon_fallback(client, resolve_host, headers)
             html_body: bytes = homepage._favicon_body  # type: ignore[attr-defined]
             try:
                 text = html_body.decode("utf-8", errors="replace")
@@ -248,13 +269,14 @@ async def resolve_favicon(client: httpx.AsyncClient, feed_url: str) -> str | Non
             parser = _IconLinkParser()
             parser.feed(text)
             if not parser.href:
-                return None
+                return await _large_icon_fallback(client, resolve_host, headers)
 
             # May land on a third host (e.g. a CDN) -- carry the same
             # headers there too, since that host can gate on them just as
             # easily as the homepage did.
             icon_url = urljoin(str(homepage.url), parser.href)
-            return await _try_fetch_icon(client, icon_url, headers=headers)
+            icon = await _try_fetch_icon(client, icon_url, headers=headers)
+            return icon or await _large_icon_fallback(client, resolve_host, headers)
     except Exception:
         return None
 

@@ -84,7 +84,9 @@ access control: rss-ticker has no authentication, and the door takes no feed URL
 alone, unapproved ones dropped, and closed if none is left. A second frame, a binary or oversized
 frame closes it. Going back, the door forwards the `{"feeds":…}` reply and articles whose
 `feed_id` is an approved id, drops any other frame, and closes on one that is not JSON. The upstream opens only after a valid frame; a socket has no lifetime (a 30 s ping closes one
-whose client stops answering) and must send its frame within 10 s; frames are capped at 64 KiB.
+whose client stops answering) and must send its frame within 10 s. Client frames and
+individual articles are capped at 64 KiB; only upstream feed-list replies get a
+2 MiB cap so a full approved list can carry its bounded favicons.
 
 ```json
 {

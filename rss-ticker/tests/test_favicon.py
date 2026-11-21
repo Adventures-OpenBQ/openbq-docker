@@ -504,3 +504,41 @@ async def test_bbc_syndication_resolves_the_publishers_icon_instead_of_the_feed_
     assert out is not None
     _b64_roundtrip(out, SMALL_PNG, "image/png")
     assert seen == ["https://www.bbc.co.uk/favicon.ico"]
+
+
+CNBC_ORIGINAL_ICON = "https://fm.cnbc.com/applications/cnbc.com/resources/img/CNBC_LOGO_FAVICON_1C_KO_RGB.ico"
+
+async def test_large_original_cnbc_icon_is_linked_without_expanding_the_subscription_frame():
+    body = b"\x00\x00\x01\x00" + b"x" * 101436
+    def handler(request):
+        if str(request.url) == CNBC_ORIGINAL_ICON:
+            return httpx.Response(200, content=body, headers={"Content-Type": "image/vnd.microsoft.icon"})
+        return httpx.Response(404)
+    out = await call(handler, "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114")
+    assert out == CNBC_ORIGINAL_ICON
+    assert len(out) < 200
+
+async def test_cnbc_original_icon_fallback_refuses_html_error_pages():
+    def handler(request):
+        if str(request.url) == CNBC_ORIGINAL_ICON:
+            return httpx.Response(200, content=b"<html>Not an icon</html>", headers={"Content-Type": "text/html"})
+        return httpx.Response(404)
+    assert await call(handler, "https://search.cnbc.com/rs/search/combinedcms/view.xml") is None
+
+async def test_cnbc_original_icon_fallback_is_still_bounded():
+    def handler(request):
+        if str(request.url) == CNBC_ORIGINAL_ICON:
+            return httpx.Response(200, content=b"\x00\x00\x01\x00"+b"x"*200000, headers={"Content-Type": "image/x-icon"})
+        return httpx.Response(404)
+    assert await call(handler, "https://search.cnbc.com/rs/search/combinedcms/view.xml") is None
+
+
+async def test_cnbc_known_original_icon_survives_a_homepage_without_icon_markup():
+    body = b"\x00\x00\x01\x00" + b"x" * 101436
+    def handler(request):
+        if str(request.url) == "https://cnbc.com/":
+            return httpx.Response(200, content=b"<html><head></head></html>")
+        if str(request.url) == CNBC_ORIGINAL_ICON:
+            return httpx.Response(200, content=body, headers={"Content-Type": "image/x-icon"})
+        return httpx.Response(404)
+    assert await call(handler, "https://search.cnbc.com/rs/search/view.xml") == CNBC_ORIGINAL_ICON
