@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
 from .broadcast import Broadcaster, article_payload
-from .config import Config
+from .config import PIP_GRAB_CHANNEL, Config
 from .live import VIDEO_ID_RE, LiveTV, wrapper_html
 from .store import CursorError, Feed, Store
 
@@ -204,11 +204,18 @@ def create_app(
         if live is None or not live.channels:
             raise HTTPException(status_code=404, detail="live tv is not configured")
         # OpenBB option shape: {label, value}, in config order.
-        return [{"label": c.label, "value": c.key} for c in live.channels]
+        return [*({"label": c.label, "value": c.key} for c in live.channels),
+                {"label": "Picture in Picture grab", "value": PIP_GRAB_CHANNEL}]
 
     @app.get("/api/live/video")
     async def live_video(channel: str = Query(...)) -> Response:
-        if live is None or channel not in live:
+        if live is None or not live.channels:
+            raise HTTPException(status_code=404, detail="unknown channel")
+        if channel == PIP_GRAB_CHANNEL:
+            # Only a mode marker: BDOBB places Chrome's existing player locally.
+            # Never look up, capture, or proxy the browser's video on the server.
+            return Response(content="bdobb:picture-in-picture", media_type="text/plain")
+        if channel not in live:
             # Only configured keys are accepted, so this endpoint can never be
             # driven to fetch an arbitrary URL.
             raise HTTPException(status_code=404, detail="unknown channel")

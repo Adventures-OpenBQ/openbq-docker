@@ -25,14 +25,13 @@ bind_host: 0.0.0.0
 # The first channel is the default shown in the widget's Channel picker.
 live_tv:
   - key: bloomberg-tv
-    label: Bloomberg TV
+    label: YouTube - Bloomberg Live
     handle: "@markets"          # Bloomberg Television's markets stream (default)
-  - key: yahoo-finance
-    label: Yahoo Finance
-    handle: "@YahooFinance"
   - key: schwab-network
-    label: Schwab Network
+    label: YouTube - Schwab Network Live
     handle: "@SchwabNetwork"
-  - key: cnbc-television
-    label: CNBC Television
-    handle: "@CNBCtelevision"   # events only -- off-air (empty) between shows
+  - key: yahoo-finance
+    label: YouTube - Yahoo Finance 24/7 Stream
+    handle: "@YahooFinance"
+# Picture in Picture grab is added to the picker automatically; do not configure
+# a YouTube handle for its reserved picture-in-picture key.
