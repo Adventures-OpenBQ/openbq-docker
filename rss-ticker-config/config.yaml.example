@@ -25,13 +25,17 @@ bind_host: 0.0.0.0
 # Connect this server as a backend (https://openbq.YOUR-TAILNET.ts.net:8088)
 # and add its single Live TV widget. The first channel is the default. The same
 # card plays inline or in BDOBB's desktop Picture in Picture window; iPad is inline.
+# The Channel picker also offers Picture in Picture grab for Chrome's floating player.
 # Remove this list (or set live_tv: []) to disable Live TV. No API key is needed.
 live_tv:
   - key: bloomberg-tv
-    label: Bloomberg TV
+    label: YouTube - Bloomberg Live
     handle: "@markets"
   - key: schwab-network
-    label: Schwab Network
+    label: YouTube - Schwab Network Live
     handle: "@SchwabNetwork"
+  - key: yahoo-finance
+    label: YouTube - Yahoo Finance 24/7 Stream
+    handle: "@YahooFinance"
 # Channels can be off-air; an unavailable stream is reported, never replaced
 # with a recording or with another channel. Only configured handles are fetched.

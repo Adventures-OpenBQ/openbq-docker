@@ -147,12 +147,18 @@ def test_live_tv_must_be_a_list(tmp_path):
         load_config(write(tmp_path, "live_tv: not-a-list\n"), {})
 
 
-def test_published_recipe_exposes_bloomberg_and_schwab_without_private_keys():
-    """Copying the recipe must publish both of the promised live-TV choices."""
+def test_published_recipe_exposes_three_youtube_sources_without_private_keys():
+    """Copying the recipe must publish all three promised YouTube choices."""
     from pathlib import Path
 
     cfg = load_config(Path(__file__).resolve().parents[2] / "rss-ticker-config/config.yaml.example", {})
     assert [(c.key, c.label, c.handle) for c in cfg.live_tv] == [
-        ("bloomberg-tv", "Bloomberg TV", "@markets"),
-        ("schwab-network", "Schwab Network", "@SchwabNetwork"),
+        ("bloomberg-tv", "YouTube - Bloomberg Live", "@markets"),
+        ("schwab-network", "YouTube - Schwab Network Live", "@SchwabNetwork"),
+        ("yahoo-finance", "YouTube - Yahoo Finance 24/7 Stream", "@YahooFinance"),
     ]
+
+
+def test_live_tv_rejects_collision_with_the_local_picture_in_picture_choice(tmp_path):
+    with pytest.raises(ConfigError, match="reserved"):
+        load_config(write(tmp_path, 'live_tv:\n  - {key: picture-in-picture, label: Fake, handle: "@fake"}\n'), {})

@@ -95,6 +95,14 @@ YouTube channels under `live_tv` in `config.yaml` (each `{key, label, handle}`,
 `handle` like `@markets`); the first is the default. With the section absent or
 empty the feature is off.
 
+The published recipe includes YouTube - Bloomberg Live, YouTube - Schwab
+Network Live and YouTube - Yahoo Finance 24/7 Stream. The same Channel picker
+also offers **Picture in Picture grab**, which lets BDOBB place Chrome's
+existing floating player over the card, including a locked widget. This local
+source has reserved key `picture-in-picture`; do not configure a YouTube handle
+for that key. Its video response is the fixed text `bdobb:picture-in-picture`,
+and it makes no upstream video request. Platform support is provided by BDOBB.
+
     GET  /widgets.json                one "Live TV" youtube widget (or {} when off)
     GET  /api/live/channels           [{label, value}] for the Channel picker
     GET  /api/live/video?channel=KEY  text/plain watch URL when live, empty when off-air
