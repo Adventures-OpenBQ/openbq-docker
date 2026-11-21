@@ -257,7 +257,14 @@ directly on a tailnet machine. Its `/etc/resolv.conf` is the tracked
 [rita-resolv.conf](rita-resolv.conf), which queries Tailscale's MagicDNS
 resolver first and uses Docker's embedded resolver for public names when
 MagicDNS has no working upstream resolver. This supports both tailnet model
-endpoints and public providers such as DeepInfra. Serve reaches Rita on
+endpoints and public providers such as DeepInfra. The overlay also enables TCP
+path-MTU probing in the namespace-owning `tailscale` service with
+`net.ipv4.tcp_mtu_probing=2` and `net.ipv4.tcp_base_mss=1024`. This starts
+probes with a 1 KiB MSS so private model TLS can recover across Docker/Tailscale
+paths that stall with larger initial packets. Recreate the sidecar and Rita
+when applying these namespace settings; restarting Rita alone cannot apply them.
+The base backend recipe does not change host network settings.
+Serve reaches Rita on
 `127.0.0.1:7777` inside that namespace. If the
 tailscale container is recreated, recreate `openbq-rita` too
 (`docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.v6.yml up -d --force-recreate openbq-rita`); otherwise it is left
