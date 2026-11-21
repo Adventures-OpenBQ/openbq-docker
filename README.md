@@ -254,12 +254,16 @@ Containers on a Docker bridge network do not get Tailscale MagicDNS, so Rita
 runs in the Tailscale sidecar's network namespace (`network_mode:
 "service:tailscale"`), mirroring the host networking of a Rita that runs
 directly on a tailnet machine. Its `/etc/resolv.conf` is the tracked
-[rita-resolv.conf](rita-resolv.conf), which points at Tailscale's MagicDNS
-resolver. Serve reaches Rita on `127.0.0.1:7777` inside that namespace. If the
+[rita-resolv.conf](rita-resolv.conf), which queries Tailscale's MagicDNS
+resolver first and uses Docker's embedded resolver for public names when
+MagicDNS has no working upstream resolver. This supports both tailnet model
+endpoints and public providers such as DeepInfra. Serve reaches Rita on
+`127.0.0.1:7777` inside that namespace. If the
 tailscale container is recreated, recreate `openbq-rita` too
 (`docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.v6.yml up -d --force-recreate openbq-rita`); otherwise it is left
 in the old, dead namespace. MCP advertises the 10 tool-discovery tools; categories load on demand.
-Rita carries the agent-rita-bdobb patches through 0012. MCP drops the separate
+The pinned Rita v6.0.0 companion carries agent-rita-bdobb patches through
+0023 (0005 is excluded) and uses Bun 1.4.5. MCP drops the separate
 trading-calendar extension the first Episode 6 image carried: from v4 the API image's
 own `calendar` routes (`v4/routes`) serve `obb.calendar`, and the build checks it.
 See VERIFICATION.md.
