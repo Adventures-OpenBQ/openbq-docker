@@ -46,10 +46,16 @@ python3 scripts/compose-run.py --regression \
 
 The check receives `OPENBQ_REGRESSION_PROJECT` and
 `OPENBQ_REGRESSION_CONTAINERS` (a JSON mapping of service names to container
-IDs). Keep public/demo and registered-key drivers separate; this flag does not
+IDs). Successful one-shot init dependencies are reported separately in
+`OPENBQ_REGRESSION_COMPLETED_CONTAINERS`; build-only context services are built
+without being started. Keep public/demo and registered-key drivers separate; this flag does not
 choose credentials or replace actual-data acceptance checks. Service env files
 are not resolved into the generated model or receipt. Use private QA credential
-configuration, and pass secrets through environment variables rather than command
+configuration. Structural values resolve in memory using the first recipe's
+directory, then generated configuration contains wrapper-owned environment
+references instead of resolved string values. Docker/Compose diagnostics are
+captured, and qualified prebuilt images are pinned and checked by immutable ID.
+Pass secrets through environment variables rather than command
 arguments. Inspect a recipe without starting anything with `--plan`.
 
 Writable directory binds become new test-owned volumes. Read-only configuration
@@ -64,6 +70,10 @@ project's containers, volumes and networks. The private JSON receipt records
 actual image IDs, recipe-file hashes, the check result and verified cleanup.
 Existing receipts are never overwritten. A copied source archive is identified
 by its input hashes rather than an unrelated enclosing repository's revision.
+Receipts are private (mode0600) and publish atomically without replacing a
+concurrent writer. Ordinary termination also triggers owned cleanup; unavailable
+Docker inventory is recorded as unverified cleanup and fails the run. Services
+with multiple replicas and additional build exports are refused during preflight.
 
 On a NAS, use `./scripts/nas-docker.sh` in place of `docker` if Docker is missing from the SSH PATH or its default client home is unwritable. Run it from this checkout.
 

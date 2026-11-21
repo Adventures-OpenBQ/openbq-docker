@@ -28,7 +28,13 @@ prebuilt-image binding, a private result receipt and a check command following
 runs the check with project/container identities in environment variables, and
 always removes its own containers, networks and volumes. Prebuilt services need
 an explicit image-ID binding; changed build inputs go through Compose build.
-It never prints resolved credentials or writes resolved env-file values.
+It never prints resolved credentials or writes resolved env-file values. Resolve
+structural interpolation once in memory with the first recipe's native path
+base; before writing the generated model, replace every string value with a
+wrapper-owned environment reference. Capture Docker/Compose diagnostics. Pin
+qualified images by immutable ID and check the running IDs. Publish complete
+mode0600 receipts with atomic no-clobber semantics, forward ordinary termination
+to the owned check process, and attempt cleanup even when inventory fails.
 
 Receipts contain image IDs, source revision, service names and cleanup outcomes.
 They contain no container environment, private configuration or matched secrets.
