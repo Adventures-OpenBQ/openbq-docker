@@ -80,9 +80,10 @@ adding a feed never floods the wire.
 
 ## Configuration
 
-`config.yaml` holds exactly four keys — `retention_days`,
-`default_poll_interval_s`, `max_concurrent_polls`, `bind_host` — and the
-server refuses to start on any other key, naming it. A config from the
+`config.yaml` accepts four pool settings — `retention_days`,
+`default_poll_interval_s`, `max_concurrent_polls`, `bind_host` — plus the
+optional `live_tv` channel list described below. The server refuses unknown
+keys by name. A config from the
 user-and-key era fails loudly rather than booting an empty pool. `${ENV}`
 expansion is still honoured but nothing requires it.
 
