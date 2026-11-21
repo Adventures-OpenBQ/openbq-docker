@@ -7,6 +7,8 @@ NEWEST_PAGE = {
     f"eia_{name}_eia_obb"
     for name in (
         "aeo",
+        "crude_oil_imports",
+        "total_energy",
         "electricity_electric_power_operations",
         "electricity_electric_power_operations_for_individual_power_plants",
         "electricity_grid_demand_by_subregion",
@@ -31,6 +33,7 @@ NEWEST_PAGE = {
         "petroleum_summary_supply_and_disposition",
         "petroleum_summary_weekly_supply_estimates",
         "seds",
+        "total_energy",
     )
 }
 
@@ -50,7 +53,7 @@ def params(widget_id):
 
 class EiaNewestPageTest(unittest.TestCase):
     def test_listed_widgets_default_to_newest_5000_rows(self):
-        self.assertEqual(len(NEWEST_PAGE), 25)
+        self.assertEqual(len(NEWEST_PAGE), 27)
         for widget_id in sorted(NEWEST_PAGE):
             with self.subTest(widget_id):
                 p = params(widget_id)
@@ -59,7 +62,7 @@ class EiaNewestPageTest(unittest.TestCase):
 
     def test_other_eia_widgets_keep_their_defaults(self):
         others = [w for w in WIDGETS if w.startswith("eia_") and w not in NEWEST_PAGE]
-        self.assertEqual(len(others), 194)
+        self.assertEqual(len(others), 192)
         for widget_id in others:
             with self.subTest(widget_id):
                 p = params(widget_id)

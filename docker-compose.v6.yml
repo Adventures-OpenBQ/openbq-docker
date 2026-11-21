@@ -8,6 +8,11 @@
 # on top of the openbq-api image that docker-compose.yml builds.
 services:
   tailscale:
+    # Begin path-MTU probes with a 1 KiB MSS so private model TLS can recover
+    # across Docker/Tailscale paths. Rita shares this service's namespace.
+    sysctls:
+      net.ipv4.tcp_mtu_probing: 2
+      net.ipv4.tcp_base_mss: 1024
     environment:
       TS_SERVE_CONFIG: /config/serve-v6.json
   openbq-rita:
@@ -24,6 +29,7 @@ services:
     env_file: [./rita.env]
     volumes:
       - ./rita-resolv.conf:/etc/resolv.conf:ro
+      - openbq-rita-data:/data
   openbq-mcp:
     build:
       context: ./mcp
@@ -56,3 +62,4 @@ services:
     networks: [openbq-internal]
 volumes:
   openbq-mcp-data:
+  openbq-rita-data:

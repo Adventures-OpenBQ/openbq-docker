@@ -270,7 +270,9 @@ _ONE_AT_A_TIME = {"cboe": asyncio.Lock(), "cftc": asyncio.Lock()}
 
 def _read_deadlines(environ) -> dict[str, float]:
     """Read OPENBQ_COMMAND_TIMEOUT[_<PROVIDER>] once, failing at startup on a bad value."""
-    deadlines = {"cftc": 150.0}  # cold rates swap_trades ~100 s, forex ~70 s (D8 ruling Q2)
+    # FFIEC's cold five-period report needs bulk downloads before taxonomy.
+    # Two bounded concurrent downloads preserve all five periods within this budget.
+    deadlines = {"cftc": 150.0, "federal_reserve": 150.0}
     for name, value in environ.items():
         if value and (
             name == "OPENBQ_COMMAND_TIMEOUT"
@@ -291,6 +293,17 @@ def _read_deadlines(environ) -> dict[str, float]:
 # Seconds a command may run: OPENBQ_COMMAND_TIMEOUT_<PROVIDER>, else the
 # provider's built-in deadline, else OPENBQ_COMMAND_TIMEOUT, else 55.
 _DEADLINES = _read_deadlines(os.environ)
+
+
+# openbb-core's amake_request gives a whole request (download included) 10 s,
+# and fetchers rarely pass the user's request_timeout, so USDA's 18.8 MB ERS
+# feed-grains file (12 s on its own) could never load. 45 s stays under the
+# 55 s command deadline; a fetcher's explicit timeout (FRED's 5 s) still wins.
+# The defaults are set on the function itself, so fetchers that imported it by
+# name get them too; amake_requests forwards to it.
+from openbb_core.provider.utils import helpers as _helpers
+
+_helpers.amake_request.__defaults__ = ("GET", 45, None)
 
 
 def _deadline(key: str) -> float:
