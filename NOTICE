@@ -20,6 +20,7 @@ The files below (provider-fixes/openbb_*) are modified copies of OpenBB Platform
   provider-fixes/openbb_cftc/utils/fx_valuation.py
   provider-fixes/openbb_core/api/app_loader.py
   provider-fixes/openbb_core/api/exception_handlers.py
+  provider-fixes/openbb_core/api/rest_api.py
   provider-fixes/openbb_core/api/router/commands.py
   provider-fixes/openbb_core/app/command_runner.py
   provider-fixes/openbb_core/app/provider_interface.py
@@ -44,6 +45,7 @@ The files below (provider-fixes/openbb_*) are modified copies of OpenBB Platform
   provider-fixes/openbb_government_us/usda/utils/ers_livestock_and_meat_domestic_data.py
   provider-fixes/openbb_government_us/usda/utils/ers_vegetables_and_pulses.py
   provider-fixes/openbb_nasdaq/models/calendar_splits.py
+  provider-fixes/openbb_platform_api/app/bootstrap.py
   provider-fixes/openbb_sec/models/institutions_search.py
   provider-fixes/openbb_tmx/routers/equity.py
   provider-fixes/openbb_tmx/tmx_router.py
