@@ -39,10 +39,12 @@ class NextChartSources(unittest.TestCase):
         def params(route):
             return {p["name"] for p in paths["/api/v1/eodhd/" + route]["get"]["parameters"]}
         for route in ["news/company", "equity/ownership/share_statistics", "equity/fundamental/metrics",
-                      "equity/fundamental/ratios", "etf/holdings"]:
+                      "equity/fundamental/ratios", "etf/holdings",
+                      "equity/price/historical", "etf/historical"]:
             with self.subTest(route=route):
                 self.assertIn("chart_source", params(route))
-        for route in ["equity/price/historical", "equity/price/quote", "equity/estimates/consensus"]:
+        for route in ["equity/price/quote", "equity/estimates/consensus",
+                      "crypto/price/historical", "currency/price/historical", "index/price/historical"]:
             with self.subTest(route=route):
                 self.assertNotIn("chart_source", params(route))
 
