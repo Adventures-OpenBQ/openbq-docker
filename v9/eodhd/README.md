@@ -4,7 +4,7 @@
 
 `source/` is the openbq-eodhd provider extension 9.0.1, vendored from
 Adventures-OpenBQ/openbq-eodhd at commit
-`adb2e2e410552863bcbfbd5584e3e7c9720d0cbc`. That package is bdobb-dev/openbb-docker's
+`75a902664054b3afbd23c5b6328efe7eedcf429c`. That package is bdobb-dev/openbb-docker's
 `openbb-eodhd` (v9.6.3, fixes through v9.6.6), renamed `openbq-eodhd` (module `openbq_eodhd`)
 (`source.json`; per-file record in [docs/v9/eodhd-port.md](../../docs/v9/eodhd-port.md)),
 plus the released 9.0.1 fixes, guarded earnings-versus-estimates model and

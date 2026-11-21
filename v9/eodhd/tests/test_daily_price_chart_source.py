@@ -1,7 +1,6 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 """Exercise the installed daily-price routes from the public HTTP boundary."""
-from copy import deepcopy
 import unittest
 from unittest.mock import MagicMock, call, patch
 
@@ -40,7 +39,7 @@ class InstalledDailyPrice(unittest.TestCase):
     def setUp(self):
         sdk = MagicMock()
         self.daily = sdk.get_eod_historical_stock_market_data
-        self.daily.side_effect = lambda **_: deepcopy([BAR])
+        self.daily.side_effect = lambda **_: [BAR.copy()]
         self.enterContext(patch("openbq_eodhd.models._bars.get_client", return_value=sdk))
 
     def get(self, route, **params):
@@ -148,7 +147,8 @@ class InstalledDailyPrice(unittest.TestCase):
 
     def test_dropped_contradictory_declaration_prevents_proof_on_each_mirror(self):
         for route in HISTORY:
-            for conflict in ({"period": "w"}, {"interval": "1W"}, {"unit": "cents"}, {"currency": "EUR"}):
+            for conflict in ({"period": "w"}, {"interval": "1W"}, {"unit": "cents"}, {"currency": "EUR"},
+                             {"code": "AAPL", "Code": "MCD"}):
                 with self.subTest(route=route, conflict=conflict):
                     def observations(*, symbol, **kwargs):
                         first = dict(BAR, period="d", interval="1d", unit="dollars", currency="USD")
@@ -164,4 +164,15 @@ class InstalledDailyPrice(unittest.TestCase):
                     self.assertEqual(self.daily.call_args_list, [sdk_call(symbol) for symbol in SYMBOLS])
                     receipt, = source_envelope(response.json())["receipts"]
                     self.assertEqual(receipt["delivered_count"], 3)
-                    self.assertEqual(receipt["diagnostics"], ["invalid_response"])
+                    self.assertEqual(receipt["diagnostics"], ["identity_conflict" if "Code" in conflict else "invalid_response"])
+
+    def test_partial_later_listing_refuses_the_entire_get(self):
+        for route in HISTORY:
+            for marker in ({"nextCursor": "page2"}, {"isPartial": True}):
+                with self.subTest(route=route, marker=marker):
+                    self.daily.reset_mock()
+                    self.daily.side_effect = lambda *, symbol, **kw: [dict(BAR, **(marker if symbol == "AAPL.US" else {}))]
+                    response = self.get(route, chart_source="true")
+                    self.assertGreaterEqual(response.status_code, 400, response.text)
+                    self.assertIn("partial_acquisition", response.text)
+                    self.assertEqual(self.daily.call_args_list, [sdk_call(symbol) for symbol in SYMBOLS])
