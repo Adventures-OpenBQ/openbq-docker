@@ -145,3 +145,14 @@ def test_live_tv_rejects_an_unknown_field(tmp_path):
 def test_live_tv_must_be_a_list(tmp_path):
     with pytest.raises(ConfigError, match="live_tv"):
         load_config(write(tmp_path, "live_tv: not-a-list\n"), {})
+
+
+def test_published_recipe_exposes_bloomberg_and_schwab_without_private_keys():
+    """Copying the recipe must publish both of the promised live-TV choices."""
+    from pathlib import Path
+
+    cfg = load_config(Path(__file__).resolve().parents[2] / "rss-ticker-config/config.yaml.example", {})
+    assert [(c.key, c.label, c.handle) for c in cfg.live_tv] == [
+        ("bloomberg-tv", "Bloomberg TV", "@markets"),
+        ("schwab-network", "Schwab Network", "@SchwabNetwork"),
+    ]

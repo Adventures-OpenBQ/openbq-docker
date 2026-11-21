@@ -72,7 +72,7 @@ docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:2.0.0 python -m unittest 
 
 ### Large datasets as server-paged tables
 
-The 23 largest table widgets (default response over about 10 MB: FINRA bonds, FFIEC institution structure, the EIA petroleum and gas tables and others) are rewritten in `/widgets.json` to `type: "ssrm_table"` with endpoint `<route>/ssrm`. BDOBB renders them as a paged table, so the full GET never crosses the catalogue caches, the Funnel door or the client. Only `type`, `endpoint` and `ssrm` change; params, columns and names are as before, and a listed id the catalogue lacks is skipped.
+41 large table widgets (the 23 whose default response is over about 10 MB, such as FINRA bonds, FFIEC institution structure and EIA petroleum and gas tables, plus 18 EIA tables measured at over 40 MB) are rewritten in `/widgets.json` to `type: "ssrm_table"` with endpoint `<route>/ssrm`. BDOBB renders them as a paged table, so the full GET never crosses the catalogue caches, the Funnel door or the client. Only `type`, `endpoint` and `ssrm` change; params, columns and names are as before, and a listed id the catalogue lacks is skipped.
 
 `POST <route>/ssrm` answers the OpenBB SSRM request for listed routes only (anything else is 404). The request body is the SSRM JSON; the widget's own params go in the query string. Basic auth is checked first, when it is on, before the cache is read. Params the widget does not declare are dropped before the fetch and the cache key, so they cannot force a fresh download. The first request for a route and params gets the full result once through the API itself, so heavy routes keep their lane, deadline and size cap. The result is cached as a pandas DataFrame (3 GiB LRU by memory, 15-minute TTL); concurrent first requests share one acquisition, at most 2 acquisitions run at once, and one that is not done in 300 s (slot wait included) gets 504 and caches nothing. The reply is `{"rowData", "rowCount"}`: the rows filtered (text contains, case-insensitive; number equals, range, at least, at most) with at most 16 filters, and sorted by at most 3 distinct columns, at most 1,000 per page. When the widget declares `columnsDefs`, every row carries exactly those fields: one absent from the provider's records comes back `null`, and undeclared fields are not served. The last 8 filtered and sorted row orders are kept with each cached result and count against its memory budget, so further pages of the same view are a slice. NaN and infinite numbers come back as `null`; other floats round-trip exactly, and integers stay exact when the column has nulls. A malformed body, more than 16 filters, a sort over 3 columns or naming a column twice, grouping, values, pivot, a combined (`operator`/`conditions`) or unknown filter gets 400; an upstream non-2xx keeps its status and sanitised body. A 200 carries `x-openbq-ssrm: hit` only when both the result and that view's row order came from the cache (no fetch, no new filter or sort), and `miss` otherwise.
 
@@ -103,10 +103,28 @@ The list is committed data, `lanes/ssrm_widgets.json`:
 | `finra_fixedincome_bonds_finra_obb` | `/api/v1/finra/fixedincome/bonds` |
 | `finra_fixedincome_bond_prices_finra_obb` | `/api/v1/finra/fixedincome/bond_prices` |
 | `ffiec_institution_structure_federal_reserve_obb` | `/api/v1/federal_reserve/ffiec/institution_structure` |
+| `eia_electricity_electric_power_operations_eia_obb` | `/api/v1/eia/electricity/electric_power_operations` |
+| `eia_natural_gas_production_natural_gas_gross_withdrawals_and_production_eia_obb` | `/api/v1/eia/natural_gas/production/natural_gas_gross_withdrawals_and_production` |
+| `eia_petroleum_consumption_sales_product_supplied_eia_obb` | `/api/v1/eia/petroleum/consumption_sales/product_supplied` |
+| `eia_petroleum_imports_exports_and_movements_exports_eia_obb` | `/api/v1/eia/petroleum/imports_exports_and_movements/exports` |
+| `eia_petroleum_imports_exports_and_movements_imports_by_area_of_entry_eia_obb` | `/api/v1/eia/petroleum/imports_exports_and_movements/imports_by_area_of_entry` |
+| `eia_petroleum_imports_exports_and_movements_movements_between_pad_districts_eia_obb` | `/api/v1/eia/petroleum/imports_exports_and_movements/movements_between_pad_districts` |
+| `eia_petroleum_imports_exports_and_movements_net_receipts_between_pad_districts_eia_obb` | `/api/v1/eia/petroleum/imports_exports_and_movements/net_receipts_between_pad_districts` |
+| `eia_petroleum_imports_exports_and_movements_us_imports_by_country_of_origin_eia_obb` | `/api/v1/eia/petroleum/imports_exports_and_movements/us_imports_by_country_of_origin` |
+| `eia_petroleum_imports_exports_and_movements_weekly_imports_exports_eia_obb` | `/api/v1/eia/petroleum/imports_exports_and_movements/weekly_imports_exports` |
+| `eia_petroleum_prices_no2_distillate_prices_by_sales_type_eia_obb` | `/api/v1/eia/petroleum/prices/no2_distillate_prices_by_sales_type` |
+| `eia_petroleum_prices_refiner_gasoline_prices_by_grade_and_sales_type_eia_obb` | `/api/v1/eia/petroleum/prices/refiner_gasoline_prices_by_grade_and_sales_type` |
+| `eia_petroleum_prices_residual_fuel_oil_prices_by_sales_type_eia_obb` | `/api/v1/eia/petroleum/prices/residual_fuel_oil_prices_by_sales_type` |
+| `eia_petroleum_refining_and_processing_blender_net_input_eia_obb` | `/api/v1/eia/petroleum/refining_and_processing/blender_net_input` |
+| `eia_petroleum_refining_and_processing_blender_net_production_eia_obb` | `/api/v1/eia/petroleum/refining_and_processing/blender_net_production` |
+| `eia_petroleum_refining_and_processing_weekly_refiner_blender_net_production_eia_obb` | `/api/v1/eia/petroleum/refining_and_processing/weekly_refiner_blender_net_production` |
+| `eia_petroleum_stocks_refinery_bulk_terminal_and_natural_gas_plant_stocks_by_state_eia_obb` | `/api/v1/eia/petroleum/stocks/refinery_bulk_terminal_and_natural_gas_plant_stocks_by_state` |
+| `eia_petroleum_stocks_refinery_stocks_eia_obb` | `/api/v1/eia/petroleum/stocks/refinery_stocks` |
+| `eia_petroleum_stocks_weekly_stocks_eia_obb` | `/api/v1/eia/petroleum/stocks/weekly_stocks` |
 
 Settings (`credentials.env`): `OPENBQ_SSRM_WIDGETS` (path of that list, default `/workspace/ssrm_widgets.json`), `OPENBQ_SSRM_CACHE_BYTES` (default 3 GiB), `OPENBQ_SSRM_TTL` (seconds, default 900), `OPENBQ_SSRM_DEADLINE` (seconds per first acquisition, default 300). As with widget settings, restart the API after editing them.
 
-The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults to the 23 paths `/api<route>/ssrm`, one per row above, derived from `lanes/ssrm_widgets.json` (the gateway image copies that file); leave the setting out unless you mean to narrow it (`[]` turns SSRM through the door off). `funnel-gateway/ssrm-routes.test.mjs` checks the derived list (23 unique routes, each admitted for POST, a listed route's GET and an unlisted sibling refused). The door never passes od's `x-openbq-ssrm` cache marker to the client.
+The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults to the 41 paths `/api<route>/ssrm`, one per row above, derived from `lanes/ssrm_widgets.json` (the gateway image copies that file); leave the setting out unless you mean to narrow it (`[]` turns SSRM through the door off). `funnel-gateway/ssrm-routes.test.mjs` checks the derived list (23 unique routes, each admitted for POST, a listed route's GET and an unlisted sibling refused). The door never passes od's `x-openbq-ssrm` cache marker to the client.
 
 ## Credentials and restart
 
@@ -244,12 +262,23 @@ Containers on a Docker bridge network do not get Tailscale MagicDNS, so Rita
 runs in the Tailscale sidecar's network namespace (`network_mode:
 "service:tailscale"`), mirroring the host networking of a Rita that runs
 directly on a tailnet machine. Its `/etc/resolv.conf` is the tracked
-[rita-resolv.conf](rita-resolv.conf), which points at Tailscale's MagicDNS
-resolver. Serve reaches Rita on `127.0.0.1:7777` inside that namespace. If the
+[rita-resolv.conf](rita-resolv.conf), which queries Tailscale's MagicDNS
+resolver first and uses Docker's embedded resolver for public names when
+MagicDNS has no working upstream resolver. This supports both tailnet model
+endpoints and public providers such as DeepInfra. The overlay also enables TCP
+path-MTU probing in the namespace-owning `tailscale` service with
+`net.ipv4.tcp_mtu_probing=2` and `net.ipv4.tcp_base_mss=1024`. This starts
+probes with a 1 KiB MSS so private model TLS can recover across Docker/Tailscale
+paths that stall with larger initial packets. Recreate the sidecar and Rita
+when applying these namespace settings; restarting Rita alone cannot apply them.
+The base backend recipe does not change host network settings.
+Serve reaches Rita on
+`127.0.0.1:7777` inside that namespace. If the
 tailscale container is recreated, recreate `openbq-rita` too
 (`docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.v6.yml up -d --force-recreate openbq-rita`); otherwise it is left
 in the old, dead namespace. MCP advertises the 10 tool-discovery tools; categories load on demand.
-Rita carries the agent-rita-bdobb patches through 0012. MCP drops the separate
+The pinned Rita v6.0.0 companion carries agent-rita-bdobb patches through
+0023 (0005 is excluded) and uses Bun 1.4.5. MCP drops the separate
 trading-calendar extension the first Episode 6 image carried: from v4 the API image's
 own `calendar` routes (`v4/routes`) serve `obb.calendar`, and the build checks it.
 See VERIFICATION.md.

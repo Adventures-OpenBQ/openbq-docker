@@ -163,3 +163,15 @@ Docs: [base design](docs/superpowers/specs/2026-07-21-rss-news-ticker-design.md)
 ## License
 
 AGPL-3.0-only for this first-party component. See [licensing](LICENSING.md), including preserved earlier grants and third-party notices.
+
+## Reproducing the image dependencies
+
+The image installs the exact hashed runtime requirements exported from `uv.lock`,
+then installs this project without resolving its dependencies again. After a
+reviewed dependency change, regenerate the install file with:
+
+    uv export --frozen --no-dev --no-emit-project --format requirements-txt --output-file requirements.lock
+
+The build also checks HTTPX's actual HTTPS trust store against the removed root
+CA fingerprints. The certifi floor is 2026.10.23; certificate and hostname
+verification stay enabled.

@@ -87,7 +87,7 @@ Success, error, disconnect and deadlines release the associated lane's capacity.
 
 Standard provider SSRM POSTs are exact entries in `ssrmRoutes`, e.g.
 `/api/api/v1/reviewed_provider/rows`; review each actual provider endpoint before
-registering it. Unset, it defaults to the 23 routes od serves
+registering it. Unset, it defaults to the 41 routes od serves
 (`lanes/ssrm_widgets.json` as door paths); set it
 only to narrow that list, and `[]` turns SSRM through the door off. The web `SSRM_ROUTES_JSON` must contain the same paths. Query rules
 remain the existing bounded API policy; these POSTs use the existing injected Basic
@@ -123,9 +123,15 @@ aggregation hint (`data.table.columnsDefs[].aggregation`), which Rita's table to
 The configurable qualification profile uses an 8 GiB container ceiling, 7 GiB
 global reservations and 6 GiB per principal, two compute workers, four admitted
 jobs and four HTTP exchanges. It admits 2 MiB uploads, 8 MiB encoded sources,
-64 input / 256 output columns, 100-row blocks, 1 MiB batches and 64 MiB retained
+64 input / 256 output columns, 100-row blocks, 1 MiB batches and 256 MiB retained
 result estimates. The 20,000-row ceiling is an admission rule, not tested capacity.
 Actual workloads and limits are recorded in the paired bdobb qualification evidence.
+The former 64 MiB profile correctly refused a 2,005-row, five-group pivot: the
+core's conservative retained estimate was about 96 MB. The 256 MiB profile
+admits that workload; native grouping, aggregation, expansion, CSV export and
+session reopen were verified, including the exact grand total of 2,011,015.
+This structural estimate is distinct from process RSS. The worker address-space
+and container ceilings above remain enforced; larger uploads are not a capacity guarantee.
 
 Inputs reserve bounded boxed JSON plus 64 KiB metadata; each real worker still
 reserves its full 512 MiB Linux address-space bound, three frames, cache and
@@ -135,13 +141,14 @@ A browser hard reload may retain abandoned sessions until expiry and temporarily
 consume more capacity. Close unused dashboards, or wait for expiry before reopening
 when admission refuses. Do not increase one ceiling without reviewing the others.
 
-The final pinned image is **unqualified**: the earlier exact-source image build
-failed at apt with insufficient Docker VM space. No unrelated Docker cache or
-volume was pruned, and that unchanged failure was not retried. A task-owned,
-host-backed Linux runtime verifies the service and health script with a non-root
-host UID, private catalog, read-only root and enforced memory cap. It does not
-verify the assembled image, image UID 10001, named-volume initialization or
-release binaries. Those checks remain required before release.
+The source-pinned production image at `1453fa7b4a8928baa106edbe84a9d36f8c260161`
+now builds successfully. Its Linux release suite passed 77 tests; production-image
+checks passed upload, derive, bounded export, ownership refusal, restart/reopen
+and enforced worker address-space limits. Native tests use that image as UID
+10001 with a read-only root and separately initialized private volumes. Earlier
+storage failures and host-backed runtime results remain historical evidence;
+they do not replace the production-image receipts. Final release-wide gates
+still require their own sign-off.
 
 Before any local bring-up, validate operator env/settings and run:
 

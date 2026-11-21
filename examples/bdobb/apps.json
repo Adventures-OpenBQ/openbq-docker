@@ -1,7 +1,7 @@
 [
   {
     "name": "Built-in widgets",
-    "description": "Every built-in widget on its own tab, plus a Grouping tab showing two Parameter echo cards sharing a Ticker group. Nothing here needs a backend, a key or a sign-up -- it opens and works the moment you import it. Opens in BDOBB 3.0.0 or later.",
+    "description": "Embedded notes, clocks, web viewers and controls on their own tabs, plus grouped Parameter echo cards. The Linked surface tab needs a source table from a data backend; the dedicated FX example provides one. Opens in BDOBB 3.0.0 or later.",
     "img": "/openbq/bdobb-logo.svg",
     "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
@@ -163,6 +163,34 @@
             }
           }
         ]
+      },
+      "linked-surface": {
+        "id": "linked-surface",
+        "name": "Linked surface",
+        "layout": [
+          {
+            "i": "linked_chart",
+            "x": 0,
+            "y": 0,
+            "w": 30,
+            "h": 18,
+            "state": {
+              "params": {}
+            }
+          },
+          {
+            "i": "note",
+            "x": 30,
+            "y": 0,
+            "w": 25,
+            "h": 10,
+            "state": {
+              "params": {
+                "text": "Add a table from your data backend, then choose Create linked surface in its card menu. The FX linked-surface example provides the real keyless CFTC table and its linked chart. Source/category/measure choices live in the chart body."
+              }
+            }
+          }
+        ]
       }
     },
     "groups": [
@@ -177,7 +205,7 @@
   },
   {
     "name": "Demo providers",
-    "description": "Demonstration cards for the v3 stack. EIA uses a public demo key unless you supply your own. The Congress 119 bills card uses keyless bulk data; BLS, CFTC and Nasdaq need no key. EconDB attempts a temporary token, but its service may refuse access; supply your own EconDB key or skip that card. Demo keys are rate-limited and upstream availability varies. Opens in BDOBB 3.0.0 or later.",
+    "description": "Demo cards for the openbq-docker v3 stack. EIA uses the public key from credentials.demo.env unless you supply your own. Congress 119 bills use keyless bulk data; BLS, CFTC and Nasdaq need no key. EconDB attempts a temporary token, but may refuse access: supply your own key or skip that card. Demo quotas and upstream availability vary. Opens in BDOBB 3.0.0 or later.",
     "img": "/openbq/bdobb-logo.svg",
     "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
@@ -828,6 +856,93 @@
     "prompts": []
   },
   {
+    "name": "FX linked surface",
+    "description": "Keyless CFTC EURUSD implied volatility and a surface linked to the same table card. Filter or sort the table to change the chart scope; missing observations stay gaps. Requires this episode\u2019s OpenBQ backend and BDOBB build. Opens in BDOBB 4.0.0 or later.",
+    "img": "/openbq/bdobb-logo.svg",
+    "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
+    "allowCustomization": true,
+    "tabs": {
+      "fx": {
+        "id": "fx",
+        "name": "EURUSD volatility",
+        "layout": [
+          {
+            "i": "cftc_fx_implied_vol_cftc_obb",
+            "x": 0,
+            "y": 0,
+            "w": 40,
+            "h": 15,
+            "state": {
+              "params": {
+                "pair": "EURUSD",
+                "basis": "empirical",
+                "min_trades": "3",
+                "use_cache": "true",
+                "provider": "cftc"
+              }
+            }
+          },
+          {
+            "i": "linked_chart",
+            "x": 0,
+            "y": 15,
+            "w": 40,
+            "h": 22,
+            "state": {
+              "params": {}
+            }
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "bdobb": {
+        "schemaVersion": 1,
+        "profile": "v4",
+        "base": {
+          "schemaVersion": 1,
+          "profile": "v3",
+          "tabOrder": [
+            "fx"
+          ]
+        },
+        "cards": [
+          {
+            "ref": "c0",
+            "tab": "fx",
+            "index": 0,
+            "extras": {}
+          },
+          {
+            "ref": "c1",
+            "tab": "fx",
+            "index": 1,
+            "extras": {
+              "sourceRef": "c0",
+              "linkedChart": {
+                "type": "surface",
+                "display": "grouped",
+                "category": "strike",
+                "measures": [
+                  "vol_1w",
+                  "vol_2w",
+                  "vol_1m",
+                  "vol_2m",
+                  "vol_3m",
+                  "vol_6m",
+                  "vol_9m",
+                  "vol_1y",
+                  "vol_2y"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
     "name": "Parameters",
     "description": "The v4 parameter features on their own tabs: groups that propagate one value to many cards, the period-aware pickers (day, week, month, quarter, fiscal year, date-time and time) and the relative-date grammar. Every card is a built-in that echoes what it would send, so nothing needs a backend, a key or a sign-up. Opens in BDOBB 4.0.0 or later.",
     "img": "/openbq/bdobb-logo.svg",
@@ -1099,7 +1214,7 @@
   },
   {
     "name": "Example Dashboard - Version 5.0.0 - Treasury Auctions",
-    "description": "Episode 5 uses Calendar view for U.S. Treasury auctions: one event per auction, titled by term and grouped by security type (Bill, Note, Bond). The latest published upcoming-auction snapshot is on the left and can retain past auction dates. Results from six weeks ago to today are on the right; the relative dates resolve when the card fetches. Both cards use the API's own U.S. Treasury widgets and need no API key. Its Calendar views travel in BDOBB's v4 extension; opens in BDOBB 5.0.0 or later.",
+    "description": "Episode 5 uses the Calendar view (from v4): U.S. Treasury auctions on a month grid, one event per auction, titled by term and coloured by security type. Upcoming auctions on the left; on the right, results from six weeks ago to today. Both cards are openbb-api's own U.S. Treasury widgets and need no API key. Its Calendar views travel in BDOBB's v4 extension; opens in BDOBB 5.0.0 or later.",
     "img": "/openbq/bdobb-logo.svg",
     "img_dark": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",
     "img_light": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMjggMTI4IiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IkJET0JCMiBhcHAgaWNvbiI+CiAgPHRpdGxlPkJET0JCMiBhcHAgaWNvbjwvdGl0bGU+CiAgPHBhdGggZmlsbD0iIzEyMTYxZCIgZD0iTTAgMGgxMjh2MTI4SDB6Ii8+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTYgMTYpIHNjYWxlKDMpIj48ZyBmaWxsPSIjMjJjOTliIj48cGF0aCBkPSJNNCA0aDJ2MjJoMjJ2Mkg0eiIvPjxwYXRoIGQ9Ik0xMCAxNmgzdjZoLTN6TTE2IDEwaDN2MTJoLTN6TTIyIDRoM3YxOGgtM3oiLz48L2c+PC9nPgo8L3N2Zz4K",

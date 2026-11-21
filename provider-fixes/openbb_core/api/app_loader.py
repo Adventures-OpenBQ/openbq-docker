@@ -11,7 +11,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.exceptions import ResponseValidationError
 from pydantic import ValidationError
 
-from openbb_core.api.exception_handlers import ExceptionHandlers
+from openbb_core.api.exception_handlers import ExceptionHandlers, install_log_redaction
 from openbb_core.app.model.abstract.error import OpenBBError
 from openbb_core.app.route_iter import iter_included_routers
 from openbb_core.app.router import RouterLoader
@@ -99,6 +99,9 @@ class AppLoader:
     @staticmethod
     def add_exception_handlers(app: FastAPI):
         """Add exception handlers."""
+        install_log_redaction()
+        if install_log_redaction not in app.router.on_startup:
+            app.router.add_event_handler("startup", install_log_redaction)
         app.add_exception_handler(Exception, ExceptionHandlers.exception)
         # Handled inside the CORS middleware, unlike the Exception catch-all.
         app.add_exception_handler(TimeoutError, ExceptionHandlers.exception)
