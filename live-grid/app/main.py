@@ -512,13 +512,14 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     app.state.day_charts = day_service
 
     @app.get("/day_charts")
-    async def day_charts(symbol: str = Query(default="", max_length=2048)):
+    async def day_charts(symbol: str = Query(default="", max_length=2048),
+                         days: int = Query(default=1, ge=1, le=5)):
         try:
             symbols = parse_symbols(symbol)
         except ValueError as exc:
             raise HTTPException(422, detail=str(exc)) from None
         try:
-            return await day_service.batch(symbols)
+            return await day_service.batch(symbols, days=days)
         except TimeoutError:
             raise HTTPException(504, detail="day chart deadline") from None
         except ValueError:

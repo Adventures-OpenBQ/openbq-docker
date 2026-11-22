@@ -27,3 +27,7 @@ test('gateway fetches logo bytes using only server auth and rejects unsafe or ov
  type='image/png';body=Buffer.alloc(262145);await assert.rejects(getJson('/grid/symbol_logo?symbol=AAPL',cfg,AbortSignal.timeout(1000)));
  body=png;status=302;await assert.rejects(getJson('/grid/symbol_logo?symbol=AAPL',cfg,AbortSignal.timeout(1000)));
 });
+test('trading-day query is bounded and never accepted for logos',()=>{
+ assert.equal(policy.upstreamPath(new URL('/grid/day_charts?symbol=AAPL&days=2',origin),{liveGrid:true}),'/grid/day_charts?symbol=AAPL&days=2');
+ for(const route of ['/grid/day_charts?symbol=AAPL&days=0','/grid/day_charts?symbol=AAPL&days=6','/grid/day_charts?symbol=AAPL&days=2&days=3','/grid/symbol_logo?symbol=AAPL&days=2'])assert.equal(policy.upstreamPath(new URL(route,origin),{liveGrid:true}),null);
+});

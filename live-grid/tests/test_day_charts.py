@@ -102,6 +102,8 @@ def test_routes_and_widget(monkeypatch):
     widget = json.loads((Path(__file__).parents[1]/'widgets.json').read_text())['day_chart']
     assert widget['defaultRefresh'] == 15000
     assert widget['params'][0]['groupType'] == 'symbol'
+    assert [p['paramName'] for p in widget['params'][1]] == ['rows','columns','scale','days']
+    assert client.get('/day_charts?days=6').status_code == 422
 
 
 @pytest.mark.parametrize('status,headers,data,accepted', [
@@ -154,3 +156,19 @@ async def test_logo_coalesces_and_caches(monkeypatch):
     assert a == b
     await service.logo('AAPL')
     assert calls == 1
+
+async def test_two_trading_days_skip_weekend_clip_overnight_and_isolate_cache():
+    async def history(symbol, interval, start, end, provider):
+        if interval == '1d':
+            return [{'date':'2026-11-18','close':90},{'date':'2026-11-19','close':100}], {}
+        return [{'date':'2026-11-19T14:30:00Z','close':95},
+                {'date':'2026-11-19T22:00:00Z','close':999},
+                {'date':'2026-11-20T14:30:00Z','close':101}], {}
+    service=DayCharts(history,lambda s:{},now=lambda:instant('2026-11-22T16:00:00Z'))
+    t=(await service.batch(['AAPL'],days=2))['tiles'][0]
+    assert [s['date'] for s in t['sessions']]==['2026-11-19','2026-11-20']
+    assert [p['value'] for p in t['points']]==[95,101]
+    assert t['chart_previous_close']==90
+    assert t['previous_close']==100 and t['change']==1
+    one=(await service.batch(['AAPL']))['tiles'][0]
+    assert len(one['points'])==1

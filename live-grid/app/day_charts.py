@@ -3,7 +3,7 @@
 """Bounded provider-history US regular-session snapshots; never a q tape cursor."""
 import asyncio
 from collections import OrderedDict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 import json
@@ -110,16 +110,19 @@ class DayCharts:
         self.logos = OrderedDict()
         self.logo_pending = {}
 
-    async def batch(self, symbols):
+    async def batch(self, symbols, days=1):
+        if not isinstance(days, int) or not 1 <= days <= 5:
+            raise ValueError("trading days must be 1 to 5")
         async def tile(symbol):
-            cached = self.cache.get(symbol)
+            key = (symbol, days)
+            cached = self.cache.get(key)
             if cached and cached[0] > time.monotonic():
                 return cached[1]
-            if symbol not in self.pending:
+            if key not in self.pending:
                 if len(self.pending) >= 128:
                     return self.blank(symbol, 'busy')
-                self.pending[symbol] = asyncio.create_task(self.load(symbol))
-            return await asyncio.shield(self.pending[symbol])
+                self.pending[key] = asyncio.create_task(self.load(symbol, days))
+            return await asyncio.shield(self.pending[key])
         async with asyncio.timeout(20):
             results = await asyncio.gather(*(tile(s) for s in symbols))
         payload = {'schema_version': 1, 'tiles': results}
@@ -139,7 +142,7 @@ class DayCharts:
             tile.update(status='error', error_code=error)
         return tile
 
-    async def load(self, symbol):
+    async def load(self, symbol, days=1):
         result = self.blank(symbol)
         try:
             async with asyncio.timeout(19):
@@ -149,29 +152,34 @@ class DayCharts:
                     elif classify(symbol) != 'us':
                         result = self.blank(symbol, 'unsupported_session')
                     else:
-                        result = await self.snapshot(symbol)
+                        result = await self.snapshot(symbol, days)
         except TimeoutError:
             result = self.blank(symbol, 'provider_timeout')
         except Exception:
             result = self.blank(symbol, 'provider_error')
         finally:
-            self.pending.pop(symbol, None)
-        self.cache[symbol] = (time.monotonic() + 15, result)
+            self.pending.pop((symbol, days), None)
+        self.cache[(symbol, days)] = (time.monotonic() + 15, result)
         while len(self.cache) > 256:
             self.cache.popitem(last=False)
         return result
 
-    async def snapshot(self, symbol):
+    async def snapshot(self, symbol, days=1):
         now = self.now()
         session, opened, closed, previous = select_session(now)
-        lower = opened.date() - timedelta(days=14)
-        if previous < lower:
-            return self.blank(symbol, 'history_budget')
-        # The OpenBB history request model takes dates, not instants. Fetch
-        # this bounded UTC day then clip to exact XNYS boundaries below.
-        bars, _ = await self.history(symbol, '1m', str(opened.date()),
+        cal = calendar(now.year)
+        latest_previous = previous
+        sessions = [(session, opened, closed)]
+        for _ in range(days - 1):
+            label = cal.date_to_session(str(previous))
+            start = cal.session_open(label).to_pydatetime()
+            end = cal.session_close(label).to_pydatetime()
+            sessions.insert(0, (dict(date=str(label.date()), timezone='America/New_York',
+                                     label='US regular session', status='closed'), start, end))
+            previous = cal.previous_session(label).date()
+        bars, _ = await self.history(symbol, '1m', str(sessions[0][1].date()),
                                      str(closed.date()), 'eodhd')
-        daily, _ = await self.history(symbol, '1d', str(previous), str(previous), 'eodhd')
+        daily, _ = await self.history(symbol, '1d', str(previous), str(latest_previous), 'eodhd')
         if len(bars) > 10000 or len(daily) > 10000:
             return self.blank(symbol, 'history_budget')
         points = {}
@@ -179,15 +187,19 @@ class DayCharts:
             try:
                 at = naive_utc(row.get('date')).replace(tzinfo=timezone.utc)
                 value = number(row.get('close'))
-                if opened <= at < min(now, closed) and value is not None:
+                if any(start <= at < min(now, end) for _, start, end in sessions) and value is not None:
                     points[wire_time(at)] = value
             except (ValueError, TypeError):
                 continue
         ordered = [dict(time=t, value=v) for t, v in sorted(points.items())]
         tile = self.blank(symbol)
-        tile.update(session=session, points=ordered)
+        tile.update(session=session, points=ordered,
+                    sessions=[dict(**info, opened=wire_time(start), closed=wire_time(end))
+                              for info, start, end in sessions])
+        tile['chart_previous_close'] = next((number(row.get('close')) for row in daily
+                                             if str(row.get('date'))[:10] == str(previous)), None)
         previous_close = next((number(row.get('close')) for row in daily
-                               if str(row.get('date'))[:10] == str(previous)), None)
+                               if str(row.get('date'))[:10] == str(latest_previous)), None)
         tile['previous_close'] = previous_close
         if ordered:
             tile['price'] = ordered[-1]['value']
@@ -195,7 +207,8 @@ class DayCharts:
             if previous_close is not None:
                 tile['change'] = tile['price'] - previous_close
                 tile['change_percent'] = tile['change'] / previous_close * 100 if previous_close else None
-            expected = max(0, int((min(now, closed) - opened).total_seconds() // 60))
+            expected = sum(max(0, int((min(now, end) - start).total_seconds() // 60))
+                           for _, start, end in sessions)
             partial = len(ordered) < expected or previous_close is None
             tile['status'] = 'partial' if partial else 'ok'
             tile['coverage'] = dict(first_bar=ordered[0]['time'], last_bar=ordered[-1]['time'],

@@ -273,7 +273,8 @@ export function upstreamPath(url, config) {
 
   // Bounded Day Chart snapshots and same-origin raster logos. No upstream URL input.
   if (url.pathname === "/grid/day_charts" || url.pathname === "/grid/symbol_logo") {
-    if (!onlyKeys(params, ["symbol"])) return null;
+    if (!onlyKeys(params, url.pathname === "/grid/day_charts" ? ["symbol", "days"] : ["symbol"])) return null;
+    if (params.has("days") && !/^[1-5]$/.test(params.get("days"))) return null;
     const symbols = (params.get("symbol") ?? "").split(",");
     const max = url.pathname === "/grid/symbol_logo" ? 1 : 20;
     if (symbols.length < 1 || symbols.length > max || symbols.some(s => !(url.pathname === "/grid/day_charts" ? TA_SYMBOL_RE : SYMBOL_RE).test(s))) return null;
