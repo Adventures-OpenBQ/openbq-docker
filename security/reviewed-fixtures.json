@@ -1,0 +1,68 @@
+[
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "edd378cf2f2c0f815fb721fd0f0f1ea4a56736ad55b052ba850ebe7dfe7dde0c",
+    "reason": "Reviewed source-integrity manifest: all nonnull values are SHA256 source digests; null denotes new overlay files. No API credentials. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "44a46c5c552d4797844ee311b1294a37c52a4f90b6037405ab4b8185ebfdf587",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "6df4602cb247f2441b3d9d5aa586ea2045fa9db10ebe5c963b68bf3d41896489",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "d4c795fac086f6fea9bba1eab35b94408900aadacde49866eb44a29196f4a127",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "bf9afcc5f9b96363b63d574d29ab5265a987223d8cd5318bf37952df0a2827a5",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "7981f4e90beec5b4af3453f0df134472d32ac8a0581c5900791418883877fa7c",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "d4d7da2b3151dcf54af510562e1154ca99272164023774a7c82a1ddd17f3c74b",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "7f285e7c5fc5f9aa6fc0698628c40acb14f54dcdcdd1ad79f94587cf3d8f564b",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "ccccc14777b699d60f74deb9e7c52856176d903b4a144ffda9c21b2ba2e55623",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "0a771e1edc2bdbcf35ff6b353483888754968c934f5a748bb39dd4faff649cb0",
+    "reason": "Reviewed V2 historical integrity manifest: every nonnull value is a SHA256 source digest; the flagged OpenAPI digest matches the independently verified pinned official source. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "a2f34623c22699b6195f5989f70bad5f5c0241c119144225e6a4baa63ce86ad4",
+    "reason": "Reviewed V2 historical integrity manifest: every nonnull value is a SHA256 source digest; the flagged OpenAPI digest matches the independently verified pinned official source. Exact full-file hash only."
+  }
+]
