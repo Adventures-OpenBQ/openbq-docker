@@ -184,7 +184,8 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
             return memo[key]
         return _load
 
-    async def series_state(params: ChartParams, warmup, answer, versus_answers=None, refused=None):
+    async def series_state(params: ChartParams, warmup, answer, versus_answers=None, refused=None,
+                           requests=None, executor=None):
         """One computation of a study chart over an answer already fetched:
         (panes, frame, annotations, meta, bars_error). `answer` is the bar
         source's (bars, meta) or the exception it raised; a failure degrades
@@ -211,7 +212,7 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
             others[vs] = bars_to_frame(vs_rows, basis=params.basis)
         panes, frame, annotations = await build_payload(
             params, bars_to_frame(rows, basis=params.basis),
-            warmup=warmup, others=others, refused=refused,
+            warmup=warmup, others=others, refused=refused, requests=requests, executor=executor,
         )
         return panes, frame, annotations, meta, bars_error
 
@@ -233,6 +234,9 @@ def router(bars: ComposedBars, calendar: ExchangeCalendar | None = None,
         seconds = await asyncio.to_thread(session_seconds, sessions, params.symbol, s[:10])
         padded = pad_start(s[:10], n_bars, params.interval, seconds)
         return padded, padded, n_bars
+
+    from arts_charts.study_results import study_router
+    api.include_router(study_router(fetch, series_state, default_provider))
 
     @api.get("/ta_registry")
     async def ta_registry() -> JSONResponse:

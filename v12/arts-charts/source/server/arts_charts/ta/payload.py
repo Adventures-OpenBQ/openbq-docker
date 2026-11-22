@@ -10,6 +10,8 @@ implementation to drift (spec D9).
 
 from __future__ import annotations
 
+import asyncio
+
 from datetime import datetime, timezone
 
 from collections.abc import Awaitable, Callable
@@ -68,7 +70,9 @@ def _coerce(default: Any, raw: str) -> tuple:
     anchor, a session -- passes through. A name list would have to be edited
     for every study, and an operator's study (arts_charts.studies) edits no list.
     """
-    if isinstance(default, bool) or not isinstance(default, (int, float)):
+    if isinstance(default, bool):
+        return ({"true": True, "false": False}.get(raw.lower(), raw), None)
+    if not isinstance(default, (int, float)):
         return raw, None
     text = raw.strip()
     unit = next((u for u in _UNITS
@@ -232,10 +236,35 @@ def vs_of(req: Req) -> str | None:
     return None if value is None else str(value)
 
 
+def _computed_series(frame, reqs, interval, symbol, prior, notes, others):
+    """Shared off-loop engine plus minimum-observation presentation semantics.
+
+    Recursive smoothers can initialize before their declared window. Hide that
+    provisional prefix for every presenter; rolling/cascaded engine nulls remain
+    authoritative beyond this minimum. Business-day/session studies own their
+    session-frame warmup and must not be masked by a bar count here.
+    """
+    computed = LocalSource().series(
+        frame, reqs, interval, symbol, prior, notes, others=others).frame
+    for req in reqs:
+        ind = get(req.name)
+        if req.units or ind.sessioned:
+            continue
+        minimum = max((int(req.params[name]) for name in ind.windows), default=1)
+        if minimum > 1:
+            computed = computed.with_columns([
+                pl.when(pl.int_range(pl.len()) < minimum - 1).then(None)
+                .otherwise(pl.col(name)).alias(name)
+                for name in columns_of(req) if name in computed.columns])
+    return computed
+
+
 async def build_payload(
     params: ChartParams, frame: pl.DataFrame,
     warmup: Callable[[Any, int], Awaitable[pl.DataFrame | None]] | None = None,
     others: dict[str, pl.DataFrame] | None = None, refused: dict[str, str] | None = None,
+    requests: list[Req] | None = None,
+    executor=None,
 ) -> tuple[list[Pane], pl.DataFrame, list]:
     """The panes, the computed frame, and its annotations.
 
@@ -252,7 +281,7 @@ async def build_payload(
             raise KeyError(f"no such macro {params.macro!r}")
         macro = macros[params.macro]
 
-    panes = assign(macro, parse_indicators(params.indicators))
+    panes = assign(macro, parse_indicators(params.indicators) if requests is None else requests)
     annotations: list = []
 
     # A time parameter is an ISO-8601 instant or OBS-n (spec 2026-11-04 §2). This server
@@ -283,8 +312,11 @@ async def build_payload(
         prior = await warmup(frame["date"][0], sessions)
     computed = frame
     if reqs:
-        computed = LocalSource().series(
-            computed, reqs, params.interval, params.symbol, prior, notes, others=others).frame
+        arguments = (computed, reqs, params.interval, params.symbol, prior, notes, others)
+        if executor is None:
+            computed = await asyncio.to_thread(_computed_series, *arguments)
+        else:
+            computed = await asyncio.wrap_future(executor.submit(_computed_series, *arguments))
 
     annotations = annotations + [Annotation(col, "local", msg)
                                  for req, msg in notes for col in columns_of(req)]

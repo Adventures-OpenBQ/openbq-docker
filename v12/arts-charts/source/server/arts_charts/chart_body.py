@@ -196,14 +196,14 @@ def indicators(series: list) -> str:
                 if key not in times or not is_time_value(value):
                     raise BodyError(f"{where}.params.{key} takes {{expr, at}} only as a time parameter")
                 value = instant(value)
-            if not (_number(value) or _text(value, 128)):
+            if not (_number(value) or _text(value, 128) or isinstance(value, bool)):
                 raise BodyError(f"{where}.params.{key} must be a finite number or text")
             if isinstance(value, str) and any(c in value for c in ",="):
                 raise BodyError(f"{where}.params.{key} may not contain ',' or '='")
             if isinstance(value, str) and _nonfinite(value):
                 # The registry coerces text with float(), which reads "NaN" and "1e400".
                 raise BodyError(f"{where}.params.{key} must be a finite number or text")
-            parts.append(f"{key}={value}")
+            parts.append(f"{key}={str(value).lower() if isinstance(value, bool) else value}")
         chunks.append(":".join(parts))
     return ",".join(chunks)
 

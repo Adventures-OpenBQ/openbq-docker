@@ -10,7 +10,7 @@ carries its own picker text through the decorator.
 """
 from __future__ import annotations
 
-from openbq_ta.registry import REGISTRY
+from openbq_ta.registry import REGISTRY, catalog_entry
 
 PICKER: dict[str, dict] = {'sma': {'group': 'Moving averages',
          'full': 'Simple moving average',
@@ -259,7 +259,11 @@ def catalog() -> list[dict]:
         meta = {f: getattr(ind, f) for f in _FIELDS} | PICKER.get(ind.name, {})
         outputs = list(ind.render)
         types = {r.get("type", "line") for r in ind.render.values()}
+        shared = catalog_entry(ind)
         out.append({
+            "param_schema": shared["param_schema"],
+            "definition_version": shared["definition_version"],
+            "outputs": list(ind.render),
             "name": ind.name, "label": ind.label, "pane": ind.pane,
             "price_basis": ind.price_basis, "convention": ind.convention,
             # Studies-picker metadata (v12.3.1): the long name falls back to

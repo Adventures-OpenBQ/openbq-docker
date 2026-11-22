@@ -19,6 +19,28 @@ old bytecode cache. Loaded source digests survive installation staging-file rena
 unloaded on-disk edits do not change the version of running code. Operator studies remain trusted Python, using the existing
 operator-controlled folder and loader, with no new public code-upload route.
 
+An operator-installed study uses the same decorator, for example:
+
+```python
+import polars as pl
+from openbq_ta.studies import study
+
+@study(name="price_delta", label="Price delta",
+       params={"period": 3, "scale": 2.0}, windows=("period",),
+       colors={"delta": "#44bbff"},
+       param_schema={
+           "period": {"type": "integer", "minimum": 1, "maximum": 50},
+           "scale": {"type": "number", "minimum": 0.1, "maximum": 10, "step": 0.1},
+       })
+def price_delta(params):
+    return [((pl.col("close") - pl.col("close").shift(params["period"]))
+             * params["scale"]).alias("delta")]
+```
+
+Place it in the existing trusted `TA_STUDIES_DIR` workflow. The catalog supplies
+both editors with its output, defaults and controls; no frontend formula is added.
+Each saved grid instance can choose its own period, scale and presentation.
+
 Art's Charts owns `/study_catalog` and `/study_results`, using its existing
 composed bar sources and Python/Polars pipeline. Grid presentation does not
 implement RSI or stochastic formulas. The default stochastic definition remains
@@ -42,3 +64,9 @@ actual computation; polling is batched HTTP at one second, without a new socket.
 This slice adds registry metadata and study-column transport. It does not disable
 anchors, extend the VWAP API, or claim completion of the accepted-data renderer
 and anchored-history migration. No deployment or main-branch merge is implied.
+
+RSI latest-value cells retain the earlier live-grid band meter: a centered neutral
+number box spans 30–70, with color extending outward only below 30 or above 70.
+The meter uses a fixed 0–100 scale and 30/70 guides. Display is rounded; numeric
+sorting/filtering still uses the full server value. Slow-%K cells use sparklines;
+nulls create gaps and unavailable/warming-up values never become zero.
