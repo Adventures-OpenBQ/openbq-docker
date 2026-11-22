@@ -1,0 +1,128 @@
+[
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "edd378cf2f2c0f815fb721fd0f0f1ea4a56736ad55b052ba850ebe7dfe7dde0c",
+    "reason": "Reviewed source-integrity manifest: all nonnull values are SHA256 source digests; null denotes new overlay files. No API credentials. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "44a46c5c552d4797844ee311b1294a37c52a4f90b6037405ab4b8185ebfdf587",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "6df4602cb247f2441b3d9d5aa586ea2045fa9db10ebe5c963b68bf3d41896489",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "d4c795fac086f6fea9bba1eab35b94408900aadacde49866eb44a29196f4a127",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "bf9afcc5f9b96363b63d574d29ab5265a987223d8cd5318bf37952df0a2827a5",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "7981f4e90beec5b4af3453f0df134472d32ac8a0581c5900791418883877fa7c",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "d4d7da2b3151dcf54af510562e1154ca99272164023774a7c82a1ddd17f3c74b",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "7f285e7c5fc5f9aa6fc0698628c40acb14f54dcdcdd1ad79f94587cf3d8f564b",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "ccccc14777b699d60f74deb9e7c52856176d903b4a144ffda9c21b2ba2e55623",
+    "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "0a771e1edc2bdbcf35ff6b353483888754968c934f5a748bb39dd4faff649cb0",
+    "reason": "Reviewed V2 historical integrity manifest: every nonnull value is a SHA256 source digest; the flagged OpenAPI digest matches the independently verified pinned official source. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "a2f34623c22699b6195f5989f70bad5f5c0241c119144225e6a4baa63ce86ad4",
+    "reason": "Reviewed V2 historical integrity manifest: every nonnull value is a SHA256 source digest; the flagged OpenAPI digest matches the independently verified pinned official source. Exact full-file hash only."
+  },
+  {
+    "path": "key-maint/tests/test_rows.py",
+    "rule": "generic-api-key",
+    "content_sha256": "101bbe594c10a01730de9a5977716b772b9f40a62a9d970a092aba36a227c1fc",
+    "reason": "Offline credential-redaction regression uses explicitly distinctive synthetic SECRET-eodhd-a1b2c3 and SECRET-fmp-d4e5f6 fixtures; asserts summary never includes them. Full normalized file bound."
+  },
+  {
+    "path": "funnel-gateway/gateway.test.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "8f3b7716c00d717af1d28cd66fed9116cc87564e0f75ee70d95276733e7c39ce",
+    "reason": "WebSocket upgrade refusal control uses the public RFC6455 sample handshake nonce (decoded: the sample nonce); not an API key or deployment credential. Full normalized file bound."
+  },
+  {
+    "path": "funnel-gateway/verify.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "c38978c10c918b3b2927730fb51283aed463b315bdca01c9abfa2cd4fbb1483a",
+    "reason": "WebSocket upgrade refusal control uses the public RFC6455 sample handshake nonce (decoded: the sample nonce); not an API key or deployment credential. Full normalized file bound."
+  },
+  {
+    "path": "key-maint/tests/test_rows.py",
+    "rule": "generic-api-key",
+    "content_sha256": "c0ba8ee54a4a432e4cc01e447f81ef7ae19c3e1ce4eb2c8e8d0b1040958648e2",
+    "reason": "Historical offline summary-redaction test uses explicitly synthetic distinctive SECRET-eodhd-a1b2c3/SECRET-fmp-d4e5f6 values and asserts they never appear in output."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "0c0c512c42da978ddef97163526638c083727337400e73c5cd326423aee147d3",
+    "reason": "Historical provider source-integrity manifest; independently parsed every value as null or64-hex SHA256 and every path as an openbb_ source. Flagged data is a guarded source digest, not a credential."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "ac9d20b07f08304e11d9558c364d88d0f7d95fae58e02bfc351a98e939e75b10",
+    "reason": "Historical provider source-integrity manifest; independently parsed every value as null or64-hex SHA256 and every path as an openbb_ source. Flagged data is a guarded source digest, not a credential."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "dc418c33928758fe640c22a1dce51f944a8177427c165af11ba160aadc7216d6",
+    "reason": "Historical provider source-integrity manifest; independently parsed every value as null or64-hex SHA256 and every path as an openbb_ source. Flagged data is a guarded source digest, not a credential."
+  },
+  {
+    "path": "funnel-gateway/gateway.test.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "171ddaf233a9c497ea46432557259829855125a6c98a73100dc571188926f748",
+    "reason": "Historical WebSocket refusal control uses the public RFC6455 sample handshake nonce (the sample nonce); not an API/deployment key."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "a90c81f5f45b4a63c39d53e32b8e171f588e598bb4758c5a413a1614f13f1559",
+    "reason": "Historical provider source-integrity manifest; independently parsed every value as null or64-hex SHA256 and every path as an openbb_ source. Flagged data is a guarded source digest, not a credential."
+  },
+  {
+    "path": "key-maint/tests/test_rows.py",
+    "rule": "generic-api-key",
+    "content_sha256": "0eee2d8e934f2e6176a3187c20b08d55f93300f650e0b1cb6bc7ec34a5721939",
+    "reason": "Historical offline summary-redaction test uses explicitly synthetic distinctive SECRET-eodhd-a1b2c3/SECRET-fmp-d4e5f6 values and asserts they never appear in output."
+  }
+]

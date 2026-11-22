@@ -54,6 +54,7 @@ services:
     volumes:
       # rw: writing a key (admin socket only) rewrites this file in place.
       - ./credentials.env:/config/credentials.env
+      - ./credentials.demo.env:/config/credentials.demo.env:ro
       # One-time: mkdir -p key-maint-admin && chmod 700 key-maint-admin
       - ./key-maint-admin:/config/admin
     networks: [openbq-internal]

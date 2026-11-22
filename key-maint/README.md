@@ -17,11 +17,13 @@ three postures:
 | 3 | Unix socket on the host, via an SSH exec session | + the key values, and writing a key |
 
 **Auth follows the API.** key-maint reads the same `credentials.env` as the
-API. While `OPENBB_API_AUTH` is off the API is open and so is key-maint; when
-it is on, every tier (tier 3 included) needs the API's own
-`OPENBB_API_USERNAME` / `OPENBB_API_PASSWORD`, and an empty username or
-password denies everything. A missing `credentials.env` also denies
-everything. Tier 1 never shows a key's value, only whether it is set.
+API. An omitted, empty, `0`, `false` or `no` auth flag leaves key-maint open.
+With `1`, `true` or `yes`, every tier requires the API's
+`OPENBB_API_USERNAME` and `OPENBB_API_PASSWORD`. An unknown flag, an unreadable
+auth file, or an empty username or password when auth is on denies access.
+Set auth values directly in the file so key-maint can read them. For literal
+dollar signs, use single quotes or escape the dollars within double quotes.
+Tier 1 shows key status and the demo flag.
 
 What tier 3 does not have is a **port**: the admin server binds a **unix
 socket** in a host directory you create with mode 0700, so being able to open
@@ -75,7 +77,10 @@ key-maint is part of the Episode 3 overlay (`docker-compose.v3.yml`).
   forwarding:
   `ssh -L 18446:<stack-dir>/key-maint-admin/key-maint-admin.sock <host>` →
   `http://localhost:18446`. `scripts/smoke_live.py` needs this `-L` form.
-  A written key reaches the API at its next restart.
+  The panel and probes load `credentials.demo.env` first, then
+  `credentials.env`. An empty entry in `credentials.env` suppresses the demo key.
+  Admin edits update `credentials.env`. The API picks up the edit at its next
+  restart.
 
 ## Provider connectivity
 
@@ -101,14 +106,16 @@ the API it talks to.
 - **`GET /keys/{env_var}/test`** — same route as before, but now also runs
   the connectivity check alongside the credential check when the provider
   is installed on the backend, has a stored example, and has a value set.
+  Optional providers such as BLS can run the connectivity check with an empty
+  key.
 
 
 ## Release check
 
 `python -m app.catalog --check <OPENBB_URL>` runs every stored example
 (`app/catalog.py::EXAMPLES`) against a live OpenBB API and enforces the
-demo policy: every example marked `demo_ok=True` must classify `ok` (its
-public demo key still works), and every other (keyed) example must
+demo policy. Every example marked `demo_ok=True` must classify `ok` with a
+public demo key or anonymous access. Every other (keyed) example must
 classify `ok`, `auth_failed`, or `skipped` — `ok` passes there too because
 a keyed example run against a deployment that HAS real keys configured
 legitimately succeeds; that is not drift, just a live key doing its job.

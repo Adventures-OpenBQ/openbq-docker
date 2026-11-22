@@ -85,14 +85,21 @@ class UsdaWeatherBulletinDownloadFetcher(
                 session._max_field_size = 32768
 
                 for url in urls:
-                    async with await session.get(url) as response:
-                        if response.status != 200:
+                    async with await session.get(url, allow_redirects=False) as response:
+                        if not 200 <= response.status < 300:
                             raise OpenBBError(
                                 ValueError(
                                     f"Failed to download document from {url}. Status code: {response.status}"
                                 )
                             )
                         content_bytes = await response.read()
+                        if (
+                            not content_bytes.startswith(b"%PDF-")
+                            or b"%%EOF" not in content_bytes[-2048:]
+                        ):
+                            raise OpenBBError(
+                                "The document download did not return a complete PDF."
+                            )
                         results[url] = content_bytes
 
             return results

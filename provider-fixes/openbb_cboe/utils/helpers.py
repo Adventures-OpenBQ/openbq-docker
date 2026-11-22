@@ -1159,8 +1159,14 @@ async def download_index_document(document_url: str) -> str:
         raise OSError(f"Refusing to download a non-Cboe document: {document_url}")
 
     async def read(response, _):
-        """Return the raw response body."""
-        return await response.read()
+        """Refuse upstream errors and incomplete or non-PDF bodies."""
+        response.raise_for_status()
+        if not 200 <= response.status < 300:
+            raise ValueError("The document download did not return a successful HTTP response.")
+        content = await response.read()
+        if not content.startswith(b"%PDF-") or b"%%EOF" not in content[-2048:]:
+            raise ValueError("The document download did not return a complete PDF.")
+        return content
 
     content = await amake_request(document_url, response_callback=read)
 

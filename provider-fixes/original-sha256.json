@@ -122,5 +122,10 @@
   "openbb_federal_reserve/utils/ddp.py": "38067d250cf1d0cf1fe7575c43a3edcc89e13626d119474dfb02908ccd4e05bc",
   "openbb_nasdaq/models/equity_info.py": "1dc850cc82abb24f6c62cc35359d806adb6018babd64feb004c5ab5afa06cbad",
   "openbb_nasdaq/models/equity_quote.py": "12b225f0915809503c2a91d0bd7149995cc9c80d93917e27fba63f80212c0a98",
-  "openbb_nasdaq/models/etf_info.py": "e981b031cc2620424e66ada865aaa2d6eeb89ea1e845a096d886ca4487407be6"
+  "openbb_nasdaq/models/etf_info.py": "e981b031cc2620424e66ada865aaa2d6eeb89ea1e845a096d886ca4487407be6",
+  "openbb_government_us/congress/models/bill_text.py": "3dbaa22ceb461b80571af69cf9796c50b863a5a99ec2db65451e00002f10282c",
+  "openbb_government_us/congress/models/amendment_text.py": "2bacab1fa9ea7945200f0e01535b549fcf780f9e32ef221741ba8c4f687c6c95",
+  "openbb_federal_reserve/utils/ffiec.py": "71f8a34f17a4f95297ca5ec683e68a29f37b55be28ac2ccc656ad1616f5cce12",
+  "openbb_cftc/models/swap_trades.py": "5fecc01408f67d0d9707b98f51a874455a564b568e1a38553feccc7ee9c55bb6",
+  "openbb_deribit/models/futures_curve.py": "dc4cd241dc9a956fe79c8fe98237e957ee51645d9c845430957d56e086737039"
 }
