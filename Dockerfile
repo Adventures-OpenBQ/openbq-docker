@@ -16,6 +16,7 @@ RUN python -m pip install -r /tmp/requirements.lock && python -m pip check
 FROM odp AS api
 COPY provider-fixes /tmp/provider-fixes
 RUN python /tmp/provider-fixes/apply.py && rm -rf /tmp/provider-fixes
+RUN python -m pip install pip==26.2.0
 # v3: the Video Library (openbb-videos 3.0.1, v3/videos) and EconDB (openbb-econdb, OpenBB's MIT-era
 # provider ported to openbb-core 2, v3/econdb) extensions. No PyPI release fits the lock; their
 # dependencies are all in requirements.lock, so --no-deps.
@@ -53,7 +54,8 @@ RUN python -m pip install --no-deps -r /tmp/yfinance-extra.lock \
     && python -m pip install --no-deps /tmp/openbq_yfinance-3.0.0-py3-none-any.whl \
     && python -m pip check && cd / && openbb-build
 COPY v3/yfinance/verify.py /tmp/verify-yfinance.py
-RUN python /tmp/verify-yfinance.py && rm /tmp/verify-yfinance.py /tmp/openbq_yfinance-3.0.0-py3-none-any.whl
+COPY v3/yfinance/test_news_transport.py /tmp/test-news-transport.py
+RUN python /tmp/verify-yfinance.py && python /tmp/test-news-transport.py && rm /tmp/test-news-transport.py /tmp/verify-yfinance.py /tmp/openbq_yfinance-3.0.0-py3-none-any.whl
 COPY v3/openbq_settings.py /usr/local/lib/python3.12/site-packages/openbq_settings.py
 # v4: BDOBB trading-calendar and fiscal-year-end routes (exchange_calendars is pinned in requirements.lock).
 COPY --from=yfinance-build /wheels/openbq_routes-4.0.0-py3-none-any.whl /tmp/openbq_routes-4.0.0-py3-none-any.whl

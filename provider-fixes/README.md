@@ -115,3 +115,12 @@ invalid input names `expiration` in its validation error. Unfiltered requests
 retain their previous payload and results. The suite now has191 regressions
 and119 guarded runtime files. Publisher-confirmed empty screens remain empty
 and are not called data passes.
+
+## Complete public-provider follow-up
+
+The final bundle includes the canonical Dallas PDF, Federal Reserve DDP public
+request profile and Nasdaq vendor/PDF/batch-error repairs qualified on V3. It
+contains 124 guarded provider overlays and 206 provider tests. V4 retains its
+calendar/routes extensions, dependency locks, and table/pivot service. The SDK
+recipe also carries the established pip 26.2.0 pin and offline YFinance news
+transport check from V3; this does not change the shared extension sources.
