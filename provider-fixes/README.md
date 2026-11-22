@@ -116,3 +116,27 @@ invalid input names `expiration` in its validation error. Unfiltered requests
 retain their previous payload and results. The suite now has191 regressions
 and119 guarded runtime files. Publisher-confirmed empty screens remain empty
 and are not called data passes.
+
+
+## Regional PDFs and explicit Nasdaq vendor failures
+
+Dallas working-paper links in Fed in Print can point at a shorthand path that
+returns 404. Only the exact Dallas host and working-paper path are normalized
+to the published media asset; unrelated hosts and document paths remain unchanged.
+
+Nasdaq can report vendor error 3004 inside a transport-success envelope. Both
+integer and string error codes are propagated as provider errors, including
+when a partial data payload accompanies the failure. Clean empty responses and
+successful data retain their behavior. The regression cases cover these
+distinctions; `original-sha256.json` is the authoritative guarded file list.
+
+## Complete public-provider follow-up
+
+The final bundle also uses compatible request headers for the Federal Reserve
+DDP catalogue, structure, schedule and data endpoints. Nasdaq PDF downloads
+check HTTP status, request PDF content and reject HTML or incomplete PDF bodies.
+Its quote, company-profile and fund fetchers retain the original source error
+when all symbols fail, while returning working symbols from a mixed batch.
+These repairs are the same provider bytes qualified on V1 and V9. The complete
+bundle contains 124 guarded overlays and 206 provider regression tests; V3 keeps
+its own extension sources and dependency locks.
