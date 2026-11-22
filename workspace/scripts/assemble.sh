@@ -14,10 +14,11 @@ if [[ -n "$(git -C "$source_dir" status --porcelain --untracked-files=all)" ]]; 
   echo 'Source checkout must be clean.' >&2
   exit 1
 fi
-python3 - "$source_dir" "$workspace_dir" <<'PY'
-import hashlib,json,shutil,sys
+python3 - "$source_dir" "$workspace_dir" "$pinned" <<'PY'
+import hashlib,json,shutil,subprocess,sys,tempfile
 from pathlib import Path
-src,root=map(Path,sys.argv[1:])
+src,root=map(Path,sys.argv[1:3])
+pinned=sys.argv[3]
 lock=root/'resolved-poetry.lock'
 expected=json.loads((root/'source.json').read_text())['observed_build']['resolved_lock_sha256']
 if hashlib.sha256(lock.read_bytes()).hexdigest()!=expected:
@@ -25,10 +26,24 @@ if hashlib.sha256(lock.read_bytes()).hexdigest()!=expected:
 out=root/'build-context'
 if out.exists(): raise SystemExit('build-context already exists; preserve or remove it explicitly before reassembly')
 if src==out or out in src.parents or src in out.parents: raise SystemExit('Unsafe source/output overlap')
-ignore=shutil.ignore_patterns('.git','node_modules','.venv','venv','__pycache__','dist','._*','.DS_Store','.env.local')
-shutil.copytree(src/'lite',out,ignore=ignore)
-shutil.copytree(src/'backend-api/backend',out/'backend',ignore=ignore)
-shutil.copyfile(lock,out/'backend/poetry.lock')
-shutil.copytree(src/'terminalpro',out/'terminalpro',ignore=ignore)
+# A clean status does not cover ignored files or assume-unchanged overrides.
+# Extract only the reviewed commit, never the checkout's filesystem contents.
+with tempfile.TemporaryDirectory(prefix='.assembly-',dir=root) as temp:
+ temp=Path(temp)
+ archive=temp/'source.tar'
+ with archive.open('wb') as stream:
+  subprocess.run(['git','-C',str(src),'archive','--format=tar',pinned,
+                  'lite','backend-api/backend','terminalpro'],stdout=stream,check=True)
+ extracted=temp/'source'
+ extracted.mkdir()
+ subprocess.run(['tar','-xf',str(archive),'-C',str(extracted)],check=True)
+ staged=temp/'build-context'
+ shutil.copytree(extracted/'lite',staged,symlinks=True)
+ shutil.copytree(extracted/'backend-api/backend',staged/'backend',symlinks=True)
+ shutil.copyfile(lock,staged/'backend/poetry.lock')
+ shutil.copytree(extracted/'terminalpro',staged/'terminalpro',symlinks=True)
+ subprocess.run(['patch','--batch','--forward','--fuzz=0','-p1','-i',
+                 str(root/'patches/005-workspace-request-boundaries.patch')],cwd=staged,check=True)
+ staged.rename(out)
 print(out)
 PY

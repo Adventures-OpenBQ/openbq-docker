@@ -39,7 +39,19 @@ docker build --platform linux/amd64 -t openbq-workspace-local:2.0.0 workspace/bu
 
 Build the frontend stage before the runtime to avoid overlapping memory-heavy builds. The frontend build permits an 8 GB Node heap; provision adequate Docker memory. On ARM hosts, this original Workspace AMD64 path uses emulation. For reader rehearsal, use the `2.0.0-reader` Workspace image tags specified in DEMO-VERIFY.md.
 
-Assembly requires the exact clean upstream commit. It verifies the recorded resolved backend lock and copies it into the new build context, preserving the source checkout. The Docker build pins Poetry/Cython/setuptools, checks that lock and refuses to re-resolve dependencies. Frontend installation keeps the original Bun lock and integrity checks, with bounded download concurrency. A checksum failure must be investigated rather than bypassed.
+Assembly requires the exact clean upstream commit and extracts its tracked
+contents with `git archive`. Ignored operator files and hidden working-copy
+overrides are excluded. It verifies the recorded resolved backend lock and
+automatically applies security patch 005 before making the new context
+available; do not apply 005 again. Apply packaging patches 001–004 as above.
+The source checkout and any existing build context are preserved.
+
+The Docker build pins Poetry/Cython/setuptools, checks that lock and refuses
+to re-resolve dependencies. Frontend installation keeps the original Bun lock
+and integrity checks, with bounded download concurrency. A checksum failure
+must be investigated rather than bypassed. Run the Workspace source and
+compiled-runtime boundary checks described in `workspace/README.md` alongside
+the normal login, persistence and data checks.
 
 Copy the Workspace runtime and Tailscale example files as shown in README.md. Assign its actual HTTPS origin to FRONTENDURL/PROURL and that origin plus `/api` to SELFURL. Use its own new Tailscale identity and state directory. Start the optional profile only after configuration.
 

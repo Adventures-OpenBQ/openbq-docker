@@ -4,7 +4,9 @@ import hashlib
 import json
 import os
 import shutil
+import shlex
 import subprocess
+import tarfile
 import tempfile
 import unittest
 
@@ -24,11 +26,21 @@ class FrozenBuild(unittest.TestCase):
             (source / name).mkdir(parents=True)
         (source / 'lite/Dockerfile').write_text('FROM scratch\n')
         (source / 'backend-api/backend/poetry.lock').write_text('original upstream lock\n')
+        (source / 'backend-api/backend/boundary.txt').write_text('upstream fixture\n')
         (source / 'terminalpro/bun.lock').write_text('original frontend lock\n')
+        (source / 'terminalpro/.env').write_text('PUBLIC_FEATURE=enabled\n')
+        archive = root / 'pinned-source.tar'
+        with tarfile.open(archive, 'w') as tracked:
+            for name in ('lite', 'backend-api/backend', 'terminalpro'):
+                tracked.add(source / name, arcname=name)
+        (recipe / 'patches').mkdir()
+        (recipe / 'patches/005-workspace-request-boundaries.patch').write_text(
+            '--- a/backend/boundary.txt\n+++ b/backend/boundary.txt\n'
+            '@@ -1 +1 @@\n-upstream fixture\n+repaired fixture\n')
         bindir = root / 'bin'
         bindir.mkdir()
         git = bindir / 'git'
-        git.write_text(f'#!/bin/sh\ncase "$*" in *rev-parse*) echo {PIN};; *status*) exit 0;; *) exit 1;; esac\n')
+        git.write_text(f'#!/bin/sh\ncase "$*" in *rev-parse*) echo {PIN};; *status*) exit 0;; *archive*) cat {shlex.quote(str(archive))};; *) exit 1;; esac\n')
         git.chmod(0o700)
         env = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ['PATH'])
         return recipe, source, env, lock
@@ -45,6 +57,58 @@ class FrozenBuild(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             recipe, source, env, lock = self.fixture(Path(temp))
             (recipe / 'resolved-poetry.lock').write_bytes(lock + b'changed')
+            result = subprocess.run(['bash', str(recipe / 'scripts/assemble.sh'), str(source)], env=env, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((recipe / 'build-context').exists())
+
+    def test_ignored_operator_files_are_not_assembled(self):
+        with tempfile.TemporaryDirectory() as temp:
+            recipe, source, env, _ = self.fixture(Path(temp))
+            local_paths = ('terminalpro/.env.production.local',
+                           'backend-api/backend/envs/runtime.env',
+                           'backend-api/backend/ts-state/tailscaled.state')
+            for name in local_paths:
+                path = source / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('SYNTHETIC_LOCAL_ONLY=do-not-publish\n')
+            result = subprocess.run(['bash', str(recipe / 'scripts/assemble.sh'), str(source)], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for name in ('terminalpro/.env.production.local', 'backend/envs/runtime.env',
+                         'backend/ts-state/tailscaled.state'):
+                self.assertFalse((recipe / 'build-context' / name).exists(), name)
+            for name in local_paths:
+                self.assertTrue((source / name).exists(), name)
+
+    def test_assume_unchanged_working_copy_cannot_override_pinned_input(self):
+        with tempfile.TemporaryDirectory() as temp:
+            recipe, source, env, _ = self.fixture(Path(temp))
+            # The frozen archive is the tracked commit. The clean-status fake
+            # models Git hiding a modified file marked assume-unchanged.
+            (source / 'terminalpro/bun.lock').write_text('local working-copy override\n')
+            result = subprocess.run(['bash', str(recipe / 'scripts/assemble.sh'), str(source)], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((recipe / 'build-context/terminalpro/bun.lock').read_text(), 'original frontend lock\n')
+            self.assertEqual((source / 'terminalpro/bun.lock').read_text(), 'local working-copy override\n')
+
+    def test_reviewed_tracked_public_environment_file_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temp:
+            recipe, source, env, _ = self.fixture(Path(temp))
+            result = subprocess.run(['bash', str(recipe / 'scripts/assemble.sh'), str(source)], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((recipe / 'build-context/terminalpro/.env').read_text(), 'PUBLIC_FEATURE=enabled\n')
+
+    def test_assembly_includes_security_patch_before_build(self):
+        with tempfile.TemporaryDirectory() as temp:
+            recipe, source, env, _ = self.fixture(Path(temp))
+            result = subprocess.run(['bash', str(recipe / 'scripts/assemble.sh'), str(source)], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((recipe / 'build-context/backend/boundary.txt').read_text(), 'repaired fixture\n')
+            self.assertEqual((source / 'backend-api/backend/boundary.txt').read_text(), 'upstream fixture\n')
+
+    def test_invalid_security_patch_leaves_no_partial_context(self):
+        with tempfile.TemporaryDirectory() as temp:
+            recipe, source, env, _ = self.fixture(Path(temp))
+            (recipe / 'patches/005-workspace-request-boundaries.patch').write_text('invalid patch\n')
             result = subprocess.run(['bash', str(recipe / 'scripts/assemble.sh'), str(source)], env=env, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse((recipe / 'build-context').exists())

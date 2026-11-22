@@ -15,7 +15,19 @@ patch -p1 < ../patches/003-runtime-healthcheck.patch
 patch -p1 < ../patches/004-frozen-backend-build.patch
 ```
 
-The patches pin base images and build tools and use the published Bun frontend lock. Assembly verifies and copies the recorded resolved backend lock; the Docker build checks that lock and refuses dependency re-resolution. Build frontend first, then runtime, to avoid overlapping memory-heavy build stages. Source and build context are not a deployment success claim. See the series Episode 2 rehearsal report for measured results.
+Assembly reads the exact pinned Git commit, rather than copying the working
+directory. Ignored files and local overrides cannot enter the build context.
+It verifies the recorded resolved backend lock and automatically applies
+`005-workspace-request-boundaries.patch` before exposing the new context. Do
+not apply patch 005 a second time. The source checkout and existing context
+are preserved; assembly refuses to overwrite a context.
+
+Apply packaging patches 001–004 as shown above. They pin base images and build
+tools and use the published Bun frontend lock. The Docker build checks the
+backend lock and refuses dependency re-resolution. Build frontend first, then
+runtime, to avoid overlapping memory-heavy build stages. Source and build
+context are not a deployment success claim. See the series Episode 2
+rehearsal report for measured results.
 
 Build the frontend and runtime images using the complete commands in [REPRODUCE.md](../REPRODUCE.md#original-workspace-source-build) before starting Compose; the service uses a local image and does not build it automatically.
 
@@ -44,3 +56,27 @@ docker run --rm --network none --entrypoint python \
 The check rejects the compromised emSign G3 root, retains valid public roots,
 and requires certificate and hostname verification to stay enabled. It does
 not replace the login, refusal, persistence or browser-data regression checks.
+
+## Request and file boundaries
+
+Patch 005 checks file-widget ownership before changing stored bytes or rows,
+removes the unused MCP forwarding endpoint, and removes raw request
+headers/body, validation inputs and storage connection strings from the
+affected logs. The existing schema type remains for upstream compatibility;
+it does not expose a proxy route.
+
+The source contract checks use the image's dependencies and the assembled
+source because the packaged runtime compiles these modules into Cython
+binaries:
+
+```sh
+docker run --rm --network none --entrypoint python \
+  -e WORKSPACE_BACKEND_ROOT=/source/backend \
+  -v "$PWD/workspace/build-context:/source:ro" \
+  -v "$PWD/workspace/runtime-checks:/checks:ro" \
+  openbq-workspace-local:2.0.0-reader /checks/test_request_boundaries.py
+```
+
+These source checks supplement fresh-volume HTTP login, cross-account
+refusal, owner deletion, proxy refusal and persistence checks against the
+rebuilt runtime. They do not establish compiled-runtime behavior by themselves.
