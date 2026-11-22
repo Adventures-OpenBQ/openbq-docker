@@ -44,6 +44,16 @@ def _refused(exc) -> bool:
     return str(exc).startswith("tlog: ")
 
 
+def _policy_error(exc) -> bool:
+    try:
+        from openbq_kdb.protocol import (
+            KdbAuthenticationError, KdbAuthorizationError, KdbProtocolError,
+        )
+    except ImportError:  # legacy v10 package has no secured protocol
+        return False
+    return isinstance(exc, (KdbAuthenticationError, KdbAuthorizationError, KdbProtocolError))
+
+
 def _unavailable_type():
     try:
         from openbq_kdb.session import KdbUnavailable
@@ -67,6 +77,7 @@ class TickRecorder:
         self.replayed = 0  # of those, ticks that came from the spool
         self.deduped = 0  # in-doubt ticks kdb already held, so not sent again
         self._unavailable = _unavailable_type()
+        self._configuration_blocked = False
         # D15: flush runs on a worker thread that cancelling the drain loop does not stop, so
         # stash (shutdown) waits for it here instead of spooling the newer buffer first.
         self._lock = threading.Lock()
@@ -140,6 +151,12 @@ class TickRecorder:
             self.spool.append(batch)
             return 0
         except Exception as exc:  # noqa: BLE001 - a cache write must not kill the feed
+            if _policy_error(exc):
+                self._configuration_blocked = True
+                self.spool.append(batch)
+                self.spool.defer()
+                log.warning("kdb identity/protocol rejected; retaining ticks for configuration repair")
+                return 0
             if _refused(exc):
                 # T1: q signalled before applying anything, so certainly not in kdb.
                 log.info("kdb refused the write (its tick log), spooling %d ticks: %s",
@@ -152,6 +169,7 @@ class TickRecorder:
             self.spool.append(batch, doubt=True)
             return 0
         self.written += written
+        self._configuration_blocked = False
         return written
 
     def _flush_without_spool(self, batch) -> int:
@@ -161,10 +179,19 @@ class TickRecorder:
         try:
             written = self.store.write_ticks(frame)
         except Exception as exc:  # noqa: BLE001 - a cache write must not kill the feed
+            if _policy_error(exc):
+                self._configuration_blocked = True
+                # Library users without a disk spool keep the bounded batch;
+                # subsequent buffer overflow remains explicitly counted.
+                self._lost += max(0, len(self._buf) + len(batch) - self._buf.maxlen)
+                self._buf.extendleft(reversed(batch))
+                log.warning("kdb identity/protocol rejected; retaining bounded tick buffer")
+                return 0
             log.warning("tick flush failed, dropping %d buffered ticks: %s", len(frame), exc)
             self._lost += len(frame)
             return 0
         self.written += written
+        self._configuration_blocked = False
         return written
 
     def _backing_off(self) -> bool:
@@ -208,11 +235,17 @@ class TickRecorder:
                 try:
                     present = self.store.ticks_present(frame)
                 except Exception as exc:  # noqa: BLE001 - try again on a later flush
+                    if _policy_error(exc):
+                        self._configuration_blocked = True
+                        spool.defer()
+                        log.warning("tick spool paused for identity/protocol configuration repair")
+                        return total
                     log.info("tick spool: cannot probe an in-doubt segment yet: %s", exc)
                     return total
                 if present >= len(seg.rows):
                     spool.ack(seg)
                     self.deduped += len(seg.rows)
+                    self._configuration_blocked = False
                     log.info("tick spool: kdb already held %d in-doubt ticks; not resent",
                              len(seg.rows))
                     continue
@@ -225,6 +258,13 @@ class TickRecorder:
                 log.info("tick spool: kdb unavailable, %d ticks wait: %s", spool.count, exc)
                 return total
             except Exception as exc:  # noqa: BLE001 - stays staged: in doubt next time
+                if _policy_error(exc):
+                    self._configuration_blocked = True
+                    if not seg.doubt:
+                        spool.unstage()  # policy rejection did not apply the batch
+                    spool.defer()  # not a poison-data failure
+                    log.warning("tick spool paused for identity/protocol configuration repair")
+                    return total
                 if _refused(exc):
                     # T1: a kdb outage (its disk), not a poison batch: back off, count nothing.
                     if not seg.doubt:
@@ -246,6 +286,7 @@ class TickRecorder:
                     "tick spool: replay write failed after sending: %s", exc)
                 return total
             spool.ack(seg)
+            self._configuration_blocked = False
             self.written += written
             self.replayed += written
             total += written
@@ -274,6 +315,7 @@ class TickRecorder:
             "replayed": self.replayed,
             "deduped": self.deduped,
             "quarantined": self.spool.quarantined if self.spool is not None else 0,
+            "configuration_blocked": self._configuration_blocked,
         }
 
     def stash(self) -> int:

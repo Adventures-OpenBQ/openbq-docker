@@ -19,7 +19,7 @@ import { once } from "node:events";
 import { WebSocket, WebSocketServer } from "ws";
 import { ritaRoute, ritaQuery, ritaAgents } from "./rita-policy.mjs";
 import { mcpRoute, mcpMessage, MCP_SESSION_RE, MCP_VERSION_RE } from "./mcp-policy.mjs";
-import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
+import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, chartStreamControl, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
 
 import { requestState as remoteState } from "./state-store.mjs";
 
@@ -32,6 +32,7 @@ const MAX_BODY = 2 * 1024 * 1024;
 const MANIFESTS = new Set(["/api/widgets.json", "/api/apps.json", "/ref/widgets.json", "/ref/apps.json"]);
 const MANIFEST_MAX = 16 * 1024 * 1024; // ponytail: manifests are buffered and parsed (~6x their size at peak); 8 concurrent 16 MiB manifests could pass mem_limit 512m — stream them unparsed if that ever matters.
 const MAX_SOCKET = 65536;
+const MAX_CHART_SOCKET = 8 * 1024 * 1024;
 /**
  * A hard ceiling per grid socket on validated CLIENT frames on /grid/live_grid_ws, for as
  * long as the socket is open. It is NOT configurable. With no daily or per-minute budget
@@ -212,7 +213,7 @@ export function connectGrid(config, path = "/live_grid_ws") {
   return new WebSocket(url, {
     headers: { Authorization: config.apiAuthorization, Origin: config.gridOrigin },
     handshakeTimeout: 10000, followRedirects: false,
-    maxPayload: MAX_SOCKET, perMessageDeflate: false,
+    maxPayload: path === "/chart_stream_ws" ? MAX_CHART_SOCKET : MAX_SOCKET, perMessageDeflate: false,
   });
 }
 
@@ -1132,7 +1133,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       // cut < 0: the parser found a ticket the wire does not spell literally (tick%65t=).
       // What was signed is the literal text, so that is refused here, not by luck below.
       nonce = cut >= 0 && tickets.length === 1 && req.url.slice(cut + 8) === tickets[0]
-        ? socketTicketNonce(config.token, desktop ? req.headers.origin + want : want, tickets[0], now()) : null;
+        ? socketTicketNonce(config.token, (desktop || want === "/grid/chart_stream_ws") ? req.headers.origin + want : want, tickets[0], now()) : null;
       for (const [used, until] of admitted) if (until < now()) admitted.delete(used);
       if (!nonce || admitted.has(nonce)) return reject(socket, 401);
       // Recorded below, only once every refusal has passed (D13): a ticket refused for load
@@ -1159,8 +1160,9 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
 
     if (!target) return reject(socket, 404);
     const route = target.split("?")[0];
+    const chart = route === "/grid/chart_stream_ws";
     const ta = route === "/grid/ta_chart_ws";
-    const grid = ta || route === "/grid/live_grid_ws";
+    const grid = chart || ta || route === "/grid/live_grid_ws";
     const ref = route === "/ref/live_grid_ws";
     const charts = route === "/ta_series_ws";
     // Nothing to subscribe to: the operator has approved no feeds, so there is no wire socket
@@ -1179,6 +1181,8 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       // The 10 s handshake deadline set above must not go on applying to an open socket.
       socket.setTimeout(0);
       let upstream, subscribed = false, pending = null, frames = 0;
+      let chartWindow = 0, chartFrames = 0;
+      const lease = chart && nonce ? setTimeout(() => client.close(4001, "reauthenticate"), Math.max(1, Number(tickets[0].split(".")[0]) - now())) : null;
       const close = () => { client.terminate(); upstream?.terminate(); };
       // No lifetime: a socket stays open while its client answers. A ping every pingMs that
       // goes unanswered by the next one closes it, so a peer that vanished without closing (a
@@ -1189,7 +1193,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       const heartbeat = setInterval(() => { if (!alive) return close(); alive = false; client.ping(); }, pingMs);
       const initial = setTimeout(close, firstFrameMs);
       client.once("close", () => {
-        sockets--; clearInterval(heartbeat); clearTimeout(initial); upstream?.terminate();
+        sockets--; clearTimeout(lease); clearInterval(heartbeat); clearTimeout(initial); upstream?.terminate();
       });
       client.on("error", close);
       /**
@@ -1204,9 +1208,10 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
           upstream = charts ? openCharts(config, target) : grid ? openGrid(config, target.slice("/grid".length)) : ref ? openRef(config) : openNews(config);
         } catch { close(); return false; }
         upstream.on("message", (message, isBinary) => {
-          const cap = charts ? CHARTS_FRAME_MAX : MAX_SOCKET;
+          const cap = charts ? CHARTS_FRAME_MAX : chart ? MAX_CHART_SOCKET : MAX_SOCKET;
+          const bufferedCap = charts ? 2 * CHARTS_FRAME_MAX : chart ? MAX_CHART_SOCKET : 262144;
           if (isBinary || message.length > cap || client.readyState !== WebSocket.OPEN ||
-              client.bufferedAmount > (charts ? 2 * CHARTS_FRAME_MAX : 262144)) return close();
+              client.bufferedAmount + (chart ? message.length : 0) > bufferedCap) return close();
           // The door is the only trust boundary for the wire: rss-ticker is unauthenticated on
           // the tailnet, so the door forwards the {"feeds"} reply and approved-feed articles,
           // nothing else. The grid and the reference relay as they are.
@@ -1240,12 +1245,16 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         // every symbol change, re-validated each time -- but it is a keyless local fixture, so
         // no vendor meter applies: FRAME_CAP bounds it.
         if (binary || ta || charts || (!grid && !ref && subscribed)) return close();
-        const frame = grid ? liveGridSubscription(data) : ref ? refSubscription(data) : newsSubscription(data, config);
+        const frame = chart ? chartStreamControl(data) : grid ? liveGridSubscription(data) : ref ? refSubscription(data) : newsSubscription(data, config);
         if (!frame) return close();
         // FRAME_CAP is the one per-socket bound left (the daily and per-minute budgets were
         // removed 2026-10-17); a frame past it closes the relay, as a frame outside the
         // contract does -- the door has no way to answer 429 on an open socket.
-        if (++frames > FRAME_CAP) return close();
+        if (chart) {
+          const second = Math.floor(now() / 1000);
+          if (chartWindow !== second) { chartWindow = second; chartFrames = 0; }
+          if (++chartFrames > 10) return close();
+        } else if (++frames > FRAME_CAP) return close();
         subscribed = true; clearTimeout(initial);
         // Connect upstream ONLY on the first validated frame: an invalid or missing
         // subscription must never open an upstream connection at all. A grid client's
@@ -1273,6 +1282,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         // units, as the other direction.
         if (upstream.bufferedAmount > 262144) return close();
         if (upstream.readyState === WebSocket.OPEN) { pending = null; return upstream.send(frame); }
+        if (chart && pending !== null) return close();
         pending = frame;
       });
     });

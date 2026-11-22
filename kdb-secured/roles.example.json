@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "principals": {
+    "live-grid": ["query", "recorder", "cache", "chart", "diagnostics"],
+    "eod-export": ["export"]
+  }
+}
