@@ -4,6 +4,14 @@ Copyright 2026 SecretoftheUniverse.com LLC. Licensed under Apache-2.0; retain up
 
 The v1 tag provides a pinned Docker source-build recipe for the backend. Its Python dependencies and base image are pinned, and reviewed provider overlays are checked against their exact original package files during the build. Docker Compose uses a locally built backend image and a pinned Tailscale sidecar.
 
+The dependency install also checks the pinned user-agent corpus against
+`security/public-user-agent-policy.json` and removes exactly two reviewed
+records containing a private-network URI or unexplained authentication
+assignments. This happens in the install layer before it is committed; the
+original records are not retained in a deleted-file layer. The other 326,131
+records remain byte-for-byte intact. A changed corpus or unexpected filtered
+result stops the build. The sanitizer reports only counts and digests.
+
 The public repository is [Adventures-OpenBQ/openbq-docker](https://github.com/Adventures-OpenBQ/openbq-docker). Downloadable files, when provided, are listed on the [v1 release page](https://github.com/Adventures-OpenBQ/openbq-docker/releases/tag/v1.0.0). These instructions build from source and require no prebuilt backend image archive. Check a release source archive against its accompanying `SHA256SUMS` and source manifest; the manifest identifies its exact Git commit.
 
 ## Create a separate reader installation
