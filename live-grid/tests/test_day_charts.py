@@ -102,7 +102,7 @@ def test_routes_and_widget(monkeypatch):
     widget = json.loads((Path(__file__).parents[1]/'widgets.json').read_text())['day_chart']
     assert widget['defaultRefresh'] == 15000
     assert widget['params'][0]['groupType'] == 'symbol'
-    assert [p['paramName'] for p in widget['params'][1]] == ['rows','columns','scale','days']
+    assert [p['paramName'] for p in widget['params'][1]] == ['rows','columns','scale','days','selected_symbol']
     assert client.get('/day_charts?days=6').status_code == 422
 
 

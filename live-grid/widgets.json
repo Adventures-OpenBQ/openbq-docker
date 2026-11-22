@@ -562,6 +562,14 @@
       }
      ],
      "groupable": false
+    },
+    {
+     "paramName": "selected_symbol",
+     "type": "text",
+     "value": "",
+     "label": "Selected symbol",
+     "groupType": "symbol",
+     "description": "Output: bind to a separate symbol group shared with a detailed Live Chart"
     }
    ]
   ],
