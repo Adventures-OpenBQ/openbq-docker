@@ -249,7 +249,9 @@ def load_file(path: Path, stem: str | None = None) -> list[str]:
     module = importlib.util.module_from_spec(spec)
     _LOADING.append(stem)
     try:
-        spec.loader.exec_module(module)
+        # SourceFileLoader's timestamp/size pyc cache can execute the old study
+        # after a same-size edit within one second. Operator reloads use exact bytes.
+        exec(compile(path.read_bytes(), str(path), "exec"), module.__dict__)
     except (Exception, SystemExit) as exc:  # a study file's exit() is a refusal, not ours
         unload(stem)
         raise StudyError(f"{path.name}: {type(exc).__name__}: {exc}") from exc

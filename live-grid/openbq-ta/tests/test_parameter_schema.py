@@ -96,3 +96,27 @@ def test_resolve_rejects_invalid_builtin_types_and_keeps_time_values():
     moment = datetime(2026, 11, 22, tzinfo=timezone.utc)
     assert resolve("avwap", anchor=moment).params["anchor"] == moment
     assert resolve("avwap").params["anchor"] is None
+
+
+def test_operator_module_global_edit_changes_definition_version(tmp_path):
+    from openbq_ta.registry import catalog_entry
+
+    template = """import polars as pl
+from openbq_ta.studies import study
+SCALE = {scale}
+@study(name="global_version",label="Global",params={{}},colors={{"x":"#fff"}})
+def custom(p): return [(pl.col("close") * SCALE).alias("x")]
+"""
+    path = tmp_path / "global_fixture.py"
+    try:
+        path.write_text(template.format(scale=1))
+        studies.load_file(path)
+        before = catalog_entry("global_version")["definition_version"]
+        path.write_text(template.format(scale=2))
+        studies.load_file(path)
+        assert catalog_entry("global_version")["definition_version"] != before
+        import sys
+
+        assert sys.modules["ta_custom_global_fixture"].SCALE == 2
+    finally:
+        studies.unload("global_fixture")
