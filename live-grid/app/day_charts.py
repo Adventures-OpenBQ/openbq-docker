@@ -246,6 +246,21 @@ class DayCharts:
         return tile
 
     async def closed_session(self, symbol, interval):
+        if symbol == 'BTC-USD' and interval != '1s':
+            now = self.now()
+            opened = now.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            base = dict(schema_version=1, symbol=symbol, interval=interval, source='eodhd', bars=[],
+                        mode='stream', session=dict(date=str(opened.date()), timezone='UTC',
+                                                   label='Crypto UTC day', status='open'))
+            key = ('btc-detail', symbol, interval, str(opened.date()))
+            cached = self.cache.get(key)
+            if cached and cached[0] > time.monotonic():
+                return cached[1]
+            if key not in self.pending:
+                if len(self.pending) >= 128:
+                    raise ValueError('history busy')
+                self.pending[key] = asyncio.create_task(self._closed_session(key, base, opened, now))
+            return await asyncio.shield(self.pending[key])
         if classify(symbol) != 'us':
             return dict(schema_version=1, mode='stream', symbol=symbol, interval=interval, bars=[])
         now = self.now()
@@ -271,7 +286,7 @@ class DayCharts:
         try:
             async with asyncio.timeout(19):
                 async with self.work:
-                    rows, _ = await self.history(base['symbol'], '1m', str(opened.date()),
+                    rows, meta = await self.history(base['symbol'], '1m', str(opened.date()),
                                                  str(closed.date()), 'eodhd')
                     if len(rows) > 10000:
                         raise ValueError('history budget')
@@ -292,7 +307,15 @@ class DayCharts:
                     partial = len(bars) < int((closed-opened).total_seconds()//60)
                     if base['interval'] != '1m':
                         bars = resample(bars, base['interval'])
-                    result = dict(base, mode='closed', bars=bars, partial=partial)
+                    result = dict(base, mode=base.get('mode', 'closed'), bars=bars, partial=partial)
+                    if base['symbol'] == 'BTC-USD':
+                        from app.series import seam_boundary
+                        if meta.get('rows_from_ticks', 0):
+                            result['source'] += '+kdb ticks'
+                        if meta.get('rows_from_coinbase', 0):
+                            result['source'] += '+coinbase'
+                        result['live_from'] = (wire_time(seam_boundary(naive_utc(meta['seam']), base['interval']))
+                                               if meta.get('seam') else None)
                     if len(json.dumps(result, allow_nan=False)) > 512*1024:
                         raise ValueError('history response budget')
                     self.cache[key] = (time.monotonic()+15, result)

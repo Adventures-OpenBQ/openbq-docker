@@ -196,7 +196,7 @@ async def test_open_and_crypto_do_not_query_closed_history():
     async def history(*args):raise AssertionError('must not fetch provider')
     service=DayCharts(history,lambda s:{},now=lambda:instant('2026-11-23T16:00:00Z'))
     assert (await service.closed_session('AAPL','1m'))['mode']=='stream'
-    assert (await service.closed_session('BTC-USD','1m'))['mode']=='stream'
+    assert (await service.closed_session('BTC-USD','1s'))['mode']=='stream'
     service=DayCharts(history,lambda s:{},now=lambda:instant('2026-11-22T16:00:00Z'))
     assert (await service.closed_session('AAPL','1s'))['error_code']=='subminute_history_unavailable'
 
@@ -241,3 +241,14 @@ async def test_crypto_backfill_source_is_explicit():
     tile=(await service.batch(['BTC-USD']))['tiles'][0]
     assert tile['source']=='eodhd+kdb ticks+coinbase'
     assert tile['status']=='ok'
+
+async def test_btc_detail_stream_includes_backfilled_utc_day_ohlcv():
+    async def history(symbol,interval,start,end,provider):
+        assert symbol=='BTC-USD' and interval=='1m' and start==end=='2026-11-22'
+        return [dict(date=f'2026-11-22T00:0{i}:00Z',open=100+i,high=102+i,low=99+i,close=101+i,volume=2) for i in range(6)], {'rows_from_coinbase':4,'rows_from_ticks':2,'seam':'2026-11-22T00:01:30'}
+    service=DayCharts(history,lambda s:{},now=lambda:instant('2026-11-22T00:06:00Z'))
+    x=await service.closed_session('BTC-USD','5m')
+    assert x['mode']=='stream' and x['source']=='eodhd+kdb ticks+coinbase'
+    assert x['session']['timezone']=='UTC' and len(x['bars'])==2
+    assert x['bars'][0]['open']==100 and x['bars'][0]['close']==105 and x['bars'][0]['volume']==10
+    assert x['live_from']=='2026-11-22T00:05:00Z'
