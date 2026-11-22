@@ -1,103 +1,43 @@
 # Provider compatibility overlay
 
-This release keeps the published OpenBB provider versions and applies reviewed compatibility corrections at image build time. `apply.py` checks each package version and every original file hash before copying any source. New files must be absent. Any mismatch stops the build.
+This release keeps the published OpenBB provider versions and applies compatibility corrections at image build time. `apply.py` checks every declared package version and original source hash before copying any file. New overlay paths must be absent; a mismatch stops the build. `original-sha256.json` is the complete runtime-source inventory. Qualification records report the tested source, image, dependency versions, test counts and architectures.
 
-The overlay combines earlier release-line repairs with current upstream corrections: source moves and response shapes; provider-loop isolation and deadlines; credential-safe errors and input validation; CFTC lookback bounds; Cboe cache concurrency and option strategies; Fama–French archive/table selection; SEC taxonomy and 13F parsing; Deribit exchange-expiry dates; DataFrame/date round trips; numerical indicators; custom certificate paths; IMF port names; Treasury CSV preservation; and the reachable Benzinga RSS default feed; and FFIEC taxonomy-cache validation with authoritative report datatype recovery; and SEC adviser blank-value preservation and SIC table-header parsing; and bounded, contract-compatible TMX UDF chart history; and IMF multi-dataset REST input normalization; and anonymous BLS series access with optional registered-key support; and NY Fed core-trend ISO date parsing; and canonical EIA WPSR price workbooks with separate retail frequencies and propagated parsing errors. Delayed Cboe quote and volatility requests include the site Referer required by the current CDN while preserving caller request options. Required query parameters and provider credentials are distinct from release acceptance requirements; the catalogue has no mandatory-widget flag.
+The bundle combines upstream fixes with local provider repairs:
+
+- Provider moves, response shapes, source failures, required query inputs and credential-safe errors.
+- Provider-loop isolation, command deadlines, TLS/custom certificates, and request-session ownership and cleanup.
+- CFTC lookback bounds; Cboe cache concurrency, option strategies and required public CDN headers; Fama–French archive/table selection; Deribit exchange expiries; numerical indicators and DataFrame/date round trips.
+- SEC taxonomy, 13F, adviser blanks and SIC headers; FFIEC taxonomy-cache validation, report datatypes and cold report sessions.
+- IMF names and multi-dataset inputs; Treasury CSV preservation; reachable Benzinga RSS defaults; anonymous BLS series with optional registered keys; NY Fed core-trend ISO dates.
+- Canonical EIA WPSR workbooks, separate retail frequencies, propagated parsing errors, HTTPS browser/RSS links and the current international CSV portal.
+- Dallas working-paper PDF locations, Federal Reserve DDP request compatibility, and explicit Nasdaq vendor/all-symbol failure handling with successful mixed results retained.
 
 Upstream reference: [openbq-org/OpenBB](https://github.com/openbq-org/OpenBB). Additional ports reference PRs 7833, 7857, 7583, 7620, 7758, 7762, 7796, 7807, 7808, 7818, 7820, 7823, 7827, 7831, 7834, 7835, 7836, 7840, 7843, 7856 and 7859. Overlapping fixes are combined rather than replacing a file with competing snapshots. Original provider copyright and Apache-2.0 notices are retained.
 
-Offline source regressions run against the built image with this directory mounted read-only. The Cboe upstream cache suite additionally needs pytest; that test tooling is not part of the production image. A passing offline suite is not a live provider regression, reader installation pass or registered-key acceptance.
+## Browser and document contracts
 
-Remove an overlay only after a pinned published package demonstrably includes its corrections and the affected acceptance tests pass.
+Platform API columns retain exact wire fields and formatting. ECB reference records keep their uppercase fields and singleton response. TMX UDF defaults use `/CGB` and `$USDCAD`. EIA links follow the browser's HTTPS sidecar origin; Home navigation is immediate and unchanged RSS parameters do not cause reload loops.
 
-Cboe CDN requests now carry its required public `Referer` across cached/uncached
-helpers and direct historical/snapshot requests. Explicit caller headers and
-timeouts are preserved. HTTP errors are rejected before response decoding, and
-futures directories validate their JSON data shape. This extends the earlier
-quote-only header repair; uncached live controls reproduced403without the
-header and200JSONwith it on both old and new transports.
+Nasdaq filing downloads use HTTPS on `app.quotemedia.com`, reject URL credentials/nonstandard ports and refuse redirects. Congress bill/amendment viewers enforce their exact Congress.gov/GovInfo document origins while preserving PDF/text, empty and mixed selections. BLS and Federal Reserve raw document handlers offload blocking downloads from the API loop. The repaired PDF paths reject failed HTTP responses, HTML and incomplete PDF bodies before advertising a file. Transport header/EOF checks do not replace parsing a real file during release qualification.
 
+Required query parameters, provider credentials and release acceptance requirements are distinct. The catalogue has no mandatory-widget flag. Empty data and provider denials are recorded separately from successful data.
 
-### Current provider and embedded-browser compatibility
+## Congress and cold FFIEC reports
 
-Eight guarded sources bring this release to115 provider overlays. Platform-api
-columns retain exact fields and normalized formatting; the ECB reference model
-explicitly describes uppercase SDK record fields without changing its singleton
-response. TMX UDF defaults use /CGB and $USDCAD. EIA nested browsers and RSS links
-follow the HTTPS browser origin through sidecars, Home navigates immediately,
-and repeated unchanged RSS parameters do not cause a reload loop. International
-uses EIA's current official CSV portal after retirement of the legacy browser.
+The optional complete-career Congress vote-index wait is bounded to15seconds. An unavailable index does not hide a valid biography. Unknown totals remain null with an explicit unavailable state in the page/profile markdown; complete zero-vote results remain zero. Publication of complete totals verifies that every required Congress/chamber is indexed.
 
-The complete Python suite contains178 tests. Four additional JavaScript RSS
-protocol regressions run with `node --test scripts/test-eia-rss-protocol.mjs`.
-Reader/demo, registered, actual data, empty and source-denial outcomes remain
-separate in the published regression evidence. These repairs require fresh
-source/image binding and targeted live retests before release sign-off.
+The sectioned FFIEC Call Report retains its five most recent reporting periods. Two independent workers download and parse older bulk archives with thread-local browser sessions. Custom peer-group setup/rendering keep the same session within their thread; completed jobs retain only the selected bank's facts. Raw NIC file downloads also retain per-thread warmed sessions.
 
-### Bounded Congress member voting history
-
-The current117-file overlay bounds the optional complete-career vote index wait
-to15seconds. A cold or unavailable index no longer hides an otherwise valid bio.
-Unknown totals remain null with an explicit unavailable state in both the page
-and published profile markdown; completed zero-vote and complete-career results
-retain their existing behavior. The underlying full-career ingestion is unchanged; tally publication also verifies
-that every required Congress/chamber is indexed. Partial totals and automatic
-retry loops are not introduced.
-
-The current suite contains183 Python regressions. JavaScript coverage adds four
-member-voting UI/markdown regressions alongside the four RSS protocol tests.
-
-
-
-## Cold FFIEC five-period reports
-
-The sectioned Call Report keeps its five most recent reporting periods. Two
-independent download workers fetch and parse older bulk archives, with a thread-local
-browser session so concurrent workers cannot share cookies or view state.
-Custom peer-group setup and rendering retain the same session within their thread. Only the selected bank's parsed facts are retained by completed jobs.
-The Federal Reserve provider has a bounded 150-second command deadline, like
-CFTC; `OPENBQ_COMMAND_TIMEOUT_FEDERAL_RESERVE` overrides it. The former 55-second
-default could expire during the first two cold downloads. A warm-cache pass does
-not qualify this path. Archive-wide `all_periods=true` can still be much larger
-and is not the default reader verification case.
-
-Regression coverage checks the two-download bound, the unchanged five-period
-output, session isolation and explicit deadline override. The complete provider
-suite now includes 187 tests; source guards cover 118 runtime files.
-
+Federal Reserve and CFTC commands have bounded150-second defaults; `OPENBQ_COMMAND_TIMEOUT_FEDERAL_RESERVE` overrides the Federal Reserve budget. A warm-cache result does not qualify the first-use report path. `all_periods=true` can request much more data and is not the default reader case. Offloading a blocking request keeps the API loop responsive but cannot force-stop that request before its existing network timeout.
 
 ## Covered-call expiry filtering
 
-The exchange form takes month numbers 1-12. The documented `YYYY-MM` API input
-is normalized to that month, then returned contracts are filtered to the
-requested year and month. Legacy month-only callers retain all matching years;
-invalid input names `expiration` in its validation error. Unfiltered requests
-retain their previous payload and results. The suite now has191 regressions
-and119 guarded runtime files. Publisher-confirmed empty screens remain empty
-and are not called data passes.
+The exchange form takes month numbers1–12. `YYYY-MM` is normalized to the month, then returned contracts are filtered by the requested year/month. Legacy month-only calls retain all matching years. Invalid input names `expiration`; unfiltered calls keep their existing payload and results.
 
-## Complete public-provider follow-up
+## Regression evidence
 
-The final V1 bundle includes canonical Dallas working-paper PDF links, a consistent
-public request profile for the Federal Reserve DDP endpoints, and the Nasdaq
-request, PDF and batch-error repairs already qualified on later lines. PDF
-downloads reject failed HTTP responses, HTML error pages and truncated documents.
-Quote, company-profile and fund requests preserve the source error when all
-symbols fail while retaining successful symbols in a mixed batch. Vendor error
-3004 is reported as an upstream failure rather than as empty data.
+Offline tests run against installed locked providers with current sources mounted read-only. Cboe's upstream cache suite additionally uses pytest outside the production image. JavaScript RSS and member-voting protocol tests remain separate. An offline pass is not a live provider, reader installation, registered-key or native-render pass.
 
-This bundle contains 126 hash-checked overlays. Its installed-provider regression
-suite has 231 tests; image qualification records report the observed results and
-architectures. Earlier full reader and registered-key results remain separately
-scoped to their source revisions. The current shared HTTP transport repairs
-require new public/demo and separate registered-key qualification before release.
+Qualify the final image with fresh containers and state through its Tailscale HTTPS sidecar. Keep public/demo and registered credentials in separate passes, attempt the ten chosen public/demo checks for each version, and verify actual values and usable files. Record an exhausted public EIA quota explicitly; the accepted quota exception requires the matching registered-key checks to return data. Shared HTTP transport changes require new public/demo and separate registered qualification; earlier results stay scoped to their original revisions.
 
-The Nasdaq filing downloader accepts only HTTPS links on app.quotemedia.com,
-without URL credentials or nonstandard ports. Redirects are refused before
-following another destination. Tests verify that private and lookalike URLs
-never reach the request transport and that a public HTTPS PDF still works.
-
-Congress bill and amendment viewers validate exact HTTPS document hosts,
-URL credentials and ports before transport, refuse redirects, and reject HTTP
-errors and incomplete or non-PDF bodies for PDF selections. Text files remain
-text, and an invalid selection does not hide valid files in the same batch.
+Remove an overlay only when the pinned published package demonstrably contains its correction and the affected acceptance checks pass.

@@ -129,10 +129,11 @@ class CongressAmendmentTextFetcher(
                         }
                     )
             except Exception as exc:
+                message = exc.args[0] if exc.args else str(exc)
                 results.append(
                     {
                         "error_type": "download_error",
-                        "content": f"{exc.__class__.__name__}: {exc.args[0]}",
+                        "content": f"{exc.__class__.__name__}: {message}",
                         "filename": filename,
                     }
                 )

@@ -124,5 +124,6 @@
   "openbb_nasdaq/models/equity_quote.py": "12b225f0915809503c2a91d0bd7149995cc9c80d93917e27fba63f80212c0a98",
   "openbb_nasdaq/models/etf_info.py": "e981b031cc2620424e66ada865aaa2d6eeb89ea1e845a096d886ca4487407be6",
   "openbb_government_us/congress/models/bill_text.py": "3dbaa22ceb461b80571af69cf9796c50b863a5a99ec2db65451e00002f10282c",
-  "openbb_government_us/congress/models/amendment_text.py": "2bacab1fa9ea7945200f0e01535b549fcf780f9e32ef221741ba8c4f687c6c95"
+  "openbb_government_us/congress/models/amendment_text.py": "2bacab1fa9ea7945200f0e01535b549fcf780f9e32ef221741ba8c4f687c6c95",
+  "openbb_federal_reserve/utils/ffiec.py": "71f8a34f17a4f95297ca5ec683e68a29f37b55be28ac2ccc656ad1616f5cce12"
 }

@@ -110,5 +110,18 @@ class CongressDocuments(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(base64.b64decode(result[1]["content"], validate=True), PDF)
                 self.assertEqual(self.requests, [URL])
 
+    async def test_transport_exception_without_message_is_a_document_error(self):
+        for module, name in FETCHERS:
+            with self.subTest(module=module):
+                fetcher = getattr(importlib.import_module("openbb_government_us.congress.models." + module), name)
+                with patch("openbb_core.provider.utils.helpers.make_request", side_effect=TimeoutError()):
+                    try:
+                        result = await fetcher.aextract_data(fetcher.transform_query({"urls": [URL]}))
+                    except IndexError:
+                        self.fail("An empty transport exception escaped per-document error handling")
+                self.assertEqual(result[0]["error_type"], "download_error")
+                self.assertIn("TimeoutError", result[0]["content"])
+                self.assertNotIn("data_format", result[0])
+
 if __name__ == "__main__":
     unittest.main()
