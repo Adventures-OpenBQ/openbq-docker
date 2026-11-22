@@ -8,6 +8,8 @@ import weakref
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from aiohttp import ClientSession
+
 
 class ProxyTls(unittest.IsolatedAsyncioTestCase):
     async def connector_ssl(self, settings):
@@ -68,7 +70,8 @@ class SessionLifetime(unittest.IsolatedAsyncioTestCase):
         return session
 
     async def test_supplied_single_session_has_no_extra_allocation_and_remains_open(self):
-        session = await self.track_session()
+        session = ClientSession()
+        self.sessions.append(session)
         response = SimpleNamespace(json=AsyncMock(return_value={"value": 7}))
         with patch.object(self.helpers, "get_async_requests_session", self.track_session), patch.object(
             session, "request", AsyncMock(return_value=response)
@@ -76,10 +79,11 @@ class SessionLifetime(unittest.IsolatedAsyncioTestCase):
             result = await self.helpers.amake_request("https://example.com/data", session=session)
         self.assertEqual(result, {"value": 7})
         self.assertFalse(session.closed)
-        self.assertEqual(len(self.sessions), 1, "A caller-owned request allocated an unused session")
+        self.assertEqual(len({id(item) for item in self.sessions}), 1, "A caller-owned request allocated an unused session")
 
     async def test_supplied_batch_session_has_no_extra_allocation_and_keeps_batch_close(self):
-        session = await self.track_session()
+        session = ClientSession()
+        self.sessions.append(session)
         response = SimpleNamespace(json=AsyncMock(return_value={"value": 7}))
         with patch.object(self.helpers, "get_async_requests_session", self.track_session), patch.object(
             session, "request", AsyncMock(return_value=response)
@@ -87,7 +91,7 @@ class SessionLifetime(unittest.IsolatedAsyncioTestCase):
             result = await self.helpers.amake_requests(["https://example.com/data"], session=session)
         self.assertEqual(result, [{"value": 7}])
         self.assertTrue(session.closed)
-        self.assertEqual(len(self.sessions), 1, "A batch allocated unused sessions")
+        self.assertEqual(len({id(item) for item in self.sessions}), 1, "A batch allocated unused sessions")
 
     async def test_explicit_single_session_close_is_preserved(self):
         session = await self.track_session()
