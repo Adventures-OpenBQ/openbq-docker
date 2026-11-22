@@ -9,7 +9,7 @@ import {getJson} from './server.mjs';
 const origin='https://openbq.'+['example','ts','net'].join('.');
 const png=Buffer.from('89504e470d0a1a0a00000000','hex');
 test('Day Chart and symbol logo paths accept exact bounded symbol queries',()=>{
- for(const route of ['/grid/day_charts?symbol=AAPL,MSFT','/grid/symbol_logo?symbol=AAPL'])assert.equal(policy.upstreamPath(new URL(route,origin),{liveGrid:true}),route.replace(',','%2C'));
+ for(const route of ['/grid/day_charts?symbol=AAPL,MSFT','/grid/day_charts?symbol=AAPL,CL=F','/grid/symbol_logo?symbol=AAPL'])assert.equal(policy.upstreamPath(new URL(route,origin),{liveGrid:true}),route.replace(',','%2C').replace('=F','%3DF'));
  for(const route of ['/grid/day_charts','/grid/day_charts?symbol=','/grid/day_charts?symbol='+Array(21).fill('AAPL').join(','),'/grid/day_charts?symbol=AAPL&url=https://evil.test','/grid/symbol_logo?symbol=AAPL,MSFT','/grid/symbol_logo?symbol=AAPL&symbol=MSFT','/grid/symbol_logo/?symbol=AAPL'])assert.equal(policy.upstreamPath(new URL(route,origin),{liveGrid:true}),null,route);
 });
 test('raster validation requires a safe matching MIME and signature',()=>{

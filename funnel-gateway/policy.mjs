@@ -276,7 +276,7 @@ export function upstreamPath(url, config) {
     if (!onlyKeys(params, ["symbol"])) return null;
     const symbols = (params.get("symbol") ?? "").split(",");
     const max = url.pathname === "/grid/symbol_logo" ? 1 : 20;
-    if (symbols.length < 1 || symbols.length > max || symbols.some(s => !SYMBOL_RE.test(s))) return null;
+    if (symbols.length < 1 || symbols.length > max || symbols.some(s => !(url.pathname === "/grid/day_charts" ? TA_SYMBOL_RE : SYMBOL_RE).test(s))) return null;
     return url.pathname + "?" + params.toString();
   }
 
