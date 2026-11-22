@@ -47,6 +47,19 @@ before making the new context available; do not apply those again. Apply
 packaging patches 001–004 as above.
 The source checkout and any existing build context are preserved.
 
+The release also records an immutable cache of the qualified AMD64 Workspace
+image. To reuse that image instead of compiling it locally:
+
+```sh
+docker pull --platform linux/amd64 ghcr.io/adventures-openbq/openbq-docker@sha256:218f6c7098c43abd929ad7d511065ad4e48cade8ed221e13aa46c931a7f53443
+docker tag ghcr.io/adventures-openbq/openbq-docker@sha256:218f6c7098c43abd929ad7d511065ad4e48cade8ed221e13aa46c931a7f53443 openbq-workspace-local:2.0.0
+```
+
+Image reuse and regression state are independent: repeat qualification in a
+new container with an empty NoCopy data volume. The release's registry and
+Workspace binding reports identify the original image-build revision; a later
+recipe metadata update does not relabel that image.
+
 The Docker build pins Poetry/Cython/setuptools, checks that lock and refuses
 to re-resolve dependencies. Frontend installation keeps the original Bun lock
 and integrity checks, with bounded download concurrency. A checksum failure
