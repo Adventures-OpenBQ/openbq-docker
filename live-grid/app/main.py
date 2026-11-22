@@ -544,6 +544,8 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             chart = spec.get("live_chart", {})
             chart.setdefault("extra_metadata", {})["chart_stream_v1"] = True
             chart["wsEndpoint"] = "chart_stream_ws"
+        if app.state.study_proxy.configured:
+            spec.get("live_grid", {}).setdefault("extra_metadata", {})["study_columns_v1"] = True
         if "subscriptions" in spec:
             spec["subscriptions"]["endpoint"] = f"{_own_url(request)}/subscriptions"
         return JSONResponse(spec)
@@ -1136,6 +1138,8 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
 
     from app.chart_stream import attach_chart_stream
     attach_chart_stream(app, chart_source)
+    from app.study_proxy import attach_study_proxy
+    attach_study_proxy(app)
     return app
 
 

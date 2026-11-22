@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 import polars as pl
-from openbq_ta.registry import get, resolve, StudyError
+from openbq_ta.registry import resolve, StudyError
 from openbq_ta import studies
 
 
@@ -120,3 +120,40 @@ def custom(p): return [(pl.col("close") * SCALE).alias("x")]
         assert sys.modules["ta_custom_global_fixture"].SCALE == 2
     finally:
         studies.unload("global_fixture")
+
+
+def test_huge_json_numbers_and_descriptor_bounds_reject_safely():
+    from openbq_ta.parameters import parameter_schema, validate_value
+
+    huge = 10**400
+    with pytest.raises(ValueError):
+        validate_value("factor", huge, {"type": "number"})
+    for field in ("minimum", "maximum", "step"):
+        with pytest.raises(ValueError):
+            parameter_schema({"factor": 1.5}, {"factor": {field: huge}})
+
+
+def test_staged_install_keeps_loaded_source_identity_after_rename(tmp_path):
+    from openbq_ta.registry import catalog_entry
+
+    template = """import polars as pl
+from openbq_ta.studies import study
+SCALE = {scale}
+@study(name="stage_version",label="Stage",params={{}},colors={{"x":"#fff"}})
+def custom(p): return [(pl.col("close") * SCALE).alias("x")]
+"""
+    stage = tmp_path / ".fixture.py.upload"
+    final = tmp_path / "fixture.py"
+    try:
+        stage.write_text(template.format(scale=1))
+        studies.load_file(stage, "fixture")
+        stage.replace(final)
+        first = catalog_entry("stage_version")["definition_version"]
+        final.write_text(template.format(scale=2))
+        assert catalog_entry("stage_version")["definition_version"] == first
+        stage.write_text(template.format(scale=2))
+        studies.load_file(stage, "fixture")
+        stage.replace(final)
+        assert catalog_entry("stage_version")["definition_version"] != first
+    finally:
+        studies.unload("fixture")

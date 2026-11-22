@@ -581,3 +581,13 @@ export function chartStreamControl(data) {
   } else return null;
   return exact(f,keys) ? JSON.stringify(f) : null;
 }
+
+/** Read-only shared-study projection: fixed paths, no query-selected upstream. */
+export function studyRoute(url, method) {
+  if (url.search || url.hash) return null;
+  if (url.pathname === "/grid/study_catalog" && method === "GET" ||
+      url.pathname === "/grid/study_results" && method === "POST") {
+    return {path:url.pathname,method};
+  }
+  return null;
+}

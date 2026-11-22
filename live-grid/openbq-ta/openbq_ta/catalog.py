@@ -26,13 +26,9 @@ def _implementation(fn, seen=None):
         return "<recursive>"
     seen.add(id(fn))
     code = getattr(fn, "__code__", None)
-    module_file = getattr(fn, "__globals__", {}).get("__file__")
-    module_source = None
-    if module_file:
-        try:
-            module_source = hashlib.sha256(Path(module_file).read_bytes()).hexdigest()
-        except OSError:
-            pass  # Dynamic/in-memory definitions retain the bytecode identity.
+    # Operator installation renames a validated .upload file. Identity belongs
+    # to the bytes actually executed, even after that staging path disappears.
+    module_source = getattr(fn, "__globals__", {}).get("__openbq_source_digest__")
 
     def constant(value):
         if isinstance(value, CodeType):

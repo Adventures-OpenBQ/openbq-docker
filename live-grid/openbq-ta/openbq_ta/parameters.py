@@ -9,6 +9,13 @@ _TYPES = {"integer", "number", "string", "boolean"}
 _KEYS = {"type", "default", "label", "minimum", "maximum", "step", "enum", "nullable"}
 
 
+def _finite(value):
+    try:
+        return type(value) in (int, float) and math.isfinite(value)
+    except (OverflowError, TypeError, ValueError):
+        return False
+
+
 def validate_value(name, value, descriptor, *, time_parameter=False):
     if value is None and descriptor.get("nullable"):
         return
@@ -17,7 +24,7 @@ def validate_value(name, value, descriptor, *, time_parameter=False):
     kind = descriptor["type"]
     valid = {
         "integer": lambda v: type(v) is int,
-        "number": lambda v: type(v) in (int, float) and math.isfinite(v),
+        "number": lambda v: _finite(v),
         "string": lambda v: isinstance(v, str),
         "boolean": lambda v: type(v) is bool,
     }[kind](value)
@@ -85,7 +92,7 @@ def parameter_schema(params, supplied=None, *, labels=None, steps=None, windows=
             if key in descriptor and (
                 not numeric
                 or type(descriptor[key]) not in (int, float)
-                or not math.isfinite(descriptor[key])
+                or not _finite(descriptor[key])
             ):
                 raise ValueError(f"{name}: invalid {key}")
         if (

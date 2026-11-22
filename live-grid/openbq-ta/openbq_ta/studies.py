@@ -16,6 +16,7 @@ folder is the operator's.
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import logging
 import re
 import sys
@@ -251,7 +252,9 @@ def load_file(path: Path, stem: str | None = None) -> list[str]:
     try:
         # SourceFileLoader's timestamp/size pyc cache can execute the old study
         # after a same-size edit within one second. Operator reloads use exact bytes.
-        exec(compile(path.read_bytes(), str(path), "exec"), module.__dict__)
+        source = path.read_bytes()
+        module.__dict__["__openbq_source_digest__"] = hashlib.sha256(source).hexdigest()
+        exec(compile(source, str(path), "exec"), module.__dict__)
     except (Exception, SystemExit) as exc:  # a study file's exit() is a refusal, not ours
         unload(stem)
         raise StudyError(f"{path.name}: {type(exc).__name__}: {exc}") from exc

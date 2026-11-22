@@ -19,7 +19,7 @@ import { once } from "node:events";
 import { WebSocket, WebSocketServer } from "ws";
 import { ritaRoute, ritaQuery, ritaAgents } from "./rita-policy.mjs";
 import { mcpRoute, mcpMessage, MCP_SESSION_RE, MCP_VERSION_RE } from "./mcp-policy.mjs";
-import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, chartStreamControl, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
+import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, chartStreamControl, studyRoute, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
 
 import { requestState as remoteState } from "./state-store.mjs";
 
@@ -170,6 +170,44 @@ function target(path, config) {
   }
   return { url: new URL(config.refOrigin + path.slice(4)), options: {},
     headers: { Accept: path === LOGO ? "image/svg+xml" : "application/json" } };
+}
+
+/** Bounded study JSON exchange, using only the configured private grid origin. */
+export function requestStudy(method, path, body, config, signal) {
+  return new Promise((resolve, reject) => {
+    const {url, headers} = target(path, config);
+    const req = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, {
+      method, signal, headers: {...headers, ...(body ? {"Content-Type":"application/json", "Content-Length":body.length} : {})},
+    }, response => {
+      if (response.statusCode !== 200) {
+        response.resume();
+        const status = [400,422,429,503].includes(response.statusCode) ? response.statusCode : 502;
+        resolve({status,json:{detail:"study service rejected request"}});
+        return;
+      }
+      if (Number(response.headers["content-length"]) > MAX_BODY) {
+        response.destroy(); reject(new Error("study response limit")); return;
+      }
+      const parts=[]; let size=0;
+      response.on("data", part => {
+        size += part.length;
+        if (size > MAX_BODY) { response.destroy(); reject(new Error("study response limit")); }
+        else parts.push(part);
+      });
+      response.on("error",reject);
+      response.on("end",()=>{
+        try {
+          const json=JSON.parse(Buffer.concat(parts).toString("utf8"), (_key,value)=>{
+            if (typeof value === "number" && !Number.isFinite(value)) throw new Error("nonfinite study response");
+            return value;
+          });
+          if (!json || json.schema_version !== 1) throw new Error("study response schema");
+          resolve({status:200,json});
+        } catch { reject(new Error("invalid study response")); }
+      });
+    });
+    req.on("error",reject); req.end(body);
+  });
 }
 
 /**
@@ -986,6 +1024,28 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         } finally {
           stateCalls.delete(controller); res.off("close", abort); req.off("aborted", abort); inflight--;
         }
+      }
+      if (url.pathname.startsWith("/grid/study_")) {
+        const route = studyRoute(url, req.method);
+        if (!route) return reply(res,404);
+        if (!config.gridOrigin) return reply(res,503);
+        if (inflight >= config.maxConcurrent) return reply(res,429);
+        inflight++;
+        const controller = new AbortController();
+        const timer = setTimeout(() => { controller.abort(); if (!req.complete) req.destroy(); },5000);
+        const disconnect = () => { if (!res.writableEnded) controller.abort(); };
+        res.once("close",disconnect);
+        try {
+          let body;
+          if (route.method === "POST") {
+            body = await jsonBody(req,65536);
+            if (typeof body === "number") return reply(res,body);
+          } else if (!noBody(req)) return reply(res,405);
+          const answer = await requestStudy(route.method,route.path,body,config,controller.signal);
+          return reply(res,answer.status,answer.json);
+        } catch {
+          return reply(res,controller.signal.aborted ? 504 : 502);
+        } finally { clearTimeout(timer); res.off("close",disconnect); inflight--; }
       }
       if (url.pathname.startsWith("/grid/api/subscriptions")) {
         const route = subscriptionRoute(url, req.method);

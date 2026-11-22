@@ -26,6 +26,11 @@ x-arts-charts: &arts-charts
   security_opt: [no-new-privileges:true]
   networks: [openbq-internal]
 services:
+  live-grid:
+    # This overlay opts the grid into the same study owner as Art's Charts.
+    # Both directions present the existing server-side Basic pair.
+    environment:
+      LIVE_GRID_STUDY_ORIGIN: http://arts-charts:8000
   arts-charts:
     <<: *arts-charts
     # Chromium (snapshots) needs more than Docker's 64 MB /dev/shm.
