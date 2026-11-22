@@ -70,8 +70,8 @@ and a decorator example are in [shared-study-columns.md](shared-study-columns.md
 - HOST engine: 144 tests passed. Live-grid: 633 passed, one optional native test
   skipped and 14 provider-network tests deselected. Gateway: 217 passed, including
   termination of never-ending error bodies. Final vendor/profile/proxy checks: 12 passed.
-- Arts source pin: `62ac43fa0f9df6e998bfb2cf564c19a89db782f3`.
-  Vendored tree SHA-256: `22bc1bb6153078138dc6439fd9ba329a90cbe2aca651d93500deaa3c7749d39e`.
+- Arts source pin: `171d9732e951c410dbc2796b1784cc5dc53b0c00`.
+  Vendored tree SHA-256: `22ac222439dbd6bcb0daecd85db88f30ffa0092b82cdeb401ba52225daf6f8f9`.
   Canonical client suite: 1,545 passed, one skipped; server: 1,051 passed, 62 skipped.
   Typecheck, build and Ruff passed.
 - Repeated real HTTP checks against the final vendored server passed, including
@@ -92,3 +92,6 @@ and a decorator example are in [shared-study-columns.md](shared-study-columns.md
 
 The frontend's final full-suite/build results are reported with its implementation
 commit; this receipt records the independently exercised HTTP/browser integration.
+
+Final pin includes a header-only correction adding missing BUSL SPDX lines to three
+canonical chart client files. Runtime behavior and the qualified server are unchanged.
