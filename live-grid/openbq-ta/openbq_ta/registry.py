@@ -108,6 +108,7 @@ class Indicator:
     wiki: str | None = None
     param_labels: dict[str, str] = field(default_factory=dict)
     param_steps: dict[str, float] = field(default_factory=dict)
+    param_schema: dict[str, dict] = field(default_factory=dict)
     # Which of this indicator's parameters count BARS -- a lookback window --
     # as opposed to a multiplier, a step or a plot offset. Only a window may
     # wear a unit (`period=50bd`), and because the unit moves the WHOLE
@@ -148,6 +149,20 @@ class Indicator:
     # so on -- and joins its columns back by date, so a date either side lacks is a gap.
     tickers: tuple[str, ...] = ()
     eodhd: EodhdMap | None = None
+
+
+    def __post_init__(self):
+        from openbq_ta.parameters import parameter_schema
+        try:
+            schema = parameter_schema(self.params, self.param_schema,
+                labels=self.param_labels, steps=self.param_steps, windows=self.windows, times=self.times)
+        except ValueError as exc:
+            raise StudyError(str(exc)) from None
+        object.__setattr__(self, 'param_schema', schema)
+
+    @property
+    def definition_version(self):
+        return catalog_entry(self)['definition_version']
 
 
 REGISTRY: dict[str, Indicator] = {}
@@ -221,7 +236,23 @@ def resolve(name: str, source: str | None = None,
             f"a unit applies to all of {name!r} or none of it: "
             f"{bare} must wear the same unit as {sorted(units)}"
         )
-    return Req(name, {**ind.params, "style": style, **overrides}, source, units)
+    from openbq_ta.parameters import validate_value
+    params = {**ind.params, **overrides}
+    for key, value in params.items():
+        validate_value(key, value, ind.param_schema[key], time_parameter=key in ind.times)
+    return Req(name, {**params, "style": style}, source, units)
+
+
+
+def catalog_entry(ind):
+    """Detached canonical metadata for an Indicator or its registered name."""
+    from openbq_ta.catalog import entry
+    return entry(get(ind) if isinstance(ind, str) else ind)
+
+
+def catalog():
+    """The shared registry catalog; loaders sync the operator folder before calling."""
+    return [catalog_entry(ind) for ind in REGISTRY.values()]
 
 
 def col_suffix(req: Req) -> str:
