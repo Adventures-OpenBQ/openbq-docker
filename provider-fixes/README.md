@@ -6,7 +6,7 @@ The bundle combines upstream fixes with local provider repairs:
 
 - Provider moves, response shapes, source failures, required query inputs and credential-safe errors.
 - Provider-loop isolation, command deadlines, TLS/custom certificates, and request-session ownership and cleanup.
-- CFTC lookback bounds; Cboe cache concurrency, option strategies and required public CDN headers; Fama–French archive/table selection; Deribit exchange expiries; numerical indicators and DataFrame/date round trips.
+- CFTC lookback bounds and priceable swap report selection; Cboe cache concurrency, option strategies and required public CDN headers; Fama–French archive/table selection; Deribit exchange expiries; numerical indicators and DataFrame/date round trips.
 - SEC taxonomy, 13F, adviser blanks and SIC headers; FFIEC taxonomy-cache validation, report datatypes and cold report sessions.
 - IMF names and multi-dataset inputs; Treasury CSV preservation; reachable Benzinga RSS defaults; anonymous BLS series with optional registered keys; NY Fed core-trend ISO dates.
 - Canonical EIA WPSR workbooks, separate retail frequencies, propagated parsing errors, HTTPS browser/RSS links and the current international CSV portal.
@@ -19,6 +19,8 @@ Upstream reference: [openbq-org/OpenBB](https://github.com/openbq-org/OpenBB). A
 Platform API columns retain exact wire fields and formatting. ECB reference records keep their uppercase fields and singleton response. TMX UDF defaults use `/CGB` and `$USDCAD`. EIA links follow the browser's HTTPS sidecar origin; Home navigation is immediate and unchanged RSS parameters do not cause reload loops.
 
 Nasdaq filing downloads use HTTPS on `app.quotemedia.com`, reject URL credentials/nonstandard ports and refuse redirects. Congress bill/amendment viewers enforce their exact Congress.gov/GovInfo document origins while preserving PDF/text, empty and mixed selections. BLS and Federal Reserve raw document handlers offload blocking downloads from the API loop. The repaired PDF paths reject failed HTTP responses, HTML and incomplete PDF bodies before advertising a file. Transport header/EOF checks do not replace parsing a real file during release qualification.
+
+Deribit quote batches preserve the first source failure when every quote fails and retain usable quotes in mixed batches. Minneapolis publications accept the exact official research repository reached by the publisher's redirect. CFTC swap defaults select a report with priceable, validated transactions within the existing ten-report bound; explicit dates remain explicit, and limits count usable transactions.
 
 Required query parameters, provider credentials and release acceptance requirements are distinct. The catalogue has no mandatory-widget flag. Empty data and provider denials are recorded separately from successful data.
 

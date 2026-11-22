@@ -105,6 +105,23 @@ class FedDocuments(unittest.IsolatedAsyncioTestCase):
                 ffiec._fetch_bytes("Reports/document.pdf")
         self.assertEqual(budgets, [180, 80])
 
+    def test_published_minneapolis_repository_redirect_returns_pdf(self):
+        calls = []
+
+        class Session:
+            def get(inner, url, **kwargs):
+                calls.append(url)
+                return Response(b"", 308, "https://researchdatabase.minneapolisfed.org/downloads/sb3978457") if len(calls) == 1 else Response(PDF)
+
+        with patch("openbb_federal_reserve.utils.curl_session.get_session", return_value=Session()), patch("openbb_core.provider.utils.helpers.make_request", side_effect=AssertionError("Unexpected fallback")):
+            self.assertEqual(self.router._download_pdf("https://www.minneapolisfed.org/research/sr/sr691.pdf"), PDF)
+        self.assertEqual(calls, ["https://www.minneapolisfed.org/research/sr/sr691.pdf", "https://researchdatabase.minneapolisfed.org/downloads/sb3978457"])
+
+    def test_minneapolis_repository_lookalike_is_refused_before_transport(self):
+        with patch("openbb_federal_reserve.utils.curl_session.get_session", side_effect=AssertionError("Unsafe transport")):
+            with self.assertRaises(ValueError):
+                self.router._download_pdf("https://researchdatabase.minneapolisfed.org.example.com/document.pdf")
+
     async def test_untrusted_initial_urls_never_enter_resolver_or_downloader(self):
         def unexpected(*args):
             self.fail("untrusted input reached document transport")

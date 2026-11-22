@@ -22,12 +22,13 @@ REGISTRY_PATH = (
 
 Fetch = Callable[[str], str]
 
-# Exact publication origins from the shipped Reserve Bank clients and resolver.
+# Exact publication origins from shipped clients and verified publisher redirects.
 PUBLICATION_HOSTS = frozenset({
     "www.atlantafed.org", "www.bostonfed.org", "www.chicagofed.org",
     "www.clevelandfed.org", "www.dallasfed.org", "dallasfed.org",
     "www.kansascityfed.org", "kcresearch-share.kansascityfed.org",
-    "www.minneapolisfed.org", "www.newyorkfed.org", "www.philadelphiafed.org",
+    "www.minneapolisfed.org", "researchdatabase.minneapolisfed.org",
+    "www.newyorkfed.org", "www.philadelphiafed.org",
     "www.richmondfed.org", "www.frbsf.org", "www.stlouisfed.org",
     "fraser.stlouisfed.org", "fedinprint.org", "doi.org",
     "www.federalreserve.gov", "federalreserve.gov",
