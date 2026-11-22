@@ -19,6 +19,7 @@ dependencies = [
     "eodhd @ https://github.com/EodHistoricalData/EODHD-APIs-Python-Financial-Library/archive/f98e69d797140ca03f16fa7451046d84aab9643e.tar.gz",
     "openbq-kdb",
     "pandas",
+    "exchange-calendars==4.13.3",
     "httpx>=0.27",
     "polars>=1.20",
     "pyyaml>=6.0",

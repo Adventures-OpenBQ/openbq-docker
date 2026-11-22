@@ -479,5 +479,30 @@
    "EODHD",
    "kdb+"
   ]
+ },
+ "day_chart": {
+  "name": "Day Chart",
+  "description": "US regular-session intraday charts for a symbol list.",
+  "category": "Live",
+  "type": "day_chart",
+  "endpoint": "day_charts",
+  "defaultRefresh": 15000,
+  "gridData": {
+   "w": 40,
+   "h": 10
+  },
+  "params": [
+   {
+    "paramName": "symbol",
+    "type": "text",
+    "value": "AAPL,MSFT,NVDA",
+    "label": "Symbols",
+    "multiSelect": true,
+    "groupType": "symbol"
+   }
+  ],
+  "source": [
+   "EODHD"
+  ]
  }
 }

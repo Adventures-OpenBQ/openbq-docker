@@ -21,7 +21,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware import Middleware
 
@@ -502,6 +502,39 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             return []
         client = _seed_client()
         return quotes.seed(symbols, client)
+
+    from app.day_charts import DayCharts, parse_symbols, provider_metadata
+
+    async def day_metadata(symbol):
+        return await provider_metadata(symbol, key)
+
+    day_service = DayCharts(fetch_history, day_metadata)
+    app.state.day_charts = day_service
+
+    @app.get("/day_charts")
+    async def day_charts(symbol: str = Query(default="", max_length=2048)):
+        try:
+            symbols = parse_symbols(symbol)
+        except ValueError as exc:
+            raise HTTPException(422, detail=str(exc)) from None
+        try:
+            return await day_service.batch(symbols)
+        except TimeoutError:
+            raise HTTPException(504, detail="day chart deadline") from None
+        except ValueError:
+            raise HTTPException(502, detail="day chart response limit") from None
+
+    @app.get("/symbol_logo")
+    async def symbol_logo(symbol: str = Query(max_length=48)):
+        normalized = normalize(symbol)
+        if normalized is None or classify(normalized) != "us":
+            raise HTTPException(404, detail="logo unavailable")
+        try:
+            data, mime = await day_service.logo(normalized)
+            return Response(data, media_type=mime, headers={
+                "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
+        except Exception:
+            raise HTTPException(404, detail="logo unavailable") from None
 
     @app.get("/symbol_meta")
     def symbol_meta(symbol: str = Query(default="")):
