@@ -31,6 +31,7 @@ const MAX_BODY = 2 * 1024 * 1024;
 const MANIFESTS = new Set(["/api/widgets.json", "/api/apps.json", "/ref/widgets.json", "/ref/apps.json"]);
 const MANIFEST_MAX = 16 * 1024 * 1024; // ponytail: manifests are buffered and parsed (~6x their size at peak); 8 concurrent 16 MiB manifests could pass mem_limit 512m — stream them unparsed if that ever matters.
 const MAX_SOCKET = 65536;
+const MAX_CHART_SOCKET = 8 * 1024 * 1024;
 /**
  * A hard ceiling per grid socket on validated CLIENT frames on /grid/live_grid_ws, for as
  * long as the socket is open. It is NOT configurable. With no daily or per-minute budget
@@ -193,7 +194,8 @@ export function connectNews(config) {
  * bridge with no TLS of its own, exactly like openbq-api. The upgrade carries the stack's
  * Basic pair for the same reason the HTTP branch does -- live-grid's auth middleware sits in
  * front of its websocket route too, and refuses the handshake before accept without it.
- * Same bounds as the wire's socket: MAX_SOCKET on what the upstream can push, compression
+ * Chart data uses its bounded 8MiB logical-frame limit; other sockets retain
+ * MAX_SOCKET on what the upstream can push. Compression
  * off (a compressed frame's expanded size is not what maxPayload measures), no redirect, and
  * a 10s handshake deadline. `Origin` is sent for the same reason connectNews sends it -- so
  * the dial this door makes is spelled the same way on both sockets rather than differing for
@@ -211,7 +213,7 @@ export function connectGrid(config, path = "/live_grid_ws") {
   return new WebSocket(url, {
     headers: { Authorization: config.apiAuthorization, Origin: config.gridOrigin },
     handshakeTimeout: 10000, followRedirects: false,
-    maxPayload: MAX_SOCKET, perMessageDeflate: false,
+    maxPayload: path === "/chart_stream_ws" ? MAX_CHART_SOCKET : MAX_SOCKET, perMessageDeflate: false,
   });
 }
 
@@ -1037,8 +1039,8 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
           upstream = grid ? openGrid(config, target.slice("/grid".length)) : ref ? openRef(config) : openNews(config);
         } catch { close(); return false; }
         upstream.on("message", (message, isBinary) => {
-          if (isBinary || message.length > (chart ? 8 * 1024 * 1024 : MAX_SOCKET) || client.readyState !== WebSocket.OPEN ||
-              client.bufferedAmount + (chart ? message.length : 0) > (chart ? 8 * 1024 * 1024 : 262144)) return close();
+          if (isBinary || message.length > (chart ? MAX_CHART_SOCKET : MAX_SOCKET) || client.readyState !== WebSocket.OPEN ||
+              client.bufferedAmount + (chart ? message.length : 0) > (chart ? MAX_CHART_SOCKET : 262144)) return close();
           // The door is the only trust boundary for the wire: rss-ticker is unauthenticated on
           // the tailnet, so the door forwards the {"feeds"} reply and approved-feed articles,
           // nothing else. The grid and the reference relay as they are.
