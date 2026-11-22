@@ -86,13 +86,18 @@ Quote, company-profile and fund requests preserve the source error when all
 symbols fail while retaining successful symbols in a mixed batch. Vendor error
 3004 is reported as an upstream failure rather than as empty data.
 
-This bundle contains 124 hash-checked overlays. Its installed-provider regression
-suite has 223 tests; image qualification records report the observed results and
+This bundle contains 126 hash-checked overlays. Its installed-provider regression
+suite has 231 tests; image qualification records report the observed results and
 architectures. Earlier full reader and registered-key results remain separately
-scoped to their source revisions. These public-provider changes do not imply a
-new run of unaffected registered-key sources.
+scoped to their source revisions. The current shared HTTP transport repairs
+require new public/demo and separate registered-key qualification before release.
 
 The Nasdaq filing downloader accepts only HTTPS links on app.quotemedia.com,
 without URL credentials or nonstandard ports. Redirects are refused before
 following another destination. Tests verify that private and lookalike URLs
 never reach the request transport and that a public HTTPS PDF still works.
+
+Congress bill and amendment viewers validate exact HTTPS document hosts,
+URL credentials and ports before transport, refuse redirects, and reject HTTP
+errors and incomplete or non-PDF bodies for PDF selections. Text files remain
+text, and an invalid selection does not hide valid files in the same batch.
