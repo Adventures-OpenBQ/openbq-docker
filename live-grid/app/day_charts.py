@@ -3,7 +3,7 @@
 """Bounded provider-history US regular-session snapshots; never a q tape cursor."""
 import asyncio
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 import json
@@ -149,7 +149,7 @@ class DayCharts:
                 async with self.work:
                     if normalize(symbol) != symbol:
                         result = self.blank(symbol, 'invalid_symbol')
-                    elif classify(symbol) != 'us':
+                    elif classify(symbol) not in ('us', 'crypto'):
                         result = self.blank(symbol, 'unsupported_session')
                     else:
                         result = await self.snapshot(symbol, days)
@@ -166,19 +166,32 @@ class DayCharts:
 
     async def snapshot(self, symbol, days=1):
         now = self.now()
-        session, opened, closed, previous = select_session(now)
-        cal = calendar(now.year)
-        latest_previous = previous
-        sessions = [(session, opened, closed)]
-        for _ in range(days - 1):
-            label = cal.date_to_session(str(previous))
-            start = cal.session_open(label).to_pydatetime()
-            end = cal.session_close(label).to_pydatetime()
-            sessions.insert(0, (dict(date=str(label.date()), timezone='America/New_York',
-                                     label='US regular session', status='closed'), start, end))
-            previous = cal.previous_session(label).date()
+        crypto = classify(symbol) == 'crypto'
+        if crypto:
+            opened = now.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            closed = opened + timedelta(days=1)
+            session = dict(date=str(opened.date()), timezone='UTC', label='Crypto UTC day', status='open')
+            latest_previous = opened.date() - timedelta(days=1)
+            sessions = [(dict(date=str((opened-timedelta(days=i)).date()), timezone='UTC',
+                              label='Crypto UTC day', status='open' if i == 0 else 'closed'),
+                         opened-timedelta(days=i), closed-timedelta(days=i))
+                        for i in reversed(range(days))]
+            previous = sessions[0][1].date() - timedelta(days=1)
+            cal = None
+        else:
+            session, opened, closed, previous = select_session(now)
+            cal = calendar(now.year)
+            latest_previous = previous
+            sessions = [(session, opened, closed)]
+            for _ in range(days - 1):
+                label = cal.date_to_session(str(previous))
+                start = cal.session_open(label).to_pydatetime()
+                end = cal.session_close(label).to_pydatetime()
+                sessions.insert(0, (dict(date=str(label.date()), timezone='America/New_York',
+                                         label='US regular session', status='closed'), start, end))
+                previous = cal.previous_session(label).date()
         bars, _ = await self.history(symbol, '1m', str(sessions[0][1].date()),
-                                     str(closed.date()), 'eodhd')
+                                     str(min(now, closed).date()), 'eodhd')
         daily, _ = await self.history(symbol, '1d', str(previous), str(latest_previous), 'eodhd')
         if len(bars) > 10000 or len(daily) > 10000:
             return self.blank(symbol, 'history_budget')
@@ -196,8 +209,8 @@ class DayCharts:
         tile.update(session=session, points=ordered,
                     sessions=[dict(**info, opened=wire_time(start), closed=wire_time(end),
                                    previous_close=next((number(row.get('close')) for row in daily
-                                     if str(row.get('date'))[:10] == str(cal.previous_session(
-                                         cal.date_to_session(info['date'])).date())), None))
+                                     if str(row.get('date'))[:10] == str(datetime.fromisoformat(info['date']).date()-timedelta(days=1) if crypto else
+                                         cal.previous_session(cal.date_to_session(info['date'])).date())), None))
                               for info, start, end in sessions])
         tile['chart_previous_close'] = next((number(row.get('close')) for row in daily
                                              if str(row.get('date'))[:10] == str(previous)), None)
@@ -318,6 +331,8 @@ class DayCharts:
 
 async def provider_metadata(symbol, key):
     """Same filtered EODHD fundamentals metadata as symbol_meta, with async timeout."""
+    if classify(symbol) == 'crypto':
+        return {'name': 'Bitcoin' if symbol == 'BTC-USD' else symbol, 'logo_url': None}
     import httpx
     async with httpx.AsyncClient(timeout=3) as client:
         response = await client.get(f'https://eodhd.com/api/fundamentals/{symbol}.US',

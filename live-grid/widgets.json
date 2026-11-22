@@ -485,7 +485,7 @@
  },
  "day_chart": {
   "name": "Day Chart",
-  "description": "US regular-session intraday charts for a symbol list.",
+  "description": "Intraday charts for US regular sessions and continuous UTC crypto days.",
   "category": "Live",
   "type": "day_chart",
   "endpoint": "day_charts",

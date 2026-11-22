@@ -65,7 +65,7 @@ async def test_failures_are_per_tile_and_unsupported_does_not_fetch():
     async def history(*args):
         raise RuntimeError('secret provider error')
     service = DayCharts(history, lambda s: {}, now=lambda: instant('2026-11-22T16:00:00Z'))
-    tiles = (await service.batch(['AAPL','BTC-USD','BAD/URL']))['tiles']
+    tiles = (await service.batch(['AAPL','EURUSD','BAD/URL']))['tiles']
     assert [t['status'] for t in tiles] == ['error']*3
     assert tiles[1]['error_code'] == 'unsupported_session'
     assert tiles[2]['error_code'] == 'invalid_symbol'
@@ -212,3 +212,22 @@ async def test_closed_session_early_close_and_missing_ohlcv_are_not_invented():
     assert calls==[('2026-12-24','2026-12-24')]
     assert result['session']['date']=='2026-12-24'
     assert len(result['bars'])==1 and result['partial']
+
+async def test_crypto_uses_continuous_utc_days_on_weekends_and_daily_reference_closes():
+    calls=[]
+    async def history(symbol,interval,start,end,provider):
+        calls.append((symbol,interval,start,end,provider))
+        if interval=='1d':return [{'date':'2026-11-20','close':90000},{'date':'2026-11-21','close':91000}],{}
+        return [{'date':'2026-11-21T00:00:00Z','close':90500},
+                {'date':'2026-11-21T23:59:00Z','close':91000},
+                {'date':'2026-11-22T00:00:00Z','close':91500},
+                {'date':'2026-11-22T15:59:00Z','close':92000},
+                {'date':'2026-11-22T16:01:00Z','close':99999}],{}
+    service=DayCharts(history,lambda s:{},now=lambda:instant('2026-11-22T16:00:00Z'))
+    tile=(await service.batch(['BTC-USD'],days=2))['tiles'][0]
+    assert tile['session']=={'date':'2026-11-22','timezone':'UTC','label':'Crypto UTC day','status':'open'}
+    assert [s['date'] for s in tile['sessions']]==['2026-11-21','2026-11-22']
+    assert [s['previous_close'] for s in tile['sessions']]==[90000,91000]
+    assert len(tile['points'])==4 and tile['price']==92000
+    assert tile['change']==1000 and tile['chart_previous_close']==90000
+    assert calls==[('BTC-USD','1m','2026-11-21','2026-11-22','eodhd'),('BTC-USD','1d','2026-11-20','2026-11-21','eodhd')]
