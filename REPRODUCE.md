@@ -19,7 +19,7 @@ docker build --platform linux/amd64 -t openbq-local:2.0.0 .
 docker compose up -d
 ```
 
-The image applies the provider overlay only after checking package versions and original file hashes. A guard mismatch is a build failure, not a reason to remove the guard. The reader override uses the `2.0.0-reader` image tag and public demo environment directly; see its complete build/start commands.
+The image applies the provider overlay only after checking package versions and original file hashes. The dependency install also verifies `security/public-user-agent-policy.json` and removes exactly two reviewed corpus records before the install layer is committed, preserving the other 326,131 records. Unknown input or output bytes stop the build. A guard mismatch is a build failure, not a reason to remove the guard. The reader override uses the `2.0.0-reader` image tag and public demo environment directly; see its complete build/start commands.
 
 ## Original Workspace source build
 

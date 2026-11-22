@@ -52,3 +52,24 @@ release-assets/
 
 # Public provider demonstration tokens, explicitly safe to publish
 !credentials.demo.env
+
+# Local credentials and generated development state are never release inputs.
+.env.*
+!.env.example
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.py[cod]
+.codegraph/
+.claude/
+.worktrees/
+ts-state*/
+.tailscale*/
+tailscaled.state
+*.p12
+*.pfx
+*.key
+id_rsa
+id_ed25519
+scripts/scrub-private-patterns.txt

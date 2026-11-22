@@ -3,7 +3,13 @@ FROM python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a559
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 COPY requirements.lock /tmp/requirements.lock
-RUN python -m pip install -r /tmp/requirements.lock && python -m pip check
+COPY scripts/sanitize-public-user-agents.py security/public-user-agent-policy.json /tmp/public-user-agents/
+# Sanitize before this install layer is committed; a later deletion would retain
+# the original vendor records in the published image's history.
+RUN python -m pip install -r /tmp/requirements.lock \
+    && python /tmp/public-user-agents/sanitize-public-user-agents.py --policy /tmp/public-user-agents/public-user-agent-policy.json \
+    && python -m pip check \
+    && rm -rf /tmp/public-user-agents
 COPY provider-fixes /tmp/provider-fixes
 RUN python /tmp/provider-fixes/apply.py && rm -rf /tmp/provider-fixes
 RUN python -m pip install pip==26.2.0
