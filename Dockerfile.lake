@@ -19,7 +19,9 @@ RUN python -m pip install --constraint /tmp/requirements.lock \
         openbb-core==2.0.1 pandas numpy pyarrow python-dateutil \
         deltalake==1.6.6 pykx==4.1.0
 COPY openbb-deltalake /tmp/openbb-deltalake
+COPY v10/kdb/source /tmp/openbq-kdb
 RUN python -m pip install --no-deps /tmp/openbb-deltalake && rm -rf /tmp/openbb-deltalake \
+    && python -m pip install --no-deps /tmp/openbq-kdb && rm -rf /tmp/openbq-kdb \
     && python -m pip check
 COPY scripts/eod_dump.py scripts/s3_init.py /opt/
 WORKDIR /opt

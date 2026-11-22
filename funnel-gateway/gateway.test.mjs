@@ -2220,3 +2220,41 @@ test("remote state limits concurrency and releases work on client disconnect and
   start(); await admission;
   await server.closeGateway(); await abortion;
 });
+
+const CHART = "/grid/chart_stream_ws";
+const CHART_CONTROL = {protocol_version:1,type:"subscribe",subscription_id:"a",request_id:"r",view:{symbol:"AAPL",mode:"ticks",start:"2026-11-20T14:30:00.000000000Z",max_items:10000}};
+test("chart stream: public Vercel ticket is exact-origin bound, single-use, and expiring", async t => {
+  const previewOrigin = "https://charts-test.vercel.app";
+  const {port} = await fixture(t, {previewOrigin});
+  const headers = {Host:HEADERS.Host, Origin:previewOrigin};
+  assert.equal((await wsConnect(port, headers, CHART)).status,401);
+  const signed = socketTicket(TOKEN, previewOrigin+CHART);
+  assert.equal((await wsConnect(port,{...headers,Origin:previewOrigin+".evil.example"},CHART+"?ticket="+signed)).status,403);
+  assert.equal((await wsConnect(port,headers,CHART+"?ticket="+socketTicket(TOKEN,CHART))).status,401);
+  assert.equal((await wsConnect(port,headers,CHART+"?ticket="+socketTicket(TOKEN,previewOrigin+CHART,Date.now()-31000))).status,401);
+  const opened = await wsConnect(port,headers,CHART+"?ticket="+signed);
+  assert.equal(opened.status,101); t.after(()=>opened.ws.terminate());
+  assert.equal((await wsConnect(port,headers,CHART+"?ticket="+signed)).status,401);
+  assert.equal((await wsConnect(port,headers,"/grid/live_grid_ws?ticket="+signed)).status,401);
+});
+test("chart stream: validated controls relay to named live-grid endpoint", async t => {
+  const upstream = new WebSocketServer({port:0,host:"127.0.0.1"}); await once(upstream,"listening");
+  t.after(()=>new Promise(resolve=>upstream.close(resolve)));
+  let path; const messages=[];
+  upstream.on("connection",(ws,req)=>{path=req.url;ws.on("message",data=>{messages.push(JSON.parse(data));ws.send(JSON.stringify({ok:true}));});});
+  const {port} = await fixture(t,{}, {openGrid:(_cfg,path)=>new WebSocket(`ws://127.0.0.1:${upstream.address().port}${path}`)});
+  const {ws,status} = await wsConnect(port,{...HEADERS,Origin:ORIGIN},CHART);
+  assert.equal(status,101); t.after(()=>ws.terminate());
+  const next=once(ws,"message"); ws.send(JSON.stringify(CHART_CONTROL)); await next;
+  assert.equal(path,"/chart_stream_ws"); assert.deepEqual(messages,[CHART_CONTROL]);
+  const closed=once(ws,"close"); ws.send(JSON.stringify({...CHART_CONTROL,type:"execute",source:"delete from ticks"})); await closed;
+});
+test("chart stream: ticket lease forces fresh authenticated admission",async t=>{
+ const previewOrigin='https://charts-test.vercel.app';
+ const {port}=await fixture(t,{previewOrigin});
+ const signed=socketTicket(TOKEN,previewOrigin+CHART,Date.now()-29800);
+ const {ws,status}=await wsConnect(port,{Host:HEADERS.Host,Origin:previewOrigin},CHART+'?ticket='+signed);
+ assert.equal(status,101);
+ const [code]=await once(ws,'close');
+ assert.equal(code,4001);
+});
