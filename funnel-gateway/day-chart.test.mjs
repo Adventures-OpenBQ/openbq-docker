@@ -31,3 +31,7 @@ test('trading-day query is bounded and never accepted for logos',()=>{
  assert.equal(policy.upstreamPath(new URL('/grid/day_charts?symbol=AAPL&days=2',origin),{liveGrid:true}),'/grid/day_charts?symbol=AAPL&days=2');
  for(const route of ['/grid/day_charts?symbol=AAPL&days=0','/grid/day_charts?symbol=AAPL&days=6','/grid/day_charts?symbol=AAPL&days=2&days=3','/grid/symbol_logo?symbol=AAPL&days=2'])assert.equal(policy.upstreamPath(new URL(route,origin),{liveGrid:true}),null);
 });
+test('closed-session history admits only a single symbol and approved interval',()=>{
+ assert.equal(policy.upstreamPath(new URL('/grid/closed_session?symbol=MSFT&interval=1m',origin),{liveGrid:true}),'/grid/closed_session?symbol=MSFT&interval=1m');
+ for(const route of ['/grid/closed_session?symbol=AAPL,MSFT','/grid/closed_session?symbol=AAPL&interval=evil','/grid/closed_session?symbol=AAPL&url=https://evil.test','/grid/closed_session?symbol=AAPL&symbol=MSFT'])assert.equal(policy.upstreamPath(new URL(route,origin),{liveGrid:true}),null);
+});

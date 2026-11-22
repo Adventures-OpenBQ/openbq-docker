@@ -228,6 +228,63 @@ class DayCharts:
             pass
         return tile
 
+    async def closed_session(self, symbol, interval):
+        if classify(symbol) != 'us':
+            return dict(schema_version=1, mode='stream', symbol=symbol, interval=interval, bars=[])
+        now = self.now()
+        info, opened, closed, _ = select_session(now)
+        base = dict(schema_version=1, symbol=symbol, interval=interval, session=info,
+                    source='eodhd', bars=[])
+        if info['status'] == 'open':
+            return dict(base, mode='stream')
+        if interval == '1s':
+            return dict(base, mode='closed', error_code='subminute_history_unavailable')
+        key = ('closed', symbol, interval, info['date'])
+        cached = self.cache.get(key)
+        if cached and cached[0] > time.monotonic():
+            return cached[1]
+        if key not in self.pending:
+            if len(self.pending) >= 128:
+                raise ValueError('history busy')
+            self.pending[key] = asyncio.create_task(self._closed_session(key, base, opened, closed))
+        return await asyncio.shield(self.pending[key])
+
+    async def _closed_session(self, key, base, opened, closed):
+        from app.series import resample
+        try:
+            async with asyncio.timeout(19):
+                async with self.work:
+                    rows, _ = await self.history(base['symbol'], '1m', str(opened.date()),
+                                                 str(closed.date()), 'eodhd')
+                    if len(rows) > 10000:
+                        raise ValueError('history budget')
+                    clean = {}
+                    for row in rows:
+                        try:
+                            at = naive_utc(row.get('date')).replace(tzinfo=timezone.utc)
+                            values = {k: number(row.get(k)) for k in ('open','high','low','close','volume')}
+                            if not opened <= at < closed or any(v is None for v in values.values()):
+                                continue
+                            if (values['volume'] < 0 or values['low'] > min(values['open'],values['close'])
+                                    or values['high'] < max(values['open'],values['close'])):
+                                continue
+                            clean[wire_time(at)] = dict(date=wire_time(at), **values)
+                        except (ValueError, TypeError):
+                            continue
+                    bars = [clean[t] for t in sorted(clean)]
+                    partial = len(bars) < int((closed-opened).total_seconds()//60)
+                    if base['interval'] != '1m':
+                        bars = resample(bars, base['interval'])
+                    result = dict(base, mode='closed', bars=bars, partial=partial)
+                    if len(json.dumps(result, allow_nan=False)) > 512*1024:
+                        raise ValueError('history response budget')
+                    self.cache[key] = (time.monotonic()+15, result)
+                    while len(self.cache)>256:
+                        self.cache.popitem(last=False)
+                    return result
+        finally:
+            self.pending.pop(key, None)
+
     async def logo(self, symbol):
         cached = self.logos.get(symbol)
         if cached and cached[0] > time.monotonic():

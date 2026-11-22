@@ -934,7 +934,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (inflight >= config.maxConcurrent) return reply(res, 429);
       inflight++;
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), path.startsWith("/grid/day_charts?") ? 25000 : requestMs);
+      const timer = setTimeout(() => controller.abort(), /^\/grid\/(day_charts|closed_session)\?/.test(path) ? 25000 : requestMs);
       const disconnect = () => { if (!res.writableEnded) controller.abort(); };
       res.once("close", disconnect);
       try {

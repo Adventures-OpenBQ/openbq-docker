@@ -365,7 +365,10 @@
   "source": [
    "EODHD",
    "kdb+"
-  ]
+  ],
+  "extra_metadata": {
+   "closed_session_history": true
+  }
  },
  "ta_chart": {
   "name": "Technical Chart",

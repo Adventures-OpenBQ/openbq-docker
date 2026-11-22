@@ -525,6 +525,20 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         except ValueError:
             raise HTTPException(502, detail="day chart response limit") from None
 
+    @app.get("/closed_session")
+    async def closed_session(symbol: str = Query(max_length=48),
+                             interval: str = Query(default="1m", pattern=r"^(1s|1m|5m|15m|30m|1h|1d)$")):
+        normalized = normalize(symbol)
+        if normalized is None:
+            raise HTTPException(422, detail="invalid symbol")
+        try:
+            async with asyncio.timeout(20):
+                return await day_service.closed_session(normalized, interval)
+        except TimeoutError:
+            raise HTTPException(504, detail="session history deadline") from None
+        except Exception:
+            raise HTTPException(502, detail="session history unavailable") from None
+
     @app.get("/symbol_logo")
     async def symbol_logo(symbol: str = Query(max_length=48)):
         normalized = normalize(symbol)

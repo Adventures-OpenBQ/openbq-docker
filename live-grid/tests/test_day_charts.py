@@ -173,3 +173,42 @@ async def test_two_trading_days_skip_weekend_clip_overnight_and_isolate_cache():
     assert t['previous_close']==100 and t['change']==1
     one=(await service.batch(['AAPL']))['tiles'][0]
     assert len(one['points'])==1
+
+async def test_closed_session_detail_has_real_ohlcv_and_calendar_bounds():
+    calls=[]
+    async def history(symbol,interval,start,end,provider):
+        calls.append((symbol,interval,start,end,provider))
+        return [{'date':'2026-11-20T14:29:00Z','open':1,'high':2,'low':1,'close':2,'volume':3},
+                {'date':'2026-11-20T14:30:00Z','open':100,'high':103,'low':99,'close':102,'volume':5},
+                {'date':'2026-11-20T14:31:00Z','open':102,'high':104,'low':101,'close':103,'volume':6},
+                {'date':'2026-11-20T21:00:00Z','open':1,'high':2,'low':1,'close':2,'volume':3}],{}
+    service=DayCharts(history,lambda s:{},now=lambda:instant('2026-11-22T16:00:00Z'))
+    result=await service.closed_session('AAPL','5m')
+    assert result['mode']=='closed' and result['source']=='eodhd'
+    assert result['session']['date']=='2026-11-20'
+    assert len(result['bars'])==1
+    assert result['bars'][0]['open']==100 and result['bars'][0]['close']==103
+    assert result['bars'][0]['volume']==11
+    assert calls==[('AAPL','1m','2026-11-20','2026-11-20','eodhd')]
+    await service.closed_session('AAPL','5m');assert len(calls)==1
+
+async def test_open_and_crypto_do_not_query_closed_history():
+    async def history(*args):raise AssertionError('must not fetch provider')
+    service=DayCharts(history,lambda s:{},now=lambda:instant('2026-11-23T16:00:00Z'))
+    assert (await service.closed_session('AAPL','1m'))['mode']=='stream'
+    assert (await service.closed_session('BTC-USD','1m'))['mode']=='stream'
+    service=DayCharts(history,lambda s:{},now=lambda:instant('2026-11-22T16:00:00Z'))
+    assert (await service.closed_session('AAPL','1s'))['error_code']=='subminute_history_unavailable'
+
+async def test_closed_session_early_close_and_missing_ohlcv_are_not_invented():
+    calls=[]
+    async def history(symbol,interval,start,end,provider):
+        calls.append((start,end))
+        return [{'date':'2026-12-24T14:30:00Z','open':100,'high':103,'low':99,'close':102,'volume':5},
+                {'date':'2026-12-24T14:31:00Z','open':100,'high':103,'low':99,'close':102},
+                {'date':'2026-12-24T18:01:00Z','open':100,'high':103,'low':99,'close':102,'volume':5}],{}
+    service=DayCharts(history,lambda s:{},now=lambda:instant('2026-12-25T16:00:00Z'))
+    result=await service.closed_session('AAPL','1m')
+    assert calls==[('2026-12-24','2026-12-24')]
+    assert result['session']['date']=='2026-12-24'
+    assert len(result['bars'])==1 and result['partial']

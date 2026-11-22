@@ -271,6 +271,12 @@ export function upstreamPath(url, config) {
     return url.pathname + "?" + params.toString();
   }
 
+  if (url.pathname === "/grid/closed_session") {
+    if (!onlyKeys(params, ["symbol", "interval"]) || !SYMBOL_RE.test(params.get("symbol") ?? "")) return null;
+    if (params.has("interval") && !/^(1s|1m|5m|15m|30m|1h|1d)$/.test(params.get("interval"))) return null;
+    return url.pathname + "?" + params.toString();
+  }
+
   // Bounded Day Chart snapshots and same-origin raster logos. No upstream URL input.
   if (url.pathname === "/grid/day_charts" || url.pathname === "/grid/symbol_logo") {
     if (!onlyKeys(params, url.pathname === "/grid/day_charts" ? ["symbol", "days"] : ["symbol"])) return null;
