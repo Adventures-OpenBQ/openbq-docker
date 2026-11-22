@@ -148,8 +148,16 @@ _CMS_HOST = re.compile(r"^(https?://)([a-z0-9-]+)cm\.ws\.frb\.org")
 
 
 def _public_url(url: str) -> str:
-    """Rewrite a Reserve Bank CMS staging host to its public equivalent."""
-    return _CMS_HOST.sub(r"\1www.\2.org", url)
+    """Resolve known Reserve Bank CMS hosts and working-paper asset paths."""
+    url = _CMS_HOST.sub(r"\1www.\2.org", url)
+    parsed = urlparse(url)
+    # Fed in Print can name Dallas's paper path, which returns 404, instead
+    # of the same published PDF under Sitecore's media directory.
+    if (parsed.hostname or "").lower() in {"dallasfed.org", "www.dallasfed.org"} and re.fullmatch(
+        r"/research/papers/\d{4}/wp\d{4}\.pdf", parsed.path, re.IGNORECASE
+    ):
+        return parsed._replace(path="/~/media/documents" + parsed.path).geturl()
+    return url
 
 
 def resolve_file(item_url: str, fetch: Fetch) -> str | None:
