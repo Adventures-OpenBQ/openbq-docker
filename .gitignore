@@ -63,6 +63,7 @@ rss-ticker-config/config.yaml
 kdb-license/*
 !kdb-license/.gitkeep
 kdb-data/
+kdb-auth/
 live-grid-data/
 *.lic
 *.egg-info/

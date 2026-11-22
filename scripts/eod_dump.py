@@ -105,6 +105,28 @@ def _stage_day(day: date, out_path: str) -> None:
         "{[s;e;o;n] n sublist o _ select time, sym, price, size from trades "
         "where time within (s;e-1)}"
     )
+    if os.getenv("KDB_USERNAME") or os.getenv("KDB_PASSWORD_FILE"):
+        # A configured identity opts into the secured protocol. Configuration,
+        # authentication and policy errors must not fall through to expression
+        # execution against another endpoint.
+        from openbq_kdb.credentials import load_client_credentials
+        from openbq_kdb.protocol import connect_qualified
+
+        credentials = load_client_credentials()
+        with connect_qualified(host, port, credentials) as conn:
+            s = kx.toq(start, kx.TimestampAtom)
+            e = kx.toq(end, kx.TimestampAtom)
+
+            def call(operation, args):
+                return conn(kx.SymbolAtom(".openbq.rpc"), kx.SymbolAtom(operation),
+                            kx.List(args), kx.CharVector("eod-export"),
+                            debug=False, skip_debug=True)
+
+            n = int(call("dayCount", [s, e]).py())
+            parts = [call("daySlice", [s, e, lo, chunk]).pd()
+                     for lo in range(0, max(n, 1), chunk)]
+        pd.concat(parts, ignore_index=True).to_parquet(out_path, index=False)
+        return
     with kx.SyncQConnection(host=host, port=port) as conn:
         s = kx.toq(start, kx.TimestampAtom)
         e = kx.toq(end, kx.TimestampAtom)

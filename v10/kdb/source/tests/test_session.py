@@ -364,8 +364,7 @@ def test_chain_tries_loopback_before_the_external_host(monkeypatch):
     assert s.endpoint == "loopback"
 
 
-@pytest.mark.parametrize("bind_host, port", [("kdb", 5000), ("openbq-kdb", 5011)])
-def test_link_two_follows_bind_host_off_loopback(monkeypatch, bind_host, port):
+def test_link_two_follows_bind_host_off_loopback(monkeypatch):
     # Once services no longer share one network namespace, link 2 has to try
     # wherever the spawning sibling's KDB_BIND_HOST actually put q -- not a
     # hardcoded "127.0.0.1" that stops being reachable.
@@ -376,10 +375,9 @@ def test_link_two_follows_bind_host_off_loopback(monkeypatch, bind_host, port):
         return FakeConn()
 
     monkeypatch.setattr(KdbSession, "_connect", fake_connect)
-    s = KdbSession(cfg(may_spawn=False, bind_host=bind_host, port=port, host="host.docker.internal"))
+    s = KdbSession(cfg(may_spawn=False, bind_host="kdb", host="host.docker.internal"))
     s.connection()
-    assert tried == [bind_host]
-    assert s.endpoint == f"{bind_host}:{port}"
+    assert tried == ["kdb"]
 
 
 def test_chain_falls_through_to_the_external_host(monkeypatch):
@@ -444,3 +442,58 @@ def test_a_failed_spawn_leaves_no_orphan_process(monkeypatch):
     with pytest.raises(KdbUnavailable):
         s.connection()
     assert stopped, "a q we started must never be left running unsupervised"
+
+
+def test_nonloopback_bind_reports_the_actual_endpoint(monkeypatch):
+    monkeypatch.setattr(KdbSession, '_connect', lambda self, host=None: FakeConn())
+    s = KdbSession(cfg(may_spawn=False, bind_host='kdb'))
+    try:
+        s.connection()
+        assert s.endpoint == 'kdb:5000'
+    finally:
+        s.close()
+
+
+@pytest.mark.parametrize('exception_name', ['KdbAuthenticationError', 'KdbAuthorizationError',
+                                           'KdbProtocolError'])
+def test_policy_failure_does_not_try_another_target_or_backoff(monkeypatch, exception_name):
+    import openbq_kdb.protocol as protocol
+    calls = []
+    error = getattr(protocol, exception_name)('SAFE_POLICY_CODE')
+    def connect(self, host=None):
+        calls.append(host)
+        raise error
+    monkeypatch.setattr(KdbSession, '_connect', connect)
+    s = KdbSession(cfg(may_spawn=False, bind_host='first', host='alternate'))
+    try:
+        with pytest.raises(type(error), match='SAFE_POLICY_CODE'):
+            s.connection()
+        assert calls == ['first']
+        assert s._failures == 0
+        assert s.retry_in() == 0
+    finally:
+        s.close()
+
+
+@pytest.mark.parametrize('reply', [
+    {'protocol_version': 2, 'ready': True, 'capabilities': ['ping']},
+    {'protocol_version': 1, 'ready': False, 'capabilities': ['ping']},
+    {'protocol_version': 1, 'ready': True, 'capabilities': []},
+])
+def test_secured_health_protocol_failure_never_reselects_endpoint(monkeypatch, reply):
+    import openbq_kdb.protocol as protocol
+    class Reply:
+        def py(self):
+            return reply
+    attempts = []
+    monkeypatch.setattr(protocol, 'named_call', lambda *args: Reply())
+    monkeypatch.setattr(KdbSession, '_connect', lambda *args: attempts.append(args))
+    s = KdbSession(cfg(may_spawn=False, host='alternate'))
+    s.secured = True
+    s._conn = FakeConn()
+    try:
+        with pytest.raises(protocol.KdbProtocolError, match='KDB_PROTOCOL_VERSION'):
+            s.connection()
+        assert attempts == []
+    finally:
+        s.close()

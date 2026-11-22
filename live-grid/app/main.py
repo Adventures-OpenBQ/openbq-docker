@@ -252,7 +252,7 @@ async def build_series(symbol, interval, start, end, recorder, window, provider=
     return stitch(history, ticks, boundary), meta
 
 
-def create_app(*, api_key: str | None = None, seed_client=None, client_factory=None) -> FastAPI:
+def create_app(*, api_key: str | None = None, seed_client=None, client_factory=None, chart_source=None) -> FastAPI:
     """Build the app. Test seams: `seed_client` replaces the SDK REST client,
     `client_factory` is passed through to FeedManager (mock websockets)."""
     key = api_key if api_key is not None else _api_key()
@@ -281,9 +281,28 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                 log.error("tick spool unusable, failed kdb writes will be DROPPED: %s", exc)
                 spool = None
             recorder = TickRecorder(KdbStore(session), window=window, spool=spool)
-        except Exception as exc:  # noqa: BLE001 - the grid works without kdb
+        except Exception as exc:  # noqa: BLE001 - the grid works without legacy kdb
+            if os.getenv("LIVE_GRID_CHART_STREAM", "").lower() in ("1", "true", "yes", "on"):
+                raise RuntimeError("secured chart source configuration unavailable") from None
             log.warning("tick recording disabled: %s", exc)
             recorder = None
+
+    if chart_source is None and os.getenv("LIVE_GRID_CHART_STREAM", "").lower() in ("1", "true", "yes", "on"):
+        if recorder is not None and auth_enabled() and os.getenv("KDB_USERNAME") and os.getenv("KDB_PASSWORD_FILE"):
+            from app.chart_stream_pump import StoreChartSource
+            chart_source = StoreChartSource(recorder.store)
+        else:
+            log.warning("chart stream unavailable: authenticated named q source is required")
+
+    async def _qualify_chart_source():
+        # A restart may recover later. Once advertised, the client keeps the new
+        # protocol and gets explicit resets/disconnects rather than a legacy fallback.
+        while chart_source is not None and not chart_source.qualified:
+            try:
+                await chart_source.qualify()
+            except Exception:
+                log.warning("chart source qualification unavailable; retrying")
+                await asyncio.sleep(5)
 
     # The S3 tier's read-back (openbq-docker v10): None unless LIVE_GRID_LAKE_READBACK and
     # DELTA_S3_* are set, and then build_series reads flushed days back (app/lake.py).
@@ -337,18 +356,39 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             except Exception:  # noqa: BLE001 - the sweeper must outlive its errors
                 log.warning("lease sweep failed", exc_info=True)
 
+    diagnostics = None
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        nonlocal diagnostics
         # Restore the pinned subscriptions before the drain loop starts, so the
         # first _sync_feeds already has them and a restart does not drop the feed.
         _apply_watchlist()
         task = asyncio.create_task(supervise("feed manager", manager.run, tasks))
         sweep_task = asyncio.create_task(supervise("lease sweeper", _sweep_leases, tasks))
+        if chart_source is not None and not chart_source.qualified:
+            try:
+                await asyncio.wait_for(chart_source.qualify(), timeout=10)
+            except Exception:
+                log.warning("chart source not ready at startup; retrying in background")
+        if os.getenv("LIVE_GRID_KDB_DIAGNOSTICS", "").lower() in ("1", "true", "yes", "on"):
+            if recorder is not None and getattr(recorder.store.session, "secured", False):
+                from openbq_kdb.diagnostics import DiagnosticPump
+                diagnostics = DiagnosticPump(recorder.store).start()
+                _app.state.kdb_diagnostics = diagnostics
+            else:
+                log.warning("kdb diagnostics unavailable: secured owned recorder is required")
+        chart_task = asyncio.create_task(_qualify_chart_source())
         try:
             yield
         finally:
             task.cancel()
             sweep_task.cancel()
+            chart_task.cancel()
+            try:
+                await chart_task
+            except asyncio.CancelledError:
+                pass
             try:
                 await task
             except asyncio.CancelledError:
@@ -357,10 +397,18 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                 await sweep_task
             except asyncio.CancelledError:
                 pass
-            if recorder is not None:
-                # A graceful stop (docker compose stop/restart) spools the unflushed
-                # buffer instead of losing it; the next start replays it.
-                await asyncio.to_thread(recorder.stash)
+            try:
+                if recorder is not None:
+                    # A graceful stop spools unflushed ticks before diagnostics closes.
+                    await asyncio.to_thread(recorder.stash)
+            finally:
+                if diagnostics is not None:
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.to_thread(diagnostics.close, timeout=.5), timeout=.75
+                        )
+                    except TimeoutError:
+                        log.warning("kdb diagnostic shutdown deadline exceeded")
 
     app = FastAPI(lifespan=lifespan)
     app.state.quotes = quotes
@@ -439,6 +487,10 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                 param["options"] = [{"label": "None", "value": "none"}] + [
                     {"label": m.label, "value": name} for name, m in sorted(macros.items())
                 ]
+        if chart_source is not None and getattr(chart_source, "qualified", False):
+            chart = spec.get("live_chart", {})
+            chart.setdefault("extra_metadata", {})["chart_stream_v1"] = True
+            chart["wsEndpoint"] = "chart_stream_ws"
         if "subscriptions" in spec:
             spec["subscriptions"]["endpoint"] = f"{_own_url(request)}/subscriptions"
         return JSONResponse(spec)
@@ -686,6 +738,12 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         if recorder is not None:
             body["ticks"] = recorder.stats()
             body["ticks"]["endpoint"] = getattr(recorder.store.session, "endpoint", None)
+        if diagnostics is not None:
+            body["kdb_diagnostics"] = {
+                "enabled": True,
+                **{key: getattr(diagnostics, key) for key in
+                   ("dropped", "pending", "overwritten", "failures")},
+            }
         body["ta"] = {
             "eodhd_calls": _eodhd.total_calls,
             "calls_per_indicator": 5,
@@ -999,6 +1057,8 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             t.cancel()
         manager.unregister(conn_id)
 
+    from app.chart_stream import attach_chart_stream
+    attach_chart_stream(app, chart_source)
     return app
 
 

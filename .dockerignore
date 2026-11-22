@@ -31,6 +31,9 @@ credentials*.json
 user_settings.json
 certs
 secrets
+kdb-auth
+**/*.lic
+**/*.license
 funnel-gateway/node_modules
 gateway-config
 rss-ticker-config
@@ -39,3 +42,6 @@ rss-ticker-config
 table-config
 table-source
 table-build.env
+
+**/__pycache__/
+**/*.pyc
