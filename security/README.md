@@ -40,11 +40,22 @@ PNG/JPEG/GIF/WebP/TIFF/BMP images require `tesseract`. PDFs require `pdfinfo`, `
 GIFs are decoded frame by frame with disposal/compositing preserved, then
 each distinct rendered pixel image is OCR-scanned. Transparent frames are
 rendered against both white and black canvases so neither light nor dark text
-is lost. Only exact duplicate rendered pixels share an OCR result; there is
-no temporal sampling. Raw GIF metadata remains scanned independently. The
+is lost. Only exact duplicate rendered pixels share an OCR result; each
+logical frame path still receives its own privacy and credential checks.
+There is no temporal sampling. Raw GIF metadata remains scanned independently. The
 per-file limits are 500 frames, 40 million pixels per frame and 500 million
 decoded pixels total. Truncation, decoding errors, budget exhaustion and an
 OCR error in any frame block publication; no image exception is introduced.
+A bounded structure pass checks the complete block lengths, palette/control
+records, final trailer, frame count and containment in the logical canvas
+before Pillow opens the immutable byte snapshot. Plain-text graphics and
+unknown rendering extensions are blocked because this decoder cannot
+composite them. Oversized raw files are rejected before payload reads, which
+are also size-bounded to protect against a changing file.
+Legacy sentinel background indices are accepted only for a single full-canvas
+transparent image, where that index cannot supply pixels. Such images still
+receive both canvas renderings and all ordinary checks; animations and partial
+images with invalid background indices remain blocked.
 
 The desktop `scripts/release.sh` checks source/history before accessing signing values and scans the final DMG and checksum before any GitHub upload. Its dry run also scans. Signing/notarization remains unchanged.
 

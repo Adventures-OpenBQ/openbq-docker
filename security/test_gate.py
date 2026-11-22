@@ -523,5 +523,94 @@ class GateTests(unittest.TestCase):
         result=self.run_gate('artifacts',target,env={'PATH':str(tools)+os.pathsep+os.environ['PATH']})
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
 
+    def gif_scan_module(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('gif_gate_control',HERE/'gate.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        work=self.root/'scan-work';work.mkdir()
+        return module,module.Scan(self.repo,work,())
+
+    def tiny_gif(self, frames=1, later_size=None):
+        header=b'GIF89a'+b'\x01\x00\x01\x00\x80\x00\x00'+b'\x00\x00\x00\xff\xff\xff'
+        blocks=[]
+        for number in range(frames):
+            width,height=later_size if number and later_size else (1,1)
+            blocks.append(b'\x2c\x00\x00\x00\x00'+width.to_bytes(2,'little')+height.to_bytes(2,'little')+b'\x00\x02\x02\x44\x01\x00')
+        return header+b''.join(blocks)+b';'
+
+    def test_gif_incomplete_block_with_final_trailer_is_blocked(self):
+        target=self.animated_gif('Public frame two')
+        raw=target.read_bytes();target.write_bytes(raw[:-1]+b'\x21\xfe\x05abc;')
+        result=self.run_gate('artifacts',target)
+        self.assertEqual(result.returncode,2,result.stdout+result.stderr)
+
+    def test_gif_plain_text_graphics_cannot_hide_between_image_frames(self):
+        target=self.animated_gif('Public frame two');raw=target.read_bytes()
+        extension=b'\x21\x01\x0c'+b'\x00\x00\x00\x00\x10\x00\x10\x00\x08\x08\x00\x01'
+        extension+=b'\x03'+b'100'+b'\x0c'+b'.101.102.103'+b'\x00'
+        target.write_bytes(raw[:-1]+extension+b';')
+        result=self.run_gate('artifacts',target)
+        self.assertEqual(result.returncode,2,result.stdout+result.stderr)
+
+    def test_gif_raw_budget_precedes_reading_payload(self):
+        from types import SimpleNamespace
+        module,scan=self.gif_scan_module()
+        class Oversized:
+            def stat(self):return SimpleNamespace(st_size=module.MAX_FILE+1)
+            def read_bytes(self):raise AssertionError('Oversized payload was read')
+        with self.assertRaises(module.GateError):scan.gif(Oversized(),'oversized.gif')
+
+    def test_gif_frame_budget_precedes_decoder_traversal(self):
+        from unittest.mock import patch
+        module,scan=self.gif_scan_module();target=self.root/'many.gif';target.write_bytes(self.tiny_gif(frames=501))
+        with patch('PIL.Image.open',side_effect=AssertionError('Decoder started before frame budget')) as opened:
+            with self.assertRaises(module.GateError):scan.gif(target,'many.gif')
+        self.assertEqual(opened.call_count,0)
+
+    def test_gif_later_canvas_bounds_precede_decoder_allocation(self):
+        from unittest.mock import patch
+        module,scan=self.gif_scan_module();target=self.root/'expands.gif';target.write_bytes(self.tiny_gif(frames=2,later_size=(65535,1024)))
+        with patch('PIL.Image.open',side_effect=AssertionError('Decoder started before canvas bounds')) as opened:
+            with self.assertRaises(module.GateError):scan.gif(target,'expands.gif')
+        self.assertEqual(opened.call_count,0)
+
+    def test_unused_legacy_background_requires_one_full_transparent_frame(self):
+        from PIL import Image
+        from io import BytesIO
+        tools=self.root/'legacy-tools';tools.mkdir();fake=tools/'tesseract'
+        fake.write_text('#!'+sys.executable+'\nprint("Public content")\n');fake.chmod(0o755)
+        for frames in (1,2):
+            raw=bytearray(self.tiny_gif(frames=frames));raw[11]=255
+            data=bytes(raw[:19])+b'\x21\xf9\x04\x01\x00\x00\x00\x00'+bytes(raw[19:])
+            target=self.root/'legacy.gif';target.write_bytes(data)
+            if frames==1:
+                with Image.open(BytesIO(data)) as image:
+                    self.assertEqual(image.convert('RGBA').getpixel((0,0)),(0,0,0,0))
+            result=self.run_gate('artifacts',target,env={'PATH':str(tools)+os.pathsep+os.environ['PATH']})
+            self.assertEqual(result.returncode,0 if frames==1 else 2,result.stdout+result.stderr)
+
+    def test_gif_pixel_cache_preserves_each_exact_exception_path(self):
+        from PIL import Image,ImageDraw,ImageFont
+        for kind in ('privacy','credential'):
+            with self.subTest(kind=kind):
+                frames=[]
+                for message in ('A','B','A'):
+                    frame=Image.new('RGB',(120,80),'white')
+                    ImageDraw.Draw(frame).text((10,10),message,font=ImageFont.load_default(size=40),fill='black')
+                    frames.append(frame)
+                target=self.root/(kind+'.gif');frames[0].save(target,save_all=True,append_images=frames[1:],duration=100,disposal=2,optimize=False)
+                private='.'.join(['100','101','102','103']) if kind=='privacy' else 'tskey-'+'auth-'+'Ab12Cd34'*5
+                security=self.repo/'security';security.mkdir(exist_ok=True)
+                filename='privacy-exceptions.json' if kind=='privacy' else 'reviewed-fixtures.json'
+                row={'path':target.name+'!frame-1','rule':'private-ip' if kind=='privacy' else 'tailscale-credential','reason':'Synthetic first-frame review must not authorize a later path'}
+                row['line_sha256' if kind=='privacy' else 'content_sha256']=hashlib.sha256((private if kind=='privacy' else private+'\n').encode()).hexdigest()
+                (security/filename).write_text(json.dumps([row]))
+                counter=self.root/(kind+'-count');tools=self.root/(kind+'-tools');tools.mkdir();fake=tools/'tesseract'
+                fake.write_text('#!'+sys.executable+'\nimport os\nfrom pathlib import Path\np=Path(os.environ["TEST_OCR_COUNT"])\nn=int(p.read_text())+1 if p.exists() else 1\np.write_text(str(n))\nprint(os.environ["TEST_OCR_VALUE"] if n==1 else "Public")\n');fake.chmod(0o755)
+                result=self.run_gate('artifacts',target,env={'PATH':str(tools)+os.pathsep+os.environ['PATH'],'TEST_OCR_COUNT':str(counter),'TEST_OCR_VALUE':private})
+                self.assertEqual(result.returncode,1,result.stdout+result.stderr)
+                self.assertIn('private-ip' if kind=='privacy' else 'tailscale-credential',result.stderr)
+                self.assertEqual(int(counter.read_text()),2)
+
 if __name__ == '__main__':
     unittest.main()

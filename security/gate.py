@@ -6,6 +6,7 @@ import contextlib
 import gzip
 import hashlib
 import ipaddress
+import io
 import json
 import lzma
 import os
@@ -35,6 +36,80 @@ BLOCKED_NAMES = {'.env', 'credentials.env', 'api-auth.env', 'ts.env', 'kc.lic', 
 
 class GateError(Exception):
     pass
+
+
+def gif_structure(data):
+    """Bound the complete length-delimited stream before a decoder opens it."""
+    if len(data)<13 or data[:6] not in (b'GIF87a',b'GIF89a'):
+        raise GateError('Invalid GIF header')
+    offset=6
+    def take(size):
+        nonlocal offset
+        end=offset+size
+        if end>len(data):
+            raise GateError('Truncated GIF block')
+        result=data[offset:end];offset=end
+        return result
+    def byte():return take(1)[0]
+    def blocks(required=False):
+        count=0
+        while True:
+            size=byte()
+            if not size:
+                if required and not count:raise GateError('Empty GIF image data')
+                return
+            take(size);count+=1
+    screen=take(7);width=int.from_bytes(screen[:2],'little');height=int.from_bytes(screen[2:4],'little')
+    if not width or not height or width*height>40_000_000:
+        raise GateError('GIF pixel budget exceeded or invalid canvas')
+    global_colours=(2<<(screen[4]&7)) if screen[4]&128 else 0
+    unused_background=bool(global_colours and screen[5]>=global_colours)
+    if global_colours:
+        take(3*global_colours)
+    frames=0;pending_control=False;transparent_index=None
+    while True:
+        tag=byte()
+        if tag==0x3b:
+            if offset!=len(data) or not frames or pending_control:
+                raise GateError('Invalid GIF trailer or incomplete graphic')
+            return width,height,frames
+        if tag==0x21:
+            extension=byte()
+            if extension==0xf9:
+                if pending_control or byte()!=4:raise GateError('Invalid GIF graphic control')
+                control=take(4)
+                if byte()!=0 or control[0]&0xe0 or (control[0]>>2)&7>3:
+                    raise GateError('Unsupported GIF graphic control')
+                pending_control=True;transparent_index=control[3] if control[0]&1 else None
+            elif extension==0xfe:
+                blocks()
+            elif extension==0xff:
+                if byte()!=11:raise GateError('Invalid GIF application header')
+                take(11);blocks()
+            else:
+                # Pillow does not composite plain-text graphics or unknown
+                # rendering extensions. No successful prefix may hide them.
+                raise GateError('Unsupported GIF graphic extension')
+            continue
+        if tag!=0x2c:raise GateError('Invalid GIF block type')
+        descriptor=take(9);left=int.from_bytes(descriptor[:2],'little');top=int.from_bytes(descriptor[2:4],'little')
+        fw=int.from_bytes(descriptor[4:6],'little');fh=int.from_bytes(descriptor[6:8],'little');packed=descriptor[8]
+        frames+=1
+        if frames>500 or width*height*frames>500_000_000:
+            raise GateError('GIF frame or decoded pixel budget exceeded')
+        if not fw or not fh or left+fw>width or top+fh>height or packed&0x18:
+            raise GateError('Invalid GIF frame bounds')
+        colours=2<<(packed&7) if packed&128 else global_colours
+        if not colours or transparent_index is not None and transparent_index>=colours:
+            raise GateError('Invalid GIF colour table')
+        # Legacy static icons may use a sentinel background index. It cannot
+        # contribute pixels only for one full-canvas transparent image; every
+        # rendered pixel and both real transparency backgrounds are still read.
+        if unused_background and not (frames==1 and left==top==0 and fw==width and fh==height and transparent_index is not None):
+            raise GateError('Invalid GIF background index')
+        if packed&128:take(3*colours)
+        if not 2<=byte()<=8:raise GateError('Invalid GIF LZW code size')
+        blocks(required=True);pending_control=False;transparent_index=None
 
 
 def command(args, **kwargs):
@@ -177,6 +252,13 @@ class Scan:
     def gif(self, path, label):
         # Leptonica rejects animated GIFs. Decode every composited frame to PNG
         # instead; exact duplicate pixel frames may share one OCR result.
+        if path.stat().st_size>MAX_FILE:
+            raise GateError('GIF raw file budget exceeded')
+        with path.open('rb') as stream:
+            data=stream.read(MAX_FILE+1)
+        if len(data)>MAX_FILE:
+            raise GateError('GIF raw file budget exceeded')
+        width,height,frames=gif_structure(data)
         try:
             import PIL
             from PIL import Image
@@ -184,24 +266,18 @@ class Scan:
             raise GateError('GIF scanning requires pinned security/requirements.txt') from None
         if PIL.__version__!='13.0.0':
             raise GateError('GIF decoder version differs from pinned requirements')
-        data=path.read_bytes()
         self.add_text(data,label+'!metadata')
-        if not data.endswith(b';'):
-            raise GateError('GIF stream is truncated or has an invalid trailer')
         try:
-            with Image.open(path) as image:
-                if image.format!='GIF' or not 0<image.n_frames<=500:
-                    raise GateError('GIF frame budget exceeded or unreadable')
-                if image.width*image.height>40_000_000:
-                    raise GateError('GIF pixel budget exceeded')
-                seen=set();pixels=0
+            with Image.open(io.BytesIO(data)) as image:
+                if image.format!='GIF' or image.size!=(width,height):
+                    raise GateError('GIF decoder canvas differs from validated stream')
+                cached={}
                 with tempfile.TemporaryDirectory(dir=self.work) as directory:
                     target=Path(directory)/'frame.png'
-                    for number in range(image.n_frames):
+                    for number in range(frames):
                         image.seek(number)
-                        pixels+=image.width*image.height
-                        if pixels>500_000_000:
-                            raise GateError('GIF decoded pixel budget exceeded')
+                        if image.size!=(width,height):
+                            raise GateError('GIF decoder enlarged the validated canvas')
                         frame=image.convert('RGBA')
                         frame.load()
                         if frame.getextrema()[3]==(255,255):
@@ -214,12 +290,18 @@ class Scan:
                                 for name,colour in [('white',(255,255,255,255)),('black',(0,0,0,255))]]
                         for background,rendered in renderings:
                             digest=hashlib.sha256(str(rendered.size).encode()+rendered.tobytes()).digest()
-                            if digest in seen:
-                                continue
-                            seen.add(digest)
-                            rendered.save(target,format='PNG')
+                            if digest not in cached:
+                                rendered.save(target,format='PNG')
+                                cached[digest]=command(['tesseract',target,'stdout'])
                             suffix='-'+background if background else ''
-                            self.add_text(command(['tesseract',target,'stdout']),f'{label}!frame-{number+1}{suffix}')
+                            # Reuse OCR work, never another path's policy result.
+                            self.add_text(cached[digest],f'{label}!frame-{number+1}{suffix}')
+                    try:
+                        image.seek(frames)
+                    except EOFError:
+                        pass
+                    else:
+                        raise GateError('GIF decoder frame count differs from validated stream')
         except GateError:
             raise
         except Exception:
