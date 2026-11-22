@@ -194,7 +194,10 @@ class DayCharts:
         ordered = [dict(time=t, value=v) for t, v in sorted(points.items())]
         tile = self.blank(symbol)
         tile.update(session=session, points=ordered,
-                    sessions=[dict(**info, opened=wire_time(start), closed=wire_time(end))
+                    sessions=[dict(**info, opened=wire_time(start), closed=wire_time(end),
+                                   previous_close=next((number(row.get('close')) for row in daily
+                                     if str(row.get('date'))[:10] == str(cal.previous_session(
+                                         cal.date_to_session(info['date'])).date())), None))
                               for info, start, end in sessions])
         tile['chart_previous_close'] = next((number(row.get('close')) for row in daily
                                              if str(row.get('date'))[:10] == str(previous)), None)
@@ -209,7 +212,8 @@ class DayCharts:
                 tile['change_percent'] = tile['change'] / previous_close * 100 if previous_close else None
             expected = sum(max(0, int((min(now, end) - start).total_seconds() // 60))
                            for _, start, end in sessions)
-            partial = len(ordered) < expected or previous_close is None
+            partial = (len(ordered) < expected or previous_close is None
+                       or any(s['previous_close'] is None for s in tile['sessions']))
             tile['status'] = 'partial' if partial else 'ok'
             tile['coverage'] = dict(first_bar=ordered[0]['time'], last_bar=ordered[-1]['time'],
                                     bar_count=len(ordered), partial=partial)

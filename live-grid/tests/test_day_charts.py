@@ -169,6 +169,7 @@ async def test_two_trading_days_skip_weekend_clip_overnight_and_isolate_cache():
     assert [s['date'] for s in t['sessions']]==['2026-11-19','2026-11-20']
     assert [p['value'] for p in t['points']]==[95,101]
     assert t['chart_previous_close']==90
+    assert [s['previous_close'] for s in t['sessions']]==[90,100]
     assert t['previous_close']==100 and t['change']==1
     one=(await service.batch(['AAPL']))['tiles'][0]
     assert len(one['points'])==1
