@@ -508,7 +508,18 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     async def day_metadata(symbol):
         return await provider_metadata(symbol, key)
 
-    day_service = DayCharts(fetch_history, day_metadata)
+    async def day_history(symbol, interval, start, end, provider):
+        if classify(symbol) == 'crypto' and interval == '1m':
+            # Completed-day provider history plus real recorded ticks for today.
+            # Include yesterday even for a one-day view: an empty current-day
+            # provider response must not prevent the existing tick seam running.
+            floor = datetime.now(timezone.utc).date() - timedelta(days=1)
+            history_start = min(str(start), str(floor))
+            return await build_series(symbol, interval, history_start, end, recorder,
+                                      _tick_window(), provider)
+        return await fetch_history(symbol, interval, start, end, provider)
+
+    day_service = DayCharts(day_history, day_metadata)
     app.state.day_charts = day_service
 
     @app.get("/day_charts")

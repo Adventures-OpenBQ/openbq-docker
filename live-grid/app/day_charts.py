@@ -190,7 +190,7 @@ class DayCharts:
                 sessions.insert(0, (dict(date=str(label.date()), timezone='America/New_York',
                                          label='US regular session', status='closed'), start, end))
                 previous = cal.previous_session(label).date()
-        bars, _ = await self.history(symbol, '1m', str(sessions[0][1].date()),
+        bars, history_meta = await self.history(symbol, '1m', str(sessions[0][1].date()),
                                      str(min(now, closed).date()), 'eodhd')
         daily, _ = await self.history(symbol, '1d', str(previous), str(latest_previous), 'eodhd')
         if len(bars) > 10000 or len(daily) > 10000:
@@ -206,6 +206,8 @@ class DayCharts:
                 continue
         ordered = [dict(time=t, value=v) for t, v in sorted(points.items())]
         tile = self.blank(symbol)
+        if crypto and history_meta.get('rows_from_ticks', 0) > 0:
+            tile['source'] = 'eodhd+kdb ticks'
         tile.update(session=session, points=ordered,
                     sessions=[dict(**info, opened=wire_time(start), closed=wire_time(end),
                                    previous_close=next((number(row.get('close')) for row in daily
