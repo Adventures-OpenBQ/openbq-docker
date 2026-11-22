@@ -15,13 +15,23 @@ SERVICES = yaml.safe_load((ROOT / 'v12/compose.charts.yaml').read_text())['servi
 
 
 def test_every_charts_service_is_opt_in_unpublished_and_locked_down():
-    assert set(SERVICES) == {'arts-charts', 'arts-charts-worker', 'ntfy'}
-    for name, service in SERVICES.items():
+    owned = {'arts-charts', 'arts-charts-worker', 'ntfy'}
+    assert set(SERVICES) == owned | {'live-grid'}
+    for name in owned:
+        service = SERVICES[name]
         assert service['profiles'] == ['charts-v12'], name
         assert 'ports' not in service, name
         assert service['networks'] == ['openbq-internal'], name
         assert service['read_only'] is True and service['cap_drop'] == ['ALL'], name
         assert 'no-new-privileges:true' in service['security_opt'], name
+
+
+def test_live_grid_overlay_only_links_the_existing_secured_study_owner():
+    # This is an additive patch to the existing live-profile service, not a new
+    # charts-owned container. Keep its base profile and security settings intact.
+    assert SERVICES['live-grid'] == {
+        'environment': {'LIVE_GRID_STUDY_ORIGIN': 'http://arts-charts:8000'}
+    }
 
 
 def test_one_image_runs_both_and_only_the_api_migrates():
