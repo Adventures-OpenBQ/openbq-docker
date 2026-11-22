@@ -1,3 +1,5 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Modifications under Apache-2.0.
+# SPDX-License-Identifier: Apache-2.0
 """Nasdaq Helpers Module."""
 
 from __future__ import annotations
@@ -256,7 +258,6 @@ async def get_nasdaq_data(path: str, use_cache: bool = True, **kwargs) -> Any:
         raise OpenBBError(f"Nasdaq request failed for '{path}'. {detail}".strip())
 
     return response.get("data")
-
 
 
 @alru_cache(maxsize=2048)
@@ -888,11 +889,15 @@ async def download_filing_pdf(document_url: str) -> str:
     from openbb_core.provider.utils.helpers import amake_request
 
     async def _read(response, _):
-        """Return the raw response body."""
-        return await response.read()
+        """Refuse upstream errors and non-PDF or incomplete download bodies."""
+        response.raise_for_status()
+        content = await response.read()
+        if not content.startswith(b"%PDF-") or b"%%EOF" not in content[-2048:]:
+            raise ValueError("The filing download did not return a complete PDF.")
+        return content
 
     content = await amake_request(
-        document_url, headers=get_headers("text"), response_callback=_read
+        document_url, headers=get_headers("pdf"), response_callback=_read
     )
 
     return base64.b64encode(content).decode("utf-8")  # ty: ignore[invalid-argument-type]

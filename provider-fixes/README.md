@@ -75,3 +75,19 @@ invalid input names `expiration` in its validation error. Unfiltered requests
 retain their previous payload and results. The suite now has191 regressions
 and119 guarded runtime files. Publisher-confirmed empty screens remain empty
 and are not called data passes.
+
+## Complete public-provider follow-up
+
+The final V1 bundle includes canonical Dallas working-paper PDF links, a consistent
+public request profile for the Federal Reserve DDP endpoints, and the Nasdaq
+request, PDF and batch-error repairs already qualified on later lines. PDF
+downloads reject failed HTTP responses, HTML error pages and truncated documents.
+Quote, company-profile and fund requests preserve the source error when all
+symbols fail while retaining successful symbols in a mixed batch. Vendor error
+3004 is reported as an upstream failure rather than as empty data.
+
+This bundle contains 124 hash-checked overlays. Its installed-provider regression
+suite has 206 tests; image qualification records report the observed results and
+architectures. Earlier full reader and registered-key results remain separately
+scoped to their source revisions. These public-provider changes do not imply a
+new run of unaffected registered-key sources.
