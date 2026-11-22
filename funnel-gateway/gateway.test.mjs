@@ -1067,7 +1067,17 @@ async function reference(t) {
 }
 // The slot is back: with maxSockets at 1, a second socket only opens if the first was released.
 async function refSlotReleased(port) {
-  const again = await refConnect(port);
+  // terminate() closes the client locally; the server releases its slot only
+  // when its close event runs. Observe that event's effect rather than racing
+  // it with the next upgrade (especially under emulation). A leaked slot must
+  // still fail within this fixed deadline; no other refusal is retried.
+  const deadline = Date.now() + 1000;
+  let again;
+  do {
+    again = await refConnect(port);
+    if (again.status !== 429) break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  } while (Date.now() < deadline);
   assert.equal(again.status, 101, "the socket slot was not released");
   again.ws.terminate();
 }
