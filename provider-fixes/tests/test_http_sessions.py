@@ -3,7 +3,10 @@
 import os
 import ssl
 import unittest
-from unittest.mock import patch
+import gc
+import weakref
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 
 class ProxyTls(unittest.IsolatedAsyncioTestCase):
@@ -39,6 +42,86 @@ class ProxyTls(unittest.IsolatedAsyncioTestCase):
         self.assertIs(
             await self.connector_ssl({"proxy": "http://proxy.example:8080", "verify_ssl": False}), False
         )
+
+
+class SessionLifetime(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        from openbb_core.provider.utils import helpers
+
+        self.helpers = helpers
+        self.factory = helpers.get_async_requests_session
+        self.settings = patch.object(helpers, "get_python_request_settings", return_value={})
+        self.settings.start()
+        self.environment = patch.dict(os.environ, {}, clear=True)
+        self.environment.start()
+        self.sessions = []
+
+    async def asyncTearDown(self):
+        for session in self.sessions:
+            await session.close()
+        self.settings.stop()
+        self.environment.stop()
+
+    async def track_session(self, **kwargs):
+        session = await self.factory(**kwargs)
+        self.sessions.append(session)
+        return session
+
+    async def test_supplied_single_session_has_no_extra_allocation_and_remains_open(self):
+        session = await self.track_session()
+        response = SimpleNamespace(json=AsyncMock(return_value={"value": 7}))
+        with patch.object(self.helpers, "get_async_requests_session", self.track_session), patch.object(
+            session, "request", AsyncMock(return_value=response)
+        ):
+            result = await self.helpers.amake_request("https://example.com/data", session=session)
+        self.assertEqual(result, {"value": 7})
+        self.assertFalse(session.closed)
+        self.assertEqual(len(self.sessions), 1, "A caller-owned request allocated an unused session")
+
+    async def test_supplied_batch_session_has_no_extra_allocation_and_keeps_batch_close(self):
+        session = await self.track_session()
+        response = SimpleNamespace(json=AsyncMock(return_value={"value": 7}))
+        with patch.object(self.helpers, "get_async_requests_session", self.track_session), patch.object(
+            session, "request", AsyncMock(return_value=response)
+        ):
+            result = await self.helpers.amake_requests(["https://example.com/data"], session=session)
+        self.assertEqual(result, [{"value": 7}])
+        self.assertTrue(session.closed)
+        self.assertEqual(len(self.sessions), 1, "A batch allocated unused sessions")
+
+    async def test_explicit_single_session_close_is_preserved(self):
+        session = await self.track_session()
+        response = SimpleNamespace(json=AsyncMock(return_value={"value": 7}))
+        with patch.object(self.helpers, "get_async_requests_session", self.track_session), patch.object(
+            session, "request", AsyncMock(return_value=response)
+        ):
+            result = await self.helpers.amake_request(
+                "https://example.com/data", session=session, with_session=False
+            )
+        self.assertEqual(result, {"value": 7})
+        self.assertTrue(session.closed)
+
+    async def test_closed_sessions_are_collectible_during_process_lifetime(self):
+        references = []
+        for _ in range(4):
+            session = await self.factory()
+            references.append(weakref.ref(session))
+            await session.close()
+            del session
+        gc.collect()
+        self.assertTrue(all(reference() is None for reference in references))
+
+    async def test_owned_request_session_closes_when_transport_raises(self):
+        async def failed_session(**kwargs):
+            session = await self.track_session(**kwargs)
+            session.request = AsyncMock(side_effect=TimeoutError("synthetic transport timeout"))
+            return session
+
+        with patch.object(self.helpers, "get_async_requests_session", failed_session):
+            with self.assertRaises(TimeoutError):
+                await self.helpers.amake_request("https://example.com/data")
+        self.assertEqual(len(self.sessions), 1)
+        self.assertTrue(self.sessions[0].closed)
 
 
 if __name__ == "__main__":
