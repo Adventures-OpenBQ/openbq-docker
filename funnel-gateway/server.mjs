@@ -180,7 +180,9 @@ export function requestStudy(method, path, body, config, signal) {
       method, signal, headers: {...headers, ...(body ? {"Content-Type":"application/json", "Content-Length":body.length} : {})},
     }, response => {
       if (response.statusCode !== 200) {
-        response.resume();
+        // This response is classified from headers only. Terminate its body before
+        // returning the admission slot; an error stream may otherwise never end.
+        response.destroy();
         const status = [400,422,429,503].includes(response.statusCode) ? response.statusCode : 502;
         resolve({status,json:{detail:"study service rejected request"}});
         return;

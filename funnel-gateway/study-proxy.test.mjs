@@ -56,3 +56,20 @@ test('study response limit and upstream errors remain bounded and private',async
  assert.equal(denied.status,502);assert.ok(!JSON.stringify(denied).includes('private'));
  mode='nonfinite';await assert.rejects(requestStudy('GET','/grid/study_catalog',undefined,cfg),/invalid study response/);
 });
+test('study error response closes an endless upstream body before returning its slot',async t=>{
+ const {requestStudy}=await import('./server.mjs');
+ let closed;
+ const socketClosed=new Promise(resolve=>{closed=resolve;});
+ const up=createServer((req,res)=>{
+  req.socket.once('close',()=>closed());
+  res.writeHead(503,{'content-type':'application/json'});
+  res.write('{"private":"'); // Never end: the safe error classification needs no body.
+ });
+ up.listen(0,'127.0.0.1');await once(up,'listening');
+ t.after(()=>new Promise(resolve=>{up.closeAllConnections();up.close(resolve);}));
+ const result=await requestStudy('GET','/grid/study_catalog',undefined,{gridOrigin:`http://127.0.0.1:${up.address().port}`,apiAuthorization:'Basic synthetic'});
+ assert.equal(result.status,503);
+ let timer;
+ try { await Promise.race([socketClosed,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('error body remained connected')),250);})]); }
+ finally {clearTimeout(timer);}
+});
