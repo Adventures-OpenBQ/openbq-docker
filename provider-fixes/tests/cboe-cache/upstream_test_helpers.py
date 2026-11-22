@@ -721,9 +721,14 @@ class TestIndexDocumentViewer:
         class Response:
             """A stand-in carrying a PDF body."""
 
+            status = 200
+
+            def raise_for_status(self):
+                """The fixture is a successful response."""
+
             async def read(self):
                 """Return the raw body."""
-                return b"%PDF-1.4 body"
+                return b"%PDF-1.4 body\n%%EOF\n"
 
         async def request(url, **kwargs):
             """Invoke the response callback the helper supplies."""
@@ -736,7 +741,7 @@ class TestIndexDocumentViewer:
                 helpers.download_index_document("https://cdn.cboe.com/a.pdf")
             )
 
-        assert encoded == "JVBERi0xLjQgYm9keQ=="
+        assert encoded == "JVBERi0xLjQgYm9keQolJUVPRgo="
 
     def test_open_returns_the_viewer_payload(self):
         """A successful download carries the data format and filename."""

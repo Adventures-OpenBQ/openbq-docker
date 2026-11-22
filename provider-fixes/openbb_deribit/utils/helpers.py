@@ -173,16 +173,21 @@ async def get_ticker(symbol: str) -> dict:
 
 
 async def get_tickers(symbols: list[str]) -> list[dict]:
-    """Return the quotes of many instruments, skipping the ones that fail."""
+    """Return usable quotes, preserving the source error if every quote fails."""
     from openbb_deribit.utils.client import gather
 
     results = await gather([("ticker", {"instrument_name": s}) for s in symbols])
 
-    return [
+    data = [
         flatten_ticker(result)
         for result in results
         if isinstance(result, dict) and result
     ]
+    if not data:
+        for result in results:
+            if isinstance(result, Exception):
+                raise result
+    return data
 
 
 async def get_index_names(extended: bool = False) -> list:
