@@ -208,6 +208,8 @@ class DayCharts:
         tile = self.blank(symbol)
         if crypto and history_meta.get('rows_from_ticks', 0) > 0:
             tile['source'] = 'eodhd+kdb ticks'
+        if crypto and history_meta.get('rows_from_coinbase', 0) > 0:
+            tile['source'] += '+coinbase'
         tile.update(session=session, points=ordered,
                     sessions=[dict(**info, opened=wire_time(start), closed=wire_time(end),
                                    previous_close=next((number(row.get('close')) for row in daily

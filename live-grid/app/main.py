@@ -508,15 +508,24 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
     async def day_metadata(symbol):
         return await provider_metadata(symbol, key)
 
+    from app.btc_backfill import BtcBackfill
+    btc_backfill = BtcBackfill(os.getenv("LIVE_GRID_BTC_CACHE", "/data/btc-day-minutes.json"))
+
     async def day_history(symbol, interval, start, end, provider):
         if classify(symbol) == 'crypto' and interval == '1m':
+            began = asyncio.get_running_loop().time()
             # Completed-day provider history plus real recorded ticks for today.
             # Include yesterday even for a one-day view: an empty current-day
             # provider response must not prevent the existing tick seam running.
             floor = datetime.now(timezone.utc).date() - timedelta(days=1)
             history_start = min(str(start), str(floor))
-            return await build_series(symbol, interval, history_start, end, recorder,
-                                      _tick_window(), provider)
+            bars, meta = await build_series(symbol, interval, history_start, end, recorder,
+                                            _tick_window(), provider)
+            if symbol == "BTC-USD":
+                bars, added = await btc_backfill.supplement(
+                    bars, start, end, budget=14-(asyncio.get_running_loop().time()-began))
+                meta = {**meta, "rows_from_coinbase": added}
+            return bars, meta
         return await fetch_history(symbol, interval, start, end, provider)
 
     day_service = DayCharts(day_history, day_metadata)

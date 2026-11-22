@@ -231,3 +231,13 @@ async def test_crypto_uses_continuous_utc_days_on_weekends_and_daily_reference_c
     assert len(tile['points'])==4 and tile['price']==92000
     assert tile['change']==1000 and tile['chart_previous_close']==90000
     assert calls==[('BTC-USD','1m','2026-11-21','2026-11-22','eodhd'),('BTC-USD','1d','2026-11-20','2026-11-21','eodhd')]
+
+async def test_crypto_backfill_source_is_explicit():
+    async def history(symbol, interval, *args):
+        if interval == '1d':
+            return [{'date':'2026-11-21','close':100}], {}
+        return [{'date':'2026-11-22T00:00:00Z','close':101}], {'rows_from_ticks':1,'rows_from_coinbase':1}
+    service = DayCharts(history,lambda s:{},now=lambda:instant('2026-11-22T00:01:00Z'))
+    tile=(await service.batch(['BTC-USD']))['tiles'][0]
+    assert tile['source']=='eodhd+kdb ticks+coinbase'
+    assert tile['status']=='ok'
