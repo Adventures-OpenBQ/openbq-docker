@@ -1,0 +1,4 @@
+# Pinned container build tools; pip matches the qualified Python base.
+# setuptools was observed in the candidate PEP 517 isolated build.
+pip==25.0.1
+setuptools==84.2.1
