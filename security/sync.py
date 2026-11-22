@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 
 HERE=Path(__file__).resolve().parent
-FILES=['sync.py','dockerignore','.gitignore','gate.py','gitleaks.toml','install.py','test_gate.py','README.md','image-gate.sh']
+FILES=['sync.py','dockerignore','.gitignore','gate.py','gitleaks.toml','install.py','requirements.txt','test_gate.py','README.md','image-gate.sh']
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)

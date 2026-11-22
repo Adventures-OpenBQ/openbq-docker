@@ -449,5 +449,57 @@ class GateTests(unittest.TestCase):
         self.git('add', '.')
         self.assert_blocked(self.run_gate('tree'), 'tailscale-credential')
 
+    def animated_gif(self, second_text):
+        from PIL import Image, ImageDraw, ImageFont
+        frames=[]
+        for message in ('Public frame one', second_text):
+            frame=Image.new('RGB',(720,160),'white')
+            ImageDraw.Draw(frame).text((20,50),message,font=ImageFont.load_default(size=40),fill='black')
+            frames.append(frame)
+        target=self.root/'demo.gif'
+        frames[0].save(target,save_all=True,append_images=frames[1:],duration=100,loop=0,disposal=2,optimize=False)
+        return target
+
+    def test_animated_gif_scans_private_text_in_later_frame(self):
+        private='.'.join(['100','101','102','103'])
+        result=self.run_gate('artifacts',self.animated_gif(private))
+        self.assertEqual(result.returncode,1,result.stdout+result.stderr)
+        self.assertIn('private-ip',result.stderr)
+        self.assertNotIn(private,result.stdout+result.stderr)
+
+    def test_safe_animated_gif_completes_all_frame_extraction(self):
+        result=self.run_gate('artifacts',self.animated_gif('Public frame two'))
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
+    def test_transparent_animated_gif_retains_visible_later_text(self):
+        from PIL import Image, ImageDraw, ImageFont
+        frames=[]
+        for message in ('Public frame one','.'.join(['100','101','102','103'])):
+            frame=Image.new('P',(720,160),0)
+            # Distinct alpha, identical RGB: dropping alpha hides real text.
+            frame.putpalette([0,0,0]*256)
+            ImageDraw.Draw(frame).text((20,50),message,font=ImageFont.load_default(size=40),fill=1)
+            frames.append(frame)
+        target=self.root/'transparent.gif'
+        frames[0].save(target,save_all=True,append_images=frames[1:],transparency=0,disposal=2,duration=100,optimize=False)
+        result=self.run_gate('artifacts',target)
+        self.assertEqual(result.returncode,1,result.stdout+result.stderr)
+        self.assertIn('private-ip',result.stderr)
+
+    def test_truncated_later_gif_frame_remains_blocked(self):
+        target=self.animated_gif('Public frame two')
+        raw=target.read_bytes();target.write_bytes(raw[:len(raw)//2])
+        result=self.run_gate('artifacts',target)
+        self.assertEqual(result.returncode,2,result.stdout+result.stderr)
+
+    def test_later_gif_frame_ocr_failure_remains_blocked(self):
+        target=self.animated_gif('Public frame two')
+        tools=self.root/'ocr-tools';tools.mkdir();counter=self.root/'ocr-count'
+        fake=tools/'tesseract'
+        fake.write_text('#!'+sys.executable+'\nimport os,sys\nfrom pathlib import Path\np=Path(os.environ["TEST_OCR_COUNT"])\nn=int(p.read_text())+1 if p.exists() else 1\np.write_text(str(n))\nif n==2:sys.exit(1)\nprint("Public content")\n')
+        fake.chmod(0o755)
+        result=self.run_gate('artifacts',target,env={'PATH':str(tools)+os.pathsep+os.environ['PATH'],'TEST_OCR_COUNT':str(counter)})
+        self.assertEqual(result.returncode,2,result.stdout+result.stderr)
+
 if __name__ == '__main__':
     unittest.main()

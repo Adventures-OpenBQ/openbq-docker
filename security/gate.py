@@ -174,6 +174,57 @@ class Scan:
                 if not allow_exceptions or not any((path,rule,digest) in self.allow for path in candidates):
                     self.finding(label,rule,n)
 
+    def gif(self, path, label):
+        # Leptonica rejects animated GIFs. Decode every composited frame to PNG
+        # instead; exact duplicate pixel frames may share one OCR result.
+        try:
+            import PIL
+            from PIL import Image
+        except ImportError:
+            raise GateError('GIF scanning requires pinned security/requirements.txt') from None
+        if PIL.__version__!='13.0.0':
+            raise GateError('GIF decoder version differs from pinned requirements')
+        data=path.read_bytes()
+        self.add_text(data,label+'!metadata')
+        if not data.endswith(b';'):
+            raise GateError('GIF stream is truncated or has an invalid trailer')
+        try:
+            with Image.open(path) as image:
+                if image.format!='GIF' or not 0<image.n_frames<=500:
+                    raise GateError('GIF frame budget exceeded or unreadable')
+                if image.width*image.height>40_000_000:
+                    raise GateError('GIF pixel budget exceeded')
+                seen=set();pixels=0
+                with tempfile.TemporaryDirectory(dir=self.work) as directory:
+                    target=Path(directory)/'frame.png'
+                    for number in range(image.n_frames):
+                        image.seek(number)
+                        pixels+=image.width*image.height
+                        if pixels>250_000_000:
+                            raise GateError('GIF decoded pixel budget exceeded')
+                        frame=image.convert('RGBA')
+                        frame.load()
+                        if frame.getextrema()[3]==(255,255):
+                            renderings=[('',frame.convert('RGB'))]
+                        else:
+                            # Both real canvas backgrounds retain light/dark text;
+                            # dropping alpha can turn visible glyphs into a blank.
+                            renderings=[(name,Image.alpha_composite(
+                                Image.new('RGBA',frame.size,colour),frame).convert('RGB'))
+                                for name,colour in [('white',(255,255,255,255)),('black',(0,0,0,255))]]
+                        for background,rendered in renderings:
+                            digest=hashlib.sha256(str(rendered.size).encode()+rendered.tobytes()).digest()
+                            if digest in seen:
+                                continue
+                            seen.add(digest)
+                            rendered.save(target,format='PNG')
+                            suffix='-'+background if background else ''
+                            self.add_text(command(['tesseract',target,'stdout']),f'{label}!frame-{number+1}{suffix}')
+        except GateError:
+            raise
+        except Exception:
+            raise GateError('GIF frame decoding failed; publication blocked') from None
+
     def file(self, path, label, publication=False, depth=0):
         if path.is_symlink():
             raise GateError('symlink in scan target; provide resolved publication contents')
@@ -208,6 +259,8 @@ class Scan:
                     for i,p in enumerate(pages,1):
                         self.add_text(command(['tesseract',p,'stdout']),f'{label}!page-{i}')
                     self.add_text(command(['pdftotext',path,'-']),label)
+            elif suffix=='.gif':
+                self.gif(path,label)
             else:
                 self.add_text(command(['tesseract',path,'stdout']),label+'!ocr')
                 self.add_text(path.read_bytes(),label+'!metadata')

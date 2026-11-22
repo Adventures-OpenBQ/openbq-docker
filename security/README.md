@@ -4,6 +4,14 @@ Canonical source: `artcashin/adventures-in-openbb-articles/security`. The app an
 
 Requires Python 3.11+ and **Gitleaks 8.30.1**. Install with `python3 security/install.py` (reviewed SHA256 pins for macOS/Linux/Windows, ARM64/x64). The gate finds `gitleaks` on PATH or in `~/.local/bin`; `GITLEAKS_BIN` selects an explicit binary. Scans never download or silently skip the scanner.
 
+Publication GIF extraction also requires **Pillow 13.0.0**, pinned separately
+from application dependencies. In the Python environment used for the gate,
+run `python3 -m pip install --require-hashes -r security/requirements.txt`.
+Use a virtual environment when the system Python is externally managed. The
+requirements permit only checksum-verified wheels; a missing or mismatched
+decoder blocks GIF publication. Neither SDK nor Workspace runtime packages
+are changed by this scanner dependency.
+
 ```sh
 python3 security/gate.py staged                      # exact index bytes
 python3 security/gate.py tree                        # current tracked files
@@ -28,6 +36,15 @@ Privacy rules detect all non-placeholder `*.ts.net` hostnames, CGNAT addresses, 
 `artifacts` reads actual files independent of gitignore and recurses through ZIP (including Office files), tar and compressed archives. It rejects traversal, links, malformed/empty inputs, depth over 8, compressed expansion over 200 times the compressed size (with an 8 MiB floor), oversized files, more than 250,000 scanned files, and total scanned content over 20 GiB. Individual non-archive files are limited to 512 MiB. ZIP members are limited to 512 MiB. This is a budget, not permission to skip files.
 
 PNG/JPEG/GIF/WebP/TIFF/BMP images require `tesseract`. PDFs require `pdfinfo`, `pdfdetach`, `pdftotext`, `pdftoppm` and `tesseract`: metadata, attachments, raw bytes, extracted text and all rendered pages are scanned (maximum 500 pages). OCR is best effort detection; visually review public screenshots and PDFs too. Known movie/audio/disk/Linux package formats without an extractor are blocked. Unrecognized opaque formats are inspected for printable strings, not semantically decoded; review those formats separately. macOS DMGs are mounted read-only; `.app` framework links within the mount and the standard `/Applications` shortcut are accepted, never followed. Windows installers and 7z/RAR packages require `7z` or `7zz` extraction; macOS PKG packages require `pkgutil --expand-full`. Missing extractors block publication.
+
+GIFs are decoded frame by frame with disposal/compositing preserved, then
+each distinct rendered pixel image is OCR-scanned. Transparent frames are
+rendered against both white and black canvases so neither light nor dark text
+is lost. Only exact duplicate rendered pixels share an OCR result; there is
+no temporal sampling. Raw GIF metadata remains scanned independently. The
+per-file limits are 500 frames, 40 million pixels per frame and 250 million
+decoded pixels total. Truncation, decoding errors, budget exhaustion and an
+OCR error in any frame block publication; no image exception is introduced.
 
 The desktop `scripts/release.sh` checks source/history before accessing signing values and scans the final DMG and checksum before any GitHub upload. Its dry run also scans. Signing/notarization remains unchanged.
 

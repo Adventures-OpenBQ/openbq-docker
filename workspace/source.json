@@ -13,15 +13,34 @@
     "backend/poetry.lock": "ae615c0d2a7b3b1affb54fa0ae1b17baeca92c751270be06a05daa12142d9633"
   },
   "observed_build": {
-    "runtime_image_id": "sha256:95816f728ec74386a3df154d0359afa01874671a5e8ec92f6f8b462d3a2d4ae8",
+    "runtime_image_id": "sha256:16d54f9f08df13a34a4fd44148f13a1d658664fa01b531db607269276da6d6b3",
     "architecture": "amd64",
     "poetry_version": "2.5.1",
     "backend_lock_regenerated": true,
     "resolved_lock_sha256": "853205dec793eef98b292629706c8ccaa654af46e3dce5b9d617080ae1e6c518",
-    "runtime_inventory_sha256": "9ffd5738e6b80020fbbb31936e802233fcaf5495d8a9e7149982407dffd436c3",
-    "qualification_state": "Verified rebuilt runtime:3 trust-store checks, exact132-package inventory, valid login/wrong-password refusal, live cold FFIEC five quarters, NY Fed percentage/date, ECB singleton, browser reload and replacement-container separate-volume restore",
+    "runtime_inventory_sha256": "3035dbf5672067620ebeaff46174febe21454f462f2cc671017707da3a02c804",
+    "qualification_state": "Current compiled runtime verified:3trust-store checks,exact132-package inventory,real HTTP login/password/ownership/logging/proxy-refusal checks,and stopped-copy replacement-container restore. Earlier unchanged frontend/browser evidence is retained with its original source scope. Saved-image/privacy publication qualification is recorded separately in release evidence.",
     "trust_store_regressions": 3,
-    "only_application_dependency_changed": "certifi2026.7.22\u21922026.10.19"
+    "only_application_dependency_changed": "certifi2026.7.22\u21922026.10.19",
+    "recipe_input_commit": "0eb7f29cbef428ec8235d5b743b978e07760c853",
+    "assembled_manifest_sha256": "3274a5ebbfb51fb6b099485fa3ab0c28adef0742f07d17f181e835ae8f2e5002",
+    "application_distributions": 132,
+    "frontend_source_files_unchanged": 1643,
+    "source_security_patch": "005-workspace-request-boundaries.patch",
+    "http_security": {
+      "owner_login": 200,
+      "valid_wrong_password": 401,
+      "foreign_delete": 404,
+      "owner_delete": 200,
+      "removed_proxy_post": 404,
+      "request_markers_and_tokens_absent_from_logs": true
+    },
+    "replacement_restore": {
+      "same_account_uuid": true,
+      "persisted_secrets_equal": true,
+      "old_container_stopped_and_removed": true,
+      "fresh_replacement_volume": true
+    }
   },
   "security_fixes": [
     {
@@ -31,5 +50,16 @@
       "version": "2026.10.19",
       "scope": "Only this package record changes; published wheel/sdist hashes are pinned; all other dependency records and frontend source/lock are unchanged."
     }
-  ]
+  ],
+  "previous_observed_build": {
+    "runtime_image_id": "sha256:95816f728ec74386a3df154d0359afa01874671a5e8ec92f6f8b462d3a2d4ae8",
+    "architecture": "amd64",
+    "poetry_version": "2.5.1",
+    "backend_lock_regenerated": true,
+    "resolved_lock_sha256": "853205dec793eef98b292629706c8ccaa654af46e3dce5b9d617080ae1e6c518",
+    "runtime_inventory_sha256": "9ffd5738e6b80020fbbb31936e802233fcaf5495d8a9e7149982407dffd436c3",
+    "qualification_state": "Verified rebuilt runtime:3 trust-store checks, exact132-package inventory, valid login/wrong-password refusal, live cold FFIEC five quarters, NY Fed percentage/date, ECB singleton, browser reload and replacement-container separate-volume restore",
+    "trust_store_regressions": 3,
+    "only_application_dependency_changed": "certifi2026.7.22\u21922026.10.19"
+  }
 }
