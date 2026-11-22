@@ -255,9 +255,8 @@ async def get_async_requests_session(**kwargs) -> ClientSession:
     if not proxy and http_proxy is not None and http_proxy == https_proxy:
         python_settings["proxy"] = http_proxy.replace("https:", "http:")
 
-    # If a proxy is provided, or verify_ssl is False, we don't need to handle the certificate and create SSL context.
-    # This takes priority over the cafile.
-    if python_settings.get("proxy") or python_settings.get("verify_ssl") is False:
+    # A proxy still needs provider TLS verification unless explicitly disabled.
+    if python_settings.get("verify_ssl") is False:
         python_settings["verify_ssl"] = None
         python_settings["ssl"] = False
     elif (
