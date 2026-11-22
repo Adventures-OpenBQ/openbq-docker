@@ -157,3 +157,13 @@ def custom(p): return [(pl.col("close") * SCALE).alias("x")]
         assert catalog_entry("stage_version")["definition_version"] != first
     finally:
         studies.unload("fixture")
+
+
+def test_declared_time_parameters_keep_yaml_date_anchor_compatibility():
+    from datetime import date
+    from openbq_ta.compute import resolve_times
+
+    moment = date(2026, 8, 28)
+    request = resolve("avwap", anchor=moment)
+    assert request.params["anchor"] == moment
+    assert resolve_times(request)["anchor"].date() == moment

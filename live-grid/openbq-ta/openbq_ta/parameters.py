@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Typed decorator metadata and authoritative shared parameter validation."""
 
-from datetime import datetime
+from datetime import date
 import math
 
 _TYPES = {"integer", "number", "string", "boolean"}
@@ -19,7 +19,7 @@ def _finite(value):
 def validate_value(name, value, descriptor, *, time_parameter=False):
     if value is None and descriptor.get("nullable"):
         return
-    if time_parameter and isinstance(value, datetime):
+    if time_parameter and isinstance(value, date):
         return  # Existing in-process anchors resolve to UTC in compute.resolve_times.
     kind = descriptor["type"]
     valid = {
