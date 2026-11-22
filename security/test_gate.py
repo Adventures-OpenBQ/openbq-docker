@@ -501,5 +501,27 @@ class GateTests(unittest.TestCase):
         result=self.run_gate('artifacts',target,env={'PATH':str(tools)+os.pathsep+os.environ['PATH'],'TEST_OCR_COUNT':str(counter)})
         self.assertEqual(result.returncode,2,result.stdout+result.stderr)
 
+    def test_real_tutorial_dimensions_fit_decoded_frame_budget(self):
+        from PIL import Image
+        frames=[]
+        for number in range(136):
+            frame=Image.new('P',(24,24),0)
+            frame.putpalette([0,0,0,255,255,255]+[0,0,0]*254)
+            frame.putpixel((number%24,number//24),1)
+            frames.append(frame)
+        target=self.root/'tutorial.gif'
+        frames[0].save(target,save_all=True,append_images=frames[1:],duration=100,disposal=2,optimize=False)
+        raw=bytearray(target.read_bytes())
+        # The real tutorial's canvas and frame count; tiny subframes keep the
+        # fixture compact while still requiring full disposal/compositing.
+        raw[6:10]=(1940).to_bytes(2,'little')+(1290).to_bytes(2,'little')
+        target.write_bytes(raw)
+        with Image.open(target) as image:
+            self.assertEqual((image.size,image.n_frames),((1940,1290),136))
+        tools=self.root/'ocr-tools';tools.mkdir();fake=tools/'tesseract'
+        fake.write_text('#!'+sys.executable+'\nprint("Public content")\n');fake.chmod(0o755)
+        result=self.run_gate('artifacts',target,env={'PATH':str(tools)+os.pathsep+os.environ['PATH']})
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+
 if __name__ == '__main__':
     unittest.main()

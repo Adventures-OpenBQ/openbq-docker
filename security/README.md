@@ -42,7 +42,7 @@ each distinct rendered pixel image is OCR-scanned. Transparent frames are
 rendered against both white and black canvases so neither light nor dark text
 is lost. Only exact duplicate rendered pixels share an OCR result; there is
 no temporal sampling. Raw GIF metadata remains scanned independently. The
-per-file limits are 500 frames, 40 million pixels per frame and 250 million
+per-file limits are 500 frames, 40 million pixels per frame and 500 million
 decoded pixels total. Truncation, decoding errors, budget exhaustion and an
 OCR error in any frame block publication; no image exception is introduced.
 

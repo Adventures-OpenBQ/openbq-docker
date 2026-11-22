@@ -200,7 +200,7 @@ class Scan:
                     for number in range(image.n_frames):
                         image.seek(number)
                         pixels+=image.width*image.height
-                        if pixels>250_000_000:
+                        if pixels>500_000_000:
                             raise GateError('GIF decoded pixel budget exceeded')
                         frame=image.convert('RGBA')
                         frame.load()
