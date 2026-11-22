@@ -18,6 +18,7 @@ class FrozenBuild(unittest.TestCase):
         recipe = root / 'recipe'
         (recipe / 'scripts').mkdir(parents=True)
         shutil.copyfile(SCRIPT, recipe / 'scripts/assemble.sh')
+        shutil.copyfile(SCRIPT.parent / 'strip_public_test_key.py', recipe / 'scripts/strip_public_test_key.py')
         lock = b'recorded resolved dependency lock\n'
         (recipe / 'resolved-poetry.lock').write_bytes(lock)
         (recipe / 'source.json').write_text(json.dumps({'observed_build': {'resolved_lock_sha256': hashlib.sha256(lock).hexdigest()}}))
@@ -37,6 +38,9 @@ class FrozenBuild(unittest.TestCase):
         (recipe / 'patches/005-workspace-request-boundaries.patch').write_text(
             '--- a/backend/boundary.txt\n+++ b/backend/boundary.txt\n'
             '@@ -1 +1 @@\n-upstream fixture\n+repaired fixture\n')
+        (recipe / 'patches/006-public-test-key-packaging.patch').write_text(
+            '--- a/Dockerfile\n+++ b/Dockerfile\n'
+            '@@ -1 +1,2 @@\n FROM scratch\n+# reviewed fixture cleanup before runtime COPY\n')
         bindir = root / 'bin'
         bindir.mkdir()
         git = bindir / 'git'
@@ -109,6 +113,24 @@ class FrozenBuild(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             recipe, source, env, _ = self.fixture(Path(temp))
             (recipe / 'patches/005-workspace-request-boundaries.patch').write_text('invalid patch\n')
+            result = subprocess.run(['bash', str(recipe / 'scripts/assemble.sh'), str(source)], env=env, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((recipe / 'build-context').exists())
+
+    def test_fixture_guard_and_packaging_patch_are_assembled(self):
+        with tempfile.TemporaryDirectory() as temp:
+            recipe, source, env, _ = self.fixture(Path(temp))
+            result = subprocess.run(['bash', str(recipe / 'scripts/assemble.sh'), str(source)], env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            guard = recipe / 'build-context/public-test-fixtures/strip_public_test_key.py'
+            self.assertTrue(guard.is_file(), 'Build context must include exact fixture guard')
+            self.assertEqual(guard.read_bytes(), (SCRIPT.parent / 'strip_public_test_key.py').read_bytes())
+            self.assertIn('reviewed fixture cleanup', (recipe / 'build-context/Dockerfile').read_text())
+
+    def test_invalid_fixture_patch_leaves_no_partial_context(self):
+        with tempfile.TemporaryDirectory() as temp:
+            recipe, source, env, _ = self.fixture(Path(temp))
+            (recipe / 'patches/006-public-test-key-packaging.patch').write_text('invalid patch\n')
             result = subprocess.run(['bash', str(recipe / 'scripts/assemble.sh'), str(source)], env=env, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertFalse((recipe / 'build-context').exists())

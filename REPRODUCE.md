@@ -42,8 +42,9 @@ Build the frontend stage before the runtime to avoid overlapping memory-heavy bu
 Assembly requires the exact clean upstream commit and extracts its tracked
 contents with `git archive`. Ignored operator files and hidden working-copy
 overrides are excluded. It verifies the recorded resolved backend lock and
-automatically applies security patch 005 before making the new context
-available; do not apply 005 again. Apply packaging patches 001–004 as above.
+automatically applies security patch 005 and test-fixture packaging patch 006
+before making the new context available; do not apply those again. Apply
+packaging patches 001–004 as above.
 The source checkout and any existing build context are preserved.
 
 The Docker build pins Poetry/Cython/setuptools, checks that lock and refuses

@@ -80,3 +80,17 @@ docker run --rm --network none --entrypoint python \
 These source checks supplement fresh-volume HTTP login, cross-account
 refusal, owner deletion, proxy refusal and persistence checks against the
 rebuilt runtime. They do not establish compiled-runtime behavior by themselves.
+
+## Public test-fixture packaging
+
+Assembly also applies patch 006 and includes its build-only guard. After
+backend compilation, before copying the virtual environment into the runtime
+image, it removes only Tornado 6.5.8's unused public HTTPS unittest key at
+`tornado/test/test.key`. Exact version, file size and SHA-256 guards reject
+unexpected inputs. Other modules and the original distribution RECORD remain
+unchanged. The intentional package overlay is recorded separately at
+`/opt/.venv/public-test-fixture-removals.json`.
+
+This removes the resource before any final image layer contains it; deleting
+it from an already assembled runtime image would leave the earlier layer
+intact. The complete saved-image privacy check remains required.

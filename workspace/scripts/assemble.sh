@@ -44,6 +44,11 @@ with tempfile.TemporaryDirectory(prefix='.assembly-',dir=root) as temp:
  shutil.copytree(extracted/'terminalpro',staged/'terminalpro',symlinks=True)
  subprocess.run(['patch','--batch','--forward','--fuzz=0','-p1','-i',
                  str(root/'patches/005-workspace-request-boundaries.patch')],cwd=staged,check=True)
+ subprocess.run(['patch','--batch','--forward','--fuzz=0','-p1','-i',
+                 str(root/'patches/006-public-test-key-packaging.patch')],cwd=staged,check=True)
+ fixtures=staged/'public-test-fixtures'
+ fixtures.mkdir()
+ shutil.copyfile(root/'scripts/strip_public_test_key.py', fixtures/'strip_public_test_key.py')
  staged.rename(out)
 print(out)
 PY
