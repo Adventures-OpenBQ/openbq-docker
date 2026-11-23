@@ -59,7 +59,7 @@ class FredCacheTests(unittest.IsolatedAsyncioTestCase):
         self.calls = []
         self.delay = 0
         app = web.Application()
-        app.router.add_get("/fred/series/observations", self.serve)
+        app.router.add_get("/fred/{tail:.*}", self.serve)
         self.runner = web.AppRunner(app)
         await self.runner.setup()
         site = web.TCPSite(self.runner, "127.0.0.1", 0)
@@ -177,10 +177,9 @@ class FredCacheTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(self.calls), count)
             self.assertEqual(cache.stats()["items"], 0)
 
-    async def test_non_fred_http_error_body_cannot_be_cached_as_success(self):
+    async def test_http_error_payload_semantics_are_preserved_without_caching(self):
         self.responses = [(503, {"detail": "Service unavailable"}), (200, VALID)]
-        with self.assertRaisesRegex(Exception, "503"):
-            await limiter.fred_get(URL)
+        self.assertEqual(await limiter.fred_get(URL), {"detail": "Service unavailable"})
         self.assertEqual(cache.stats()["items"], 0)
         self.assertEqual(await limiter.fred_get(URL), VALID)
 
@@ -225,14 +224,16 @@ class FredCacheTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await limiter.fred_get(URL, response_callback=callback))[0]["value"], "5.4")
         self.assertEqual(len(self.calls), 1)
 
-    async def test_callback_cannot_turn_http_error_into_cached_success(self):
+    async def test_http_error_callback_keeps_its_result_but_cannot_fill_caches(self):
         self.responses = [(500, ERROR), (200, VALID)]
+        statuses = []
         async def callback(response, session):
+            statuses.append(response.status)
             return {"observations": [{"date": "2024-01-01", "value": "5.4"}]}
-        with self.assertRaisesRegex(Exception, "500"):
-            await limiter.fred_get(URL, response_callback=callback)
+        self.assertEqual((await limiter.fred_get(URL, response_callback=callback))["observations"][0]["value"], "5.4")
         self.assertEqual(cache.stats()["items"], 0)
         self.assertEqual((await limiter.fred_get(URL, response_callback=callback))["observations"][0]["value"], "5.4")
+        self.assertEqual(statuses, [500, 200])
 
     async def test_uncached_requests_still_respect_global_minimum_interval(self):
         self.responses = [(200, VALID)] * 3

@@ -144,11 +144,14 @@ async def _fetch(
     response_callback: Callable[[Any, Any], Awaitable[dict | list[dict]]] | None,
     retries: int,
     **kwargs: Any,
-) -> Any:
-    """Perform a single throttled fetch with retry-on-429."""
+) -> tuple[Any, bool]:
+    """Return a payload and its HTTP cache eligibility, with retry-on-429."""
     from openbb_core.provider.utils.helpers import amake_request
 
+    response_cacheable = True
+
     async def _wrapped_callback(response, session):
+        nonlocal response_cacheable
         status = getattr(response, "status", None)
         if status == 429:
             retry_after = _parse_retry_after(
@@ -157,8 +160,7 @@ async def _fetch(
                 else None
             )
             raise _RateLimitedResponse(retry_after)
-        if status is not None and status >= 400:
-            raise OpenBBError(f"FRED API request failed (HTTP {status}).")
+        response_cacheable = status is None or status < 400
         if response_callback is not None:
             return await response_callback(response, session)
         payload = await response.json()
@@ -169,9 +171,10 @@ async def _fetch(
     while True:
         await acquire()
         try:
-            return await amake_request(
+            payload = await amake_request(
                 url, response_callback=_wrapped_callback, **kwargs
             )
+            return payload, response_cacheable
         except _RateLimitedResponse as rl:
             attempt += 1
             if attempt > retries:
@@ -254,7 +257,7 @@ async def fred_get(
         return copy.deepcopy(shared)
 
     try:
-        result = await _fetch(
+        result, response_cacheable = await _fetch(
             url,
             response_callback=response_callback,
             retries=retries,
@@ -270,7 +273,7 @@ async def fred_get(
             with _inflight_lock:
                 _inflight.pop(inflight_key, None)
 
-    if cache_key is not None and _is_cacheable(result):
+    if cache_key is not None and response_cacheable and _is_cacheable(result):
         from openbb_fred.utils.cache import disk_set
 
         _cache_set(cache_key, result)
