@@ -42,7 +42,8 @@ services:
   # keeps its own tailnet node (openbq-workspace), network and data volume.
   workspace:
     profiles: [workspace]
-    image: ${OPENBQ_WORKSPACE_IMAGE:-ghcr.io/adventures-openbq/openbq-docker@sha256:218f6c7098c43abd929ad7d511065ad4e48cade8ed221e13aa46c931a7f53443}
+    image: ${OPENBQ_WORKSPACE_IMAGE:-openbq-workspace-local:2.0.0}
+    pull_policy: never
     platform: linux/amd64
     restart: unless-stopped
     env_file: [./workspace/runtime.env]

@@ -29,7 +29,7 @@ runtime, to avoid overlapping memory-heavy build stages. Source and build
 context are not a deployment success claim. See the series Episode 2
 rehearsal report for measured results.
 
-Build the frontend and runtime images using the complete commands in [REPRODUCE.md](REPRODUCE.md#original-workspace-source-build) when selecting a local source build. By default, the V3 profile uses the qualified AMD64 image by digest. Compose does not compile Workspace automatically. See the same guide for the local-image override and fresh NoCopy regression state.
+Build the pinned public source with the manual frontend/runtime sequence in [REPRODUCE.md](REPRODUCE.md#original-workspace-source-build) before starting the companion. The V3 profile defaults to `openbq-workspace-local:2.0.0` on Linux AMD64 and uses `pull_policy: never`: Compose neither compiles Workspace nor pulls an image automatically. Ordinary readers need no GHCR credentials. The same guide covers a different local tag, an optional private cache for authorized operators, and fresh NoCopy regression state.
 
 Run it from the repository root with `docker compose -f docker-compose.yml -f docker-compose.v3.yml --profile workspace up -d`; without the profile only the ODP backend starts. Accounts, dashboards, application secrets and Redis state live in this service's `/data` volume (`openbq-episode2_workspace-data`, the name the former standalone `workspace/compose.yaml` project used, so existing accounts carry over). They are separate from ODP settings and from BDOBB. Do not commit state or generated startup credentials; the upstream entrypoint prints a password into logs.
 
@@ -50,7 +50,7 @@ After building the reader image, verify the actual runtime trust store:
 ```sh
 docker run --rm --network none --entrypoint python \
   -v "$PWD/workspace/runtime-checks:/checks:ro" \
-  ghcr.io/adventures-openbq/openbq-docker@sha256:218f6c7098c43abd929ad7d511065ad4e48cade8ed221e13aa46c931a7f53443 /checks/test_certifi_trust.py
+  openbq-workspace-local:2.0.0 /checks/test_certifi_trust.py
 ```
 
 The check rejects the compromised emSign G3 root, retains valid public roots,
@@ -74,7 +74,7 @@ docker run --rm --network none --entrypoint python \
   -e WORKSPACE_BACKEND_ROOT=/source/backend \
   -v "$PWD/workspace/build-context:/source:ro" \
   -v "$PWD/workspace/runtime-checks:/checks:ro" \
-  ghcr.io/adventures-openbq/openbq-docker@sha256:218f6c7098c43abd929ad7d511065ad4e48cade8ed221e13aa46c931a7f53443 /checks/test_request_boundaries.py
+  openbq-workspace-local:2.0.0 /checks/test_request_boundaries.py
 ```
 
 These source checks supplement fresh-volume HTTP login, cross-account
