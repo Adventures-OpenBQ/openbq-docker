@@ -253,7 +253,8 @@ async def fred_get(
                     owner = True
 
     if future is not None and not owner:
-        shared = await future
+        # Cancelling one consumer must not cancel the shared request's result.
+        shared = await asyncio.shield(future)
         return copy.deepcopy(shared)
 
     try:
@@ -263,6 +264,17 @@ async def fred_get(
             retries=retries,
             **kwargs,
         )
+        if cache_key is not None and response_cacheable and _is_cacheable(result):
+            from openbb_fred.utils.cache import disk_set
+
+            _cache_set(cache_key, result)
+            await disk_set(url, result)
+
+        if future is not None and owner and not future.done():
+            # The owner may mutate its returned payload before waiters resume.
+            future.set_result(copy.deepcopy(result))
+
+        return result
     except BaseException as exc:
         if future is not None and owner and not future.done():
             future.set_exception(exc)
@@ -272,17 +284,6 @@ async def fred_get(
         if inflight_key is not None and owner:
             with _inflight_lock:
                 _inflight.pop(inflight_key, None)
-
-    if cache_key is not None and response_cacheable and _is_cacheable(result):
-        from openbb_fred.utils.cache import disk_set
-
-        _cache_set(cache_key, result)
-        await disk_set(url, result)
-
-    if future is not None and owner and not future.done():
-        future.set_result(result)
-
-    return result
 
 
 async def fred_get_many(

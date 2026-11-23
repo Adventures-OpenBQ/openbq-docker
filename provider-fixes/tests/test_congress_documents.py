@@ -1,7 +1,9 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. SPDX-License-Identifier: Apache-2.0
 """Congress file viewers must fetch only their public document sources."""
+import asyncio
 import base64
 import importlib
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -23,6 +25,37 @@ class Response:
             raise ValueError(f"Upstream HTTP {self.status_code}")
 
 class CongressDocuments(unittest.IsolatedAsyncioTestCase):
+    async def test_document_transport_does_not_block_unrelated_async_work(self):
+        for module, name in FETCHERS:
+            with self.subTest(module=module):
+                fetcher = getattr(importlib.import_module("openbb_government_us.congress.models." + module), name)
+                started = asyncio.Event()
+                release = threading.Event()
+                loop = asyncio.get_running_loop()
+                responsive = []
+
+                def request(url, **kwargs):
+                    loop.call_soon_threadsafe(started.set)
+                    responsive.append(release.wait(timeout=0.25))
+                    return Response(PDF, 200)
+
+                async def unrelated_work():
+                    await started.wait()
+                    release.set()
+
+                heartbeat = asyncio.create_task(unrelated_work())
+                try:
+                    with patch("openbb_core.provider.utils.helpers.make_request", side_effect=request):
+                        result = await fetcher.aextract_data(fetcher.transform_query({"urls": [URL]}))
+                    await asyncio.wait_for(heartbeat, 1)
+                    self.assertEqual(responsive, [True])
+                    self.assertEqual(base64.b64decode(result[0]["content"], validate=True), PDF)
+                finally:
+                    release.set()
+                    if not heartbeat.done():
+                        heartbeat.cancel()
+                    await asyncio.gather(heartbeat, return_exceptions=True)
+
     async def extract(self, module, name, urls, content=PDF, status=200):
         fetcher = getattr(importlib.import_module("openbb_government_us.congress.models." + module), name)
         self.requests = []

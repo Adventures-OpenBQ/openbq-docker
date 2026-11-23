@@ -67,6 +67,8 @@ class CongressBillTextFetcher(
         import base64  # noqa
         from io import BytesIO
         from urllib.parse import urlsplit
+        from asyncio import to_thread
+
         from openbb_core.provider.utils.helpers import make_request
 
         urls = (
@@ -100,7 +102,7 @@ class CongressBillTextFetcher(
                 )
                 continue
             try:
-                response = make_request(url, allow_redirects=False)
+                response = await to_thread(make_request, url, allow_redirects=False)
                 response.raise_for_status()
                 if not 200 <= response.status_code < 300:
                     raise ValueError("The document download did not return a successful HTTP response.")
