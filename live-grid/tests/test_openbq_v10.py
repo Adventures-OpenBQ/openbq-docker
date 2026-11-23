@@ -169,4 +169,16 @@ def test_without_kdb_widgets_and_apps_are_served(no_kdb):
     widgets = no_kdb.get("/widgets.json").json()
     assert {"live_grid", "kdb_ticks", "kdb_cache_chart", "live_chart", "ta_chart"} <= set(widgets)
     apps = no_kdb.get("/apps.json").json()
-    assert [a["name"] for a in apps] == ["Example Dashboard - Version 10.0.0 - Live Grid"]
+    assert [a["name"] for a in apps] == ["Example Dashboard - Version 10.0.0 - Live Grid", "Example Dashboard - Version 12.0.0 - Day Chart"]
+    assert widgets["live_chart"]["extra_metadata"]["closed_session_history"] is True
+    assert "ta_bars" in widgets and "day_chart" in widgets
+    day, detail = apps[1]["tabs"]["day-chart"]["layout"]
+    assert day["groupBindings"] == [{"group":"Selected symbol","paramName":"selected_symbol"}]
+    assert detail["groups"] == ["Selected symbol"]
+
+async def test_history_no_content_allows_backfill_instead_of_json_error(monkeypatch):
+    real = httpx.AsyncClient
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda **kw: real(
+        **kw, transport=httpx.MockTransport(lambda request: httpx.Response(204))))
+    bars, meta = await openbb_client.fetch_series('BTC-USD','1m','2026-11-21','2026-11-22','eodhd')
+    assert bars == [] and meta['cache'] == 'unknown'

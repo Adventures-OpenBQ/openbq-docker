@@ -83,6 +83,8 @@ async def fetch_series(
             f"{OPENBB_URL}/api/v1/{route}", params=params, auth=auth
         )
         response.raise_for_status()
+        if response.status_code == 204:
+            return [], dict(_UNKNOWN)
         payload = response.json()
     bars = payload.get("results") or []
     meta = (payload.get("extra") or {}).get("results_metadata") or dict(_UNKNOWN)

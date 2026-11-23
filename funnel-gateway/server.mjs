@@ -19,7 +19,8 @@ import { once } from "node:events";
 import { WebSocket, WebSocketServer } from "ws";
 import { ritaRoute, ritaQuery, ritaAgents } from "./rita-policy.mjs";
 import { mcpRoute, mcpMessage, MCP_SESSION_RE, MCP_VERSION_RE } from "./mcp-policy.mjs";
-import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, chartStreamControl, studyRoute, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
+import { rasterType, LOGO_RESPONSE_BYTES, tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, chartStreamControl, studyRoute, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
+
 
 import { requestState as remoteState } from "./state-store.mjs";
 
@@ -89,10 +90,15 @@ const COMMON = {
 };
 const LOGO = "/ref/assets/bdobb-logo.svg", MAX_SVG = 262144;
 /** The reference logo's bytes, relayed as SVG. */
+class RasterBody { constructor(bytes, mime) { this.bytes = bytes; this.mime = mime; } }
 class SvgBody { constructor(text) { this.text = text; } }
 /** A text/plain answer (the video routes return a bare URL), relayed as text. */
 class TextBody { constructor(text) { this.text = text; } }
 function reply(res, code, value = { error: "Request refused" }) {
+  if (value instanceof RasterBody) {
+    res.writeHead(code, { ...COMMON, "Content-Type": value.mime });
+    return res.end(value.bytes);
+  }
   if (value instanceof SvgBody) {
     // The logo: same common headers, its own type, and a sandbox CSP so a directly opened SVG runs nothing.
     res.writeHead(code, { ...COMMON, "Content-Type": "image/svg+xml",
@@ -274,14 +280,15 @@ export function connectRef(config) {
 export async function getJson(path, config, signal) {
   const { url, headers, options } = target(path, config);
   const send = url.protocol === "https:" ? httpsRequest : httpRequest;
-  const svg = path === LOGO, limit = svg ? MAX_SVG : MANIFESTS.has(path) ? MANIFEST_MAX : MAX_BODY;
+  const raster = path.split("?")[0] === "/grid/symbol_logo";
+  const svg = path === LOGO, limit = raster ? LOGO_RESPONSE_BYTES : svg ? MAX_SVG : MANIFESTS.has(path) ? MANIFEST_MAX : MAX_BODY;
   return new Promise((resolve, rejectPromise) => {
     const request = send(url, { ...options, method: "GET", headers, signal }, response => {
-      const type = response.headers["content-type"] ?? "", plain = !svg && /^text\/plain(?:\s*;|$)/i.test(type);
+      const type = response.headers["content-type"] ?? "", plain = !svg && !raster && /^text\/plain(?:\s*;|$)/i.test(type);
       if (response.statusCode !== 200 ||
           (response.headers["content-encoding"] && response.headers["content-encoding"] !== "identity") ||
           Number(response.headers["content-length"] ?? 0) > limit ||
-          !(plain || (svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(type))) {
+          !(plain || (raster ? /^image\/(?:png|jpeg|webp|gif)(?:\s*;|$)/i : svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(type))) {
         response.destroy();
         // The STATUS travels on the error, never the body: the handler needs to tell a 404
         // from every other refusal for the optional documents (OPTIONAL_DOCS below), and
@@ -298,7 +305,12 @@ export async function getJson(path, config, signal) {
       });
       response.on("error", rejectPromise);
       response.on("end", () => {
-        const text = Buffer.concat(parts).toString("utf8");
+        const bytes = Buffer.concat(parts);
+        if (raster) {
+          const mime = rasterType(bytes, type);
+          return mime ? resolve(new RasterBody(bytes, mime)) : rejectPromise(new Error("Invalid raster"));
+        }
+        const text = bytes.toString("utf8");
         if (svg) return resolve(new SvgBody(text));
         if (plain) return resolve(new TextBody(text));
         try { resolve(JSON.parse(text)); }
@@ -1130,7 +1142,7 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (inflight >= config.maxConcurrent) return reply(res, 429);
       inflight++;
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), requestMs);
+      const timer = setTimeout(() => controller.abort(), /^\/grid\/(day_charts|closed_session)\?/.test(path) ? 25000 : requestMs);
       const disconnect = () => { if (!res.writableEnded) controller.abort(); };
       res.once("close", disconnect);
       try {

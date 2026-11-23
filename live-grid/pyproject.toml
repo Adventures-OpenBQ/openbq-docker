@@ -20,6 +20,7 @@ dependencies = [
     "openbq-kdb",
     "openbq-ta",
     "pandas",
+    "exchange-calendars==4.13.3",
     "httpx>=0.27",
     "polars>=1.20",
     "pyyaml>=6.0",

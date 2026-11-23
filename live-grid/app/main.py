@@ -21,7 +21,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware import Middleware
 
@@ -557,6 +557,74 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             return []
         client = _seed_client()
         return quotes.seed(symbols, client)
+
+    from app.day_charts import DayCharts, parse_symbols, provider_metadata
+
+    async def day_metadata(symbol):
+        return await provider_metadata(symbol, key)
+
+    from app.btc_backfill import BtcBackfill
+    btc_backfill = BtcBackfill(os.getenv("LIVE_GRID_BTC_CACHE", "/data/btc-day-minutes.json"))
+
+    async def day_history(symbol, interval, start, end, provider):
+        if classify(symbol) == 'crypto' and interval == '1m':
+            began = asyncio.get_running_loop().time()
+            # Completed-day provider history plus real recorded ticks for today.
+            # Include yesterday even for a one-day view: an empty current-day
+            # provider response must not prevent the existing tick seam running.
+            floor = datetime.now(timezone.utc).date() - timedelta(days=1)
+            history_start = min(str(start), str(floor))
+            bars, meta = await build_series(symbol, interval, history_start, end, recorder,
+                                            _tick_window(), provider)
+            if symbol == "BTC-USD":
+                bars, added = await btc_backfill.supplement(
+                    bars, start, end, budget=14-(asyncio.get_running_loop().time()-began))
+                meta = {**meta, "rows_from_coinbase": added}
+            return bars, meta
+        return await fetch_history(symbol, interval, start, end, provider)
+
+    day_service = DayCharts(day_history, day_metadata)
+    app.state.day_charts = day_service
+
+    @app.get("/day_charts")
+    async def day_charts(symbol: str = Query(default="", max_length=2048),
+                         days: int = Query(default=1, ge=1, le=5)):
+        try:
+            symbols = parse_symbols(symbol)
+        except ValueError as exc:
+            raise HTTPException(422, detail=str(exc)) from None
+        try:
+            return await day_service.batch(symbols, days=days)
+        except TimeoutError:
+            raise HTTPException(504, detail="day chart deadline") from None
+        except ValueError:
+            raise HTTPException(502, detail="day chart response limit") from None
+
+    @app.get("/closed_session")
+    async def closed_session(symbol: str = Query(max_length=48),
+                             interval: str = Query(default="1m", pattern=r"^(1s|1m|5m|15m|30m|1h|1d)$")):
+        normalized = normalize(symbol)
+        if normalized is None:
+            raise HTTPException(422, detail="invalid symbol")
+        try:
+            async with asyncio.timeout(20):
+                return await day_service.closed_session(normalized, interval)
+        except TimeoutError:
+            raise HTTPException(504, detail="session history deadline") from None
+        except Exception:
+            raise HTTPException(502, detail="session history unavailable") from None
+
+    @app.get("/symbol_logo")
+    async def symbol_logo(symbol: str = Query(max_length=48)):
+        normalized = normalize(symbol)
+        if normalized is None or classify(normalized) != "us":
+            raise HTTPException(404, detail="logo unavailable")
+        try:
+            data, mime = await day_service.logo(normalized)
+            return Response(data, media_type=mime, headers={
+                "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
+        except Exception:
+            raise HTTPException(404, detail="logo unavailable") from None
 
     @app.get("/symbol_meta")
     def symbol_meta(symbol: str = Query(default="")):

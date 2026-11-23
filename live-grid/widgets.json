@@ -365,7 +365,10 @@
   "source": [
    "EODHD",
    "kdb+"
-  ]
+  ],
+  "extra_metadata": {
+   "closed_session_history": true
+  }
  },
  "ta_chart": {
   "name": "Technical Chart",
@@ -553,5 +556,102 @@
     "interval": "param"
    }
   }
+ },
+ "day_chart": {
+  "name": "Day Chart",
+  "description": "Intraday charts for US regular sessions and continuous UTC crypto days.",
+  "category": "Live",
+  "type": "day_chart",
+  "endpoint": "day_charts",
+  "defaultRefresh": 15000,
+  "gridData": {
+   "w": 40,
+   "h": 10
+  },
+  "params": [
+   {
+    "paramName": "symbol",
+    "type": "text",
+    "value": "AAPL,MSFT,NVDA",
+    "label": "Symbols",
+    "multiSelect": true,
+    "groupType": "symbol"
+   },
+   [
+    {
+     "paramName": "rows",
+     "type": "text",
+     "value": "1",
+     "label": "Rows",
+     "description": "1\u201310 or blank for vertical scrolling",
+     "groupable": false
+    },
+    {
+     "paramName": "columns",
+     "type": "text",
+     "value": "",
+     "label": "Columns",
+     "description": "1\u201310 or blank for horizontal scrolling",
+     "groupable": false
+    },
+    {
+     "paramName": "scale",
+     "type": "text",
+     "value": "price",
+     "label": "Scale",
+     "options": [
+      {
+       "label": "Price",
+       "value": "price"
+      },
+      {
+       "label": "% change",
+       "value": "percent"
+      }
+     ],
+     "groupable": false
+    },
+    {
+     "paramName": "days",
+     "type": "text",
+     "value": "1",
+     "label": "Trading days",
+     "options": [
+      {
+       "label": "1",
+       "value": "1"
+      },
+      {
+       "label": "2",
+       "value": "2"
+      },
+      {
+       "label": "3",
+       "value": "3"
+      },
+      {
+       "label": "4",
+       "value": "4"
+      },
+      {
+       "label": "5",
+       "value": "5"
+      }
+     ],
+     "groupable": false
+    },
+    {
+     "paramName": "selected_symbol",
+     "type": "text",
+     "value": "",
+     "label": "Selected symbol",
+     "groupType": "symbol",
+     "description": "Output: bind to a separate symbol group shared with a detailed Live Chart"
+    }
+   ]
+  ],
+  "source": [
+   "EODHD"
+  ]
  }
 }
