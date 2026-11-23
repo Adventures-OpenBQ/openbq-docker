@@ -6,9 +6,9 @@ A headless Open Data Platform backend on Docker, with private HTTPS through a se
 
 Official core/API, seventeen providers, news, and technical/quantitative/econometric extensions. No desktop frontend, custom providers, running MCP service, agent, or later storage stack in the ODP service. `requirements.in` declares the intended direct packages; `requirements.lock` records the full resolved environment used by the Docker build.
 
-The original Episode 1 checkpoint remains `v1.0.0`. The v2 candidate applies reviewed BLS/TMX compatibility fixes to the same locked provider packages; the overlay verifies every original file hash before applying changes. See [provider fixes](provider-fixes/README.md) and [verification](VERIFICATION.md).
+The original Episode 1 checkpoint remains `v1.0.0`. This V5 recipe retains the locked provider packages and applies the current shared compatibility and security overlays, verifying every original file hash before applying changes. See [provider fixes](provider-fixes/README.md) and [verification](VERIFICATION.md).
 
-The optional `workspace/` companion is a separate source-built service in rehearsal; a backend checkpoint does not certify the full Workspace dashboard/recovery workflow.
+The optional `workspace/` companion retains the original Workspace client independently of BDOBB. Its profile defaults to a local AMD64 source build with automatic pulls disabled; see [its reproduction guide](workspace/REPRODUCE.md). Backend, companion state and full BDOBB reference rendering have separate acceptance checks.
 
 ## Start
 
@@ -67,7 +67,7 @@ CFTC (`/api/v1/cftc/*`) and FINRA bonds run in a second `openbb-api` process, th
 ```sh
 python3 scripts/verify-heavy-routes.py http://127.0.0.1:6900   # widgets.json keeps answering under load
 python3 scripts/verify-lane-contract.py LANE_URL IN_PROCESS_URL  # same answers with OPENBQ_ISOLATE empty
-docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:2.0.0 python -m unittest discover -s lanes/tests
+docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:5.0.0 python -m unittest discover -s lanes/tests
 ```
 
 ### Large datasets as server-paged tables
@@ -164,14 +164,16 @@ Enable the local gates after cloning:
 
 ```sh
 git config core.hooksPath .githooks
-python3 scripts/check-public.py --history
+python3 security/install.py
+python3 security/gate.py tree
+python3 security/gate.py history --revision HEAD
 ```
 
-Commits scan tracked, staged and unignored files; pushes also scan the history reachable from the pushed refs; CI and a bare `--history` scan every branch and tag. Local deployment evidence and the machine-specific `scripts/scrub-private-patterns.txt` remain ignored. Reports use placeholder hostnames and addresses. The scanner reports filenames and finding categories, never matched values.
+Commits scan exact staged bytes; pushes scan current source and every new reachable blob before sending a ref. CI scans current source and complete release ancestry. Use `python3 security/gate.py history --revision=--all` to audit all locally reachable branches and tags. Local deployment evidence and the machine-specific `scripts/scrub-private-patterns.txt` remain ignored. Reports use placeholder hostnames and addresses. The scanner reports filenames and finding categories, never matched values.
 
 Real `credentials.env` files may be used on the NAS, but stay out of Git and Docker build contexts. Example credentials must contain empty values or obvious placeholders; an `.example` suffix does not make a real key safe to publish. The one exception is `credentials.demo.env`, whose public demo values `scripts/check-public.py` allows by exact name and value. Screenshots still need visual review before publication.
 
-## Episode 3 candidate: BDOBB and the reference backend
+## Reference backend and provider key status
 
 The stack's API image includes [our original yfinance extension](v3/yfinance/README.md),
 BDOBB's settings API and the v4 calendar and fiscal-year routes; `docker-compose.yml`
@@ -202,8 +204,7 @@ examples for an 80-card BDOBB file import. The two Episode 3 app entries carry
 the BDOBB logo in standard image fields. Workspace is an optional Episode 2
 comparison, not a prerequisite for this setup.
 
-Released as `v3.0.0` with BDOBB v3.0.0: `openbq-local:3.0.0` and
-`openbq-key-maint:3.0.0`, both built from this checkout, are the images the 2026-10-15 regression ran on a NAS.
+The current Compose recipe builds `openbq-local:5.0.0`, `openbq-key-maint:5.0.0` and `openbq-episode3-demo:5.0.0`. The historical 2026-10-15 NAS regression used the then-current `v3.0.0` checkpoint and its matching version 3 images; that historical result does not qualify the current V5 assembly.
 
 The reference recipe carries forward the previously qualified PDF repair from `bdobb-dev/backends-for-openbb` commit `32615f789f9423ea14d3f95003da250f4ef5bcfc`. Sample and Bitcoin PDFs use immutable GitHub raw URLs because the original S3 bucket returns AllAccessDisabled. Downloaded bytes match the pinned upstream fixtures; this changes asset transport, not PDF content.
 

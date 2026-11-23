@@ -38,6 +38,15 @@ class TestParseText:
     def test_malformed_line_skipped(self):
         assert parse_text("NOEQUALSSIGN\nA=1\n") == {"A": "1"}
 
+    def test_single_quotes_preserve_literal_dollars_hashes_and_backslashes(self):
+        value = r"' let\'s keep # the $abc\\ and spaces '"
+        assert parse_text(f"A={value} # comment\n") == {"A": r" let's keep # the $abc\\ and spaces "}
+
+    def test_double_quotes_decode_compose_escapes(self):
+        assert parse_text('A="one\\ttwo\\nthree\\\\four" # comment\n') == {
+            "A": "one\ttwo\nthree\\four",
+        }
+
     def test_last_duplicate_wins(self):
         assert parse_text("A=1\nA=2\n") == {"A": "2"}
 
@@ -92,6 +101,42 @@ class TestSetValue:
         p.write_text("FMP_API_KEY=old\n")
         set_value(str(p), "FMP_API_KEY", "")
         assert parse_text(p.read_text())["FMP_API_KEY"] == ""
+
+    @pytest.mark.parametrize("value", ["", "rotated"])
+    def test_duplicate_key_update_replaces_the_effective_value(self, tmp_path, value):
+        p = tmp_path / "credentials.env"
+        p.write_text("FRED_API_KEY=old-first\n# keep this\nFRED_API_KEY=old-last\nA=1\n")
+        set_value(str(p), "FRED_API_KEY", value)
+        assert load(str(p)) == {"FRED_API_KEY": value, "A": "1"}
+        assert "# keep this" in p.read_text()
+        assert "old-first" not in p.read_text()
+        assert "old-last" not in p.read_text()
+
+    @pytest.mark.parametrize("duplicate", [False, True])
+    def test_rotation_updates_the_first_assignment_in_a_bom_file(self, tmp_path, duplicate):
+        p = tmp_path / "credentials.env"
+        text = "\ufeffFRED_API_KEY=old-first\n# keep this\nA=1\n"
+        if duplicate:
+            text += "FRED_API_KEY=old-last\n"
+        p.write_text(text, encoding="utf-8")
+        set_value(str(p), "FRED_API_KEY", "rotated")
+        assert load(str(p)) == {"FRED_API_KEY": "rotated", "A": "1"}
+        text = p.read_text(encoding="utf-8")
+        assert text.startswith("\ufeffFRED_API_KEY=rotated\n# keep this\n")
+        assert "old-first" not in text
+        assert "old-last" not in text
+
+    def test_rotation_respects_the_boundaries_of_multiline_entries(self, tmp_path):
+        p = tmp_path / "credentials.env"
+        p.write_text(
+            "A='keep this\nFRED_API_KEY=still part of A'\n"
+            "FRED_API_KEY = 'old first line\nold second line'\n"
+            "export FRED_API_KEY=old last\n"
+        )
+        set_value(str(p), "FRED_API_KEY", "rotated")
+        assert load(str(p)) == {"A": "keep this\nFRED_API_KEY=still part of A", "FRED_API_KEY": "rotated"}
+        assert "old second line" not in p.read_text()
+        assert "old last" not in p.read_text()
 
     def test_round_trips_through_the_parser(self, tmp_path):
         # The writer must agree with the reader, or the widget shows one

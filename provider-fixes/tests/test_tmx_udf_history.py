@@ -49,6 +49,24 @@ class HistorySemantics(unittest.IsolatedAsyncioTestCase):
         result,_=await self.exercise([bar(3,open=None,high=None,low=None)])
         self.assertEqual(result['c'],[11.]);self.assertFalse(set(result)&{'o','h','l'})
 
+    async def test_inconsistent_optional_ranges_preserve_real_closes_only(self):
+        invalid=[
+            dict(open=1.4353,high=1.4353,low=1.4346,close=1.4344),
+            dict(open=13.,high=12.,low=9.,close=11.),
+            dict(open=10.,high=9.,low=12.,close=11.),
+        ]
+        for values in invalid:
+            with self.subTest(values=values):
+                result,_=await self.exercise([bar(3),bar(4,**values)])
+                self.assertEqual(result['c'],[11.,values['close']])
+                self.assertEqual(result['t'],[stamp(3),stamp(4)])
+                self.assertFalse(set(result)&{'o','h','l'})
+
+    async def test_consistent_optional_prices_are_preserved_exactly(self):
+        result,_=await self.exercise([bar(3),bar(4,close=12.,low=10.)])
+        self.assertEqual({k:result[k] for k in ('o','h','l','c')},
+                         dict(o=[10.,10.],h=[12.,12.],l=[9.,10.],c=[11.,12.]))
+
     async def test_upstream_error_is_explicit_not_success(self):
         with patch('openbb_tmx.utils.cache.amake_gql_request',AsyncMock(side_effect=TimeoutError)):
             result=await history('AC','D',stamp(10),stamp(2),None)

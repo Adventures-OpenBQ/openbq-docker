@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import re
 import threading
+import time
 from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
@@ -21,6 +22,41 @@ REGISTRY_PATH = (
 
 Fetch = Callable[[str], str]
 
+# Exact publication origins from shipped clients and verified publisher redirects.
+PUBLICATION_HOSTS = frozenset({
+    "www.atlantafed.org", "www.bostonfed.org", "www.chicagofed.org",
+    "www.clevelandfed.org", "www.dallasfed.org", "dallasfed.org",
+    "www.kansascityfed.org", "kcresearch-share.kansascityfed.org",
+    "www.minneapolisfed.org", "researchdatabase.minneapolisfed.org",
+    "www.newyorkfed.org", "www.philadelphiafed.org",
+    "www.richmondfed.org", "www.frbsf.org", "www.stlouisfed.org",
+    "fraser.stlouisfed.org", "fedinprint.org", "doi.org",
+    "www.federalreserve.gov", "federalreserve.gov",
+})
+
+
+def validate_document_url(url: str, hosts=PUBLICATION_HOSTS):
+    """Require an approved HTTPS origin before any document request or redirect."""
+    parsed = urlparse(url)
+    if (
+        url != url.strip()
+        or any(ord(char) < 32 for char in url)
+        or parsed.scheme != "https"
+        or parsed.hostname not in hosts
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.port not in (None, 443)
+    ):
+        raise ValueError("Document URL must use an approved HTTPS publication origin.")
+    return parsed
+
+
+def validate_pdf(content: bytes) -> bytes:
+    """Refuse error pages and incomplete PDF download envelopes."""
+    if not content.startswith(b"%PDF-") or b"%%EOF" not in content[-2048:]:
+        raise ValueError("The document download did not return a complete PDF.")
+    return content
+
 
 def _get_session() -> Any:
     """Return the calling thread's ``curl_cffi`` session (Fed in Print is unwalled)."""
@@ -33,12 +69,38 @@ def fetch_text(url: str) -> str:
     """Fetch a URL as text through a per-thread session, retrying once on a 403."""
     from openbb_federal_reserve.utils.curl_session import reset_session
 
-    response = _get_session().get(url, timeout=180)
-    if response.status_code == 403:
-        reset_session(f"fedinprint:{threading.get_ident()}")
-        response = _get_session().get(url, timeout=180)
-    response.raise_for_status()
-    return response.text
+    # Share the existing two-attempt budget across at most five redirect hops.
+    deadline = time.monotonic() + 360
+    retried = False
+    for _ in range(6):
+        validate_document_url(url)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("Publication resolver request budget exhausted.")
+        response = _get_session().get(
+            url, timeout=min(180, remaining), allow_redirects=False
+        )
+        if response.status_code == 403 and not retried:
+            retried = True
+            reset_session(f"fedinprint:{threading.get_ident()}")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("Publication resolver request budget exhausted.")
+            response = _get_session().get(
+                url, timeout=min(180, remaining), allow_redirects=False
+            )
+        response.raise_for_status()
+        if response.status_code in {301, 302, 303, 307, 308}:
+            location = response.headers.get("Location")
+            if not location:
+                raise ValueError("Publication redirect did not provide a destination.")
+            url = urljoin(url, location)
+            validate_document_url(url)
+            continue
+        if not 200 <= response.status_code < 300:
+            raise ValueError("Publication resolver did not return a successful response.")
+        return response.text
+    raise ValueError("Publication resolver exceeded five redirects.")
 
 
 _PDF_META = re.compile(r'citation_pdf_url"\s*content="([^"]+)"')
@@ -148,8 +210,16 @@ _CMS_HOST = re.compile(r"^(https?://)([a-z0-9-]+)cm\.ws\.frb\.org")
 
 
 def _public_url(url: str) -> str:
-    """Rewrite a Reserve Bank CMS staging host to its public equivalent."""
-    return _CMS_HOST.sub(r"\1www.\2.org", url)
+    """Resolve known Reserve Bank CMS hosts and working-paper asset paths."""
+    url = _CMS_HOST.sub(r"\1www.\2.org", url)
+    parsed = urlparse(url)
+    # Fed in Print can name Dallas's paper path, which returns 404, instead
+    # of the same published PDF under Sitecore's media directory.
+    if (parsed.hostname or "").lower() in {"dallasfed.org", "www.dallasfed.org"} and re.fullmatch(
+        r"/research/papers/\d{4}/wp\d{4}\.pdf", parsed.path, re.IGNORECASE
+    ):
+        return parsed._replace(path="/~/media/documents" + parsed.path).geturl()
+    return url
 
 
 def resolve_file(item_url: str, fetch: Fetch) -> str | None:

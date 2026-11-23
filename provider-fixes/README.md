@@ -75,11 +75,11 @@ reflects downloadable data rather than promising the removed interactive app.
 The RSS bridge reloads only when feed/theme actually change, preventing a
 connect→same-parameters→reload loop. Four JavaScript protocol regressions run
 with `node --test scripts/test-eia-rss-protocol.mjs`; they are separate from
-the178 Python source tests.
+the 294 Python source tests.
 
 ### Bounded Congress member voting history
 
-The current 119-file overlay bounds the optional complete-career vote index wait
+The current 129-file overlay bounds the optional complete-career vote index wait
 to15seconds. A cold or unavailable index no longer hides an otherwise valid bio.
 Unknown totals remain null with an explicit unavailable state in both the page
 and published profile markdown; completed zero-vote and complete-career results
@@ -87,10 +87,10 @@ retain their existing behavior. The underlying full-career ingestion is unchange
 that every required Congress/chamber is indexed. Partial totals and automatic
 retry loops are not introduced.
 
-The current suite contains 191 Python regressions. JavaScript coverage adds four
+The current suite contains 294 Python regressions. JavaScript coverage adds four
 member-voting UI/markdown regressions alongside the four RSS protocol tests.
 
-A command now gets a deadline on its provider's loop: `OPENBQ_COMMAND_TIMEOUT_<PROVIDER>` if set, else the provider's built-in deadline (150 seconds for CFTC; the D8 lane kills a call 15 s later), else `OPENBQ_COMMAND_TIMEOUT`, else 55 seconds; a value that is not a positive number stops the server at startup. The overlay also raises openbb-core's `amake_request` default from 10 to 45 seconds for a whole request: fetchers rarely pass `request_timeout`, and USDA's 18.8 MB ERS feed-grains file takes 12 s on its own; a fetcher's explicit timeout still wins. For the serialized providers (CBOE, CFTC), time spent waiting for the provider's lock counts against the deadline. Past it the command is cancelled at its next await, which frees the provider's lock, and the request gets a 504 instead of hanging. `openbb_core/api/exception_handlers.py` read `error.errors` without calling it, so a provider input missing from the request returned 500 instead of 422; only a field missing from a `QueryParams` subclass (any name, e.g. openbq-yfinance's `BalanceQuery`) is a 422, so a provider `Data` model failing on an upstream response that dropped a key stays a 500. It also maps `TimeoutError` to 504 and a body that is not valid JSON to 502, each with a clear message; `openbb_core/api/app_loader.py` registers those two exceptions by type so their responses pass through the CORS middleware, which the catch-all `Exception` handler is outside of. `openbb_core/app/provider_interface.py` keeps a provider-only required input optional on the shared route but marks that provider's widget input `optional: false` (query parameters only, not `Data` fields), so the client asks for it instead of sending null.
+A command now gets a deadline on its provider's loop: `OPENBQ_COMMAND_TIMEOUT_<PROVIDER>` if set, else the provider's built-in deadline (150 seconds for Federal Reserve and CFTC; the D8 lane kills a call 15 s later), else `OPENBQ_COMMAND_TIMEOUT`, else 55 seconds; a value that is not a positive number stops the server at startup. The overlay also raises openbb-core's `amake_request` default from 10 to 45 seconds for a whole request: fetchers rarely pass `request_timeout`, and USDA's 18.8 MB ERS feed-grains file takes 12 s on its own; a fetcher's explicit timeout still wins. For the serialized providers (CBOE, CFTC), time spent waiting for the provider's lock counts against the deadline. Past it the command is cancelled at its next await, which frees the provider's lock, and the request gets a 504 instead of hanging. `openbb_core/api/exception_handlers.py` read `error.errors` without calling it, so a provider input missing from the request returned 500 instead of 422; only a field missing from a `QueryParams` subclass (any name, e.g. openbq-yfinance's `BalanceQuery`) is a 422, so a provider `Data` model failing on an upstream response that dropped a key stays a 500. It also maps `TimeoutError` to 504 and a body that is not valid JSON to 502, each with a clear message; `openbb_core/api/app_loader.py` registers those two exceptions by type so their responses pass through the CORS middleware, which the catch-all `Exception` handler is outside of. `openbb_core/app/provider_interface.py` keeps a provider-only required input optional on the shared route but marks that provider's widget input `optional: false` (query parameters only, not `Data` fields), so the client asks for it instead of sending null.
 `openbb_federal_reserve/federal_reserve_router.py` and `openbb_federal_reserve/ffiec.py` read the file viewers' `url` selection as `params.get("url") or []`, as the BLS routers do: upstream iterated `params.get("url", [])`, so a `{"url": null}` body from any of the 17 Fed multi-file viewers raised a TypeError (500) instead of returning `[]`. `openbb_government_us/usda/models/weather_bulletin_download.py` does the same for the USDA Weather & Crop Bulletin viewer: the route passes the whole body as `urls`, and upstream's validator failed on `{"urls": null}` and on a body without `urls` (500); both now return `[]`.
 `openbb_sec/models/institutions_search.py` asks for a name when the search query is blank (400) and its widget marks `query` required; upstream passed `None` to `str.contains` (500), and returning every filer would be about 1.06 million rows. `openbb_federal_reserve/models/regional/dallas_bcs.py` and `dallas_igrea.py` pick the workbook sheet by its old name, then its new name (`BCS_Index_Results`, `Kilian Index`), then the only sheet, because the Dallas Fed renamed the sheets; the column layouts are unchanged. `openbb_government_us/usda/utils/ers_vegetables_and_pulses.py` and `ers_livestock_and_meat_domestic_data.py` read the renamed zip members (`vegetables-pulses-data.csv`, `Meat-Supply-Disappearance.csv`, `Meat-Statistics.csv`) case-insensitively and fall back to the old names; the CSV columns are unchanged. `ers_farm_household_income_and_characteristics.py` reads preliminary years such as `2025P` and sorts them like forecast `F` years.
 Upstream-format fixes. `openbb_fred/models/tips_yields.py` drops `5` from the `maturity` choices, because FRED publishes no live 5-year TIPS (every 5-year series in release 72 is discontinued) and `maturity=5` raised a `KeyError` from `melt` (500); it is now a 422 (OpenBQ PR [7757](https://github.com/openbq-org/OpenBB/pull/7757), as revised in review). A date range with no observations still raises that `KeyError`. `openbb_famafrench/utils/constants.py` maps Australia to `Austrlia.Dat`, the name inside Ken French's country zips. `openbb_cboe/utils/helpers.py` coerces non-numeric settlement prices to null; the options file prints `CAB` for cabinet trades. `openbb_nasdaq/models/calendar_splits.py` makes numerator and denominator optional, because Nasdaq lists percentage stock dividends (`5%`) whose ratio has no `a : b` form; the row keeps its published `ratio_display`. `openbb_federal_reserve/models/list_of_banks_peer_group.py` rounds fractional thousands to whole dollars for its integer fields. The Kansas City Fed Ag credit survey, interest rates and finance databook keep their document ids but now carry quarter-versioned file names, so they resolve the current URL from the index page with `resolve_kc_ag_url`, as the district surveys already do, inside the cache producer.
@@ -128,3 +128,41 @@ invalid input names `expiration` in its validation error. Unfiltered requests
 retain their previous payload and results. The suite has 191 regressions
 and 119 guarded runtime files. Publisher-confirmed empty screens remain empty
 and are not called data passes.
+
+## Current security and acquisition carry
+
+### Browser and document contracts
+
+
+
+Platform API columns retain exact wire fields and formatting. ECB reference records keep their uppercase fields and singleton response. TMX UDF defaults use `/CGB` and `$USDCAD`. EIA links follow the browser's HTTPS sidecar origin; Home navigation is immediate and unchanged RSS parameters do not cause reload loops.
+
+TMX chart history retains real closing prices when the source omits optional OHLC fields or supplies a range that contradicts its open/close. Those responses omit the optional OHLC set; consistent source candles remain unchanged.
+
+Nasdaq filing downloads use HTTPS on `app.quotemedia.com`, reject URL credentials/nonstandard ports and refuse redirects. Congress bill/amendment viewers enforce their exact Congress.gov/GovInfo document origins while preserving PDF/text, empty and mixed selections. BLS and Federal Reserve raw document handlers offload blocking downloads from the API loop. The repaired PDF paths reject failed HTTP responses, HTML and incomplete PDF bodies before advertising a file. Transport header/EOF checks do not replace parsing a real file during release qualification.
+
+Deribit quote batches preserve the first source failure when every quote fails and retain usable quotes in mixed batches. Minneapolis publications accept the exact official research repository reached by the publisher's redirect. CFTC swap defaults select a report with priceable, validated transactions within the existing ten-report bound; explicit dates remain explicit, and limits count usable transactions.
+
+Required query parameters, provider credentials and release acceptance requirements are distinct. The catalogue has no mandatory-widget flag. Empty data and provider denials are recorded separately from successful data.
+
+## Congress and cold FFIEC reports
+
+The optional complete-career Congress vote-index wait is bounded to15seconds. An unavailable index does not hide a valid biography. Unknown totals remain null with an explicit unavailable state in the page/profile markdown; complete zero-vote results remain zero. Publication of complete totals verifies that every required Congress/chamber is indexed.
+
+The sectioned FFIEC Call Report retains its five most recent reporting periods. Two independent workers download and parse older bulk archives with thread-local browser sessions. Custom peer-group setup/rendering keep the same session within their thread; completed jobs retain only the selected bank's facts. Raw NIC file downloads also retain per-thread warmed sessions.
+
+Federal Reserve and CFTC commands have bounded150-second defaults; `OPENBQ_COMMAND_TIMEOUT_FEDERAL_RESERVE` overrides the Federal Reserve budget. A warm-cache result does not qualify the first-use report path. `all_periods=true` can request much more data and is not the default reader case. Offloading a blocking request keeps the API loop responsive but cannot force-stop that request before its existing network timeout.
+
+## Covered-call expiry filtering
+
+The exchange form takes month numbers1–12. `YYYY-MM` is normalized to the month, then returned contracts are filtered by the requested year/month. Legacy month-only calls retain all matching years. Invalid input names `expiration`; unfiltered calls keep their existing payload and results.
+
+## Regression evidence
+
+Offline tests run against installed locked providers with current sources mounted read-only. Cboe's upstream cache suite additionally uses pytest outside the production image. JavaScript RSS and member-voting protocol tests remain separate. An offline pass is not a live provider, reader installation, registered-key or native-render pass.
+
+Qualify the final image with fresh containers and state through its Tailscale HTTPS sidecar. Keep public/demo and registered credentials in separate passes, attempt the ten chosen public/demo checks for each version, and verify actual values and usable files. Record an exhausted public EIA quota explicitly; the accepted quota exception requires the matching registered-key checks to return data. Shared HTTP transport changes require new public/demo and separate registered qualification; earlier results stay scoped to their original revisions.
+
+Remove an overlay only when the pinned published package demonstrably contains its correction and the affected acceptance checks pass.
+
+V5 retains its own pinned Video Library, EconDB and Yahoo Finance extension sources, BDOBB example dashboards, calendar/fiscal-year routes, managed-table service and provider-key panel. The shared provider corrections do not replace those version-specific sources.
