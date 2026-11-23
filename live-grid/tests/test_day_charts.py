@@ -230,7 +230,7 @@ async def test_crypto_uses_continuous_utc_days_on_weekends_and_daily_reference_c
     assert [s['previous_close'] for s in tile['sessions']]==[90000,91000]
     assert len(tile['points'])==4 and tile['price']==92000
     assert tile['change']==1000 and tile['chart_previous_close']==90000
-    assert calls==[('BTC-USD','1m','2026-11-21','2026-11-22','eodhd'),('BTC-USD','1d','2026-11-20','2026-11-21','eodhd')]
+    assert calls==[('BTC-USD','1m','2026-11-20','2026-11-22','eodhd'),('BTC-USD','1d','2026-11-20','2026-11-21','eodhd')]
 
 async def test_crypto_backfill_source_is_explicit():
     async def history(symbol, interval, *args):
@@ -252,3 +252,33 @@ async def test_btc_detail_stream_includes_backfilled_utc_day_ohlcv():
     assert x['session']['timezone']=='UTC' and len(x['bars'])==2
     assert x['bars'][0]['open']==100 and x['bars'][0]['close']==105 and x['bars'][0]['volume']==10
     assert x['live_from']=='2026-11-22T00:05:00Z'
+
+@pytest.mark.parametrize('daily_failure', [False, True])
+async def test_btc_missing_daily_baseline_uses_exact_previous_utc_minute(daily_failure):
+    async def history(symbol, interval, start, end, provider):
+        if interval == '1d':
+            if daily_failure:
+                raise RuntimeError('daily provider unavailable')
+            return [], {}
+        return [{'date':'2026-11-20T23:59:00Z','close':90000},
+                {'date':'2026-11-21T00:00:00Z','close':90500},
+                {'date':'2026-11-21T23:59:00Z','close':91000},
+                {'date':'2026-11-22T15:59:00Z','close':92000}], {'rows_from_coinbase':4}
+    service=DayCharts(history,lambda s:{},now=lambda:instant('2026-11-22T16:00:00Z'))
+    tile=(await service.batch(['BTC-USD'],days=2))['tiles'][0]
+    assert tile['chart_previous_close']==90000
+    assert tile['previous_close']==91000
+    assert [s['previous_close'] for s in tile['sessions']]==[90000,91000]
+    assert tile['change']==1000
+    assert tile['points'][0]['time']=='2026-11-21T00:00:00Z'
+
+async def test_btc_does_not_substitute_a_stale_minute_for_previous_close():
+    async def history(symbol, interval, *args):
+        if interval == '1d': return [], {}
+        return [{'date':'2026-11-21T23:58:00Z','close':100},
+                {'date':'2026-11-22T00:00:00Z','close':101}], {}
+    service=DayCharts(history,lambda s:{},now=lambda:instant('2026-11-22T00:01:00Z'))
+    tile=(await service.batch(['BTC-USD']))['tiles'][0]
+    assert tile['chart_previous_close'] is None
+    assert tile['previous_close'] is None
+    assert tile['price']==101

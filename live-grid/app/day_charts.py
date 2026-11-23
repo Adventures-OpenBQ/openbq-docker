@@ -190,11 +190,34 @@ class DayCharts:
                 sessions.insert(0, (dict(date=str(label.date()), timezone='America/New_York',
                                          label='US regular session', status='closed'), start, end))
                 previous = cal.previous_session(label).date()
-        bars, history_meta = await self.history(symbol, '1m', str(sessions[0][1].date()),
+        # BTC needs the final minute before the first displayed UTC day when
+        # daily history has not published its close yet. Never use an opening
+        # price or an arbitrary earlier minute as the percent baseline.
+        minute_start = previous if symbol == 'BTC-USD' else sessions[0][1].date()
+        bars, history_meta = await self.history(symbol, '1m', str(minute_start),
                                      str(min(now, closed).date()), 'eodhd')
-        daily, _ = await self.history(symbol, '1d', str(previous), str(latest_previous), 'eodhd')
+        try:
+            daily, _ = await self.history(symbol, '1d', str(previous), str(latest_previous), 'eodhd')
+        except Exception:
+            if symbol != 'BTC-USD':
+                raise
+            daily = []
         if len(bars) > 10000 or len(daily) > 10000:
             return self.blank(symbol, 'history_budget')
+        if symbol == 'BTC-USD':
+            # Keep provider daily closes; fill only missing closes from exact
+            # 23:59 UTC candles acquired through the existing gap-only path.
+            closes = {str(r.get('date'))[:10]: number(r.get('close')) for r in daily}
+            for row in bars:
+                try:
+                    at = naive_utc(row.get('date'))
+                    value = number(row.get('close'))
+                    day = str(at.date())
+                    if at.hour == 23 and at.minute == 59 and at.second == 0 and value and not closes.get(day):
+                        closes[day] = value
+                except (ValueError, TypeError):
+                    continue
+            daily = [dict(date=d, close=v) for d, v in closes.items()]
         points = {}
         for row in bars:
             try:
