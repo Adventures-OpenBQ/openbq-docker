@@ -33,7 +33,6 @@ NEWEST_PAGE = {
         "petroleum_summary_supply_and_disposition",
         "petroleum_summary_weekly_supply_estimates",
         "seds",
-        "total_energy",
     )
 }
 

@@ -5,6 +5,7 @@ import asyncio
 from typing import ClassVar
 
 import httpx
+import pytest
 
 from app.probes import Check, _probe_credential, code_from_httpx_error, run_probes
 
@@ -255,6 +256,23 @@ class TestRunProbesBothKinds:
         assert [c.kind for c in out["yfinance"]] == ["connectivity"]
 
 
+def test_bls_per_key_probe_uses_connectivity_without_a_key(monkeypatch):
+    from app.probes import probe_one_provider
+
+    def respond(request):
+        assert request.url.host == "api"
+        assert request.url.path == "/api/v1/bls/series"
+        return httpx.Response(200, json={"results": [{"value": 1}]})
+
+    client_class = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: client_class(
+        transport=httpx.MockTransport(respond), **kwargs
+    ))
+    descriptor = [{"id": "bls", "auth": "optional", "env_vars": ["BLS_API_KEY"]}]
+    checks = asyncio.run(probe_one_provider("BLS_API_KEY", {}, descriptor, "http://api", None))
+    assert [(c.kind, c.result) for c in checks] == [("connectivity", "ok")]
+
+
 class TestWorstAndBounds:
     def test_worst_ranks_no_response_over_ok(self):
         from app.probes import worst
@@ -305,6 +323,107 @@ class TestJoinedRun:
                 probes.run_probes_joined(slow), probes.run_probes_joined(slow))
         a, b = asyncio.run(go())
         assert a is b and calls["n"] == 1
+
+
+    @pytest.mark.parametrize("cancel_leader", [False, True], ids=["follower", "leader"])
+    def test_cancelled_waiter_does_not_interrupt_the_other(self, cancel_leader):
+        from app.probes import run_probes_joined
+
+        async def go():
+            started = asyncio.Event()
+            release = asyncio.Event()
+            joining = asyncio.Event()
+            expected = {"bls": []}
+
+            async def wave():
+                started.set()
+                await release.wait()
+                return expected
+
+            async def join():
+                joining.set()
+                return await run_probes_joined(wave)
+
+            leader = asyncio.create_task(run_probes_joined(wave))
+            await started.wait()
+            follower = asyncio.create_task(join())
+            await joining.wait()
+            cancelled, survivor = (leader, follower) if cancel_leader else (follower, leader)
+            cancelled.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await cancelled
+            release.set()
+            assert await asyncio.wait_for(survivor, 1) is expected
+
+        asyncio.run(go())
+
+    @pytest.mark.parametrize("failure", [RuntimeError, asyncio.CancelledError])
+    def test_wave_failure_reaches_both_waiters_and_allows_a_fresh_run(self, failure):
+        from app.probes import run_probes_joined
+
+        async def go():
+            started = asyncio.Event()
+            release = asyncio.Event()
+            joining = asyncio.Event()
+
+            async def failed_wave():
+                started.set()
+                await release.wait()
+                raise failure("synthetic wave failure")
+
+            async def join():
+                joining.set()
+                return await run_probes_joined(failed_wave)
+
+            leader = asyncio.create_task(run_probes_joined(failed_wave))
+            await started.wait()
+            follower = asyncio.create_task(join())
+            await joining.wait()
+            release.set()
+            outcomes = await asyncio.wait_for(
+                asyncio.gather(leader, follower, return_exceptions=True), 1
+            )
+            assert all(isinstance(outcome, failure) for outcome in outcomes)
+
+            async def next_wave():
+                return {"bls": []}
+
+            assert await run_probes_joined(next_wave) == {"bls": []}
+
+        asyncio.run(go())
+
+
+    def test_failed_wave_with_no_waiters_does_not_report_an_unhandled_error(self):
+        import gc
+
+        from app.probes import run_probes_joined
+
+        async def go():
+            reported = []
+            loop = asyncio.get_running_loop()
+            loop.set_exception_handler(lambda _, context: reported.append(context))
+            started = asyncio.Event()
+            release = asyncio.Event()
+            finished = asyncio.Event()
+
+            async def wave():
+                started.set()
+                await release.wait()
+                finished.set()
+                raise RuntimeError("synthetic wave failure")
+
+            waiter = asyncio.create_task(run_probes_joined(wave))
+            await started.wait()
+            waiter.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await waiter
+            release.set()
+            await asyncio.wait_for(finished.wait(), 1)
+            await asyncio.sleep(0)
+            gc.collect()
+            assert not reported
+
+        asyncio.run(go())
 
 
 class TestUsage:

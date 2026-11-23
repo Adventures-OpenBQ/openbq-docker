@@ -3,12 +3,10 @@
 
 """HTTP Basic auth that follows the main API's own setting in credentials.env.
 
-OPENBB_API_AUTH off (empty, false): the API is open, so key-maint is open too.
-OPENBB_API_AUTH on: the same OPENBB_API_USERNAME / OPENBB_API_PASSWORD the API
-checks, and fail closed -- on but with an empty username or password denies
-every request. A missing or unreadable file also denies everything: without it
-key-maint cannot tell whether the API is open, so a missing mount can never
-expose even the status view."""
+An explicit off value or omitted flag leaves key-maint open when the file is
+readable. An on value requires the API's OPENBB_API_USERNAME and
+OPENBB_API_PASSWORD. Unknown flags, missing credentials with auth on, and an
+unreadable file deny access."""
 from __future__ import annotations
 
 import secrets
@@ -21,6 +19,7 @@ from app.credfile import load
 
 _security = HTTPBasic(auto_error=False)
 _ON = ("1", "true", "yes")
+_OFF = ("", "0", "false", "no")
 
 
 def make_guard(auth_file: str):
@@ -28,7 +27,8 @@ def make_guard(auth_file: str):
         credentials: Annotated[HTTPBasicCredentials | None, Depends(_security)],
     ) -> None:
         conf = load(auth_file)
-        if conf is not None and (conf.get("OPENBB_API_AUTH") or "").strip().lower() not in _ON:
+        flag = conf.get("OPENBB_API_AUTH", "").lower() if conf is not None else None
+        if flag in _OFF:
             return
         conf = conf or {}
         user = conf.get("OPENBB_API_USERNAME") or ""
@@ -37,7 +37,7 @@ def make_guard(auth_file: str):
         supplied_pw = credentials.password if credentials else ""
         ok_user = secrets.compare_digest(supplied_user.encode(), user.encode())
         ok_pw = secrets.compare_digest(supplied_pw.encode(), pw.encode())
-        if not (user and pw and credentials and ok_user and ok_pw):
+        if not (flag in _ON and user and pw and credentials and ok_user and ok_pw):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Unauthorized",
