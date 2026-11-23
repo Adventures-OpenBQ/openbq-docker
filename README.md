@@ -8,7 +8,7 @@ Official core/API, seventeen providers, news, and technical/quantitative/econome
 
 The original Episode 1 checkpoint remains `v1.0.0`. The v2 candidate applies reviewed BLS/TMX compatibility fixes to the same locked provider packages; the overlay verifies every original file hash before applying changes. See [provider fixes](provider-fixes/README.md) and [verification](VERIFICATION.md).
 
-The optional `workspace/` companion is a separate source-built service in rehearsal; a backend checkpoint does not certify the full Workspace dashboard/recovery workflow.
+The optional `workspace/` companion retains the original Workspace client independently of BDOBB. Its profile defaults to a local AMD64 source build with automatic pulls disabled; see [its reproduction guide](workspace/REPRODUCE.md). Backend, companion state and full BDOBB reference rendering have separate acceptance checks.
 
 ## Start
 

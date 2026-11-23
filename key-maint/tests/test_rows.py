@@ -136,9 +136,7 @@ class TestDescriptorUnavailable:
         assert r["provider_id"] == "fmp"
         assert r["auth"] == "required"
         assert "supported" not in r
-        # optional providers still read "optional" from the registry fallback;
-        # bls is NOT in that set (it 400s without a key) so it reads "required"
-        assert row(rows, "BLS_API_KEY")["auth"] == "required"
+        assert row(rows, "BLS_API_KEY")["auth"] == "optional"
 
     def test_summary_banner_when_descriptor_unavailable(self):
         rows = build_rows(dict(FMP_API_KEY="k"), tier=1, tests=None, descriptor=None)

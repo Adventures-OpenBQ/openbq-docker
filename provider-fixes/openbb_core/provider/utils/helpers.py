@@ -226,9 +226,8 @@ def get_requests_session(**kwargs) -> "Session":
 
 
 async def get_async_requests_session(**kwargs) -> ClientSession:
-    """Get an aiohttp session object with the applied user settings or environment variables."""
+    """Get a caller-owned aiohttp session with applied user settings or environment variables."""
     import aiohttp  # noqa
-    import atexit
     import ssl
 
     # If a session is already provided, just return it.
@@ -255,9 +254,8 @@ async def get_async_requests_session(**kwargs) -> ClientSession:
     if not proxy and http_proxy is not None and http_proxy == https_proxy:
         python_settings["proxy"] = http_proxy.replace("https:", "http:")
 
-    # If a proxy is provided, or verify_ssl is False, we don't need to handle the certificate and create SSL context.
-    # This takes priority over the cafile.
-    if python_settings.get("proxy") or python_settings.get("verify_ssl") is False:
+    # A proxy still needs provider TLS verification unless explicitly disabled.
+    if python_settings.get("verify_ssl") is False:
         python_settings["verify_ssl"] = None
         python_settings["ssl"] = False
     elif (
@@ -334,17 +332,7 @@ async def get_async_requests_session(**kwargs) -> ClientSession:
         elif k not in ("ssl", "verify_ssl", "fingerprint") and k in python_settings:
             conn_kwargs[k] = v
 
-    _session: ClientSession = ClientSession(**conn_kwargs)
-
-    def at_exit(session):
-        """Close the session at exit if it was orphaned."""
-        if not session.closed:
-            run_async(session.close)
-
-    # Register the session to close at exit
-    atexit.register(at_exit, _session)
-
-    return _session
+    return ClientSession(**conn_kwargs)
 
 
 async def amake_request(
@@ -387,8 +375,10 @@ async def amake_request(
         lambda r, _: asyncio.ensure_future(r.json())
     )
 
-    with_session = kwargs.pop("with_session", "session" in kwargs)
-    session = kwargs.pop("session", await get_async_requests_session(**kwargs))
+    session = kwargs.pop("session", None)
+    with_session = kwargs.pop("with_session", session is not None)
+    if session is None:
+        session = await get_async_requests_session(**kwargs)
 
     try:
         response = await session.request(method, url, **kwargs)
@@ -425,7 +415,9 @@ async def amake_requests(
     Union[dict, list[dict]]
         Response json
     """
-    session = kwargs.pop("session", await get_async_requests_session(**kwargs))
+    session = kwargs.pop("session", None)
+    if session is None:
+        session = await get_async_requests_session(**kwargs)
     ret_exceptions = kwargs.pop("return_exceptions", False)
     kwargs["response_callback"] = response_callback
     urls = urls if isinstance(urls, list) else [urls]

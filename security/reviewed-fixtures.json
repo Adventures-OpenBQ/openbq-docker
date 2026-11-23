@@ -1,0 +1,62 @@
+[
+  {
+    "path": "key-maint/tests/test_rows.py",
+    "rule": "generic-api-key",
+    "content_sha256": "101bbe594c10a01730de9a5977716b772b9f40a62a9d970a092aba36a227c1fc",
+    "reason": "Offline credential-redaction regression uses explicitly distinctive synthetic SECRET-eodhd-a1b2c3 and SECRET-fmp-d4e5f6 fixtures; asserts summary never includes them. Full normalized file bound."
+  },
+  {
+    "path": "funnel-gateway/verify.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "c38978c10c918b3b2927730fb51283aed463b315bdca01c9abfa2cd4fbb1483a",
+    "reason": "WebSocket upgrade refusal control uses the public RFC6455 sample handshake nonce (decoded: the sample nonce); not an API key or deployment credential. Full normalized file bound."
+  },
+  {
+    "path": "key-maint/tests/test_rows.py",
+    "rule": "generic-api-key",
+    "content_sha256": "c0ba8ee54a4a432e4cc01e447f81ef7ae19c3e1ce4eb2c8e8d0b1040958648e2",
+    "reason": "Historical offline summary-redaction test uses explicitly synthetic distinctive SECRET-eodhd-a1b2c3/SECRET-fmp-d4e5f6 values and asserts they never appear in output."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "0c0c512c42da978ddef97163526638c083727337400e73c5cd326423aee147d3",
+    "reason": "Historical provider source-integrity manifest; independently parsed every value as null or64-hex SHA256 and every path as an openbb_ source. Flagged data is a guarded source digest, not a credential."
+  },
+  {
+    "path": "key-maint/tests/test_rows.py",
+    "rule": "generic-api-key",
+    "content_sha256": "0eee2d8e934f2e6176a3187c20b08d55f93300f650e0b1cb6bc7ec34a5721939",
+    "reason": "Historical offline summary-redaction test uses explicitly synthetic distinctive SECRET-eodhd-a1b2c3/SECRET-fmp-d4e5f6 values and asserts they never appear in output."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "edd378cf2f2c0f815fb721fd0f0f1ea4a56736ad55b052ba850ebe7dfe7dde0c",
+    "reason": "Reviewed source-integrity manifest: all nonnull values are SHA256 source digests; null denotes new overlay files. No API credentials. Exact full-file hash only."
+  },
+  {
+    "path": "funnel-gateway/gateway.test.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "c77c874dc625cbe6c1c63c6241f2477ade5a6bb35ac56f25f874776d10efbdbb",
+    "reason": "Reviewed V4 WebSocket-upgrade refusal test. The flagged Sec-WebSocket-Key is the public RFC6455 sample nonce (the sample nonce), deliberately passed to a test-local HTTP connection. No deployment credential. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "0ccceca4594b732c5c63165b14a385e9abf4f5ba11fd7441763d7910a349c23f",
+    "reason": "Reviewed V4 historical original-source integrity manifest. Every value is null or a64-hex source digest, and all common values equal the current original guards independently verified against the installed pinned V4 package baseline. Exact full-file hash only; no credential."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "0b9ca6849f6cf60b92a77c99a6a3961ac4ef15e334135d0595d175fa74021fb6",
+    "reason": "Reviewed V4 historical original-source integrity manifest. Every value is null or a64-hex source digest, and all common values equal the current original guards independently verified against the installed pinned V4 package baseline. Exact full-file hash only; no credential."
+  },
+  {
+    "path": "funnel-gateway/gateway.test.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "2a6d93ce15614a51e53409bcc23537ff7fe1fcea5f1db4479c5056d38ab33ba5",
+    "reason": "Reviewed V4 historical WebSocket-upgrade negative test. The flagged Sec-WebSocket-Key is the public RFC6455 sample nonce (the sample nonce), sent to its local HTTP test server; no deployment credential. Exact full-file hash only."
+  }
+]

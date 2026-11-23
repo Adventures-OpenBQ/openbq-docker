@@ -1,0 +1,19 @@
+# Patch to OpenBB Workspace, Apache-2.0, copyright OpenBB Inc.
+# Remove only the reviewed unused TLS fixture before the final runtime COPY.
+# Patch Copyright 2026 SecretoftheUniverse.com LLC. SPDX-License-Identifier: Apache-2.0
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -124,6 +124,13 @@
+     && find $VENV_PATH -depth -type d -name __pycache__ -exec rm -rf {} + \
+     && find $VENV_PATH -depth -name "*.pyc" -delete \
+     && find $VENV_PATH -depth -name "*.pyo" -delete
++
++
++# Omit the one hash-reviewed public TLS unittest key before runtime venv COPY.
++# Keep all other Tornado modules and original distribution metadata unchanged.
++COPY public-test-fixtures/strip_public_test_key.py /tmp/strip-public-test-key.py
++RUN $VENV_PATH/bin/python /tmp/strip-public-test-key.py \
++    --manifest "$VENV_PATH/public-test-fixture-removals.json"
+ 
+ 
+ ###############################################

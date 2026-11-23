@@ -107,12 +107,12 @@
   "openbb_cboe/models/equity_historical.py": "68b6135327310a814654857c8a041cbdafff46bf43ebbdb13af79f6c1b507b39",
   "openbb_cboe/models/index_snapshots.py": "49830d39181076c6f4ae14dcfc57322118bde974b536d9168736e06c661b6d65",
   "openbb_platform_api/utils/openapi.py": "6a56f718f9a572cd7ae958ff21e8c35460d9cea6d966215c11825f8cd3bf7b8f",
+  "openbb_ecb/models/currency_reference_rates.py": "9758c34eefed524363e6da35dacd34d1b7fbb65493ba40f8894aa19b5b480056",
   "openbb_tmx/routers/currency.py": "b2f7d748d69517a36bb8cdaabbc9904dca999507f6cbfd90c1d571a18f655cee",
   "openbb_tmx/routers/futures.py": "f27e3b7d0c8667c89d7cb8f3e9ae70341354ce66b56d44b3655c307b643fb160",
   "openbb_us_eia/browsers.py": "a16ca882f9868867a7d69b9fe0c2d48a9d81a26a116cbe6ddc82ba88c3695a96",
   "openbb_us_eia/rss.py": "52317eb414851ae24107bfcf1d3c650dc0f17d28cc7be210d6e565c7e8d05a01",
   "openbb_us_eia/assets/data_browser.html": "5d9d8f7706990ad2b7a27dca3c7ad752c225f0db59e03e1262d653a9cf2a3d9e",
-  "openbb_ecb/models/currency_reference_rates.py": "9758c34eefed524363e6da35dacd34d1b7fbb65493ba40f8894aa19b5b480056",
   "openbb_us_eia/assets/rss_feed.html": "248a9835b1017523eee61bfaf9b7051707f00391be4ecd38fa60c11dc8abf230",
   "openbb_government_us/congress/utils/member_cards.py": "7effb4ddce513e9e1027d822cb893ec982de7ed250e04e45b972cb5514a8d200",
   "openbb_government_us/congress/assets/member_bio.html": "fd49fe337da9f82ae26b67f9064a6fe8b635644909e9cf5837ada18fa906f974",
@@ -122,5 +122,10 @@
   "openbb_federal_reserve/utils/ddp.py": "38067d250cf1d0cf1fe7575c43a3edcc89e13626d119474dfb02908ccd4e05bc",
   "openbb_nasdaq/models/equity_info.py": "1dc850cc82abb24f6c62cc35359d806adb6018babd64feb004c5ab5afa06cbad",
   "openbb_nasdaq/models/equity_quote.py": "12b225f0915809503c2a91d0bd7149995cc9c80d93917e27fba63f80212c0a98",
-  "openbb_nasdaq/models/etf_info.py": "e981b031cc2620424e66ada865aaa2d6eeb89ea1e845a096d886ca4487407be6"
+  "openbb_nasdaq/models/etf_info.py": "e981b031cc2620424e66ada865aaa2d6eeb89ea1e845a096d886ca4487407be6",
+  "openbb_government_us/congress/models/bill_text.py": "3dbaa22ceb461b80571af69cf9796c50b863a5a99ec2db65451e00002f10282c",
+  "openbb_government_us/congress/models/amendment_text.py": "2bacab1fa9ea7945200f0e01535b549fcf780f9e32ef221741ba8c4f687c6c95",
+  "openbb_federal_reserve/utils/ffiec.py": "71f8a34f17a4f95297ca5ec683e68a29f37b55be28ac2ccc656ad1616f5cce12",
+  "openbb_cftc/models/swap_trades.py": "5fecc01408f67d0d9707b98f51a874455a564b568e1a38553feccc7ee9c55bb6",
+  "openbb_deribit/models/futures_curve.py": "dc4cd241dc9a956fe79c8fe98237e957ee51645d9c845430957d56e086737039"
 }

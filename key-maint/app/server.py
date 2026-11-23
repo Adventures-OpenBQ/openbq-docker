@@ -147,7 +147,10 @@ def _tier(role: str, request: Request) -> int:
     return 1
 
 
-def create_app(role: str, cred_file: str, auth_file: str) -> FastAPI:
+def create_app(
+    role: str, cred_file: str, auth_file: str, *,
+    demo_file: str = "/config/credentials.demo.env",
+) -> FastAPI:
     if role not in ("network", "admin"):
         raise ValueError(f"unknown role: {role}")
     started_at = time.time()
@@ -170,6 +173,12 @@ def create_app(role: str, cred_file: str, auth_file: str) -> FastAPI:
 
     api_url = os.environ.get("OPENBB_API_URL", "http://openbq-api:6900")
 
+    def _effective_values() -> tuple[dict[str, str] | None, list[str]]:
+        values, malformed = load_with_warnings(cred_file)
+        if values is not None:
+            values = (load(demo_file) or {}) | values
+        return values, malformed
+
     def _api_auth() -> tuple[str, str]:
         auth = load(auth_file) or {}
         return auth.get("OPENBB_API_USERNAME", ""), auth.get("OPENBB_API_PASSWORD", "")
@@ -181,7 +190,7 @@ def create_app(role: str, cred_file: str, auth_file: str) -> FastAPI:
     @app.get("/keys")
     async def keys(request: Request, run_tests: bool = False) -> Response:
         tier = _tier(role, request)
-        values, malformed = load_with_warnings(cred_file)
+        values, malformed = _effective_values()
         user, pw = _api_auth()
         descriptor = await fetch_descriptor(api_url, user, pw)
         tests = None
@@ -215,7 +224,7 @@ def create_app(role: str, cred_file: str, auth_file: str) -> FastAPI:
             return JSONResponse({"detail": "unknown provider"}, status_code=404)
         if _tier(role, request) < 2:
             return JSONResponse({"detail": "not permitted"}, status_code=403)
-        values, _ = load_with_warnings(cred_file)
+        values, _ = _effective_values()
         user, pw = _api_auth()
         descriptor = await fetch_descriptor(api_url, user, pw)
         checks = await probe_one_provider(env_var, values or {}, descriptor or [],
@@ -250,18 +259,13 @@ def create_app(role: str, cred_file: str, auth_file: str) -> FastAPI:
             # No exception detail: the parsed body holds the secret.
             return JSONResponse({"detail": "body must be {\"value\": string}"}, status_code=400)
 
-        # credentials.env is dotenv-with-compose-semantics (see
-        # app.credfile's module docstring): a value containing " #" is cut
-        # as an inline comment on the NEXT read, and leading/trailing
-        # whitespace is stripped. Writing one of those would leave this
-        # response's "set" status lying about what the container actually
-        # loads on restart, so reject rather than silently write something
-        # different from what the admin typed.
+        # Reject surrounding whitespace, dotenv quoting, and comment text
+        # that would change the meaning of the submitted value.
         if parse_text(f"{env_var}={value}").get(env_var) != value:
             return JSONResponse(
                 {
                     "detail": "value would not round-trip through credentials.env "
-                    "(no leading/trailing whitespace, no ' #')"
+                    "(use an unquoted value without surrounding whitespace or an inline comment)"
                 },
                 status_code=400,
             )
