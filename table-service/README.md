@@ -6,6 +6,11 @@ and Dockerfile hash. Readers build the service from that public source; no autho
 GitHub login or prebuilt application image is required. Public upstream base images
 and package registries are required.
 
+The table component is independently pinned to `e7b9e6426c87f4fb4dd147e86523dfc7a44cbf0c`.
+Its native engine, ingestion sources, dependency locks and table-client contracts
+match this V7 application. Existing cached images retain that original source
+identity; readers build the same pinned source with the commands below.
+
 From this Docker checkout, first obtain the exact locked source anonymously:
 
 ```sh
@@ -152,9 +157,8 @@ A browser hard reload may retain abandoned sessions until expiry and temporarily
 consume more capacity. Close unused dashboards, or wait for expiry before reopening
 when admission refuses. Do not increase one ceiling without reviewing the others.
 
-The source-pinned production image at `1453fa7b4a8928baa106edbe84a9d36f8c260161`
-now builds successfully. Its Linux release suite passed 77 tests; production-image
-checks passed upload, derive, bounded export, ownership refusal, restart/reopen
+Historical qualification at `1453fa7b4a8928baa106edbe84a9d36f8c260161`
+passed 77 Linux service tests. Those older production-image checks passed upload, derive, bounded export, ownership refusal, restart/reopen
 and enforced worker address-space limits. Native tests use that image as UID
 10001 with a read-only root and separately initialized private volumes. Earlier
 storage failures and host-backed runtime results remain historical evidence;
