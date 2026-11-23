@@ -363,3 +363,35 @@ DNS-rebinding page controls both Host and Origin; a request with no `Origin`,
 e.g. curl, is unaffected) — CORS here is wide open for the Workspace origin's
 reads, and this keeps some other page an operator has open from silently
 mutating the durable watchlist.
+
+### Day Chart snapshots
+
+`GET /day_charts?symbol=AAPL,MSFT` returns schema version 1 regular-session
+line tiles. Up to 20 unique symbols are normalized and deduplicated in request
+order; an empty input returns no tiles. Only US feed symbols are supported in
+this version. Unsupported assets and provider failures have safe per-tile errors.
+The `day_chart` widget offers a multi-select symbol parameter and 15-second refresh.
+
+The Apache-2.0 `exchange-calendars==4.13.3` XNYS schedule selects the current
+regular session after its open, otherwise the latest completed session. Holidays,
+early closes and premarket are handled by that schedule. One-minute history comes
+from the existing OpenBB EODHD history route, independent of q retention; daily
+history supplies the unadjusted close of the selected session's predecessor.
+The headline uses the final plotted bar, with UTC bar timestamps and the actual
+market date. Missing prior close remains null. Source is `eodhd`; coverage reports
+actual first/last bar and count, and incomplete minute coverage is `partial`.
+No quote points, accepted-tick cursor, or extended-hours headline are synthesized.
+
+Work is shared with a 15-second tile cache, 4 upstream workers, 128 in-flight
+symbols and 256 cached tiles. Each request has a 20-second deadline, a 2 MiB JSON
+limit, a 14-calendar-day history bound and a 10,000-bar limit. Busy/timeouts are
+explicit errors. The metadata lookup uses the same filtered EODHD fundamentals
+fields as symbol metadata, with an async timeout and server-only credentials.
+
+`GET /symbol_logo?symbol=AAPL` fetches the metadata's approved HTTPS
+`eodhd.com/img/logos/` raster path. Redirects, query strings, credentials, traversal,
+SVG, mismatched signatures/MIME and bodies over 256 KiB are rejected. The proxy
+has a 10-second deadline, shares the worker bound, coalesces work, and retains at
+most 64 cached/in-flight logos (1-hour successes, 1-minute failures). Missing
+logos return 404 for a client initials fallback. Existing backend auth covers both
+routes; public ingress must retain its authenticated fixed-route relay.

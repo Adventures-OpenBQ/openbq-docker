@@ -170,3 +170,10 @@ def test_without_kdb_widgets_and_apps_are_served(no_kdb):
     assert {"live_grid", "kdb_ticks", "kdb_cache_chart", "live_chart", "ta_chart"} <= set(widgets)
     apps = no_kdb.get("/apps.json").json()
     assert [a["name"] for a in apps] == ["Example Dashboard - Version 10.0.0 - Live Grid"]
+
+async def test_history_no_content_allows_backfill_instead_of_json_error(monkeypatch):
+    real = httpx.AsyncClient
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda **kw: real(
+        **kw, transport=httpx.MockTransport(lambda request: httpx.Response(204))))
+    bars, meta = await openbb_client.fetch_series('BTC-USD','1m','2026-11-21','2026-11-22','eodhd')
+    assert bars == [] and meta['cache'] == 'unknown'
