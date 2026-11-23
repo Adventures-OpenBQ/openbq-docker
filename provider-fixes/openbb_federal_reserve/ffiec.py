@@ -36,8 +36,10 @@ async def bhcpr_report_download(params: Annotated[dict, Body()]) -> list:
     list
         A list of dictionaries, each with `content` and `data_format` keys.
     """
+    import asyncio
     import base64
 
+    from openbb_federal_reserve.utils.fedinprint import validate_pdf
     from openbb_federal_reserve.utils.ffiec import download_bhcpr_pdf
 
     urls = params.get("url") or []
@@ -45,7 +47,7 @@ async def bhcpr_report_download(params: Annotated[dict, Body()]) -> list:
 
     for url in urls:
         try:
-            content = download_bhcpr_pdf(url)
+            content = validate_pdf(await asyncio.to_thread(download_bhcpr_pdf, url))
             results.append(
                 {
                     "content": base64.b64encode(content).decode("utf-8"),
@@ -134,8 +136,10 @@ async def financial_report_pdf_download(params: Annotated[dict, Body()]) -> list
     list
         A list of dictionaries, each with `content` and `data_format` keys.
     """
+    import asyncio
     import base64
 
+    from openbb_federal_reserve.utils.fedinprint import validate_pdf
     from openbb_federal_reserve.utils.ffiec import download_financial_report_pdf
 
     urls = params.get("url") or []
@@ -143,7 +147,9 @@ async def financial_report_pdf_download(params: Annotated[dict, Body()]) -> list
 
     for url in urls:
         try:
-            content = download_financial_report_pdf(url)
+            content = validate_pdf(
+                await asyncio.to_thread(download_financial_report_pdf, url)
+            )
             results.append(
                 {
                     "content": base64.b64encode(content).decode("utf-8"),

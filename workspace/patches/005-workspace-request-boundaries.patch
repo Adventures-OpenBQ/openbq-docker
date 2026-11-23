@@ -1,0 +1,139 @@
+# Patch to OpenBB Workspace, Apache-2.0, copyright OpenBB Inc.
+# Check ownership before storage mutation; remove unused proxy; avoid secret-bearing logs.
+# Patch Copyright 2026 SecretoftheUniverse.com LLC. SPDX-License-Identifier: Apache-2.0
+--- a/backend/routers/pro/data_connectors.py
++++ b/backend/routers/pro/data_connectors.py
+@@ -152,6 +152,13 @@
+     db: AsyncSession = Depends(aget_write_db),
+ ):
+     """Delete a file widget and its associated file"""
++    widget_query = select(FileWidget.uuid).where(
++        FileWidget.uuid == widget_uuid, FileWidget.user_uuid == user.uuid
++    )
++    widget = (await db.execute(widget_query)).scalar_one_or_none()
++    if widget is None:
++        raise HTTPException(404, detail="File not found")
++
+     stored_file_query = select(StoredFile).where(
+         StoredFile.file_widget_uuid == widget_uuid
+     )
+--- a/backend/routers/pro/index.py
++++ b/backend/routers/pro/index.py
+@@ -18,7 +18,6 @@
+     JSONResponse,
+     RedirectResponse,
+     Response,
+-    StreamingResponse,
+ )
+ from jwt import ExpiredSignatureError, PyJWTError
+ from loguru import logger
+@@ -27,7 +26,6 @@
+ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+ from sqlalchemy.ext.asyncio import AsyncSession
+ from sqlalchemy.orm import selectinload
+-from starlette.background import BackgroundTask
+ 
+ from api import auth_helpers, base, crud, helpers, models, schemas
+ from api.database import aget_read_db, aget_write_db
+@@ -1950,58 +1948,3 @@
+             raise ValueError("Invalid URL: IP addresses are not allowed")
+ 
+         return v
+-
+-
+-mcp_proxy_client = httpx.AsyncClient(
+-    timeout=httpx.Timeout(10.0, read=300.0, connect=5.0)
+-)
+-
+-
+-def handle_cors(request: Response) -> dict[str, str]:
+-    origin = request.headers.get("Origin") or "*"
+-    cors_headers = {
+-        "Access-Control-Allow-Origin": origin,
+-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+-        "Access-Control-Allow-Headers": "Content-Type, mcp-session-id, www-authenticate, x-snowflake-request-id",
+-        "Access-Control-Expose-Headers": "mcp-session-id, www-authenticate, x-snowflake-request-id",
+-        "Access-Control-Max-Age": "86400",
+-    }
+-
+-    return cors_headers
+-
+-
+-@router.post("/mcp-proxy", response_class=StreamingResponse)
+-async def mcp_proxy(
+-    data: Annotated[MCPProxyRequest, Body()],
+-    _=Depends(auth_helpers.GetCurrentUser(["uuid"], pro=True)),
+-):
+-    """Proxy a request to the MCP service.
+-    This is used to allow the frontend to make requests to the MCP service to avoid CORS issues.
+-    """
+-    kwargs = {"headers": data.headers, "json": data.body}
+-    try:
+-        content_type = data.headers.get("content-type", "") if data.headers else ""
+-        # httpx requires form data to be sent as `data` instead of `json`
+-        if "x-www-form-urlencoded" in content_type and isinstance(data.body, dict):
+-            kwargs["data"] = kwargs.pop("json")
+-
+-        req = mcp_proxy_client.build_request(data.method, data.url, **kwargs)
+-        r = await mcp_proxy_client.send(req, stream=True, follow_redirects=True)
+-        r.headers.update(handle_cors(r))
+-
+-        return StreamingResponse(
+-            content=r.aiter_raw(),
+-            status_code=r.status_code,
+-            headers=r.headers,
+-            background=BackgroundTask(r.aclose),
+-        )
+-
+-    except httpx.ReadTimeout as e:
+-        raise HTTPException(
+-            status_code=504, detail="MCP service request timed out"
+-        ) from e
+-    except httpx.RequestError as e:
+-        logger.error(f"An error occurred while requesting {e.request.url!r}.")
+-        raise HTTPException(
+-            status_code=502, detail="Error connecting to MCP service"
+-        ) from e
+--- a/backend/api/rate_limit.py
++++ b/backend/api/rate_limit.py
+@@ -13,7 +13,7 @@
+ storage_uri = None if settings.is_test() else settings.get_redis_url()
+ 
+ 
+-logger.info(f"Initializing rate limiter with storage_uri: {storage_uri}")
++logger.info("Initializing rate limiter")
+ 
+ 
+ def get_remote_address_w_logging(request: Request) -> str:
+@@ -23,7 +23,6 @@
+     logger.info(
+         f"Rate limit check - IP: {ip}, User-Agent: {request.headers.get('User-Agent')}"
+     )
+-    logger.info(f"Request headers: {dict(request.headers)}")
+     return x_forwarded_for or ip
+ 
+ 
+--- a/backend/main.py
++++ b/backend/main.py
+@@ -181,18 +181,12 @@
+             path=request.url.path,
+             status_code=422,
+         )
+-        logger.bind(**extras).exception(exc)
+-
+-        if not getattr(request, "_stream_consumed", False):
+-            body = await request.body()
+-            decoded = body.decode("utf-8")
+-            if decoded:
+-                logger.bind(**extras).error(f"\nRequest body: {decoded}")
++        logger.bind(**extras).warning("Request validation failed")
+ 
+         error = exc.errors()[0]  # type: ignore
+         detail = error["msg"].replace("Value error, ", "")
+-    except Exception as log_exc:
+-        logger.bind(**extras).exception(log_exc)
++    except Exception:
++        logger.bind(**extras).warning("Validation details unavailable")
+ 
+     return JSONResponse(status_code=422, content={"detail": detail, "status": 422})
+ 

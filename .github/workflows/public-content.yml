@@ -11,8 +11,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Scan current files and reachable history
-        run: python3 scripts/check-public.py --history HEAD
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned scanner and publication extractors
+        run: |
+          python3 -m pip install --require-hashes -r security/requirements.txt
+          python3 security/install.py
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils tesseract-ocr
+      - name: Verify shared policy bytes
+        run: python3 security/sync.py --check
+      - name: Verify privacy and publication failure controls
+        run: python3 -m unittest discover -s security -p test_gate.py -v
+      - name: Scan current source and complete release ancestry
+        run: |
+          python3 security/gate.py tree
+          python3 security/gate.py history --revision HEAD
       - name: Verify source assembly and privacy checks
         run: python3 -m unittest discover -s workspace/tests
       - uses: actions/setup-python@v5
