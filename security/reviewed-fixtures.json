@@ -70,5 +70,11 @@
     "rule": "generic-api-key",
     "content_sha256": "20215ad1e300df0ec10a6e6e92ad987802b64a75e54f1a1da23b328058810468",
     "reason": "Reviewed V5 WebSocket negative test: exact same public RFC6455 sample handshake nonce and local request as qualified V4 fixture. V5 state-path/deadline test changes only; exact whole normalized source blob bound."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "6a8ff2f004343814e80629fad3aae53883ac662f756d496f447c2139edb47050",
+    "reason": "Reviewed V5 source-integrity manifest: all 129 prior original-file guards are byte-equivalent values, plus the SHA256 of the installed pinned TMX gainers source independently read before repair. All 130 values are null or 64-hex source digests under openbb_ paths; no credential. Exact full-file hash and rule only."
   }
 ]

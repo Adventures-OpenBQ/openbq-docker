@@ -127,5 +127,6 @@
   "openbb_government_us/congress/models/amendment_text.py": "2bacab1fa9ea7945200f0e01535b549fcf780f9e32ef221741ba8c4f687c6c95",
   "openbb_federal_reserve/utils/ffiec.py": "71f8a34f17a4f95297ca5ec683e68a29f37b55be28ac2ccc656ad1616f5cce12",
   "openbb_cftc/models/swap_trades.py": "5fecc01408f67d0d9707b98f51a874455a564b568e1a38553feccc7ee9c55bb6",
-  "openbb_deribit/models/futures_curve.py": "dc4cd241dc9a956fe79c8fe98237e957ee51645d9c845430957d56e086737039"
+  "openbb_deribit/models/futures_curve.py": "dc4cd241dc9a956fe79c8fe98237e957ee51645d9c845430957d56e086737039",
+  "openbb_tmx/models/gainers.py": "d1d807f696940a6b041f0d076bfeb9f2d62ca26f33a4415dd65df68dfaf1762d"
 }
