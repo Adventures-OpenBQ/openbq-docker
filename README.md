@@ -67,7 +67,7 @@ CFTC (`/api/v1/cftc/*`) and FINRA bonds run in a second `openbb-api` process, th
 ```sh
 python3 scripts/verify-heavy-routes.py http://127.0.0.1:6900   # widgets.json keeps answering under load
 python3 scripts/verify-lane-contract.py LANE_URL IN_PROCESS_URL  # same answers with OPENBQ_ISOLATE empty
-docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:2.0.0 python -m unittest discover -s lanes/tests
+docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:4.0.0 python -m unittest discover -s lanes/tests
 ```
 
 ### Large datasets as server-paged tables
