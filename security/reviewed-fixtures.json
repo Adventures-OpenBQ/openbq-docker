@@ -82,5 +82,11 @@
     "rule": "generic-api-key",
     "content_sha256": "b2b49e280a7a66da80fa1635345a8a6a6f08d15414e1fcca7a7cda8df80d333d",
     "reason": "Historical V6 manifest Git blob7439d9a1189519bf4d8c9c9e88a32742d21b2768 independently parsed as119 openbb_ source paths with null or64-hex source-integrity hashes. No credential values. Exact normalized whole source file only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "9e59db7d3ea70f76ab143e557bd40c34cf1757b9c1689baf365032eda97ec84c",
+    "reason": "132-entry source-integrity manifest. Independently verified131 exact original source SHA256 values against pristine pinned ODP packages and1 new path absent. New FRED cache source digest c9f78ae60139b4c5e5dda7b3949d3d7550d2277e80d8dbcc39f20e7d98c1e373 caused the detector match; it is a verified published source hash, not a credential. Exact full normalized file only."
   }
 ]
