@@ -52,5 +52,11 @@
     "rule": "generic-api-key",
     "content_sha256": "ccccc14777b699d60f74deb9e7c52856176d903b4a144ffda9c21b2ba2e55623",
     "reason": "Reviewed historical source-integrity manifest: all nonnull values are SHA256 digests; the flagged OpenAPI original-source digest equals the verified current pinned-package digest. Exact full-file hash only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "44327bf830bf55dd51446dce7de3d283a2039cbc072b011d0e22cde8d1f2b479",
+    "reason": "Reviewed FRED lifecycle maintenance source-integrity manifest: all 130 values are null or64-hex guarded original source SHA256 under openbb_ paths. All prior entries retain exact values; sole added guard is independently fetched published openbb-fred2.0.0 rate_limiter.py SHA2561062386b3d2281700f5a3604e61a651cb7f3797e84360e3881b2b694c7f76024. Exact normalized whole-file hash/path/rule only; no credential or wildcard."
   }
 ]
