@@ -73,6 +73,7 @@
   "openbb_finra/routers/equity.py": "32a6d95b35c9adfba9f95c5f93ac77a65a6293fd70d2f9a4203b743a7e94b5be",
   "openbb_finra/utils/directory.py": "b844ffde7991b902d57c506db52f67ae71bc112e92e4f52b577785753cb2097b",
   "openbb_fred/models/tips_yields.py": "6383fcfcf1123640d70f346066705d4fd18fccf2384fd38863c692e2c2cc4d39",
+  "openbb_fred/utils/rate_limiter.py": "1062386b3d2281700f5a3604e61a651cb7f3797e84360e3881b2b694c7f76024",
   "openbb_government_us/congress/congress_router.py": "530f9401ba71f90a12d13c01a48284d064dea12b9249cb3ef0b5872165627db6",
   "openbb_government_us/congress/models/congress_mandated_reports.py": "6a4760fb6150a46265d3962fc06513b6ef049bdac4162e9eee6bcc4c9f76a387",
   "openbb_government_us/congress/utils/bulk.py": "a202fef22fb0d45585d71fda47a6a18eeda944f7849bb7f1df7f53e1181aa9ef",
