@@ -124,5 +124,11 @@
     "rule": "generic-api-key",
     "content_sha256": "0eee2d8e934f2e6176a3187c20b08d55f93300f650e0b1cb6bc7ec34a5721939",
     "reason": "Historical offline summary-redaction test uses explicitly synthetic distinctive SECRET-eodhd-a1b2c3/SECRET-fmp-d4e5f6 values and asserts they never appear in output."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "44327bf830bf55dd51446dce7de3d283a2039cbc072b011d0e22cde8d1f2b479",
+    "reason": "Reviewed FRED lifecycle maintenance source-integrity manifest: all 130 values are null or64-hex guarded original source SHA256 under openbb_ paths. All prior entries retain exact values; sole added guard is independently fetched published openbb-fred2.0.0 rate_limiter.py SHA2561062386b3d2281700f5a3604e61a651cb7f3797e84360e3881b2b694c7f76024. Exact normalized whole-file hash/path/rule only; no credential or wildcard."
   }
 ]
