@@ -76,5 +76,11 @@
     "rule": "generic-api-key",
     "content_sha256": "6a8ff2f004343814e80629fad3aae53883ac662f756d496f447c2139edb47050",
     "reason": "Reviewed V5 source-integrity manifest: all 129 prior original-file guards are byte-equivalent values, plus the SHA256 of the installed pinned TMX gainers source independently read before repair. All 130 values are null or 64-hex source digests under openbb_ paths; no credential. Exact full-file hash and rule only."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "90d60bf108ae2249fd5d43ffec0e1b9ff5647aedf74c58703b5161e302c3bea4",
+    "reason": "Reviewed FRED lifecycle maintenance source-integrity manifest: all 131 values are null or64-hex guarded original source SHA256 under openbb_ paths. All prior entries retain exact values; sole added guard is independently fetched published openbb-fred2.0.0 rate_limiter.py SHA2561062386b3d2281700f5a3604e61a651cb7f3797e84360e3881b2b694c7f76024. Exact normalized whole-file hash/path/rule only; no credential or wildcard."
   }
 ]
