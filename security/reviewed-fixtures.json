@@ -1,0 +1,62 @@
+[
+  {
+    "path": "key-maint/tests/test_rows.py",
+    "rule": "generic-api-key",
+    "content_sha256": "101bbe594c10a01730de9a5977716b772b9f40a62a9d970a092aba36a227c1fc",
+    "reason": "Offline credential-redaction regression uses explicitly distinctive synthetic SECRET-eodhd-a1b2c3 and SECRET-fmp-d4e5f6 fixtures; asserts summary never includes them. Full normalized file bound."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "9e59db7d3ea70f76ab143e557bd40c34cf1757b9c1689baf365032eda97ec84c",
+    "reason": "132-entry source-integrity manifest. Independently verified131 exact original source SHA256 values against pristine pinned ODP packages and1 new path absent. New FRED cache source digest c9f78ae60139b4c5e5dda7b3949d3d7550d2277e80d8dbcc39f20e7d98c1e373 caused the detector match; it is a verified published source hash, not a credential. Exact full normalized file only."
+  },
+  {
+    "path": "key-maint/tests/test_rows.py",
+    "rule": "generic-api-key",
+    "content_sha256": "c0ba8ee54a4a432e4cc01e447f81ef7ae19c3e1ce4eb2c8e8d0b1040958648e2",
+    "reason": "Historical offline summary-redaction test uses explicitly synthetic distinctive SECRET-eodhd-a1b2c3/SECRET-fmp-d4e5f6 values and asserts they never appear in output."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "b2b49e280a7a66da80fa1635345a8a6a6f08d15414e1fcca7a7cda8df80d333d",
+    "reason": "Historical V6 manifest Git blob7439d9a1189519bf4d8c9c9e88a32742d21b2768 independently parsed as119 openbb_ source paths with null or64-hex source-integrity hashes. No credential values. Exact normalized whole source file only."
+  },
+  {
+    "path": "key-maint/tests/test_rows.py",
+    "rule": "generic-api-key",
+    "content_sha256": "0eee2d8e934f2e6176a3187c20b08d55f93300f650e0b1cb6bc7ec34a5721939",
+    "reason": "Historical offline summary-redaction test uses explicitly synthetic distinctive SECRET-eodhd-a1b2c3/SECRET-fmp-d4e5f6 values and asserts they never appear in output."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "0b719865f6405f603349a9f9cdaaba0a002dec0774a7023463eb91feffaba4df",
+    "reason": "Public SHA256-only original-provider guard manifest; all historical path/value entries exact subset of current reviewed guard, no credential values."
+  },
+  {
+    "path": "funnel-gateway/gateway.test.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "c08a5c3b7fa42b9d7de6060a99f79af95ad6df1370c3da2ab4ebd03a563b2198",
+    "reason": "Official public RFC6455 section1.3 sample handshake nonce in isolated HTTP/WebSocket method-refusal regression; whole-file scope, no runtime credential."
+  },
+  {
+    "path": "provider-fixes/original-sha256.json",
+    "rule": "generic-api-key",
+    "content_sha256": "fcd6037df89ebc70fb54550d6902691710a8f1ad124dc5c14338688648e9950b",
+    "reason": "Public SHA256-only original-provider guard manifest; all historical path/value entries exact subset of current reviewed guard, no credential values."
+  },
+  {
+    "path": "funnel-gateway/gateway.test.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "11e2b34e424edb34c1086180c5d23a53edab4087b47c208bf34251596dc521fc",
+    "reason": "Official public RFC6455 section1.3 sample handshake nonce in isolated HTTP/WebSocket method-refusal regression; whole-file scope, no runtime credential."
+  },
+  {
+    "path": "funnel-gateway/gateway.test.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "be164d0d9563dd469bb3cdfa12e3e495aba7d4bea540b89949533f75872c9000",
+    "reason": "Official public RFC6455 section1.3 sample handshake nonce in isolated HTTP/WebSocket method-refusal regression; whole-file scope, no runtime credential."
+  }
+]

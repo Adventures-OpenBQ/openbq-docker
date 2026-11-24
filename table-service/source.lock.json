@@ -1,10 +1,11 @@
 {
   "repository": "https://github.com/Adventures-OpenBQ/bdobb",
-  "revision": "944c6d725a29beed8d577e64fc2d8330d4260241",
-  "tree": "53507fbfe83175f32edc5efda221058ecbd3be3d",
+  "revision": "273b0ccd8656864467ff48f58861db3fbaff81d0",
+  "tree": "186532a15b4a51237900345a815da23b4110297c",
   "dockerfileSha256": "e3a9e2cd0cd5d96d8be057f2084f14566180b5f89f09ff913b6ffaa3784a2fe4",
   "rust": "1.98.1",
   "node": "26.10.0",
   "icu": "78.3",
-  "xlsx": "0.20.3"
+  "xlsx": "0.20.3",
+  "qualification_state": "SOURCE_PIN_VERIFIED_PAIRED_V8_IMAGE_AND_RUNTIME_QUALIFICATION_PENDING"
 }

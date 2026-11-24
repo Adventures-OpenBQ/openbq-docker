@@ -913,7 +913,7 @@ if os.environ.get("OPENBQ_ROLE") != "worker" and _prefixes:
 
 
 PROVIDERS_PATH = "/providers.json"
-_OPTIONAL = frozenset({"cftc", "econdb"})  # bls is key-required
+_OPTIONAL = frozenset({"bls", "cftc", "econdb"})
 _LOCAL = frozenset({"deltalake", "kdb"})
 _NAMES = {
     "yfinance": "Yahoo Finance", "sec": "SEC", "federal_reserve": "Federal Reserve",

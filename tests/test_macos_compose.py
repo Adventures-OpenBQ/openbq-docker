@@ -33,8 +33,16 @@ class MacOSComposeTests(unittest.TestCase):
             mount = next(v for v in service["volumes"] if v["target"] == "/config/admin")
             self.assertEqual(mount["type"], "volume")
             self.assertEqual(mount["source"], "key-maint-admin")
+            self.assertIs(mount.get("volume", {}).get("nocopy"), True)
+            self.assertFalse(mount.get("read_only", False))
             self.assertIn("key-maint-admin", actual["volumes"])
             self.assertEqual(service["ports"], baseline["services"]["key-maint"]["ports"])
             self.assertEqual(service["networks"], baseline["services"]["key-maint"]["networks"])
+            self.assertEqual(service["environment"], baseline["services"]["key-maint"]["environment"])
+            self.assertEqual(
+                [v for v in service["volumes"] if v["target"] != "/config/admin"],
+                [v for v in baseline["services"]["key-maint"]["volumes"]
+                 if v["target"] != "/config/admin"],
+            )
             original = next(v for v in baseline["services"]["key-maint"]["volumes"] if v["target"] == "/config/admin")
             self.assertEqual(original["type"], "bind")

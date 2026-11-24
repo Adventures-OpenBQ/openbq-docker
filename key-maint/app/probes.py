@@ -174,29 +174,25 @@ async def run_probes(
             await api_client.aclose()
 
 
-_inflight: asyncio.Future | None = None
+_inflight: asyncio.Task | None = None
+
+
+def _finish_wave(task: asyncio.Task) -> None:
+    global _inflight
+    if _inflight is task:
+        _inflight = None
+    if not task.cancelled():
+        # Retrieve errors even if every caller cancelled before completion.
+        task.exception()
 
 
 async def run_probes_joined(runner):
-    """Join a run already in progress instead of firing a duplicate wave of
-    vendor/API calls. `runner` is a zero-arg coroutine function returning the
-    run's result. Two concurrent callers while a run is in flight both await
-    the same Future and get the same result object."""
+    """Share one vendor/API wave while insulating it from caller cancellation."""
     global _inflight
-    fut = _inflight
-    if fut is not None and not fut.done():
-        return await fut
-    loop = asyncio.get_event_loop()
-    fut = _inflight = loop.create_future()
-    try:
-        result = await runner()
-        fut.set_result(result)
-        return result
-    except Exception as e:  # propagate to joiners, then clear
-        fut.set_exception(e)
-        raise
-    finally:
-        _inflight = None
+    if _inflight is None or _inflight.done():
+        _inflight = asyncio.create_task(runner())
+        _inflight.add_done_callback(_finish_wave)
+    return await asyncio.shield(_inflight)
 
 
 async def probe_one_provider(
@@ -204,15 +200,17 @@ async def probe_one_provider(
 ) -> list[Check]:
     """Probe a single provider by env_var. Backs the widget's per-row 'Test
     this service' action, which must not fire ~18 vendor requests to check
-    one. Runs connectivity too, alongside the credential check, when the
-    provider is installed, has a stored example, and has a value."""
+    one. Runs connectivity when the installed provider has an example and
+    either a configured key or optional authentication."""
     p = PROVIDERS[env_var]
     auth_of = {d.get("id"): d.get("auth", "unknown") for d in (descriptor or [])}
-    installed = p.provider_id in auth_of
+    can_connect = p.provider_id in auth_of and p.provider_id in EXAMPLES
+    has_value = bool(values.get(env_var))
+    anonymous = can_connect and not has_value and auth_of[p.provider_id] == "optional"
     async with (httpx.AsyncClient(timeout=TIMEOUT_S) as cc,
                 httpx.AsyncClient(timeout=CONNECTIVITY_TIMEOUT_S) as ac):
-        checks = [await _probe_credential(cc, env_var, values)]
-        if installed and p.provider_id in EXAMPLES and values.get(env_var):
+        checks = [] if anonymous else [await _probe_credential(cc, env_var, values)]
+        if can_connect and (has_value or anonymous):
             checks.append(await _probe_connectivity(ac, EXAMPLES[p.provider_id], base_url, auth))
         return checks
 

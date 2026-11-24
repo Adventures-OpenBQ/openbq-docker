@@ -12,12 +12,25 @@
     "terminalpro/bun.lock": "6bf311d0714daa825d7d0b89c9519ce48ed882a23ba7d206565168b61e7149e0",
     "backend/poetry.lock": "ae615c0d2a7b3b1affb54fa0ae1b17baeca92c751270be06a05daa12142d9633"
   },
-  "observed_build": {
+  "historical_v8_observed_build": {
     "runtime_image_id": "sha256:04222ea5bd191fd4a2fd4db9c01714bb882fa97fb3b3610b1cad43f47b7bc142",
     "architecture": "amd64",
     "poetry_version": "2.5.1",
     "backend_lock_regenerated": true,
     "resolved_lock_sha256": "d491646f3ee25c2da599a079e285084a2768eb2929f220fc4001839dc7a59f86",
     "runtime_inventory_sha256": "204a795c9759bf83e73c14d10f92d38bd93cd568681b5454f99cbb2f34cbb189"
+  },
+  "observed_build": {
+    "runtime_image_id": null,
+    "architecture": null,
+    "poetry_version": "2.5.1",
+    "backend_lock_regenerated": false,
+    "resolved_lock_sha256": "853205dec793eef98b292629706c8ccaa654af46e3dce5b9d617080ae1e6c518",
+    "runtime_inventory_sha256": null,
+    "qualification_state": "PENDING_V8_BUILD_AND_RUNTIME_QUALIFICATION_SOURCE_DATA_ONLY",
+    "source_security_patches": [
+      "005-workspace-request-boundaries.patch",
+      "006-public-test-key-packaging.patch"
+    ]
   }
 }

@@ -14,18 +14,22 @@ three postures:
 |---|---|---|
 | 1 | anything forwarded from outside the tailnet | key status + demo flag |
 | 2 | `https://openbq-keys.<your-tailnet>.ts.net` from a tailnet device, or `http://127.0.0.1:8447` on the host | + `run_tests` live probes |
-| 3 | Unix socket on the host, via an SSH exec session | + the key values, and writing a key |
+| 3 | Unix socket via host/SSH on Linux, or Docker exec on macOS | + the key values, and writing a key |
 
 **Auth follows the API.** key-maint reads the same `credentials.env` as the
-API. While `OPENBB_API_AUTH` is off the API is open and so is key-maint; when
-it is on, every tier (tier 3 included) needs the API's own
-`OPENBB_API_USERNAME` / `OPENBB_API_PASSWORD`, and an empty username or
-password denies everything. A missing `credentials.env` also denies
-everything. Tier 1 never shows a key's value, only whether it is set.
+API. An omitted, empty, `0`, `false` or `no` auth flag leaves key-maint open.
+With `1`, `true` or `yes`, every tier requires the API's
+`OPENBB_API_USERNAME` and `OPENBB_API_PASSWORD`. An unknown flag, an unreadable
+auth file, or an empty username or password when auth is on denies access.
+Set auth values directly in the file so key-maint can read them. For literal
+dollar signs, use single quotes or escape the dollars within double quotes.
+Tier 1 shows key status and the demo flag.
 
 What tier 3 does not have is a **port**: the admin server binds a **unix
-socket** in a host directory you create with mode 0700, so being able to open
-that file is what raises a caller to tier 3. The filesystem stands in for a
+socket** in a mode-0700 directory. On Linux this is a host bind mount; on
+macOS it is a named volume inside Docker's Linux VM. Opening that socket
+raises a caller to tier 3; on macOS this requires host-level Docker access.
+The filesystem stands in for a
 second credential; there is no separate admin password to store, leak or
 rotate.
 
@@ -33,29 +37,41 @@ rotate.
 
 key-maint is part of the Episode 3 overlay (`docker-compose.v3.yml`).
 
-1. One-time, beside the compose files:
-   `mkdir -p key-maint-admin && chmod 700 key-maint-admin`
-2. `docker compose -f docker-compose.yml -f docker-compose.v3.yml up -d key-maint`
-   (builds `openbq-key-maint:8.0.0` from this directory the first time; add
-   `--build` to rebuild it after a change).
+1. On Linux, create the host admin directory beside the compose files:
+   `mkdir -p key-maint-admin && chmod 700 key-maint-admin`. macOS uses a named
+   Linux volume and does not need this host directory.
+2. Start key-maint with the files for your host:
+
+   Linux:
+
+   ```sh
+   docker compose -f docker-compose.yml -f docker-compose.v3.yml up -d key-maint
+   ```
+
+   macOS / Docker Desktop:
+
+   ```sh
+   docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.macos.yml up -d key-maint
+   ```
+
+   These build `openbq-key-maint:8.0.0` the first time; add `--build` to
+   rebuild it after a change. On macOS, include all three files on every
+   Compose command. Docker Desktop cannot chmod a Unix socket on a host
+   bind mount, so the macOS override keeps `/config/admin` in a named Linux
+   volume with copying from the image disabled. The app sets its directory
+   to 0700. Use Docker exec for tier 3, as shown below.
 3. On the host it answers on `http://127.0.0.1:8447` only. That port is
    loopback-only, so the compose file sets `KEYMAINT_DIRECT_TIER=2`: a direct,
    un-forwarded caller (the host itself) gets live tests. Without it a direct
    caller is tier 1. It cannot be raised to 3.
-   Docker Desktop on macOS cannot chmod a Unix socket on a bind-mounted host
-   folder. On a Mac, append `-f docker-compose.macos.yml` after the v3 file on
-   every Compose command. This keeps `/config/admin` on a named Linux volume;
-   tier 3 is reached with `docker compose exec`, using host-level Docker access.
-   The network listener stays on host loopback and never grants tier 3.
 4. Tailnet (optional): create the Tailscale Service `svc:openbq-keys` in your
    tailnet's admin console and approve this node as its host, replace
    `<your-tailnet>` in `ts-config/serve-v3-keys.json`, then point the
    `tailscale` service's `TS_SERVE_CONFIG` at `/config/serve-v3-keys.json`.
    That file is `serve-v3.json` plus the Service; it is tailnet-only and never
    funneled. Until the Service exists, keep `serve-v3.json`.
-   With the Episode 6 overlay (`docker-compose.v6.yml`), use
-   `ts-config/serve-v6-keys.json` instead: `serve-v6.json` plus the same Service, or
-   `ts-config/serve-v6-services.json`, which also names Rita and MCP (README, Episode 6).
+
+With the Episode 6 overlay (`docker-compose.v6.yml`), use `ts-config/serve-v6-keys.json` or the opt-in `ts-config/serve-v6-services.json` described in the root README.
 
 ## Use
 
@@ -66,7 +82,7 @@ key-maint is part of the Episode 3 overlay (`docker-compose.v3.yml`).
   panel in BDOBB's **Settings** dialog as **Provider API Keys**, one section
   per key-maint connection. It also serves the key status widgets for the
   library. OpenBB Workspace ignores the settings type.
-- **Tier 3 (values, writing a key):** run curl on the host over SSH; it never
+- **Tier 3 on Linux (values, writing a key):** run curl on the host over SSH; it never
   opens a forwarded channel, so the host's sshd forwarding policy does not
   matter:
 
@@ -78,7 +94,40 @@ key-maint is part of the Episode 3 overlay (`docker-compose.v3.yml`).
   forwarding:
   `ssh -L 18446:<stack-dir>/key-maint-admin/key-maint-admin.sock <host>` →
   `http://localhost:18446`. `scripts/smoke_live.py` needs this `-L` form.
-  A written key reaches the API at its next restart.
+- **Tier 3 on macOS:** use Docker exec as a user authorized to control Docker.
+  The admin socket stays inside the Linux volume; no admin TCP listener is
+  added. This command uses the image's installed Python and HTTPX, reads the
+  same API Basic settings as the guard, and prints the tier-3 response:
+
+  ```sh
+  docker compose -f docker-compose.yml -f docker-compose.v3.yml -f docker-compose.macos.yml exec -T key-maint python - <<'PY'
+  import os
+  import httpx
+  from app.credfile import load
+
+  credentials = load(os.environ.get("KEYMAINT_AUTH_FILE", "/config/credentials.env")) or {}
+  socket = os.environ.get("KEYMAINT_ADMIN_SOCKET", "/config/admin/key-maint-admin.sock")
+  with httpx.Client(
+      transport=httpx.HTTPTransport(uds=socket),
+      base_url="http://localhost",
+      auth=(credentials.get("OPENBB_API_USERNAME", ""),
+            credentials.get("OPENBB_API_PASSWORD", "")),
+  ) as client:
+      response = client.get("/keys")
+      response.raise_for_status()
+      print(response.text)
+  PY
+  ```
+
+  To write a key, replace the request line with
+  `response = client.put("/keys/FRED_API_KEY", json={"value": "your-key"})`.
+  The admin socket still requires the API's Basic credentials when auth is on.
+  The host-loopback network listener remains capped at tier 2.
+
+The panel and probes load `credentials.demo.env` first, then
+`credentials.env`. An empty entry in `credentials.env` suppresses the demo key.
+Admin edits update `credentials.env`. The API picks up the edit at its next
+restart.
 
 ## Provider connectivity
 
@@ -104,14 +153,16 @@ the API it talks to.
 - **`GET /keys/{env_var}/test`** — same route as before, but now also runs
   the connectivity check alongside the credential check when the provider
   is installed on the backend, has a stored example, and has a value set.
+  Optional providers such as BLS can run the connectivity check with an empty
+  key.
 
 
 ## Release check
 
 `python -m app.catalog --check <OPENBB_URL>` runs every stored example
 (`app/catalog.py::EXAMPLES`) against a live OpenBB API and enforces the
-demo policy: every example marked `demo_ok=True` must classify `ok` (its
-public demo key still works), and every other (keyed) example must
+demo policy. Every example marked `demo_ok=True` must classify `ok` with a
+public demo key or anonymous access. Every other (keyed) example must
 classify `ok`, `auth_failed`, or `skipped` — `ok` passes there too because
 a keyed example run against a deployment that HAS real keys configured
 legitimately succeeds; that is not drift, just a live key doing its job.

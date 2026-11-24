@@ -6,9 +6,9 @@ A headless Open Data Platform backend on Docker, with private HTTPS through a se
 
 Official core/API, seventeen providers, news, and technical/quantitative/econometric extensions. No desktop frontend, custom providers, running MCP service, agent, or later storage stack in the ODP service. `requirements.in` declares the intended direct packages; `requirements.lock` records the full resolved environment used by the Docker build.
 
-The original Episode 1 checkpoint remains `v1.0.0`. The v2 candidate applies reviewed BLS/TMX compatibility fixes to the same locked provider packages; the overlay verifies every original file hash before applying changes. See [provider fixes](provider-fixes/README.md) and [verification](VERIFICATION.md).
+The original Episode 1 checkpoint remains `v1.0.0`. This V7 recipe retains the locked provider packages and applies the current shared compatibility and security overlays, verifying every original file hash before applying changes. See [provider fixes](provider-fixes/README.md) and [verification](VERIFICATION.md).
 
-The optional `workspace/` companion is a separate source-built service in rehearsal; a backend checkpoint does not certify the full Workspace dashboard/recovery workflow.
+The optional `workspace/` companion retains the original Workspace client independently of BDOBB. Its profile defaults to a local AMD64 source build with automatic pulls disabled; see [its reproduction guide](workspace/REPRODUCE.md). Backend, companion state and full BDOBB reference rendering have separate acceptance checks.
 
 ## Start
 
@@ -24,7 +24,7 @@ docker compose up -d
 docker compose ps
 ```
 
-On a NAS, use `./scripts/nas-docker.sh` in place of `docker` if Docker is missing from the SSH PATH or its default client home is unwritable. Run it from this checkout.
+On QNAP, use `./scripts/nas-docker.sh` in place of `docker` if Docker is missing from the SSH PATH or its default client home is unwritable. Run it from this checkout.
 
 Generate an auth key from [Tailscale's Keys page](https://login.tailscale.com/admin/settings/keys). For this one persistent node, turn Reusable and Ephemeral off; enable Pre-approved if your tailnet requires device approval. Apply existing server tags only if their access policy is appropriate. Enable MagicDNS and HTTPS certificates. Never copy another node's identity state.
 
@@ -67,7 +67,7 @@ CFTC (`/api/v1/cftc/*`) and FINRA bonds run in a second `openbb-api` process, th
 ```sh
 python3 scripts/verify-heavy-routes.py http://127.0.0.1:6900   # widgets.json keeps answering under load
 python3 scripts/verify-lane-contract.py LANE_URL IN_PROCESS_URL  # same answers with OPENBQ_ISOLATE empty
-docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:2.0.0 python -m unittest discover -s lanes/tests
+docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:7.0.0 python -m unittest discover -s lanes/tests
 ```
 
 ### Large datasets as server-paged tables
@@ -124,7 +124,7 @@ The list is committed data, `lanes/ssrm_widgets.json`:
 
 Settings (`credentials.env`): `OPENBQ_SSRM_WIDGETS` (path of that list, default `/workspace/ssrm_widgets.json`), `OPENBQ_SSRM_CACHE_BYTES` (default 3 GiB), `OPENBQ_SSRM_TTL` (seconds, default 900), `OPENBQ_SSRM_DEADLINE` (seconds per first acquisition, default 300). As with widget settings, restart the API after editing them.
 
-The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults to the 41 paths `/api<route>/ssrm`, one per row above, derived from `lanes/ssrm_widgets.json` (the gateway image copies that file); leave the setting out unless you mean to narrow it (`[]` turns SSRM through the door off). `funnel-gateway/ssrm-routes.test.mjs` checks the derived list (23 unique routes, each admitted for POST, a listed route's GET and an unlisted sibling refused). The door never passes od's `x-openbq-ssrm` cache marker to the client.
+The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults to the 41 paths `/api<route>/ssrm`, one per row above, derived from `lanes/ssrm_widgets.json` (the gateway image copies that file); leave the setting out unless you mean to narrow it (`[]` turns SSRM through the door off). `funnel-gateway/ssrm-routes.test.mjs` checks the derived list (41 unique routes, each admitted for POST, a listed route's GET and an unlisted sibling refused). The door never passes od's `x-openbq-ssrm` cache marker to the client.
 
 ## Credentials and restart
 
@@ -134,8 +134,8 @@ The Funnel door admits a POST only on routes in its `ssrmRoutes`, which defaults
 (api.data.gov's `DEMO_KEY` for EIA and Congress.gov), so those cards answer before you have keys of
 your own. Compose loads it first and `credentials.env` second, so any key you set wins; keep a
 demo-covered line commented out in `credentials.env` (an empty `NAME=` would replace the demo key with
-nothing). Demo keys are rate-limited (30 requests an hour, 50 a day per IP). BLS, CFTC and EconDB need
-no key. The live check of each value is in [the receipt](docs/credentials-demo-receipt.md);
+nothing). Demo keys are rate-limited (30 requests an hour, 50 a day per IP). BLS and CFTC need no key;
+EconDB asks for a temporary token, which its service may refuse, so supply your own EconDB key or skip that card. The live check of each value is in [the receipt](docs/credentials-demo-receipt.md);
 `tests/test_credentials_demo.py` allows no other names or values in the file.
 
 Optional vendor keys go in `credentials.env`, ignored by Git and excluded from the image. Use official variable names; no inline comments after empty values. Recreate the API after editing an environment file. Its settings and OpenBBUserData persist in separate named volumes; Tailscale identity persists in `ts-state/`.
@@ -166,14 +166,16 @@ Enable the local gates after cloning:
 
 ```sh
 git config core.hooksPath .githooks
-python3 scripts/check-public.py --history
+python3 security/install.py
+python3 security/gate.py tree
+python3 security/gate.py history --revision HEAD
 ```
 
-Commits scan tracked, staged and unignored files; pushes also scan the history reachable from the pushed refs; CI and a bare `--history` scan every branch and tag. Local deployment evidence and the machine-specific `scripts/scrub-private-patterns.txt` remain ignored. Reports use placeholder hostnames and addresses. The scanner reports filenames and finding categories, never matched values.
+Commits scan exact staged bytes; pushes scan current source and every new reachable blob before sending a ref. CI scans current source and complete release ancestry. Use `python3 security/gate.py history --revision=--all` to audit all locally reachable branches and tags. Local deployment evidence and the machine-specific `scripts/scrub-private-patterns.txt` remain ignored. Reports use placeholder hostnames and addresses. The scanner reports filenames and finding categories, never matched values.
 
 Real `credentials.env` files may be used on the NAS, but stay out of Git and Docker build contexts. Example credentials must contain empty values or obvious placeholders; an `.example` suffix does not make a real key safe to publish. The one exception is `credentials.demo.env`, whose public demo values `scripts/check-public.py` allows by exact name and value. Screenshots still need visual review before publication.
 
-## Episode 3 candidate: BDOBB and the reference backend
+## Reference backend and provider key status
 
 The stack's API image includes [our original yfinance extension](v3/yfinance/README.md),
 BDOBB's settings API and the v4 calendar and fiscal-year routes; `docker-compose.yml`
@@ -206,8 +208,7 @@ examples for an 80-card BDOBB file import. The two Episode 3 app entries carry
 the BDOBB logo in standard image fields. Workspace is an optional Episode 2
 comparison, not a prerequisite for this setup.
 
-Released as `v3.0.0` with BDOBB v3.0.0: `openbq-local:3.0.0` and
-`openbq-key-maint:3.0.0`, both built from this checkout, are the images the 2026-10-15 regression ran on a NAS.
+The current Compose recipe builds `openbq-local:7.0.0`, `openbq-key-maint:7.0.0` and `openbq-episode3-demo:7.0.0`. The historical 2026-10-15 NAS regression used the then-current `v3.0.0` checkpoint and its matching version 3 images; that historical result does not qualify the current V7 assembly.
 
 The reference recipe carries forward the previously qualified PDF repair from `bdobb-dev/backends-for-openbb` commit `32615f789f9423ea14d3f95003da250f4ef5bcfc`. Sample and Bitcoin PDFs use immutable GitHub raw URLs because the original S3 bucket returns AllAccessDisabled. Downloaded bytes match the pinned upstream fixtures; this changes asset transport, not PDF content.
 
