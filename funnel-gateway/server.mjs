@@ -8,10 +8,11 @@
 // The socket door also serves the reference's /ref/live_grid_ws, which came down to v3/v4
 // with the reference backend.
 
+import {stateVersion, readState, commitState} from "./state-store.mjs";
 import { createServer, request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { gzip } from "node:zlib";
@@ -214,7 +215,7 @@ export function connectGrid(config, path = "/live_grid_ws") {
   return new WebSocket(url, {
     headers: { Authorization: config.apiAuthorization, Origin: config.gridOrigin },
     handshakeTimeout: 10000, followRedirects: false,
-    maxPayload: path === "/chart_stream_ws" ? MAX_CHART_SOCKET : MAX_SOCKET, perMessageDeflate: false,
+    maxPayload: (url.pathname === "/chart_stream_ws" || url.pathname === "/ta_chart_ws") ? MAX_CHART_SOCKET : MAX_SOCKET, perMessageDeflate: false,
   });
 }
 
@@ -407,10 +408,10 @@ export function rewriteGridWidgets(spec, config) {
  * numeric id its session verified -- under the same machine token as every other
  * request; this side holds the shape:
  * digits for the user, an allow-listed file name (policy.mjs stateFile), JSON only,
- * 256 KiB a file, 2 MiB and 200 files a user. One flat directory per user; a name is
- * stored percent-encoded, so no request can name a path.
+ * 256 KiB a file, 2 MiB and 200 files a user. One private SQLite database per user; legacy percent-encoded flat files
+ * are imported once. Names remain governed by the same allow-list.
  */
-const STATE_FILE_MAX = 262144, STATE_USER_MAX = 2 * 1024 * 1024, STATE_USER_FILES = 200;
+const STATE_FILE_MAX = 262144;
 async function stateFiles(dir) {
   let names; try { names = await readdir(dir); } catch { return []; }
   // A crash between the temp write and its rename leaves a .tmp- behind that no listing
@@ -444,26 +445,21 @@ async function handleState(req, res, url, config) {
   const dir = join(config.stateDir, match[1]), name = match[2];
   if (name === undefined) {
     if (req.method !== "GET") return reply(res, 405);
-    const files = {};
-    for (const f of await stateFiles(dir)) files[f.name] = await readFile(join(dir, f.stored), "utf8");
-    return reply(res, 200, { files });
+    await stateFiles(dir); // sweep only stale temporary legacy writes
+    return reply(res, 200, { files: readState(dir) });
   }
   if (!stateFile(name)) return reply(res, 404);
-  const path = join(dir, encodeURIComponent(name));
-  if (req.method === "DELETE") { await rm(path, { force: true }); return reply(res, 204); }
-  if (req.method !== "PUT") return reply(res, 405);
-  const body = await jsonBody(req, STATE_FILE_MAX);
+  if (req.method !== "PUT" && req.method !== "DELETE") return reply(res, 405);
+  const version = stateVersion(req);
+  if (version === false) return reply(res, 400);
+  const body = req.method === "DELETE" ? null : await jsonBody(req, STATE_FILE_MAX);
   if (typeof body === "number") return reply(res, body);
-  const others = (await stateFiles(dir)).filter(f => f.name !== name);
-  let total = body.length;
-  for (const f of others) total += (await stat(join(dir, f.stored))).size;
-  if (total > STATE_USER_MAX || others.length >= STATE_USER_FILES) return reply(res, 413);
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  // Same directory, so the rename is atomic; the name can never pass stateFile.
-  const temp = join(dir, ".tmp-" + randomBytes(8).toString("hex"));
-  try { await writeFile(temp, body, { mode: 0o600 }); await rename(temp, path); }
-  catch (error) { await rm(temp, { force: true }); throw error; }
-  return reply(res, 204);
+  const status = commitState(dir, name, body === null ? null : body.toString("utf8"), version);
+  if (status === 204 && version) {
+    res.setHeader("X-BDOBB-State-Writer", version.writer);
+    res.setHeader("X-BDOBB-State-Sequence", version.raw);
+  }
+  return reply(res, status);
 }
 
 // Identity assertions use a separate server-only credential. Possession of the shared
@@ -760,8 +756,8 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
           upstream = grid ? openGrid(config, target.slice("/grid".length)) : ref ? openRef(config) : openNews(config);
         } catch { close(); return false; }
         upstream.on("message", (message, isBinary) => {
-          if (isBinary || message.length > (chart ? MAX_CHART_SOCKET : !grid && !ref ? MAX_NEWS_REPLY : MAX_SOCKET) || client.readyState !== WebSocket.OPEN ||
-              client.bufferedAmount + (chart ? message.length : 0) > (chart ? MAX_CHART_SOCKET : !grid && !ref ? MAX_NEWS_REPLY : 262144)) return close();
+          if (isBinary || message.length > (chart || ta ? MAX_CHART_SOCKET : !grid && !ref ? MAX_NEWS_REPLY : MAX_SOCKET) || client.readyState !== WebSocket.OPEN ||
+              client.bufferedAmount + (chart || ta ? message.length : 0) > (chart || ta ? MAX_CHART_SOCKET : !grid && !ref ? MAX_NEWS_REPLY : 262144)) return close();
           // The door is the only trust boundary for the wire: rss-ticker is unauthenticated on
           // the tailnet, so the door forwards the {"feeds"} reply and approved-feed articles,
           // nothing else. The grid and the reference relay as they are.

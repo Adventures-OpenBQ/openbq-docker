@@ -53,7 +53,7 @@ not for this.
 ```bash
 docker run -d --name kdb \
   -v "$PWD/../kdb-license:/licence:ro" -e QLIC=/licence \
-  -p 127.0.0.1:5000:5000 kdb-x:local
+  -p 127.0.0.1:5000:5000 openbq-kdb-local:10.0.0
 ```
 
 `KX_PORT` defaults to `0.0.0.0:5000` — all interfaces, deliberately, because

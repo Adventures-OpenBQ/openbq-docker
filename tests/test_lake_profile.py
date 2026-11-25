@@ -81,14 +81,14 @@ def test_rustfs_fails_closed_on_an_empty_or_default_root_pair():
     assert rustfs['restart'] == 'unless-stopped'
     # REVIEW (user ruling 2026-10-12, "rustfs should be persistent"): the store moved from the
     # named volume rustfs-data to a host directory, so `down -v` cannot delete it.
-    assert rustfs['volumes'] == ['${RUSTFS_DATA_DIR:-./rustfs-data}:/data']
+    assert rustfs['volumes'] == [{'type': 'bind', 'source': '${RUSTFS_DATA_DIR:-./rustfs-data}', 'target': '/data', 'bind': {'create_host_path': True}}]
     assert 'rustfs-data' not in COMPOSE['volumes']
 
 
 def test_rustfs_data_is_a_host_directory_made_writable_before_rustfs_starts():
     rustfs, perms = SERVICES['rustfs'], SERVICES['rustfs-perms']
     # Same directory in both, and rustfs waits for the one-shot to finish.
-    assert perms['volumes'] == rustfs['volumes'] == ['${RUSTFS_DATA_DIR:-./rustfs-data}:/data']
+    assert perms['volumes'] == rustfs['volumes'] == [{'type': 'bind', 'source': '${RUSTFS_DATA_DIR:-./rustfs-data}', 'target': '/data', 'bind': {'create_host_path': True}}]
     assert rustfs['depends_on'] == {'rustfs-perms': {'condition': 'service_completed_successfully'}}
     assert perms['profiles'] == ['live'] and perms['restart'] == 'no'
     # The RustFS image runs as 10001:10001; only the one-shot runs as root, with no network.

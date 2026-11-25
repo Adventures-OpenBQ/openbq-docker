@@ -142,5 +142,11 @@
     "rule": "generic-api-key",
     "content_sha256": "8e8a898c0ccd987aece3ba76cf24165bc5bd2946facd5ed4a9d2ea72ad5265c6",
     "reason": "Public RFC6455 WebSocket sample nonce dGhlIHNhbXBsZSBub25jZQ== decodes to the sample nonce. Used only as a test handshake value, not a credential."
+  },
+  {
+    "path": "funnel-gateway/gateway.test.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "3dc97f4ec9390fd16dce0b2785921eeed9eb9b8f3b07228c9807e356af23cce3",
+    "reason": "Fresh whole-file review against root-approved46fb0557: exactly one disk-layout assertion changes from percent-encoded JSON file to .state.sqlite; every other byte, including official RFC6455 section1.3 sample handshake nonce context, identical. Nonce base64 independently decodes to public the sample nonce. Exact normalized full file only; historical rows retained; no detector or known-key changes."
   }
 ]

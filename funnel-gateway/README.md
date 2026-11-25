@@ -184,3 +184,37 @@ the profile is off. `/grid/chart_stream_ws` uses exact-origin, single-use ticket
 forces a fresh ticket and resume or snapshot. See [deployment](../docs/v10/chart-stream-deployment.md).
 The source/API acquisition headers, 41 SSRM routes, independent control admission, cold API
 deadline and News favicon/individual-article limits remain part of this gateway.
+
+### Ordered preview state writes
+
+PUT/DELETE accept a pair of headers: `X-BDOBB-State-Writer` (a lowercase UUID)
+plus `X-BDOBB-State-Sequence` (canonical positive safe-integer decimal, at most
+9007199254740991). A committed operation returns 204 with the exact same pair.
+A lower sequence or a reused sequence with different bytes/method returns 409.
+An exact duplicate is an acknowledged no-op. Each writer's per-file fence survives
+other writers and DELETE tombstones; distinct writers use transaction commit order,
+so these headers do not establish a global edit order across tabs.
+
+The gateway uses Node's built-in SQLite and one private `.state.sqlite` database
+per account. An immediate transaction serializes quota checks, the raw JSON body
+(or tombstone), and all writer fences across gateway processes. SQLite's full
+synchronous rollback journal provides crash recovery. Bootstrap GET still returns
+`{files: {name: rawJsonText}}`, omitting tombstones; PUT bodies remain raw JSON.
+At the first mutation, valid legacy percent-encoded files are imported exactly once.
+Later changes to those old files are ignored. Back up the whole account directory,
+including the database, rather than only the legacy JSON files. Symlink account,
+database, and imported state files are refused.
+
+Legacy requests without either header can still mutate files with no versioned
+history. Once a file has a writer fence, unfenced mutations return 409, including
+after deletion. Supplying only one header or malformed/duplicate headers returns
+400. A version-aware frontend requires matching acknowledgement headers, detecting
+older gateways that do not implement this protocol. Existing limits remain 256 KiB
+per content body, 2 MiB and 200 live files per account. Fences are never evicted:
+256 writers per file and 2,000 retained file records per account bound metadata;
+reaching either bound refuses a new record/writer with 413.
+
+Technical Chart and accepted chart-stream upstream frames each have an 8 MiB
+ceiling, including the pending downstream frame in their 8 MiB backpressure budget.
+Quote/control socket limits remain 64 KiB. The Technical Chart regression fixture
+is the actual 77,371-byte default `classic-momentum` figure from 250 daily bars.

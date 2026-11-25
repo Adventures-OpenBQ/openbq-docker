@@ -10,7 +10,7 @@ FROM node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
-COPY policy.mjs config.mjs server.mjs entry.mjs healthcheck.mjs verify.mjs check-upstreams.mjs ./
+COPY policy.mjs config.mjs server.mjs state-store.mjs entry.mjs healthcheck.mjs verify.mjs check-upstreams.mjs ./
 COPY --from=lanes ssrm_widgets.json /lanes/ssrm_widgets.json
 # A fresh named volume inherits the mount point's owner, and Docker creates it root-owned
 # unless the image already carries it. The service runs as uid 1000, so without this every

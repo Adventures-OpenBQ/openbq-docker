@@ -16,12 +16,12 @@
 # copied into a layer stays in that layer even if a later step deletes it.
 #
 # Build for one platform (loads into the local daemon):
-#   docker build -t kdb-x:local kdb-x/
+#   docker build --build-arg KX_VERSION=<exact-version> -t kdb-x:local kdb-x/
 #
 # Build a real multi-arch image and push it to a PRIVATE registry (buildx cannot
 # --load two platforms at once, which is why this pushes; the package must stay
 # private, since it carries q):
-#   docker buildx build --platform linux/amd64,linux/arm64 \
+#   docker buildx build --build-arg KX_VERSION=<exact-version> --platform linux/amd64,linux/arm64 \
 #     -t ghcr.io/<you>/kdb-x:1.1 --push kdb-x/
 #
 # Then verify the manifest genuinely carries both -- a single-arch tag

@@ -177,6 +177,9 @@ def prepare_model(model, services, project):
         service['environment'] = _mapping(service.get('environment'))
         if 'TS_HOSTNAME' in service['environment']:
             service['environment']['TS_HOSTNAME'] = f'{project}-{name}'
+        directory_targets = service.pop('x-openbq-regression-state-directories', [])
+        if not isinstance(directory_targets, list) or not all(isinstance(t, str) for t in directory_targets):
+            raise ValueError('State-directory targets must be an explicit list')
         for index, mount in enumerate(service.get('volumes', [])):
             if 'read_only' in mount and type(mount['read_only']) is not bool:
                 raise ValueError('Mount permissions must be resolved booleans')
@@ -184,7 +187,10 @@ def prepare_model(model, services, project):
             if mount['type'] == 'bind':
                 _literal_path(mount['source'])
                 if not mount.get('read_only', False):
-                    if not Path(mount['source']).is_dir():
+                    path = Path(mount['source'])
+                    explicit_directory = (mount['target'] in directory_targets and
+                                          mount.get('bind', {}).get('create_host_path') is True)
+                    if not path.is_dir() and (path.exists() or path.is_symlink() or not explicit_directory):
                         raise ValueError('Writable file or missing bind paths need isolated QA configuration')
                     source = str(Path(mount['source']).resolve())
                     if source not in bind_state:

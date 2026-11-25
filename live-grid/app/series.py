@@ -37,6 +37,20 @@ def window_end(end: str) -> datetime:
     return _row_dt(parsed)
 
 
+def window_start(start: str) -> datetime:
+    """Normalize the inclusive lower bound to naive UTC, like window_end."""
+    try:
+        return _row_dt(str(start).strip())
+    except ValueError:
+        return datetime.min
+
+
+def clip_window(rows: list[dict], start: str, end: str) -> list[dict]:
+    """Only buckets whose timestamps lie inside the caller's inclusive window."""
+    lo, hi = window_start(start), window_end(end)
+    return [r for r in rows if lo <= _row_dt(r["date"]) <= hi]
+
+
 def seam_boundary(first_tick: datetime, interval: str) -> datetime:
     """The first bar boundary at or after `first_tick`."""
     from openbq_kdb.aggregate import bucket_ns

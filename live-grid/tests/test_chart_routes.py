@@ -281,7 +281,7 @@ def test_a_window_that_closed_in_the_past_gets_no_ticks_at_all(tick_client):
     body = _series(tick_client, start="2024-01-01", end="2024-06-01")
     assert body["cache"]["rows_from_ticks"] == 0
     assert body["cache"]["seam"] is None
-    assert body["bars"] == [dict(b, date=b["date"].isoformat() + "Z") for b in TICK_HISTORY]
+    assert body["bars"] == [], "fixture history is also outside the requested historical window"
     assert tick_client.store.aggregate_calls == [], "no aggregation should have run"
 
 
@@ -370,7 +370,7 @@ def test_ticks_without_a_store_is_an_empty_list(monkeypatch):
 
 @pytest.mark.parametrize('endpoint', ['/series','/chart'])
 def test_intraday_wire_marks_legacy_utc_explicitly(client, endpoint):
-    body = client.get(endpoint, params={'symbol':'AAPL', 'interval':'1m'}).json()
+    body = client.get(endpoint, params={'symbol':'AAPL', 'interval':'1m', 'start':'2025-06-10', 'end':'2025-06-10'}).json()
     stamps = ([bar['date'] for bar in body['bars']] if endpoint == '/series'
               else body['data'][0]['x'])
     assert stamps == ['2025-06-10T13:58:00Z','2025-06-10T13:59:00Z']

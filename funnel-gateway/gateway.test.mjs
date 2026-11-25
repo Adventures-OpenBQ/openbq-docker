@@ -784,7 +784,7 @@ test("state round-trips per user: put, list, overwrite, delete", async t => {
   assert.deepEqual(Object.keys(JSON.parse((await http(port, "/state/42")).text).files), ["dashboards/preview.json"]);
   // One directory per user, flat, and no temp file left behind.
   assert.deepEqual((await readdir(stateDir)).sort(), ["42", "43"]);
-  assert.deepEqual(await readdir(join(stateDir, "42")), ["dashboards%2Fpreview.json"]);
+  assert.deepEqual(await readdir(join(stateDir, "42")), [".state.sqlite"]);
 });
 
 test("state refuses everything outside its contract", async t => {
