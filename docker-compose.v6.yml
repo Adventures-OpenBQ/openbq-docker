@@ -38,7 +38,7 @@ services:
       # Builds openbq-api first and hands its image to mcp/Dockerfile as BASE.
       additional_contexts:
         base: service:openbq-api
-    image: openbq-mcp:9.0.0
+    image: openbq-mcp:10.0.0
     pull_policy: never
     restart: unless-stopped
     # Hard cap, as on openbq-api: MCP runs ODP in-process, so if it outgrows it the kernel

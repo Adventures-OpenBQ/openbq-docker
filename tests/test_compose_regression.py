@@ -7,6 +7,8 @@ import tempfile
 import subprocess
 import unittest
 
+import yaml
+
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/compose-run.py'
 
 
@@ -33,6 +35,18 @@ class IsolationTests(unittest.TestCase):
         return self.runner.prepare_model(model or self.model, services or ['api'],
                                          project or self.project)
 
+    def test_selected_live_grid_closes_over_its_api_and_tick_store(self):
+        model = yaml.safe_load((SCRIPT.parents[1] / 'docker-compose.yml').read_text())
+        runtime, completed = self.runner.runtime_services(model, ['live-grid'])
+        self.assertEqual(runtime, {'live-grid', 'live-grid-perms', 'openbq-api', 'openbq-kdb'})
+        self.assertEqual(completed, {'live-grid-perms'})
+
+    def test_selected_eod_dump_closes_over_tick_store_and_bucket_initialization(self):
+        model = yaml.safe_load((SCRIPT.parents[1] / 'docker-compose.yml').read_text())
+        runtime, completed = self.runner.runtime_services(model, ['eod-dump'])
+        self.assertEqual(runtime, {'eod-dump', 'openbq-kdb', 'rustfs-init', 'rustfs', 'rustfs-perms'})
+        self.assertEqual(completed, {'rustfs-init', 'rustfs-perms'})
+
     def test_new_namespace_and_normal_volume_initialization(self):
         first = self.prepare()
         second = self.prepare(project='openbq-regression-other456')
@@ -43,6 +57,24 @@ class IsolationTests(unittest.TestCase):
         self.assertTrue(first['networks']['private']['internal'])
         self.assertEqual(first['services']['api']['image'], self.project + '-api:candidate')
         self.assertEqual(self.model['name'], 'ordinary-install')
+
+    def test_permission_initializer_and_store_share_one_fresh_bind_volume(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model = {'services': {
+                'store-perms': {'image': 'init:qa', 'volumes': [
+                    {'type': 'bind', 'source': tmp, 'target': '/data'}]},
+                'store': {'image': 'store:qa', 'depends_on': {
+                    'store-perms': {'condition': 'service_completed_successfully'}},
+                    'volumes': [{'type': 'bind', 'source': tmp, 'target': '/data'}]},
+            }}
+            actual = self.prepare(model, ['store'])
+            sources = [actual['services'][name]['volumes'][0]['source']
+                       for name in ['store-perms', 'store']]
+            self.assertEqual(sources[0], sources[1], 'ownership initialization must affect the store volume')
+            self.assertEqual(len(actual['volumes']), 1)
+            self.assertTrue(all(mount['type'] == 'volume' for service in actual['services'].values()
+                                for mount in service['volumes']))
+            self.assertNotEqual(actual['volumes'][sources[0]]['name'], tmp)
 
     def test_readonly_configuration_is_preserved_but_writable_directory_is_fresh(self):
         with tempfile.TemporaryDirectory() as tmp:

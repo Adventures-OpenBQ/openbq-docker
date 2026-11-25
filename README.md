@@ -6,7 +6,7 @@ A headless Open Data Platform backend on Docker, with private HTTPS through a se
 
 Official core/API, seventeen providers, news, and technical/quantitative/econometric extensions. No desktop frontend, custom providers, running MCP service, agent, or later storage stack in the ODP service. `requirements.in` declares the intended direct packages; `requirements.lock` records the full resolved environment used by the Docker build.
 
-The original Episode 1 checkpoint remains `v1.0.0`. This V7 recipe retains the locked provider packages and applies the current shared compatibility and security overlays, verifying every original file hash before applying changes. See [provider fixes](provider-fixes/README.md) and [verification](VERIFICATION.md).
+The original Episode 1 checkpoint remains `v1.0.0`. This V10 recipe retains the locked provider packages and applies the current shared compatibility and security overlays, verifying every original file hash before applying changes. See [provider fixes](provider-fixes/README.md) and [verification](VERIFICATION.md).
 
 The optional `workspace/` companion retains the original Workspace client independently of BDOBB. Its profile defaults to a local AMD64 source build with automatic pulls disabled; see [its reproduction guide](workspace/REPRODUCE.md). Backend, companion state and full BDOBB reference rendering have separate acceptance checks.
 
@@ -351,3 +351,27 @@ Released in `v6.0.0`, with BDOBB v6.0.0.
 ### Component licenses
 
 The first-party key-maint component is AGPL-3.0-only. Where included, the first-party rss-ticker component is also AGPL-3.0-only. Each component carries its own LICENSE and LICENSING.md; earlier grants and third-party notices are preserved. Other components retain their stated licenses.
+
+## Live prices and Day Chart (v10)
+
+The opt-in `live` profile adds the EODHD live grid, Day Chart, accepted chart stream,
+kdb tick store and RustFS/Delta Lake day storage. The default API retains the qualified
+V9 provider and dependency repairs. Both live-price views and Day Chart need the matching
+V10 BDOBB client. See [live-grid](live-grid/README.md) and
+[secured chart deployment](docs/v10/chart-stream-deployment.md).
+
+The reader builds kdb locally from KX's distribution under their own terms. No KX binary,
+license, private registry access or built container distribution is included. Build the
+local base with `docker compose -f docker-compose.yml -f compose.kdb-build.yml --profile live build openbq-kdb`,
+then build the secured image using `compose.chart-stream.yml`. Supply an explicit
+`KX_VERSION=<exact-version>` for the local KX build; no latest default is selected. Set `KDB_IMAGE` only to
+your own immutable base if overriding the local image. Both amd64 and arm64 require their
+own build/runtime qualification; no architecture is inferred from a tag.
+
+Use `scripts/compose-run.py --regression` with the selected `live-grid` and/or `eod-dump`
+services and the matching Compose overlays for fresh recipe checks. The dependency closure
+includes API/q, the permission jobs and the selected bucket jobs. Shared mutable binds get
+one fresh project volume, so permission initializers and their stores see the same state.
+Operator setup/deployment is separate from the other chat's shared live-grid service; never
+reuse that service, its ports or its volumes for regression. Public/demo and registered-key
+checks remain separate.

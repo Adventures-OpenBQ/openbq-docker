@@ -4,5 +4,6 @@
   "stateDir": "/var/lib/bdobb/state",
   "apiTimeoutMs": 170000,
   "maxConcurrent": 8,
-  "maxSockets": 4
+  "maxSockets": 4,
+  "liveGrid": false
 }

@@ -62,3 +62,10 @@ table-build.env
 **/*.key
 **/scrub-private-patterns.txt
 **/*.log
+
+# V10 operator state never enters a build context.
+kdb-auth
+kdb-data
+live-grid-data
+rustfs-data
+minio-data

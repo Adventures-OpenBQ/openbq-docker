@@ -1,7 +1,7 @@
 <!-- Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# funnel-gateway (openbq-docker v9.0.0, `web` profile)
+# funnel-gateway (openbq-docker v10.0.0, `web` profile)
 
 The door the sidecar publishes on Funnel port 10000 for BDOBB's browser (web) preview. Port 443
 stays `openbq-api` for your tailnet and is never funneled; 8443 belongs to the episode 3 reference
@@ -136,7 +136,7 @@ GitHub session) signs a ticket and the browser opens
   (`/var/lib/bdobb/state` to turn `/state` on), the caps, `rssOrigin`/`rssAddress`/`feeds`
   (both-or-neither; feeds need them) and the table keys (`tableService`, `tableDesktopPrincipal`,
   `ssrmRoutes`, `tableTimeoutMs`, `ssrmTimeoutMs`; see [managed tables](../table-service/README.md)). An unknown key,
-  including Rita's `ritaOrigin`, `ritaAddress` and `socksProxy` and v10's `liveGrid`, is refused at startup.
+  including Rita's `ritaOrigin`, `ritaAddress` and `socksProxy`, is refused at startup.
 - `rss-ticker-config/config.yaml` (from `config.yaml.example`).
 
 ## Ports and serve files
@@ -173,3 +173,14 @@ device off the tailnet. Neither preflight queries a quote, subscribes to a feed 
 funnel-gateway && npm ci --ignore-scripts && npm test`. In Docker, mount the repo root (`-v "$PWD:/r" -w /r/funnel-gateway`), because the version test reads `../docker-compose.yml`.
 
 Ordinary `/api/` GET requests allow cold provider acquisition for up to 170 seconds, matching the API lane deadline plus transport overhead. Set `apiTimeoutMs` between 1000 and 170000 to choose a shorter limit. Local `/ref/` requests retain their 12-second limit. Disconnect cancellation, response byte limits and concurrency admission still apply.
+
+## V10 live-grid routes
+
+Set `liveGrid: true` only when the optional live profile is running. The fixed upstream is
+`http://live-grid:6903`; callers cannot choose an upstream. The bounded `/grid` contracts
+cover quote/metadata, cached and technical charts, Day Chart/closed sessions, raster logos,
+subscriptions and the authenticated accepted chart stream. Grid routes answer 503 while
+the profile is off. `/grid/chart_stream_ws` uses exact-origin, single-use tickets; expiry
+forces a fresh ticket and resume or snapshot. See [deployment](../docs/v10/chart-stream-deployment.md).
+The source/API acquisition headers, 41 SSRM routes, independent control admission, cold API
+deadline and News favicon/individual-article limits remain part of this gateway.

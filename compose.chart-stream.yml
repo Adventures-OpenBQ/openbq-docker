@@ -1,0 +1,41 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+# Opt-in secured v10 chart API. Operator provides files under KDB_AUTH_DIR.
+services:
+  openbq-kdb:
+    build:
+      context: .
+      dockerfile: kdb-secured/Dockerfile
+      args:
+        KDB_BASE_IMAGE: ${KDB_IMAGE:-openbq-kdb-local:10.0.0}
+    image: openbq-kdb-secured:10.0.0
+    entrypoint: [/usr/bin/tini, --, /usr/bin/python3, -m, openbq_kdb.bootstrap]
+    command: [--q, /root/.kx/bin/q, --bind, 0.0.0.0, --port, "5000", --mode, tickplant, --data-dir, /data]
+    environment:
+      KDB_AUTH_PASSWORDS_FILE: /run/secrets/kdb-passwords
+      KDB_AUTH_ROLES_FILE: /run/secrets/kdb-roles.json
+    volumes:
+      - ${KDB_AUTH_DIR:-./kdb-auth}/passwords:/run/secrets/kdb-passwords:ro
+      - ${KDB_AUTH_DIR:-./kdb-auth}/roles.json:/run/secrets/kdb-roles.json:ro
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    mem_limit: 12g
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  live-grid:
+    environment:
+      LIVE_GRID_CHART_STREAM: "true"
+      LIVE_GRID_KDB_DIAGNOSTICS: "true"
+      KDB_USERNAME: live-grid
+      KDB_PASSWORD_FILE: /run/secrets/kdb-client-token
+    volumes:
+      - ${KDB_AUTH_DIR:-./kdb-auth}/live-grid.token:/run/secrets/kdb-client-token:ro
+  eod-dump:
+    environment:
+      KDB_USERNAME: eod-export
+      KDB_PASSWORD_FILE: /run/secrets/kdb-client-token
+    volumes:
+      - ${KDB_AUTH_DIR:-./kdb-auth}/eod-export.token:/run/secrets/kdb-client-token:ro

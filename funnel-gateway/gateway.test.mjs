@@ -93,7 +93,7 @@ test("configuration fails closed; secrets come from the environment", () => {
     { previewOrigin: null }, { previewOrigin: "" }, { previewOrigin: 7 },
     { stateDir: "relative/state" }, { stateDir: "/var/lib/../etc" }, { stateDir: 7 }, { stateDir: "" },
     // Settings of later lines are not silently accepted: a stack at this tag has no such upstream.
-    { gridOrigin: "http://openbb-live-grid:6903" }, { tickUrl: `wss://kdb.${TAILNET}` }, { liveGrid: true },
+    { gridOrigin: "http://openbb-live-grid:6903" }, { tickUrl: `wss://kdb.${TAILNET}` }, { liveGrid: "true" },
     // The wire: both settings or neither, its origin is a tailnet name on :8088 (the port
     // ts-config publishes rss-ticker on) or portless, its address a tailnet IPv4, and the
     // approved feeds are https urls mapped to positive integer ids.
@@ -218,7 +218,7 @@ test("the packaged desktop origins pass the Bearer lock on /api; nothing else ne
 test("only bounded OpenBB and approved News queries reach upstream; later families are refused", async t => {
   const { port, calls } = await fixture(t);
   for (const path of ["/", "/tick", "/keys", "/mcp", "/stores", "/live/widgets.json",
-    "/grid/widgets.json", quote + "&symbol=MSFT",
+    quote + "&symbol=MSFT",
     // The wire's own refusals: an unapproved id, a limit past 50, a duplicated name, and the
     // socket path asked for over plain HTTP (an upgrade is the only way to reach it).
     news.replace("=7", "=8"), news.replace("limit=1", "limit=51"), news + "&feed_id=7",
@@ -496,8 +496,8 @@ test("upstream preflight validates Basic auth and the API's lock without queryin
   const cfg = { ...config(), rssOrigin: null, rssAddress: null, feeds: {},
     apiOrigin: `http://127.0.0.1:${upstream.address().port}` };
   await checkUpstreams(cfg);
-  assert.deepEqual(seen, [{ path: "/api/v1/equity/price/quote", auth: cfg.apiAuthorization },
-    { path: "/api/v1/equity/price/quote", auth: undefined }]);
+  assert.deepEqual(seen, [{ path: "/api/v1/eodhd/equity/price/quote", auth: cfg.apiAuthorization },
+    { path: "/api/v1/eodhd/equity/price/quote", auth: undefined }]);
   withPair = 401; await assert.rejects(checkUpstreams(cfg), /API auth preflight failed/);
   withPair = 200; await assert.rejects(checkUpstreams(cfg), /API auth preflight failed/);
   // OPENBB_API_AUTH off: the pair is "accepted" because nothing is checked. The door stays shut.
@@ -550,7 +550,7 @@ test("a browser socket is admitted on a ticket: right target, right Origin, once
   // wrong key, expired, junk, doubled: all 401 or 403, none reach an upstream.
   assert.equal((await wsConnect(port, { ...browser, Origin: "https://evil.example.com" }, ticketed(path, socketTicket(TOKEN, path)))).status, 403);
   assert.equal((await wsConnect(port, { ...browser, Origin: ORIGIN }, ticketed(path, socketTicket(TOKEN, path)))).status, 403);
-  assert.equal((await wsConnect(port, browser, ticketed(path, socketTicket(TOKEN, "/grid/live_grid_ws")))).status, 401);
+  assert.equal((await wsConnect(port, browser, ticketed(path, socketTicket(TOKEN, "/grid/ta_series_ws")))).status, 401);
   assert.equal((await wsConnect(port, browser, ticketed(path, socketTicket(TOKEN + "x", path)))).status, 401);
   assert.equal((await wsConnect(port, browser, ticketed(path, socketTicket(TOKEN, path, Date.now() - 31_000)))).status, 401);
   assert.equal((await wsConnect(port, browser, ticketed(path, "junk"))).status, 401);
@@ -582,7 +582,7 @@ test("the WS gate wants the credential, the Origin, the exact path and a configu
   for (const origin of DESKTOP) assert.equal((await wsConnect(port, { ...HEADERS, Origin: origin })).status, 403, origin);
   // The socket takes no query and no subprotocol, and no other path is a socket at all.
   assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/news/ws/news?admin=1")).status, 404);
-  assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/grid/live_grid_ws")).status, 404);
+  assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/grid/ta_series_ws")).status, 404);
   assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, "/news/api/news?feed_id=7&limit=1")).status, 404);
   assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN, "Sec-WebSocket-Protocol": "chat" })).status, 404);
   // The route exists but the operator has approved nothing: 503, not 404.
@@ -736,7 +736,7 @@ test("the socket cap comes from settings, checked before the upgrade", async t =
 
 test("a refused upgrade never allocates a socket slot, so the cap is not consumed by 404s", async t => {
   const { port } = await fixture(t, { maxSockets: 1 }, { openNews: () => new WebSocket("ws://127.0.0.1:9") });
-  for (const path of ["/news/ws/news?x=1", "/grid/live_grid_ws", "/nope"]) {
+  for (const path of ["/news/ws/news?x=1", "/grid/ta_series_ws", "/nope"]) {
     assert.equal((await wsConnect(port, { ...HEADERS, Origin: ORIGIN }, path)).status, 404, path);
   }
   const admitted = await wsConnect(port); assert.equal(admitted.status, 101); admitted.ws.terminate();
@@ -988,7 +988,7 @@ test("/ref/live_grid_ws: the upgrade gate wants the token, the gateway's Origin,
   // The desktop webview's own socket (its ticket, /grid/ws_ticket) arrives at v10.
   for (const origin of DESKTOP) assert.equal((await refConnect(port, { ...HEADERS, Origin: origin })).status, 403, origin);
   for (const path of [LIVE + "?symbol=AAPL", LIVE + "/", "/ref/widgets.json", "/ref/other_ws",
-    "/grid/live_grid_ws", "/state/42", "/table/healthz", "/nope"]) { // /news/ws/news is the wire's socket here
+    "/grid/ta_series_ws", "/state/42", "/table/healthz", "/nope"]) { // /news/ws/news is the wire's socket here
     assert.equal((await refConnect(port, { ...HEADERS, Origin: ORIGIN }, path)).status, 404, path);
   }
   assert.equal((await refConnect(port, { ...HEADERS, Origin: ORIGIN, "Sec-WebSocket-Protocol": "chat" })).status, 404);
@@ -1018,9 +1018,9 @@ test("/ref/live_grid_ws: a browser socket is admitted on a ticket: right target,
   assert.equal((await refConnect(port, { Origin: PREVIEW }, ticketed(LIVE, socketTicket(TOKEN, LIVE)))).status, 401); // Host
   assert.equal((await refConnect(port, browser, ticketed(LIVE, socketTicket(TOKEN + "x", LIVE)))).status, 401);
   // A ticket names its target: one signed for another path does not open this one ...
-  assert.equal((await refConnect(port, browser, ticketed(LIVE, socketTicket(TOKEN, "/grid/live_grid_ws")))).status, 401);
+  assert.equal((await refConnect(port, browser, ticketed(LIVE, socketTicket(TOKEN, "/grid/ta_series_ws")))).status, 401);
   // ... and a valid ticket over a path that is not a socket route opens nothing.
-  assert.equal((await refConnect(port, browser, ticketed("/grid/live_grid_ws", socketTicket(TOKEN, "/grid/live_grid_ws")))).status, 404);
+  assert.equal((await refConnect(port, browser, ticketed("/grid/ta_series_ws", socketTicket(TOKEN, "/grid/ta_series_ws")))).status, 404);
   assert.equal((await refConnect(port, browser, ticketed(LIVE + "?x=1", socketTicket(TOKEN, LIVE + "?x=1")))).status, 404);
   assert.equal((await refConnect(port, browser, ticketed(LIVE, socketTicket(TOKEN, LIVE, Date.now() - 31_000)))).status, 401);
   assert.equal((await refConnect(port, browser, ticketed(LIVE, "junk"))).status, 401);
@@ -1225,7 +1225,7 @@ test("/ref/live_grid_ws: the socket cap comes from settings, checked before the 
 
 test("/ref/live_grid_ws: a refused upgrade never allocates a socket slot, so the cap is not consumed by 404s", async t => {
   const { port } = await fixture(t, { maxSockets: 1 }, { openRef: refused });
-  for (const path of [LIVE + "?x=1", "/grid/live_grid_ws", "/nope"]) {
+  for (const path of [LIVE + "?x=1", "/grid/ta_series_ws", "/nope"]) {
     assert.equal((await refConnect(port, { ...HEADERS, Origin: ORIGIN }, path)).status, 404, path);
   }
   const admitted = await refConnect(port); assert.equal(admitted.status, 101); admitted.ws.terminate();

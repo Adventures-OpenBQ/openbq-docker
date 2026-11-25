@@ -50,3 +50,38 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npm test
+          node --test ../live-grid/tests/test_timestamp_browser.mjs
+
+  live-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install the frozen live and lake dependencies
+        run: |
+          python3 -m pip install --require-hashes -r requirements.live-build.lock
+          python3 -m pip install --no-build-isolation --require-hashes -r live-grid/requirements.lock -r requirements.lake.lock
+          python3 -m pip install --no-deps --no-build-isolation ./v10/kdb/source ./openbb-deltalake
+          python3 scripts/verify-requests-trust-bundle.py
+          python3 -m pip install -c requirements.lock pytest==9.2.0 pytest-asyncio==1.5.0 jsonschema==4.26.0 'moto[server]==5.2.5'
+      - name: Test the live grid and Day Chart without provider network access
+        working-directory: live-grid
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          PYKX_UNLICENSED: 'true'
+        run: python3 -m pytest tests -q -p no:cacheprovider
+      - name: Test the kdb source contracts without a licensed q runtime
+        working-directory: v10/kdb/source
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          PYKX_UNLICENSED: 'true'
+        run: python3 -m pytest tests -q -p no:cacheprovider
+      - name: Test lake storage and day-export source
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          PYKX_UNLICENSED: 'true'
+        run: python3 -m pytest scripts/tests openbb-deltalake/tests -q -p no:cacheprovider

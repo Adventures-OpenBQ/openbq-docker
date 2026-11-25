@@ -1,0 +1,16 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Build the openbq-kdb service's image from kdb-x/ (the recipe downloads KDB-X from KX at build time; this repository
+# ships no KX software and no licence) using an explicit KX release (KX_VERSION) instead of any maintainer registry.
+#   docker compose -f docker-compose.yml -f compose.kdb-build.yml --profile live build openbq-kdb
+#   docker compose -f docker-compose.yml -f compose.kdb-build.yml --profile live up -d
+# Everything else about openbq-kdb (volumes, crash recovery, licence mount, network) comes from
+# docker-compose.yml unchanged.
+services:
+  openbq-kdb:
+    build:
+      context: kdb-x
+      args:
+        KX_VERSION: ${KX_VERSION:?Set the exact KX release to build}
+    image: openbq-kdb-local:10.0.0

@@ -7,7 +7,7 @@ services:
       TS_SERVE_CONFIG: /config/serve-v3.json
   episode3-demo:
     build: ./examples/episode3
-    image: openbq-episode3-demo:9.0.0
+    image: openbq-episode3-demo:10.0.0
     restart: unless-stopped
     env_file:
       - path: ./v3.env
@@ -35,7 +35,7 @@ services:
   # auth when it is on.
   key-maint:
     build: ./key-maint
-    image: openbq-key-maint:9.0.0
+    image: openbq-key-maint:10.0.0
     restart: unless-stopped
     depends_on: [openbq-api]
     environment:

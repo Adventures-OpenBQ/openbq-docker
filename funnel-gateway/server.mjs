@@ -1,18 +1,24 @@
 // Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
 // SPDX-License-Identifier: Apache-2.0
 
-// openbq-docker v8.0.0. Ported from bdobb-dev/openbb-docker v8.0.3 (775354f)
-// funnel-gateway/server.mjs with the /ai (Rita) family and its SOCKS5 dialer removed.
+// openbq-docker v10.0.0. Ported from bdobb-dev/openbb-docker v8.0.3 (775354f)
+// funnel-gateway/server.mjs with the /ai (Rita) family and its SOCKS5 dialer removed; the
+// /grid family (live-grid, the `live` profile) from v10.1.7 (d606169): e8c1239, 7212a1d,
+// b9545f5, d32966d, dc61be8, d7ec9d1 -- gated here by settings.json's "liveGrid".
 // The socket door also serves the reference's /ref/live_grid_ws, which came down to v3/v4
-// with the reference backend; at this tag /news/ws/news joins it.
+// with the reference backend.
 
 import { createServer, request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
+import { gzip } from "node:zlib";
 import { WebSocket, WebSocketServer } from "ws";
-import { tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, refSubscription, socketTarget, socketTicketNonce, stateFile } from "./policy.mjs";
+import { rasterType, LOGO_RESPONSE_BYTES, tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, chartStreamControl, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
+
+
 
 const MAX_BODY = 2 * 1024 * 1024;
 // The root manifests are static catalogue documents, not data: openbq-api's widgets.json is
@@ -20,19 +26,37 @@ const MAX_BODY = 2 * 1024 * 1024;
 const MANIFESTS = new Set(["/api/widgets.json", "/api/apps.json", "/ref/widgets.json", "/ref/apps.json"]);
 const MANIFEST_MAX = 16 * 1024 * 1024; // ponytail: manifests are buffered and parsed (~6x their size at peak); 8 concurrent 16 MiB manifests could pass mem_limit 512m — stream them unparsed if that ever matters.
 const MAX_SOCKET = 65536;
-// Up to 50 feed records may each carry a bounded inline favicon. This is
-// an upstream subscription reply budget; client frames/articles stay 64 KiB.
 const MAX_NEWS_REPLY = 2 * 1024 * 1024;
+const MAX_CHART_SOCKET = 8 * 1024 * 1024;
+/**
+ * A hard ceiling per grid socket on validated CLIENT frames on /grid/live_grid_ws, for as
+ * long as the socket is open. It is NOT configurable. With no daily or per-minute budget
+ * (removed 2026-10-17) it and maxSockets are what bound the paid seeds one socket can ask for.
+ * 60 is generous for a human changing a watchlist and far below what a script can send.
+ * /grid/ta_chart_ws's upstream pushes are not capped: a tick chart streams while it is open.
+ * The wire's socket can never reach it -- its second frame is fatal by contract.
+ */
+const FRAME_CAP = 60;
+/**
+ * The documents the client PROBES rather than requires. dataClient.ts fetches both with
+ * `allow404` and matches on the literal status (`res.status === 404 && allow404`), resolving
+ * "this backend ships no apps" and "those metadata columns are blank". On THIS line live-grid
+ * really serves both, so the relay is the older-upstream fallback rather than the normal
+ * answer -- it stays because the client's contract has not changed and the door's 502 would
+ * still make fetchAppsJson throw where it is built to degrade. The relayed 404 carries the
+ * door's OWN body, never the upstream's, and every other non-200 -- a 404 on any other route
+ * included -- stays a 502.
+ */
 /**
  * The packaged desktop app's webview origins (V10-P1, user ruling 2026-10-15). Tauri's http
  * plugin stamps one of these on every request it makes (tauri://localhost on macOS, iOS and
  * Linux; http://tauri.localhost on Windows and Android), and the webview's own WebSocket
  * carries the same one. An Origin is never a credential: these pass the Origin rule only
- * behind the Bearer lock, on HTTP -- never on an upgrade. (Its HTTP half moved down with the
- * gateway; the socket ticket for the webview's own socket, /grid/ws_ticket, arrives at v10.)
+ * behind the Bearer lock, or on a ticket minted for that same origin (/grid/ws_ticket).
  * The dev server's http://localhost:1420 is deliberately not one of them.
  */
 export const DESKTOP_ORIGINS = new Set(["tauri://localhost", "http://tauri.localhost"]);
+const OPTIONAL_DOCS = new Set(["/grid/apps.json", "/grid/symbol_meta"]);
 const digest = value => createHash("sha256").update(value).digest();
 function authorized(req, config) {
   const values = req.rawHeaders.filter((_, i) => i % 2 === 0 && req.rawHeaders[i].toLowerCase() === "authorization");
@@ -41,9 +65,17 @@ function authorized(req, config) {
 }
 function requestUrl(req, config) {
   if (req.headers.host !== new URL(config.origin).host || !req.url?.startsWith("/") ||
-      req.url.startsWith("//") || /[%\\#]/.test(req.url.split("?")[0]) || req.url.includes("#")) return null;
-  const url = new URL(req.url, config.origin);
-  return url.pathname === req.url.split("?")[0] && url.origin === config.origin ? url : null;
+      req.url.startsWith("//") || req.url.includes("#")) return null;
+  const [raw, ...query] = req.url.split("?");
+  // D8: WHATWG URL parsers (WebKit's among them) percent-encode "^" in a path, so removing an
+  // index symbol arrives as /grid/api/subscriptions/%5EGSPC. That one escape, in that one
+  // one-symbol path, is read as the caret; every other "%" anywhere is still refused.
+  const path = /^\/grid\/api\/subscriptions\/[^/]+$/.test(raw) ? raw.replace(/%5e/gi, "^") : raw;
+  if (/[%\\#]/.test(path)) return null;
+  const url = new URL([path, ...query].join("?"), config.origin);
+  // Whether the parser escapes "^" differs by Node version (22 keeps it, 26 writes %5E); path holds
+  // no "%", so any %5E in the pathname is an escaped caret.
+  return url.pathname.replaceAll("%5E", "^") === path && url.origin === config.origin ? url : null;
 }
 const COMMON = {
   "Cache-Control": "no-store",
@@ -52,10 +84,15 @@ const COMMON = {
 };
 const LOGO = "/ref/assets/bdobb-logo.svg", MAX_SVG = 262144;
 /** The reference logo's bytes, relayed as SVG. */
+class RasterBody { constructor(bytes, mime) { this.bytes = bytes; this.mime = mime; } }
 class SvgBody { constructor(text) { this.text = text; } }
 /** A text/plain answer (the video routes return a bare URL), relayed as text. */
 class TextBody { constructor(text) { this.text = text; } }
 function reply(res, code, value = { error: "Request refused" }) {
+  if (value instanceof RasterBody) {
+    res.writeHead(code, { ...COMMON, "Content-Type": value.mime });
+    return res.end(value.bytes);
+  }
   if (value instanceof SvgBody) {
     // The logo: same common headers, its own type, and a sandbox CSP so a directly opened SVG runs nothing.
     res.writeHead(code, { ...COMMON, "Content-Type": "image/svg+xml",
@@ -68,6 +105,19 @@ function reply(res, code, value = { error: "Request refused" }) {
   }
   res.writeHead(code, { ...COMMON, "Content-Type": "application/json" });
   res.end(JSON.stringify(value));
+}
+/**
+ * A root manifest, gzipped for a caller that accepts gzip. openbq-api's 5.2 MB widgets.json
+ * crossed Funnel's public ingress at ~0.3 MB/s on 2026-10-18 (18-60+ s), past BDOBB's web
+ * layer's 12 s upstream timeout; its fetch sends Accept-Encoding: gzip and decodes the answer.
+ */
+const gzipAsync = promisify(gzip);
+async function replyManifest(req, res, value) {
+  // ponytail: substring match ignores "gzip;q=0", as BDOBB's web layer does; parse q-values if a caller ever sends it.
+  if (!/\bgzip\b/i.test(req.headers["accept-encoding"] ?? "")) return reply(res, 200, value);
+  const body = await gzipAsync(JSON.stringify(value));
+  res.writeHead(200, { ...COMMON, "Content-Type": "application/json", "Content-Encoding": "gzip", Vary: "Accept-Encoding" });
+  res.end(body);
 }
 function reject(socket, code) {
   socket.end(`HTTP/1.1 ${code} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
@@ -90,16 +140,28 @@ function pinned(origin, address) {
 // pool has none, and reachability is its whole access control (see docker-compose.yml), so
 // what protects it is that only this door can reach it and only the approved feeds get
 const rssOptions = config => pinned(config.rssOrigin, config.rssAddress);
-// Three upstreams at this tag (openbq-docker serves no /ai). /api/... -> openbq-api, plain HTTP
+// Four upstreams at this tag (openbq-docker serves no /ai). /api/... -> openbq-api, plain HTTP
 // on the bridge, behind the stack's Basic pair; the prefix is stripped ("/api/api/v1/x" ->
-// "/api/v1/x") and the credential injected. /news/... -> rss-ticker, on the tailnet, no
-// credential (it has none). /ref/... -> the keyless reference fixture, "/ref" stripped, NO
-// Authorization header. Nothing the caller sent goes with any of them.
+// "/api/v1/x") and the credential injected. /grid/... -> live-grid (the opt-in `live`
+// profile), the same way and behind the SAME pair (below). /news/... -> rss-ticker, on the
+// tailnet, no credential (it has none). /ref/... -> the keyless reference fixture, "/ref"
+// stripped, NO Authorization header. Nothing the caller sent goes with any of them.
 // The upstream URL is built by concatenation, never by resolving the path against the origin,
 // so the host can only ever be the fixed origin (a "//host" path would otherwise replace it).
 function target(path, config) {
   if (path.startsWith("/api/")) {
     return { url: new URL(config.apiOrigin + path.slice(4)), options: {},
+      headers: { Authorization: config.apiAuthorization, Accept: "application/json" } };
+  }
+  // live-grid (v10; ported from bdobb-dev/openbb-docker e8c1239/b9545f5): a sibling
+  // container on the same openbq-internal bridge as openbq-api, so plain HTTP and no dialler
+  // of its own -- and guarded by the SAME Basic pair, which is why the credential is injected
+  // here too. live-grid appends BasicAuthMiddleware to its whole app (live-grid/app/auth.py,
+  // reading OPENBB_API_AUTH and the pair from the credentials.env compose loads into it), so
+  // with the lock on a request without the credential is refused on EVERY route, its
+  // manifest and its websocket handshake included.
+  if (path.startsWith("/grid/")) {
+    return { url: new URL(config.gridOrigin + path.slice(5)), options: {},
       headers: { Authorization: config.apiAuthorization, Accept: "application/json" } };
   }
   if (path.startsWith("/news/")) {
@@ -114,7 +176,7 @@ function target(path, config) {
  * The wire's socket. One connection per admitted client, opened only once that client's
  * single subscription frame has passed newsSubscription -- so an invalid or missing frame
  * never opens anything upstream at all. `maxPayload` caps what the pool can push at the
- * bounded MAX_NEWS_REPLY (client frames stay MAX_SOCKET), compression is off (a compressed frame's
+ * same MAX_SOCKET the client side is held to, compression is off (a compressed frame's
  * expanded size is not what maxPayload measures), and a redirect is never followed.
  */
 export function connectNews(config) {
@@ -123,6 +185,36 @@ export function connectNews(config) {
     ...rssOptions(config), headers: { Origin: config.rssOrigin },
     handshakeTimeout: 10000, followRedirects: false,
     maxPayload: MAX_NEWS_REPLY, perMessageDeflate: false,
+  });
+}
+
+/**
+ * The grid's socket (Ep. 10), opened once a client's first params frame has passed
+ * liveGridSubscription -- so a client that opens and says nothing, or says something
+ * invalid, never opens anything upstream. `ws://`, not `wss://`: live-grid listens on the
+ * bridge with no TLS of its own, exactly like openbq-api. The upgrade carries the stack's
+ * Basic pair for the same reason the HTTP branch does -- live-grid's auth middleware sits in
+ * front of its websocket route too, and refuses the handshake before accept without it.
+ * Chart data uses its bounded 8MiB logical-frame limit; other sockets retain
+ * MAX_SOCKET on what the upstream can push. Compression
+ * off (a compressed frame's expanded size is not what maxPayload measures), no redirect, and
+ * a 10s handshake deadline. `Origin` is sent for the same reason connectNews sends it -- so
+ * the dial this door makes is spelled the same way on both sockets rather than differing for
+ * no stated reason. live-grid does not check it (its CORSMiddleware is allow_origins=["*"]
+ * and Starlette's CORS layer does not see a websocket scope at all; BasicAuthMiddleware is
+ * the whole gate), so this is symmetry, not a guard.
+ */
+export function connectGrid(config, path = "/live_grid_ws") {
+  // `path` is live-grid's own route, the door's /grid prefix already stripped -- and for
+  // /ta_chart_ws it carries the query socketTarget re-serialised, because that socket takes
+  // its whole parameter set from the URL and never reads a client frame. One dialler for
+  // both: the bounds, the credential and the Origin are identical, only the target differs.
+  const url = new URL(path, config.gridOrigin);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return new WebSocket(url, {
+    headers: { Authorization: config.apiAuthorization, Origin: config.gridOrigin },
+    handshakeTimeout: 10000, followRedirects: false,
+    maxPayload: path === "/chart_stream_ws" ? MAX_CHART_SOCKET : MAX_SOCKET, perMessageDeflate: false,
   });
 }
 
@@ -139,20 +231,28 @@ export function connectRef(config) {
     handshakeTimeout: 10000, followRedirects: false, maxPayload: MAX_SOCKET, perMessageDeflate: false });
 }
 
-/** Bounded JSON or inert text (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
+/** Bounded JSON or text/plain request (plus the one SVG logo); never relay cookies, errors, redirects or credentials. */
 export async function getJson(path, config, signal) {
   const { url, headers, options } = target(path, config);
   const send = url.protocol === "https:" ? httpsRequest : httpRequest;
-  const svg = path === LOGO, limit = svg ? MAX_SVG : MANIFESTS.has(path) ? MANIFEST_MAX : MAX_BODY;
+  const raster = path.split("?")[0] === "/grid/symbol_logo";
+  const svg = path === LOGO, limit = raster ? LOGO_RESPONSE_BYTES : svg ? MAX_SVG : MANIFESTS.has(path) ? MANIFEST_MAX : MAX_BODY;
   return new Promise((resolve, rejectPromise) => {
     const request = send(url, { ...options, method: "GET", headers, signal }, response => {
-      // Only the declared reference HTML route is consumed as inert text.
       const type = response.headers["content-type"] ?? "";
-      const plain = !svg && (/^text\/plain(?:\s*;|$)/i.test(type) ||
+      const plain = !svg && !raster && (/^text\/plain(?:\s*;|$)/i.test(type) ||
         (path.split("?")[0] === "/ref/html_widget" && /^text\/html(?:\s*;|$)/i.test(type)));
       if (response.statusCode !== 200 ||
-          !(plain || (svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(type))) {
-        response.destroy(); return rejectPromise(new Error("Invalid upstream response"));
+          (response.headers["content-encoding"] && response.headers["content-encoding"] !== "identity") ||
+          Number(response.headers["content-length"] ?? 0) > limit ||
+          !(plain || (raster ? /^image\/(?:png|jpeg|webp|gif)(?:\s*;|$)/i : svg ? /^image\/svg\+xml(?:\s*;|$)/i : /^application\/json(?:\s*;|$)/i).test(type))) {
+        response.destroy();
+        // The STATUS travels on the error, never the body: the handler needs to tell a 404
+        // from every other refusal for the optional documents (OPTIONAL_DOCS below), and
+        // nothing upstream wrote may reach the caller either way.
+        const failure = new Error("Invalid upstream response");
+        failure.status = response.statusCode;
+        return rejectPromise(failure);
       }
       let size = 0; const parts = [];
       response.on("data", chunk => {
@@ -162,7 +262,12 @@ export async function getJson(path, config, signal) {
       });
       response.on("error", rejectPromise);
       response.on("end", () => {
-        const text = Buffer.concat(parts).toString("utf8");
+        const bytes = Buffer.concat(parts);
+        if (raster) {
+          const mime = rasterType(bytes, type);
+          return mime ? resolve(new RasterBody(bytes, mime)) : rejectPromise(new Error("Invalid raster"));
+        }
+        const text = bytes.toString("utf8");
         if (svg) return resolve(new SvgBody(text));
         if (plain) return resolve(new TextBody(text));
         try { resolve(JSON.parse(text)); }
@@ -172,6 +277,127 @@ export async function getJson(path, config, signal) {
     request.once("error", rejectPromise);
     request.end();
   });
+}
+
+/**
+ * live-grid's Subscriptions page and its watchlist API, behind this door (V10-P5, user
+ * request 2026-10-13). Not in policy.mjs: that file is vendored by BDOBB's web layer under a
+ * hash test, and the web preview cannot use these routes anyway -- its browser never holds
+ * this door's token, and a framed page gets the credential only from the desktop app's
+ * openbb-connect handshake (BDOBB useWidgetMessages.ts).
+ *
+ *   GET    /grid/subscriptions                -> the page (SUBSCRIPTIONS_PAGE), no query
+ *   GET    /grid/api/subscriptions            -> the watchlist, no query
+ *   POST   /grid/api/subscriptions            -> add {"symbol": SYMBOL}, JSON, <= 1 KiB
+ *   DELETE /grid/api/subscriptions/<SYMBOL>   -> remove
+ *
+ * SYMBOL is the grid's one-symbol grammar. What leaves is re-serialised: the POST body is
+ * rebuilt from the validated symbol, never relayed. live-grid's own answers are relayed for
+ * 200 and 201 (its watchlist payload, JSON, bounded); its refusals become this door's own
+ * fixed messages for the four it gives (404, 409, 422, 507), so the page can say why.
+ */
+export const SUBSCRIPTIONS_PAGE = "/grid/subscriptions";
+const SUBSCRIPTION_SYMBOL_RE = /^[A-Za-z0-9.^_-]{1,24}$/;
+const SUBSCRIPTION_REFUSALS = {
+  404: "That symbol is not on the watchlist.",
+  409: "That symbol is already subscribed.",
+  422: "Not a symbol.",
+  507: "The symbol cap is reached; remove a symbol first.",
+};
+export function subscriptionRoute(url, method) {
+  if (url.search) return null;
+  if (url.pathname === "/grid/api/subscriptions") {
+    return method === "GET" || method === "POST" ? { method, path: "/api/subscriptions" } : null;
+  }
+  const one = /^\/grid\/api\/subscriptions\/([^/]+)$/.exec(url.pathname);
+  if (one && method === "DELETE" && SUBSCRIPTION_SYMBOL_RE.test(one[1].replaceAll("%5E", "^"))) {
+    return { method, path: `/api/subscriptions/${one[1].replaceAll("%5E", "^")}` };
+  }
+  return null;
+}
+/** One bounded JSON exchange with live-grid: the status, and the body only on 200/201. */
+export async function sendGrid(method, path, body, config, signal) {
+  const url = new URL(path, config.gridOrigin);
+  const headers = { Authorization: config.apiAuthorization, Accept: "application/json" };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    headers["Content-Length"] = String(Buffer.byteLength(body));
+  }
+  return new Promise((resolve, rejectPromise) => {
+    const request = httpRequest(url, { method, headers, signal }, response => {
+      const ok = response.statusCode === 200 || response.statusCode === 201;
+      if (!ok || !/^application\/json(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
+        response.destroy();
+        return resolve({ status: ok ? 502 : response.statusCode });
+      }
+      let size = 0; const parts = [];
+      response.on("data", chunk => {
+        size += chunk.length;
+        if (size > MAX_BODY) { response.destroy(); rejectPromise(new Error("Body limit")); }
+        else parts.push(chunk);
+      });
+      response.on("error", rejectPromise);
+      response.on("end", () => {
+        try { resolve({ status: response.statusCode, json: JSON.parse(Buffer.concat(parts).toString("utf8")) }); }
+        catch { rejectPromise(new Error("Invalid JSON")); }
+      });
+    });
+    request.once("error", rejectPromise);
+    request.end(body);
+  });
+}
+
+/** The page itself, as text: live-grid's /subscriptions, HTML only, at most 64 KiB. */
+export async function getGridPage(config, signal) {
+  const url = new URL("/subscriptions", config.gridOrigin);
+  return new Promise((resolve, rejectPromise) => {
+    const request = httpRequest(url, { method: "GET", signal,
+      headers: { Authorization: config.apiAuthorization, Accept: "text/html" } }, response => {
+      if (response.statusCode !== 200 || !/^text\/html(?:\s*;|$)/i.test(response.headers["content-type"] ?? "")) {
+        response.destroy(); return rejectPromise(new Error("Invalid upstream page"));
+      }
+      let size = 0; const parts = [];
+      response.on("data", chunk => {
+        size += chunk.length;
+        if (size > 65536) { response.destroy(); rejectPromise(new Error("Body limit")); }
+        else parts.push(chunk);
+      });
+      response.on("error", rejectPromise);
+      response.on("end", () => resolve(Buffer.concat(parts).toString("utf8")));
+    });
+    request.once("error", rejectPromise);
+    request.end();
+  });
+}
+// The framed page runs script, so it gets a policy of its own: inline script and style (the
+// page is one file), fetch to this origin only, nothing else loaded, no base or form target.
+// No frame-ancestors: being framed by the app is the point.
+const PAGE_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; " +
+  "connect-src 'self'; base-uri 'none'; form-action 'none'";
+function replyPage(res, html) {
+  res.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Content-Security-Policy": PAGE_CSP,
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+    "X-Robots-Tag": "noindex, nofollow, noarchive",
+  });
+  res.end(html);
+}
+/**
+ * The one widget whose endpoint the door rewrites: live-grid names its Subscriptions page by
+ * LIVE_GRID_PUBLIC_URL or, unset (the compose default), by the address the request came in on
+ * -- here the internal compose address. Relayed through /grid, the frame must open THIS door's page --
+ * an absolute URL on this origin, which is also what lets BDOBB hand it the credential
+ * (WidgetCard.tsx messagingFor: frame origin === backend origin).
+ */
+export function rewriteGridWidgets(spec, config) {
+  const sub = spec?.subscriptions;
+  if (sub && typeof sub === "object" && sub.type === "iframe") {
+    sub.endpoint = config.origin + SUBSCRIPTIONS_PAGE;
+  }
+  return spec;
 }
 
 /**
@@ -303,24 +529,83 @@ async function tableExchange(req, res, route, config) {
 }
 
 /** Test dependency injection is not exposed through environment variables. */
-export function createGateway(config, { requestJson = getJson, openNews = connectNews, openRef = connectRef,
+/** Test dependency injection is not exposed through environment variables. */
+export function createGateway(config, { requestJson = getJson, openNews = connectNews,
+  openGrid = connectGrid, openRef = connectRef, sendSubscription = sendGrid, fetchPage = getGridPage,
   now = Date.now, pingMs = 30000, firstFrameMs = 10000, requestMs } = {}) {
   let inflight = 0, controlInflight = 0, sockets = 0;
   const approvedIds = new Set(Object.values(config.feeds));
   // Ticket nonces already admitted, until each ticket's own expiry: single use.
   const admitted = new Map();
+  // The Subscriptions page, fetched from live-grid once and kept: it is the one route served
+  // before the lock (below), so an unauthenticated caller must cost no upstream dial. A failed fetch is held for PAGE_RETRY_MS (D11: otherwise
+  // every anonymous request while live-grid is down is one more dial carrying the Basic pair),
+  // then the next request retries.
+  const PAGE_RETRY_MS = 5000;
+  let page = null, pageFailedAt = -Infinity;
+  function subscriptionsPage() {
+    if (!page && now() - pageFailedAt < PAGE_RETRY_MS) return Promise.reject(new Error("page fetch held"));
+    if (!page) page = fetchPage(config, AbortSignal.timeout(10000))
+      .catch(error => { page = null; pageFailedAt = now(); throw error; });
+    return page;
+  }
+  async function handleSubscriptions(req, res, route) {
+    if (!config.gridOrigin) return reply(res, 503);
+    if (inflight >= config.maxConcurrent) return reply(res, 429);
+    let body;
+    if (route.method === "POST") {
+      const raw = await jsonBody(req, 1024);
+      if (typeof raw === "number") return reply(res, raw);
+      const symbol = JSON.parse(raw.toString("utf8"))?.symbol;
+      if (typeof symbol !== "string" || !SUBSCRIPTION_SYMBOL_RE.test(symbol.trim())) {
+        return reply(res, 422, { detail: SUBSCRIPTION_REFUSALS[422] });
+      }
+      body = JSON.stringify({ symbol: symbol.trim() });
+    } else if (req.headers["transfer-encoding"] ||
+               (req.headers["content-length"] && req.headers["content-length"] !== "0")) {
+      return reply(res, 405);
+    }
+    // Reading a POST body yields; another request may have occupied the slot.
+    if (inflight >= config.maxConcurrent) return reply(res, 429);
+    inflight++;
+    try {
+      const answer = await sendSubscription(route.method, route.path, body, config, AbortSignal.timeout(12000));
+      if (answer.json !== undefined) return reply(res, answer.status, answer.json);
+      const message = SUBSCRIPTION_REFUSALS[answer.status];
+      return message ? reply(res, answer.status, { detail: message }) : reply(res, 502);
+    } finally { inflight--; }
+  }
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_SOCKET, perMessageDeflate: false });
   const server = createServer({ maxHeaderSize: 16384, requestTimeout: 15000, headersTimeout: 10000,
     keepAliveTimeout: 5000 }, async (req, res) => {
     try {
+      // The ONE exception to "the lock precedes everything": the Subscriptions page. A frame
+      // is a navigation, and a navigation cannot carry the Bearer token, so the page loads
+      // without it -- then asks the app for the credential (openbb-connect) and sends it on
+      // every watchlist call, which ARE behind the lock. The page holds no data and no
+      // secret; it is served from memory after the first fetch, GET only, no query, no
+      // body, on this door's own Host, before any other route is consulted.
+      // With live-grid off there is no page, and no exception: the lock answers first, as for
+      // every path at v9, so an anonymous caller learns nothing about the profile (D12).
+      if (req.method === "GET" && req.url === SUBSCRIPTIONS_PAGE && config.gridOrigin) {
+        const pageUrl = requestUrl(req, config);
+        if (!pageUrl) return reply(res, 421);
+        if (req.headers["transfer-encoding"] ||
+            (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
+        return replyPage(res, await subscriptionsPage());
+      }
       // The lock precedes route discovery, health, Host and Origin validation.
       if (!authorized(req, config)) return reply(res, 401);
       const url = requestUrl(req, config);
       if (!url) return reply(res, 421);
       const origin = req.headers.origin;
       if (origin && origin !== config.origin && !DESKTOP_ORIGINS.has(origin)) return reply(res, 403);
-      if (url.pathname.startsWith("/state/")) {
-        return await handleState(req, res, url, config);
+      if (req.method === "GET" && req.url === SUBSCRIPTIONS_PAGE) return reply(res, 503);  // live-grid off
+      if (url.pathname.startsWith("/state/")) return await handleState(req, res, url, config);
+      if (url.pathname.startsWith("/grid/api/subscriptions")) {
+        const route = subscriptionRoute(url, req.method);
+        if (!route) return reply(res, 404);
+        return await handleSubscriptions(req, res, route);
       }
       const table = tableRoute(url, req.method, config);
       if (table || url.pathname.startsWith("/table/")) {
@@ -334,18 +619,47 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       if (req.method !== "GET" || req.headers["transfer-encoding"] ||
           (req.headers["content-length"] && req.headers["content-length"] !== "0")) return reply(res, 405);
       if (url.pathname === "/_gateway/health" && !url.search) return reply(res, 200, { ok: true });
+      // The desktop's socket ticket (V10-P1). Its webview socket cannot carry the Bearer
+      // header, so the app asks here, behind the lock, for a thirty-second single-use ticket
+      // over its own Origin plus the one /grid socket it will open -- the same signer as the
+      // preview's, over a string no preview ticket is signed over (those begin with "/").
+      // The ticket is in the body only; this door logs no request.
+      if (url.pathname === "/grid/ws_ticket") {
+        if (!DESKTOP_ORIGINS.has(origin)) return reply(res, 403);
+        // Every /grid ticket is for a live-grid socket, which answers 503 while it is off (D10).
+        if (!config.gridOrigin) return reply(res, 503);
+        const keys = [...url.searchParams.keys()];
+        const target = keys.length === 1 && keys[0] === "target"
+          ? socketTarget(url.searchParams.get("target"), config.origin) : null;
+        if (!target?.startsWith("/grid/")) return reply(res, 404);
+        return reply(res, 200, { ticket: socketTicket(config.token, origin + target, now()) });
+      }
       const path = upstreamPath(url, config);
       if (!path) return reply(res, 404);
+      // live-grid is the opt-in `live` profile: until settings.json says it runs
+      // ("liveGrid": true), every /grid route answers 503, as /news does without the wire.
+      if (path.startsWith("/grid/") && !config.gridOrigin) return reply(res, 503);
       if (inflight >= config.maxConcurrent) return reply(res, 429);
       inflight++;
       const controller = new AbortController();
-      // Cold provider acquisitions may use the API lane's full 165 s deadline.
-      // Local reference fixtures retain their short limit; test overrides remain exact.
-      const deadline = requestMs ?? (path.startsWith("/api/") ? config.apiTimeoutMs ?? 170000 : 12000);
+      const deadline = requestMs ?? (path.startsWith("/api/") ? config.apiTimeoutMs ?? 170000 :
+        /^\/grid\/(day_charts|closed_session)\?/.test(path) ? 25000 : 12000);
       const timer = setTimeout(() => controller.abort(), deadline);
       const disconnect = () => { if (!res.writableEnded) controller.abort(); };
       res.once("close", disconnect);
-      try { reply(res, 200, await requestJson(path, config, controller.signal)); }
+      try {
+        const answer = await requestJson(path, config, controller.signal);
+        if (MANIFESTS.has(path)) await replyManifest(req, res, answer);
+        else reply(res, 200, path === "/grid/widgets.json" ? rewriteGridWidgets(answer, config) : answer);
+      }
+      catch (failure) {
+        // The one status this door relays, and only for the two documents the client probes
+        // with allow404 (OPTIONAL_DOCS above). The BODY is still the door's own; anything
+        // else -- another route's 404, a 500, a non-JSON answer -- falls through to the 502
+        // the outer catch writes.
+        if (failure?.status === 404 && OPTIONAL_DOCS.has(path.split("?")[0])) return reply(res, 404);
+        throw failure;
+      }
       finally { clearTimeout(timer); res.off("close", disconnect); inflight--; }
     } catch { if (!res.headersSent) reply(res, 502); else res.destroy(); }
   });
@@ -356,49 +670,71 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
     socket.setTimeout(10000, () => socket.destroy());
     const url = requestUrl(req, config);
     const tickets = url?.searchParams.getAll("ticket") ?? [];
-    let want;
+    let want, nonce = null;
     if (tickets.length && !req.headers.authorization) {
-      // The browser's own socket: a browser cannot carry the machine token, so the web layer
-      // -- which checked the GitHub session -- signs a thirty-second ticket over the exact
-      // target and appends it LAST (policy.mjs socketTicket). What precedes it is what was
-      // signed, and is all the route rule below ever sees. Off until previewOrigin is set.
-      if (!config.previewOrigin) return reject(socket, 401);
-      if (req.headers.origin !== config.previewOrigin) return reject(socket, 403);
+      // The browser's own socket. Relaying it through a Vercel Function bills function time while it is open, and a browser
+      // cannot carry the machine token, so the web layer -- which checked the GitHub
+      // session -- signs a thirty-second ticket over the exact target and appends it
+      // LAST (policy.mjs socketTicket). What precedes it is what was signed, and
+      // is all the route checks below ever see. Off until previewOrigin is set.
+      // Or the desktop app's webview socket, on a ticket /grid/ws_ticket minted for this
+      // same Origin: signed over the Origin plus the target, so it is spendable from no other.
+      const desktop = DESKTOP_ORIGINS.has(req.headers.origin);
+      if (!desktop && !config.previewOrigin) return reject(socket, 401);
+      if (!desktop && req.headers.origin !== config.previewOrigin) return reject(socket, 403);
       const cut = req.url.search(/[?&]ticket=/);
       want = req.url.slice(0, cut);
       // cut < 0: the parser found a ticket the wire does not spell literally (tick%65t=).
       // What was signed is the literal text, so that is refused here, not by luck below.
-      const nonce = cut >= 0 && tickets.length === 1 && req.url.slice(cut + 8) === tickets[0]
-        ? socketTicketNonce(config.token, want, tickets[0], now()) : null;
+      nonce = cut >= 0 && tickets.length === 1 && req.url.slice(cut + 8) === tickets[0]
+        ? socketTicketNonce(config.token, (desktop || want === "/grid/chart_stream_ws") ? req.headers.origin + want : want, tickets[0], now()) : null;
       for (const [used, until] of admitted) if (until < now()) admitted.delete(used);
       if (!nonce || admitted.has(nonce)) return reject(socket, 401);
-      admitted.set(nonce, Number(tickets[0].split(".")[0]));
+      // Recorded below, only once every refusal has passed (D13): a ticket refused for load
+      // (429, 503) is not spent, and nothing awaits in between, so it is still single use.
     } else {
       // The machine path: the same lock as HTTP, then the gateway's own Origin only.
       if (!authorized(req, config)) return reject(socket, 401);
       if (!url || req.headers.origin !== config.origin) return reject(socket, 403);
       want = req.url;
     }
-    // Two socket routes at this tag: the reference's live grid and the wire. policy.mjs'
-    // socketTarget holds the rule -- the exact path, no query (the whole subscription is the
-    // frame, not the URL) -- and is the SAME function the web layer's ticket signer consults,
-    // so the two can never drift about what may be opened. A subprotocol is refused: neither
-    // upstream speaks one. Anything unmatched is 404, before any upstream is consulted.
-    const route = req.method === "GET" && req.headers["sec-websocket-protocol"] === undefined
+    // FOUR socket routes at this tag: the reference's live grid (v3), the wire (Ep. 8), the
+    // quote grid (Ep. 10) and this line's tick chart. policy.mjs' socketTarget holds the rule
+    // for all four -- the exact path and no query for the first three, whose subscription is
+    // a frame, and the path plus /grid/ta_chart's own validated query for the fourth, whose
+    // subscription IS the URL -- and it is the SAME function the web layer's ticket signer
+    // consults, so the two layers can never drift about what may be opened. It reads the raw
+    // request text (`want`, the ticket cut off), never a parsed and re-spelled URL. The target
+    // it returns is what gets dialled, so the query that leaves is the one it re-serialised,
+    // never the caller's raw string. A subprotocol is refused here: no upstream speaks one,
+    // and ws would otherwise have to negotiate it. Anything unmatched is 404, before any
+    // upstream is consulted.
+    const target = req.method === "GET" && req.headers["sec-websocket-protocol"] === undefined
       ? socketTarget(want, config.origin) : null;
-    if (!route) return reject(socket, 404);
-    const news = route === "/news/ws/news";
+    if (!target) return reject(socket, 404);
+    const route = target.split("?")[0];
+    const chart = route === "/grid/chart_stream_ws";
+    const ta = route === "/grid/ta_chart_ws";
+    const grid = chart || ta || route === "/grid/live_grid_ws";
+    const ref = route === "/ref/live_grid_ws";
     // Nothing to subscribe to: the operator has approved no feeds, so there is no wire socket
     // to open. 503, not 404 -- the route exists, the upstream is simply not configured, which
-    // is what verify.mjs's own probe distinguishes.
-    if (news && !Object.keys(config.feeds).length) return reject(socket, 503);
-    // The socket cap is checked BEFORE handleUpgrade: a refused upgrade never allocates a client.
+    // is what verify.mjs's own probe distinguishes. The grid has the same state here: on
+    // openbq-docker live-grid is the opt-in `live` compose profile, so until settings.json
+    // says it runs ("liveGrid": true, config.mjs) its sockets answer 503 as well.
+    if (route === "/news/ws/news" && !Object.keys(config.feeds).length) return reject(socket, 503);
+    if (grid && !config.gridOrigin) return reject(socket, 503);
+    // The socket cap is checked BEFORE handleUpgrade: an upgrade that is going to be refused
+    // must never get as far as allocating a ws client.
     if (sockets >= config.maxSockets) return reject(socket, 429);
+    if (nonce) admitted.set(nonce, Number(tickets[0].split(".")[0]));
     wss.handleUpgrade(req, socket, head, client => {
       sockets++;
       // The 10 s handshake deadline set above must not go on applying to an open socket.
       socket.setTimeout(0);
-      let upstream = null, pending = null, subscribed = false;
+      let upstream, subscribed = false, pending = null, frames = 0;
+      let chartWindow = 0, chartFrames = 0;
+      const lease = chart && nonce ? setTimeout(() => client.close(4001, "reauthenticate"), Math.max(1, Number(tickets[0].split(".")[0]) - now())) : null;
       const close = () => { client.terminate(); upstream?.terminate(); };
       // No lifetime: a socket stays open while its client answers. A ping every pingMs that
       // goes unanswered by the next one closes it, so a peer that vanished without closing (a
@@ -409,66 +745,97 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
       const heartbeat = setInterval(() => { if (!alive) return close(); alive = false; client.ping(); }, pingMs);
       const initial = setTimeout(close, firstFrameMs);
       client.once("close", () => {
-        sockets--; clearInterval(heartbeat); clearTimeout(initial); upstream?.terminate();
+        sockets--; clearTimeout(lease); clearInterval(heartbeat); clearTimeout(initial); upstream?.terminate();
       });
       client.on("error", close);
-      client.on("message", (data, binary) => {
-        if (news) {
-          // One subscription frame, ever: the wire's protocol needs no second one, so a
-          // second frame is a client doing something the contract does not describe.
-          if (binary || subscribed) return close();
-          const frame = newsSubscription(data, config);
-          if (!frame) return close();
-          subscribed = true; clearTimeout(initial);
-          // Connect upstream ONLY on the first validated frame: an invalid or missing
-          // subscription must never open an upstream connection at all.
-          try { upstream = openNews(config); } catch { return close(); }
-          upstream.on("message", (message, isBinary) => {
-            if (isBinary || message.length > MAX_NEWS_REPLY || client.readyState !== WebSocket.OPEN ||
-                client.bufferedAmount > MAX_NEWS_REPLY) return close();
-            // The door is the only trust boundary: rss-ticker is unauthenticated on the tailnet,
-            // so the door forwards the {"feeds"} reply and approved-feed articles, nothing else.
+      /**
+       * Wiring the upstream leg is identical for all four sockets -- the same size and
+       * back-pressure bounds on what it may push, the same teardown in both directions --
+       * so it lives here once. Only WHEN it is opened differs: on the first validated
+       * frame for the wire, the reference and the quote grid, at upgrade for the tick chart, which has no
+       * client frame to wait for.
+       */
+      const connect = () => {
+        try {
+          upstream = grid ? openGrid(config, target.slice("/grid".length)) : ref ? openRef(config) : openNews(config);
+        } catch { close(); return false; }
+        upstream.on("message", (message, isBinary) => {
+          if (isBinary || message.length > (chart ? MAX_CHART_SOCKET : !grid && !ref ? MAX_NEWS_REPLY : MAX_SOCKET) || client.readyState !== WebSocket.OPEN ||
+              client.bufferedAmount + (chart ? message.length : 0) > (chart ? MAX_CHART_SOCKET : !grid && !ref ? MAX_NEWS_REPLY : 262144)) return close();
+          // The door is the only trust boundary for the wire: rss-ticker is unauthenticated on
+          // the tailnet, so the door forwards the {"feeds"} reply and approved-feed articles,
+          // nothing else. The grid and the reference relay as they are.
+          if (!grid && !ref) {
             let out;
             try { out = JSON.parse(message.toString()); } catch { return close(); }
             const feedReply = out && Object.keys(out).join() === "feeds";
             if (!feedReply && message.length > MAX_SOCKET) return close();
-            if (feedReply || approvedIds.has(out?.feed_id)) client.send(message, { binary: false });
-          });
-          upstream.on("error", close);
-          upstream.once("close", close);
-          if (upstream.readyState === WebSocket.OPEN) return upstream.send(frame);
-          upstream.once("open", () => {
-            if (client.readyState === WebSocket.OPEN) upstream.send(frame);
-          });
-          return;
-        }
-        // A params frame on open AND on every symbol change over the same socket, re-validated
-        // each time. The reference is a keyless local fixture, so there is no vendor meter here;
-        // maxSockets is the whole budget.
-        if (binary) return close();
-        const frame = refSubscription(data);
+            if (!(feedReply || approvedIds.has(out?.feed_id))) return;
+          }
+          client.send(message, { binary: false });
+        });
+        upstream.on("error", close);
+        upstream.once("close", close);
+        return true;
+      };
+      // The tick chart's socket is PUSH-ONLY. live-grid's /ta_chart_ws reads ws.query_params
+      // and then loops on send_json; it never reads a frame. So there is no first frame to
+      // wait for -- its deadline is cleared and the upstream is dialled here, with the query
+      // socketTarget validated -- and any frame a client does send closes the relay below:
+      // live-grid would ignore it, and a door that silently swallows a frame is a door that
+      // lies about its contract.
+      if (ta) { clearTimeout(initial); if (!connect()) return; }
+      client.on("message", (data, binary) => {
+        // The wire: one subscription frame, ever -- its protocol needs no second one, so a
+        // second frame is a client doing something the contract does not describe. The grid:
+        // a params frame on open AND again on every parameter change over the same open
+        // socket, which is the protocol live-grid's own consumer loop implements, so a
+        // repeat frame is expected here and is RE-VALIDATED rather than fatal. Either way
+        // what goes upstream is the frame policy.mjs rebuilt, never the client's own bytes.
+        // The tick chart takes no frame at all (see above); the wire takes exactly one. The
+        // reference's socket (v3) speaks the grid's protocol -- a params frame on open and on
+        // every symbol change, re-validated each time -- but it is a keyless local fixture, so
+        // no vendor meter applies: FRAME_CAP bounds it.
+        if (binary || ta || (!grid && !ref && subscribed)) return close();
+        const frame = chart ? chartStreamControl(data) : grid ? liveGridSubscription(data) : ref ? refSubscription(data) : newsSubscription(data, config);
         if (!frame) return close();
-        clearTimeout(initial);
+        // FRAME_CAP is the one per-socket bound left (the daily and per-minute budgets were
+        // removed 2026-10-17); a frame past it closes the relay, as a frame outside the
+        // contract does -- the door has no way to answer 429 on an open socket.
+        if (chart) {
+          const second = Math.floor(now() / 1000);
+          if (chartWindow !== second) { chartWindow = second; chartFrames = 0; }
+          if (++chartFrames > 10) return close();
+        } else if (++frames > FRAME_CAP) return close();
+        subscribed = true; clearTimeout(initial);
+        // Connect upstream ONLY on the first validated frame: an invalid or missing
+        // subscription must never open an upstream connection at all. A grid client's
+        // later frames reuse the connection this one opened.
         if (!upstream) {
-          // Connect upstream ONLY on the first validated frame.
-          try { upstream = openRef(config); } catch { return close(); }
-          upstream.on("message", (message, isBinary) => {
-            if (isBinary || message.length > MAX_SOCKET || client.readyState !== WebSocket.OPEN ||
-                client.bufferedAmount > 262144) return close();
-            client.send(message, { binary: false });
-          });
-          upstream.on("error", close);
-          upstream.once("close", close);
-          // Until the upstream opens, only the latest validated frame is held (a symbol
-          // change before open supersedes the first subscription; nothing queues).
+          if (!connect()) return;
+          // ONE pending frame is held, and only until the handshake completes. A
+          // `once("open")` listener per frame -- which is what a single-frame protocol can
+          // afford -- would let a grid client that sends a params frame per parameter change
+          // add a closure and a frame to this process for every frame it manages to send
+          // during the 10s handshake. Superseding is also the correct protocol: a params
+          // frame is the client's whole state, not a delta, so the newest one is the only
+          // one live-grid needs to be told.
           upstream.once("open", () => {
             if (pending !== null && client.readyState === WebSocket.OPEN) upstream.send(pending);
             pending = null;
           });
         }
-        if (upstream.readyState !== WebSocket.OPEN) { pending = frame; return; }
+        // The mirror of the upstream->client check above, on the direction THIS row
+        // introduced. The wire's socket forwards one frame ever, so it needed no such bound;
+        // a grid client legitimately sends a params frame per parameter change for as long as
+        // the socket is open, and a live-grid that is not draining would otherwise
+        // let `upstream.bufferedAmount` grow without limit inside a read_only container. 256
+        // KiB behind is closed rather than queued behind -- the same bound, in the same
+        // units, as the other direction.
         if (upstream.bufferedAmount > 262144) return close();
-        upstream.send(frame);
+        if (upstream.readyState === WebSocket.OPEN) { pending = null; return upstream.send(frame); }
+        if (chart && pending !== null) return close();
+        pending = frame;
       });
     });
   });

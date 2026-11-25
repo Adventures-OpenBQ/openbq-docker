@@ -59,7 +59,7 @@ export async function verify(config, base = "http://127.0.0.1:8091") {
   expect(await status("/_gateway/health", { ...good, Origin: "https://untrusted.invalid" }), 403, "a foreign Origin");
   for (const path of ["/", "/tick", "/mcp", "/keys", "/widgets.json",
     // Families of later lines: refused at this tag.
-    "/grid/live_grid?symbol=AAPL",
+    "/grid/live_grid?symbol=AAPL&admin=true",
     // The wire's own shape rules, each refused before any dial: nothing under /news/ but the
     // one history route; an unapproved feed id (0 can never be approved -- an id is >= 1 --
     // so this probe holds on every deployment); and a limit outside 1-50, refused whether or

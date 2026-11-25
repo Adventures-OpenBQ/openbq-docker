@@ -133,6 +133,8 @@ IGNORE: frozenset[str] = frozenset(
         "ARCTICDB_BUCKET",
         "ARCTICDB_LIBRARY",
         "ARCTICDB_URI",
+        # Optional live-grid display origin; it is configuration, not a provider key.
+        "LIVE_GRID_PUBLIC_URL",
         # OpenBQ's credentials.env also carries the API's own Basic auth (which
         # key-maint follows, never reports) and SEC's contact user agent.
         "OPENBB_API_AUTH",

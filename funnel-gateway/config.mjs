@@ -35,7 +35,7 @@ function tailnetAddress(value) {
 // a silently ignored setting is how an operator believes a door is configured when it is not.
 // openbq-docker serves no /ai (Rita), so ritaOrigin, ritaAddress and socksProxy are refused too.
 const SETTINGS_KEYS = new Set(["origin", "previewOrigin", "stateDir",
-  "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs", "ssrmTimeoutMs", "apiTimeoutMs"]);
+  "maxConcurrent", "maxSockets", "rssOrigin", "rssAddress", "feeds", "liveGrid", "tableService", "tableDesktopPrincipal", "ssrmRoutes", "tableTimeoutMs", "ssrmTimeoutMs", "apiTimeoutMs"]);
 // The daily vendor cap and the per-minute request budget were removed (user ruling 2026-10-17).
 // A settings file that still names them is refused by name, so the operator deletes them knowingly.
 const REMOVED_KEYS = new Set(["quoteDailyLimit", "requestsPerMinute"]);
@@ -109,6 +109,8 @@ export function validateConfig(settings, secrets) {
   // Approved feeds with nowhere to send them is a misconfiguration, not a degraded mode:
   // refuse at startup rather than 404/502 per request once the door is already open.
   if (Object.keys(feeds).length && !rssOrigin) throw new Error("Approved feeds need an RSS origin and address");
+  const liveGrid = settings.liveGrid === undefined ? false : settings.liveGrid;
+  if (typeof liveGrid !== "boolean") throw new Error("liveGrid must be true or false");
   const tableTimeoutMs = settings.tableTimeoutMs ?? 65000;
   if (!Number.isInteger(tableTimeoutMs) || tableTimeoutMs < 1000 || tableTimeoutMs > 65000) throw new Error("Invalid table timeout");
   // An SSRM first page acquires the widget's whole result (od's lane deadline 165 s, its
@@ -136,6 +138,7 @@ export function validateConfig(settings, secrets) {
     apiAuthorization: "Basic " + Buffer.from(`${secrets.apiUsername}:${secrets.apiPassword}`).toString("base64"),
     // Never accept a caller-supplied upstream or a configurable generic proxy.
     apiOrigin: "http://openbq-api:6900",
+    gridOrigin: liveGrid ? "http://live-grid:6903" : null,
     // The Episode 3 reference (the episode3-demo service, network alias openbq-reference):
     // a keyless local fixture on the same bridge, so a fixed service name like apiOrigin,
     // never a setting, and NO credential is presented on the bridge.

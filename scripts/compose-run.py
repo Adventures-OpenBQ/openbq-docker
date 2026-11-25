@@ -131,6 +131,7 @@ def prepare_model(model, services, project):
                 pending.extend(more - selected); selected.update(more)
     result = {'name': project, 'services': {}, 'volumes': {}, 'networks': {}}
     allocated = set(model.get('volumes', {}))
+    bind_state = {}
     def new_key(stem):
         key = stem; index = 0
         while key in allocated:
@@ -185,7 +186,10 @@ def prepare_model(model, services, project):
                 if not mount.get('read_only', False):
                     if not Path(mount['source']).is_dir():
                         raise ValueError('Writable file or missing bind paths need isolated QA configuration')
-                    target = mount['target']; key = new_key(f'state-{name}-{index}')
+                    source = str(Path(mount['source']).resolve())
+                    if source not in bind_state:
+                        bind_state[source] = new_key(f'state-{name}-{index}')
+                    target = mount['target']; key = bind_state[source]
                     mount.clear(); mount.update(type='volume', source=key, target=target)
             if mount['type'] == 'volume':
                 key = mount.get('source') or new_key(f'anonymous-{name}-{index}')

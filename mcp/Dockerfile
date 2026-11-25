@@ -4,7 +4,7 @@
 # The OpenBB MCP server on this episode's API image, built locally first by
 # docker-compose.v3.yml (openbq-api, the Dockerfile's v3 stage). Compose passes that image in
 # as the `base` build context, so nothing is pulled from a registry.
-ARG BASE=openbq-local:9.0.0
+ARG BASE=openbq-local:10.0.0
 FROM ${BASE}
 COPY requirements.lock /tmp/mcp-requirements.lock
 # The base pins every dependency (fastapi, fastmcp, mcp, openbb-core, sse-starlette).

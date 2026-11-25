@@ -118,5 +118,29 @@
     "rule": "generic-api-key",
     "content_sha256": "0fd5368e4e7291bec788770dfe4d03da9cceb8b7ebbc1b8933ff2d6e3d8bc951",
     "reason": "Exact historical public provider source provenance/121-file SHA256 manifest. All digests recomputed against immutable backend Git source and all source blobs equal primary Adventures-OpenBQ/openbq-eodhd GitHub tree5c54b403513ef5759a9c1d461da54669e2a6d91c. API module path/digest matches are integrity hashes, not service credentials. Exact historical normalized full file only."
+  },
+  {
+    "path": "live-grid/app/resources/chart-stream-v1.examples.json",
+    "rule": "generic-api-key",
+    "content_sha256": "2fe846f2ad2ef578a7c84e4471243e7c2f6186d22be925b4321953ee7f0a3c97",
+    "reason": "Public canonical chart-stream protocol example view_key values are SHA256 of the JSON normalized advertised views; recomputation verified for every checkpoint. They are data identity hashes, not credentials."
+  },
+  {
+    "path": "v10/kdb/source/openbq_kdb/resources/chart-stream-v1.examples.json",
+    "rule": "generic-api-key",
+    "content_sha256": "2fe846f2ad2ef578a7c84e4471243e7c2f6186d22be925b4321953ee7f0a3c97",
+    "reason": "Public canonical chart-stream protocol example view_key values are SHA256 of the JSON normalized advertised views; recomputation verified for every checkpoint. They are data identity hashes, not credentials."
+  },
+  {
+    "path": "v10/kdb/source/tests/integration/test_auth_bootstrap.py",
+    "rule": "generic-api-key",
+    "content_sha256": "b3719a1f6490e979107c5779eefe9289285122f5e451bd4af9e79eb15c3a52d9",
+    "reason": "Public RFC6455 WebSocket sample nonce dGhlIHNhbXBsZSBub25jZQ== decodes to the sample nonce. Used only as a test handshake value, not a credential."
+  },
+  {
+    "path": "funnel-gateway/gateway.test.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "8e8a898c0ccd987aece3ba76cf24165bc5bd2946facd5ed4a9d2ea72ad5265c6",
+    "reason": "Public RFC6455 WebSocket sample nonce dGhlIHNhbXBsZSBub25jZQ== decodes to the sample nonce. Used only as a test handshake value, not a credential."
   }
 ]

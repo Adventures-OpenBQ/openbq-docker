@@ -82,3 +82,12 @@ tailscaled.state
 id_rsa
 id_ed25519
 scripts/scrub-private-patterns.txt
+
+# V10 operator state and licensed inputs.
+kdb-license/*
+!kdb-license/.gitkeep
+kdb-data/
+kdb-auth/
+live-grid-data/
+rustfs-data/
+minio-data/

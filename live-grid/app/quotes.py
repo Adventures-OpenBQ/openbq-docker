@@ -1,0 +1,197 @@
+# Copyright 2026 SecretoftheUniverse.com LLC. Licensed under the Apache License, Version 2.0.
+# SPDX-License-Identifier: Apache-2.0
+
+"""In-memory latest-quote table shared by REST seeding and websocket ticks."""
+
+import logging
+import math
+from datetime import datetime, timezone
+from typing import Any
+
+from app.classify import snapshot_ticker
+
+log = logging.getLogger("live-grid")
+
+SNAPSHOT_TTL = 60.0  # seconds a cached REST snapshot may be reused before re-fetching
+
+
+def _f(value: Any) -> float | None:
+    """Coerce EODHD numerics (often strings, sometimes 'NA') to float or None."""
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _blank_row(symbol: str) -> dict[str, Any]:
+    return {
+        "symbol": symbol,
+        "price": None,
+        "change": None,
+        "change_percent": None,
+        "bid": None,
+        "ask": None,
+        "last_size": None,
+        "volume": None,
+        "day_high": None,
+        "day_low": None,
+        "day_open": None,
+        "updated_at": None,
+        "updated_ts": None,
+        "stream_volume": None,
+    }
+
+
+def tick_time(ts) -> datetime:
+    """A feed message's `t` as an aware UTC datetime, whatever its unit (L3).
+
+    EODHD documents milliseconds, but the NAS's v10 stack received t ~ 1.8e18, i.e.
+    nanoseconds: `ts / 1000` gave year 56794849, and the ValueError killed the feed manager.
+    The unit is read from the magnitude -- a present-day instant is ~1.8e9 s, 1.8e12 ms,
+    1.8e15 us or 1.8e18 ns, so each step down by 1000 until it is below 1e11 (year 5138) lands
+    on seconds. Anything unusable (not a number, not positive, not finite, out of range) is
+    stamped now rather than raising.
+    """
+    if isinstance(ts, bool) or not isinstance(ts, (int, float)) or not math.isfinite(ts) or ts <= 0:
+        return datetime.now(tz=timezone.utc)
+    seconds = float(ts)
+    for _ in range(3):  # ms, us, ns
+        if seconds < 1e11:
+            break
+        seconds /= 1000
+    try:
+        return datetime.fromtimestamp(seconds, tz=timezone.utc)
+    except (ValueError, OverflowError, OSError):
+        return datetime.now(tz=timezone.utc)
+
+
+class QuoteTable:
+    """symbol -> latest row dict; prev-closes cached for change math."""
+
+    def __init__(self, on_tick=None, snapshots=None) -> None:
+        self.rows: dict[str, dict[str, Any]] = {}
+        self._prev_close: dict[str, float] = {}
+        self._on_tick = on_tick
+        self._snapshots = snapshots
+
+    def seed(self, symbols: list[str], client) -> list[dict[str, Any]]:
+        """Fill rows from the SDK real-time snapshot; returns rows in request order."""
+        out: list[dict[str, Any]] = []
+        for sym in symbols:
+            row = self.rows.setdefault(sym, _blank_row(sym))
+            snap = None
+            if self._snapshots is not None:
+                try:
+                    snap = self._snapshots.read_snapshot(sym, SNAPSHOT_TTL)
+                except Exception:  # noqa: BLE001 - the vendor call is the fallback
+                    snap = None
+            if snap is None:
+                try:
+                    snap = client.get_live_stock_prices(ticker=snapshot_ticker(sym))
+                except Exception:  # noqa: BLE001 -- degrade to a blank row, don't fail the GET
+                    snap = None
+                if self._snapshots is not None and isinstance(snap, dict):
+                    try:
+                        self._snapshots.write_snapshot(sym, snap)
+                    except Exception:  # noqa: BLE001
+                        pass
+            if isinstance(snap, list):
+                snap = snap[0] if snap else None
+            if isinstance(snap, dict):
+                price = _f(snap.get("close"))
+                prev = _f(snap.get("previousClose"))
+                if prev:
+                    self._prev_close[sym] = prev
+                if price is not None:
+                    row["price"] = price
+                if price is not None and prev:
+                    row["change"] = price - prev
+                    row["change_percent"] = (price - prev) / prev
+                else:
+                    row["change"] = _f(snap.get("change"))
+                    cp = _f(snap.get("change_p"))
+                    row["change_percent"] = cp / 100 if cp is not None else None
+                vol = _f(snap.get("volume"))
+                if vol is not None:
+                    row["volume"] = vol
+                # EODHD names these open/high/low on the real-time snapshot.
+                # `_f` turns "NA" and "" into None, which is what forex and
+                # crypto answer -- those rows get no day bar, by design.
+                for key, field in (("high", "day_high"), ("low", "day_low"), ("open", "day_open")):
+                    level = _f(snap.get(key))
+                    if level is not None:
+                        row[field] = level
+            out.append(row)
+        return out
+
+    def apply_tick(self, feed: str, msg: dict) -> str | None:
+        """Update a row from a websocket tick; returns the symbol iff it changed.
+
+        Trades/crypto carry p (price) and q (size); forex carries b/a (bid/ask)
+        and no p — price becomes the mid (or whichever side is present).
+        """
+        sym = msg.get("s")
+        if not sym:
+            return None
+        row = self.rows.setdefault(sym, _blank_row(sym))
+        size = None
+        if feed == "forex":
+            bid, ask = _f(msg.get("b")), _f(msg.get("a"))
+            if bid is None and ask is None:
+                return None
+            if bid is not None:
+                row["bid"] = bid
+            if ask is not None:
+                row["ask"] = ask
+            price = (bid + ask) / 2 if bid is not None and ask is not None else (
+                bid if bid is not None else ask
+            )
+        else:
+            price = _f(msg.get("p"))
+            if price is None:
+                return None
+            # crypto trades carry the size as `q`; US-equity trades carry it
+            # as `v` -- reading only `q` recorded every US tick with size 0,
+            # which left tick-derived equity bars volumeless (vwap/avwap NaN).
+            size = _f(msg.get("q"))
+            if size is None:
+                size = _f(msg.get("v"))
+            if size is not None:
+                row["last_size"] = size
+                # The seed's day volume grows with every trade after it, so a
+                # Live Chart's per-bar volume (the change in day volume) is real.
+                # No seeded volume (null) stays null rather than starting at 0.
+                if row.get("volume") is not None:
+                    row["volume"] += size
+                # stream_volume counts only what this stream has seen since the
+                # row was created; a re-seed (GET /live_grid) never resets it. The
+                # REST day volume is consolidated and the websocket is one venue,
+                # so a chart that differenced `volume` across a re-seed would
+                # print the gap between two sources as one bar.
+                row["stream_volume"] = (row.get("stream_volume") or 0.0) + size
+        row["price"] = price
+        # The seeded high/low is a snapshot taken minutes ago; live trades
+        # routinely print outside it. Widening here is what keeps the day bar
+        # honest -- and it is also the ONLY source of a range for a symbol the
+        # REST seed never covered.
+        if row["day_high"] is None or price > row["day_high"]:
+            row["day_high"] = price
+        if row["day_low"] is None or price < row["day_low"]:
+            row["day_low"] = price
+        prev = self._prev_close.get(sym)
+        if prev:
+            row["change"] = price - prev
+            row["change_percent"] = (price - prev) / prev
+        stamp = tick_time(msg.get("t"))
+        row["updated_at"] = stamp.strftime("%H:%M:%S")
+        # updated_at is the grid's display (time only); updated_ts is the full UTC
+        # instant, so a Live Chart can tell a weekend replay from a tick today.
+        row["updated_ts"] = stamp.isoformat(timespec="seconds")
+        if self._on_tick is not None:
+            try:
+                self._on_tick(sym, price, size if feed != "forex" else None, stamp)
+            except Exception:  # noqa: BLE001 - recording must never break the grid
+                log.debug("tick recorder rejected a tick", exc_info=True)
+        return sym
