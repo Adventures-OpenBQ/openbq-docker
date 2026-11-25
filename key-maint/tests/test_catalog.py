@@ -21,11 +21,9 @@ class TestShape:
             assert ex.doc.startswith("https://")
             assert ex.params.get("provider") == pid
         for pid in ("yfinance", "sec", "federal_reserve", "imf", "oecd", "government_us",
-                    "cftc", "econdb", "eia", "congress_gov", "eodhd"):
+                    "bls", "cftc", "econdb", "eia", "congress_gov", "eodhd"):
             assert EXAMPLES[pid].demo_ok is True
-        # bls 400s without a key on the real platform (its credential gate,
-        # not the fetcher, decides) -- it is keyed like fmp/fred/tiingo/etc.
-        for pid in ("fmp", "fred", "tiingo", "intrinio", "benzinga", "tradingeconomics", "bls"):
+        for pid in ("fmp", "fred", "tiingo", "intrinio", "benzinga", "tradingeconomics"):
             assert EXAMPLES[pid].demo_ok is False
 
     def test_eodhd_probe_uses_the_namespace(self):

@@ -90,27 +90,34 @@ async def fomc_documents_download(params: Annotated[dict, Body()]) -> list:
     list
         A list of dictionaries, each containing keys `filename`, `content`, and `data_format`.
     """
+    import asyncio
     import base64
     from io import BytesIO
-    from urllib.parse import urlparse
 
     from openbb_core.provider.utils.helpers import make_request
+    from openbb_federal_reserve.utils.fedinprint import (
+        validate_document_url,
+        validate_pdf,
+    )
+
+    def download(url, is_pdf):
+        response = make_request(url, allow_redirects=False)
+        response.raise_for_status()
+        if not 200 <= response.status_code < 300:
+            raise ValueError("The document download did not return a successful response.")
+        return validate_pdf(response.content) if is_pdf else response.content
 
     urls = params.get("url") or []
     results: list = []
 
     for url in urls:
-        parsed_url = urlparse(url)
-        hostname = parsed_url.hostname or ""
-
-        if parsed_url.scheme != "https" or hostname not in {
-            "www.federalreserve.gov",
-            "federalreserve.gov",
-        }:
+        try:
+            validate_document_url(url, {"www.federalreserve.gov", "federalreserve.gov"})
+        except ValueError as exc:
             raise OpenBBError(
                 "Invalid URL provided for download. Must be from federalreserve.gov -> "
                 + url
-            )
+            ) from exc
 
         is_pdf = url.lower().endswith(".pdf")
 
@@ -124,12 +131,11 @@ async def fomc_documents_download(params: Annotated[dict, Body()]) -> list:
             )
 
         try:
-            response = make_request(url)
-            response.raise_for_status()
+            content = await asyncio.to_thread(download, url, is_pdf)
             pdf = (
-                base64.b64encode(BytesIO(response.content).getvalue()).decode("utf-8")
-                if isinstance(response.content, bytes)
-                else response.content
+                base64.b64encode(BytesIO(content).getvalue()).decode("utf-8")
+                if isinstance(content, bytes)
+                else content
             )
             results.append(
                 {
@@ -236,20 +242,51 @@ def _download_pdf(url: str) -> bytes:
     HTTP clients; the standard client is the fallback.
     """
     import threading
+    import time
+    from urllib.parse import urljoin
 
     from openbb_federal_reserve.utils.curl_session import get_session
+    from openbb_federal_reserve.utils.fedinprint import (
+        validate_document_url,
+        validate_pdf,
+    )
+
+    validate_document_url(url)
+    deadline = time.monotonic() + 90
+
+    def fetch(get, timeout):
+        target = url
+        attempt_deadline = min(deadline, time.monotonic() + timeout)
+        for _ in range(6):
+            validate_document_url(target)
+            remaining = attempt_deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("Publication download request budget exhausted.")
+            response = get(target, timeout=remaining, allow_redirects=False)
+            response.raise_for_status()
+            if response.status_code in {301, 302, 303, 307, 308}:
+                location = response.headers.get("Location")
+                if not location:
+                    raise ValueError(
+                        "Publication redirect did not provide a destination."
+                    )
+                target = urljoin(target, location)
+                validate_document_url(target)
+                continue
+            if not 200 <= response.status_code < 300:
+                raise ValueError(
+                    "The document download did not return a successful response."
+                )
+            return validate_pdf(response.content)
+        raise ValueError("Publication download exceeded five redirects.")
 
     try:
         session = get_session(f"publications_download:{threading.get_ident()}")
-        response = session.get(url, timeout=60)
-        response.raise_for_status()
-        return response.content
+        return fetch(session.get, 60)
     except Exception:  # noqa: BLE001
         from openbb_core.provider.utils.helpers import make_request
 
-        response = make_request(url, timeout=30)
-        response.raise_for_status()
-        return response.content
+        return fetch(make_request, 30)
 
 
 async def regional_publications_download(params: Annotated[dict, Body()]) -> list:
@@ -265,19 +302,25 @@ async def regional_publications_download(params: Annotated[dict, Body()]) -> lis
     list
         One dict per URL, each with ``content`` (base64 PDF) and ``data_format``.
     """
+    import asyncio
     import base64
 
     from openbb_federal_reserve.utils import fedinprint
 
+    def download(url):
+        parsed = fedinprint.validate_document_url(url)
+        target = url
+        if parsed.hostname == "fedinprint.org" and parsed.path.startswith("/item/"):
+            target = fedinprint.resolve_file(url, fedinprint.fetch_text)
+            if not target:
+                raise ValueError("No document is published for this item.")
+        fedinprint.validate_document_url(target)
+        return target, _download_pdf(target)
+
     results: list = []
     for url in params.get("url") or []:
         try:
-            target = url
-            if "fedinprint.org/item/" in url:
-                target = fedinprint.resolve_file(url, fedinprint.fetch_text)
-                if not target:
-                    raise ValueError("No document is published for this item.")
-            content = _download_pdf(target)
+            target, content = await asyncio.to_thread(download, url)
             results.append(
                 {
                     "content": base64.b64encode(content).decode("utf-8"),

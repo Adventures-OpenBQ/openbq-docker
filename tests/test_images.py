@@ -17,6 +17,19 @@ def dockerfile(name):
 
 
 class ApiImages(unittest.TestCase):
+    def test_pip_is_pinned_before_builder_runtime_and_mcp_installs(self):
+        text = dockerfile("Dockerfile")
+        stages = dict(re.findall(r"(?ms)^FROM [^\n]+ AS (\S+)\n(.*?)(?=^FROM |\Z)", text))
+        for name in ("extensions-build", "odp"):
+            with self.subTest(stage=name):
+                installs = re.findall(r"python -m pip install ([^\n]+)", stages[name])
+                self.assertTrue(installs)
+                self.assertIn("pip==26.2.0", installs[0])
+        self.assertIn("RUN python -m pip install pip==26.2.0", stages["api"])
+        mcp = dockerfile("mcp/Dockerfile")
+        self.assertLess(mcp.index("python -m pip install pip==26.2.0"),
+                        mcp.index("--require-hashes"))
+
     def test_every_api_dockerfile_is_listed(self):
         found = sorted(p.name for p in ROOT.glob("Dockerfile*") if "openbq_lanes.py" in p.read_text())
         self.assertEqual(found, sorted(API_DOCKERFILES))

@@ -27,10 +27,12 @@ class NasdaqPdf(unittest.IsolatedAsyncioTestCase):
 
     async def document(self, body, status=200):
         self.headers = None
+        self.request_options = None
 
         async def request(url, **kwargs):
             self.assertEqual(url, self.url)
             self.headers = kwargs["headers"]
+            self.request_options = kwargs
             return await kwargs["response_callback"](Response(body, status), None)
 
         with patch("openbb_core.provider.utils.helpers.amake_request", side_effect=request):
@@ -58,6 +60,36 @@ class NasdaqPdf(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(base64.b64decode(result["content"], validate=True), body)
         self.assertEqual(result["data_format"]["data_type"], "pdf")
         self.assertTrue(self.headers["Accept"].startswith("application/pdf"))
+
+    async def test_untrusted_document_urls_are_refused_before_a_request(self):
+        urls = [
+            "http://127.0.0.1/private.pdf",
+            "https://127.0.0.1/private.pdf",
+            "http://app.quotemedia.com/data/downloadFiling?symbol=AAPL",
+            "https://app.quotemedia.com.example.com/document.pdf",
+            "https://app.quotemedia.com./document.pdf",
+            "https://user:password@app.quotemedia.com/document.pdf",
+            "https://app.quotemedia.com:8443/document.pdf",
+            "https://app.quotemedia.com:invalid/document.pdf",
+        ]
+        for url in urls:
+            with self.subTest(url=url), patch(
+                "openbb_core.provider.utils.helpers.amake_request"
+            ) as request:
+                result = await self.helpers.open_filing_document(url)
+                self.assertEqual(result.get("error_type"), "download_error")
+                request.assert_not_called()
+
+    async def test_redirects_are_not_followed_or_published_as_pdf(self):
+        result = await self.document(b"%PDF-1.4\n%%EOF\n", 302)
+        self.assertEqual(result.get("error_type"), "download_error")
+        self.assertIs(self.request_options.get("allow_redirects"), False)
+
+    async def test_the_standard_https_port_keeps_the_public_pdf_working(self):
+        self.url = self.url.replace("app.quotemedia.com/", "app.quotemedia.com:443/")
+        body = b"%PDF-1.4\nPublic filing transport fixture\n%%EOF\n"
+        result = await self.document(body)
+        self.assertEqual(base64.b64decode(result["content"], validate=True), body)
 
 
 if __name__ == "__main__":

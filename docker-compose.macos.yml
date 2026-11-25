@@ -6,6 +6,10 @@
 services:
   key-maint:
     volumes:
-      - key-maint-admin:/config/admin
+      - type: volume
+        source: key-maint-admin
+        target: /config/admin
+        volume:
+          nocopy: true
 volumes:
   key-maint-admin:

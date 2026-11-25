@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/Adventures-OpenBQ/bdobb",
-  "revision": "6f941390ad8cd344cb36592304b7df489c531589",
-  "tree": "f0c2c81d2eb6874cadf866327d7be105d4435c00",
+  "revision": "ce564d02415161c0fe31ba5bb4b9ed3e63e04240",
+  "tree": "4b603d2817a401ed51a59bb0394ed529e5957f79",
   "dockerfileSha256": "e3a9e2cd0cd5d96d8be057f2084f14566180b5f89f09ff913b6ffaa3784a2fe4",
   "rust": "1.98.1",
   "node": "26.10.0",

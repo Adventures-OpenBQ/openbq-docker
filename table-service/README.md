@@ -1,11 +1,30 @@
 # Managed native tables (local build)
 
 The optional `table` profile adds a private native service. Source authority is
-`Adventures-OpenBQ/bdobb`; `source.lock.json` pins its exact local commit, Git tree
-and Dockerfile hash. Both repositories' commits can be unpushed. This configuration
-does not name a published service image or fetch an unavailable remote SHA.
+`Adventures-OpenBQ/bdobb`; `source.lock.json` pins its exact commit, Git tree
+and Dockerfile hash. Readers build the service from that public source; no author
+GitHub login or prebuilt application image is required. Public upstream base images
+and package registries are required.
 
-From this Docker checkout, with the paired bdobb checkout present:
+The table source is pinned to V9 client product commit `ce564d02415161c0fe31ba5bb4b9ed3e63e04240`
+and Git tree `4b603d2817a401ed51a59bb0394ed529e5957f79`. This fixes the Rust/table build inputs
+before the client records its backend-source pairing in a later metadata commit.
+Paired V9 image and runtime qualification remain pending. Earlier cached images
+retain their original source identity; this pin does not relabel or qualify them.
+
+From this Docker checkout, first obtain the exact locked source anonymously:
+
+```sh
+git clone --no-checkout https://github.com/Adventures-OpenBQ/bdobb.git ../bdobb-table-source
+TABLE_LOCKED_REVISION=$(node -p 'JSON.parse(require("fs").readFileSync("table-service/source.lock.json", "utf8")).revision')
+git -C ../bdobb-table-source fetch --depth 1 origin "$TABLE_LOCKED_REVISION"
+git -C ../bdobb-table-source checkout --detach "$TABLE_LOCKED_REVISION"
+```
+
+Then prepare a new context and build with the documented wrapper (use your actual
+absolute paths below). `prepare-source.mjs` reads the pin itself; the checkout's
+current branch or unstaged files cannot change the exported build. A development
+checkout may also contain a local commit, but release readers use the public pin.
 
 ```sh
 node table-service/prepare-source.mjs /absolute/bdobb-checkout /absolute/new-table-context
@@ -141,9 +160,8 @@ A browser hard reload may retain abandoned sessions until expiry and temporarily
 consume more capacity. Close unused dashboards, or wait for expiry before reopening
 when admission refuses. Do not increase one ceiling without reviewing the others.
 
-The source-pinned production image at `1453fa7b4a8928baa106edbe84a9d36f8c260161`
-now builds successfully. Its Linux release suite passed 77 tests; production-image
-checks passed upload, derive, bounded export, ownership refusal, restart/reopen
+Historical qualification at `1453fa7b4a8928baa106edbe84a9d36f8c260161`
+passed 77 Linux service tests. Those older production-image checks passed upload, derive, bounded export, ownership refusal, restart/reopen
 and enforced worker address-space limits. Native tests use that image as UID
 10001 with a read-only root and separately initialized private volumes. Earlier
 storage failures and host-backed runtime results remain historical evidence;

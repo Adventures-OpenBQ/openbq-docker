@@ -598,9 +598,14 @@ async def history(
             envelope[key] = envelope[key][-countback:]
 
     # UDF permits omitted OHLC columns. Preserve real closes rather than invent
-    # prices or return null entries in the optional OHLC set.
+    # prices or advertise incomplete or contradictory optional OHLC ranges.
     if not all(
         valid_price(value) for key in ("o", "h", "l") for value in envelope[key]
+    ) or any(
+        high < max(opening, close) or low > min(opening, close)
+        for opening, high, low, close in zip(
+            *(envelope[key] for key in ("o", "h", "l", "c"))
+        )
     ):
         for key in ("o", "h", "l"):
             del envelope[key]

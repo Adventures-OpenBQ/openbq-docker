@@ -109,12 +109,8 @@ PROVIDERS: dict[str, Provider] = {
 # The API's /providers.json route (lanes/openbq_lanes.py provider_descriptor)
 # defines its own _OPTIONAL/_LOCAL mirrors independently -- that route runs in
 # the API process and cannot import this package.
-#
-# bls is NOT here: an isolated stack run showed the real platform 400s
-# "Missing credential" for bls without a key, while cftc/econdb answer keyless
-# -- the API's credential gate, not the fetcher, decides optionality.
 LOCAL_PROVIDERS: frozenset[str] = frozenset({"deltalake", "kdb"})
-OPTIONAL_PROVIDERS: frozenset[str] = frozenset({"cftc", "econdb"})
+OPTIONAL_PROVIDERS: frozenset[str] = frozenset({"bls", "cftc", "econdb"})
 
 
 def provider_index() -> dict[str, Provider]:
