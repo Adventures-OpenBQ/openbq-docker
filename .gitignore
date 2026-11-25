@@ -85,3 +85,6 @@ v11/build-inputs/
 
 # Local gateway dependency directories, including worktree dependency links.
 /funnel-gateway/node_modules
+
+# Local deployment image overrides
+.openbq/
