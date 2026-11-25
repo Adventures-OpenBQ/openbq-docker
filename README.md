@@ -121,7 +121,7 @@ CFTC (`/api/v1/cftc/*`) and FINRA bonds run in a second `openbb-api` process, th
 ```sh
 python3 scripts/verify-heavy-routes.py http://127.0.0.1:6900   # widgets.json keeps answering under load
 python3 scripts/verify-lane-contract.py LANE_URL IN_PROCESS_URL  # same answers with OPENBQ_ISOLATE empty
-docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:7.0.0 python -m unittest discover -s lanes/tests
+docker run --rm -v "$PWD:/src:ro" -w /src openbq-local:10.0.0 python -m unittest discover -s lanes/tests
 ```
 
 ### Large datasets as server-paged tables
@@ -266,7 +266,7 @@ examples for an 80-card BDOBB file import. The two Episode 3 app entries carry
 the BDOBB logo in standard image fields. Workspace is an optional Episode 2
 comparison, not a prerequisite for this setup.
 
-The current Compose recipe builds `openbq-local:7.0.0`, `openbq-key-maint:7.0.0` and `openbq-episode3-demo:7.0.0`. The historical 2026-10-15 NAS regression used the then-current `v3.0.0` checkpoint and its matching version 3 images; that historical result does not qualify the current V7 assembly.
+The current Compose recipe builds `openbq-local:10.0.0`, `openbq-key-maint:10.0.0` and `openbq-episode3-demo:10.0.0`. The historical 2026-10-15 NAS regression used the then-current `v3.0.0` checkpoint and its matching version 3 images; that historical result does not qualify the current V10 assembly.
 
 The reference recipe carries forward the previously qualified PDF repair from `bdobb-dev/backends-for-openbb` commit `32615f789f9423ea14d3f95003da250f4ef5bcfc`. Sample and Bitcoin PDFs use immutable GitHub raw URLs because the original S3 bucket returns AllAccessDisabled. Downloaded bytes match the pinned upstream fixtures; this changes asset transport, not PDF content.
 

@@ -6,11 +6,15 @@ and Dockerfile hash. Readers build the service from that public source; no autho
 GitHub login or prebuilt application image is required. Public upstream base images
 and package registries are required.
 
-The table source is pinned to V9 client product commit `ce564d02415161c0fe31ba5bb4b9ed3e63e04240`
-and Git tree `4b603d2817a401ed51a59bb0394ed529e5957f79`. This fixes the Rust/table build inputs
-before the client records its backend-source pairing in a later metadata commit.
-Paired V9 image and runtime qualification remain pending. Earlier cached images
-retain their original source identity; this pin does not relabel or qualify them.
+The table source is pinned to V10 client product commit `c1ad42306246ac3a9480f4fd13878ff1efb3a0e0`
+and Git tree `5cbaebf4f6b7e7b627aef73e0a729aba16c476c5`. This fixes the table build inputs before the client
+records this backend-source pairing in a later metadata commit. The client product
+version advances from 9.0.0 to 10.0.0; its backend pairing is metadata as well.
+The 137 tracked Rust crate inputs, table Dockerfile, ingestion source and dependency
+locks are byte-identical to the preceding V9 product pin. Their component versions
+and the qualified Rust/Node/ICU/xlsx versions are retained. The V10 image tag identifies
+the new product source pin; it does not imply new table algorithms or requalify an
+older cached image. Paired V10 image and runtime qualification remain pending.
 
 From this Docker checkout, first obtain the exact locked source anonymously:
 
@@ -30,8 +34,8 @@ checkout may also contain a local commit, but release readers use the public pin
 node table-service/prepare-source.mjs /absolute/bdobb-checkout /absolute/new-table-context
 docker compose --env-file /absolute/new-table-context.env --profile table build table-service
 # Compare the revision/tree labels and /app/source.json with source.lock.json.
-docker image inspect bdobb-table-service:local --format '{{json .Config.Labels}}'
-docker run --rm --entrypoint cat bdobb-table-service:local /app/source.json
+docker image inspect bdobb-table-service:10.0.0 --format '{{json .Config.Labels}}'
+docker run --rm --entrypoint cat bdobb-table-service:10.0.0 /app/source.json
 ```
 
 `prepare-source.mjs` exports only the pinned Git commit, independently of staged or

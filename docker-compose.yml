@@ -147,7 +147,7 @@ services:
       args:
         BDOBB_SOURCE_REVISION: "${TABLE_SOURCE_REVISION:-unset}"
         BDOBB_SOURCE_TREE: "${TABLE_SOURCE_TREE:-unset}"
-    image: bdobb-table-service:local
+    image: bdobb-table-service:10.0.0
     restart: unless-stopped
     read_only: true
     user: "10001:10001"
