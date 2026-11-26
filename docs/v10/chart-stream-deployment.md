@@ -30,10 +30,19 @@ Starting from the existing v10 deployment and its configured env files:
 ```sh
 docker compose -f docker-compose.yml -f compose.chart-stream.yml --profile live --profile web config --quiet
 docker compose -f docker-compose.yml -f compose.chart-stream.yml --profile live --profile web build openbq-kdb live-grid eod-dump funnel-gateway
-docker compose -f docker-compose.yml -f compose.chart-stream.yml --profile live --profile web up -d
+# Start the selected project's API/q dependencies for the readiness probe.
+docker compose -f docker-compose.yml -f compose.chart-stream.yml --profile live --profile web up -d openbq-api openbq-kdb
+docker compose -f docker-compose.yml --profile live pull rustfs
+LIVE_GRID_IMAGE_ID="$(docker image inspect openbq-live-grid:10.0.0 --format '{{.Id}}')"
+python3 scripts/live_grid_preflight.py --release 10.0.0 --image "$LIVE_GRID_IMAGE_ID" \
+  --file docker-compose.yml --file compose.chart-stream.yml --profile web \
+  --require-chart-stream --deploy
 ```
 
-Preserve any other overlays required by that deployment in every command.
+Preserve any other overlays required by that deployment in every command. The
+[preflight guide](live-grid-preflight.md) describes local-image selection and the
+bootstrap sequence. Raw Compose deployment remains an operator alternative that
+bypasses the gate; it is not guarded startup.
 `openbq-kdb` uses secured tickplant mode, not the ping-only qualification mode.
 Its existing `/data` volume and four-column durable tick logs are preserved.
 An API authentication, authorization or protocol error is terminal for that

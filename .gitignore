@@ -91,3 +91,6 @@ kdb-auth/
 live-grid-data/
 rustfs-data/
 minio-data/
+
+# Local deployment image overrides
+.openbq/

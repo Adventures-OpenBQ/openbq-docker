@@ -354,6 +354,13 @@ The first-party key-maint component is AGPL-3.0-only. Where included, the first-
 
 ## Live prices and Day Chart (v10)
 
+For an opt-in live deployment, first build the reader's local images and obtain
+`LIVE_GRID_IMAGE_ID` using `docker image inspect openbq-live-grid:10.0.0 --format '{{.Id}}'`.
+Then use `python3 scripts/live_grid_preflight.py --release 10.0.0 --image "$LIVE_GRID_IMAGE_ID" --deploy`
+with the matching `--file` overlays and profiles. The [live-grid preflight guide](docs/v10/live-grid-preflight.md)
+shows the complete dependency/bootstrap sequence. No default private registry image
+is selected; raw Compose startup bypasses this gate.
+
 The opt-in `live` profile adds the EODHD live grid, Day Chart, accepted chart stream,
 kdb tick store and RustFS/Delta Lake day storage. The default API retains the qualified
 V9 provider and dependency repairs. Both live-price views and Day Chart need the matching
@@ -372,6 +379,5 @@ Use `scripts/compose-run.py --regression` with the selected `live-grid` and/or `
 services and the matching Compose overlays for fresh recipe checks. The dependency closure
 includes API/q, the permission jobs and the selected bucket jobs. Shared mutable binds get
 one fresh project volume, so permission initializers and their stores see the same state.
-Operator setup/deployment is separate from the other chat's shared live-grid service; never
-reuse that service, its ports or its volumes for regression. Public/demo and registered-key
-checks remain separate.
+Use an isolated regression project that does not reuse existing service ports or
+volumes. Public/demo and registered-key checks remain separate.
