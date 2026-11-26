@@ -117,12 +117,14 @@ def test_probe_reads_application_health_body(monkeypatch,status,passes):
 
 
 def test_probe_auth_truthy_matches_application(monkeypatch):
-    import io,json,urllib.request
+    import base64,io,json,urllib.request
     monkeypatch.setenv('OPENBB_API_AUTH',' true ')
     monkeypatch.setenv('OPENBB_API_USERNAME','fixture')
     monkeypatch.setenv('OPENBB_API_PASSWORD','fixture')
     def urlopen(request,**kw):
-        assert request.get_header('Authorization')=='Basic Zml4dHVyZTpmaXh0dXJl'
+        scheme, encoded = request.get_header('Authorization').split(' ', 1)
+        assert scheme == 'Basic'
+        assert base64.b64decode(encoded, validate=True) == b'fixture:fixture'
         body={'status':'ok'} if request.full_url.endswith('/health') else {'live_grid':{},'day_chart':{}}
         r=io.BytesIO(json.dumps(body).encode());r.status=200;return r
     monkeypatch.setattr(urllib.request,'urlopen',urlopen)

@@ -339,7 +339,9 @@ services:
   # This makes the data directory exist and belong to 10001:10001; it changes ownership only
   # when it is wrong, so a restart costs nothing. Reuses the lake image; no extra image.
   rustfs-perms:
-    x-openbq-regression-state-directories: [/data]
+    # Labels survive Compose's JSON serialization; x- extensions do not.
+    labels:
+      com.openbq.regression.state-directories: '["/data"]'
     profiles: [live]
     build:
       context: .
@@ -361,7 +363,8 @@ services:
           create_host_path: true
     network_mode: none
   rustfs:
-    x-openbq-regression-state-directories: [/data]
+    labels:
+      com.openbq.regression.state-directories: '["/data"]'
     profiles: [live]
     image: rustfs/rustfs:1.0.1@sha256:1803faef57627e2d9c2e7d89d655d712ddded5389040054987163043fecb6a3c
     restart: unless-stopped

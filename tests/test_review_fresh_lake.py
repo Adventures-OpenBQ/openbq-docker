@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 import yaml
 
@@ -8,7 +9,7 @@ def test_canonical_missing_rustfs_bind_is_explicit_owned_directory(tmp_path):
     recipe=yaml.safe_load((root/'docker-compose.yml').read_text())
     mounts=[]
     for name in ('rustfs-perms','rustfs'):
-        assert recipe['services'][name]['x-openbq-regression-state-directories']==['/data']
+        assert json.loads(recipe['services'][name]['labels']['com.openbq.regression.state-directories'])==['/data']
         mount=recipe['services'][name]['volumes'][0]
         assert isinstance(mount,dict) and mount['type']=='bind'
         assert mount['bind']['create_host_path'] is True

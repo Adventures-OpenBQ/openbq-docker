@@ -16,6 +16,7 @@ import sys
 import tempfile
 
 OWNER = 'com.openbq.regression.project'
+STATE_DIRECTORIES = 'com.openbq.regression.state-directories'
 _active_child = None
 
 
@@ -177,7 +178,16 @@ def prepare_model(model, services, project):
         service['environment'] = _mapping(service.get('environment'))
         if 'TS_HOSTNAME' in service['environment']:
             service['environment']['TS_HOSTNAME'] = f'{project}-{name}'
-        directory_targets = service.pop('x-openbq-regression-state-directories', [])
+        directory_targets = service.pop('x-openbq-regression-state-directories', None)
+        service['labels'] = _mapping(service.get('labels'), labels=True)
+        serialized_targets = service['labels'].pop(STATE_DIRECTORIES, None)
+        if serialized_targets is not None:
+            declared_targets = json.loads(serialized_targets)
+            if directory_targets is not None and directory_targets != declared_targets:
+                raise ValueError('Conflicting state-directory declarations')
+            directory_targets = declared_targets
+        if directory_targets is None:
+            directory_targets = []
         if not isinstance(directory_targets, list) or not all(isinstance(t, str) for t in directory_targets):
             raise ValueError('State-directory targets must be an explicit list')
         for index, mount in enumerate(service.get('volumes', [])):
@@ -188,8 +198,13 @@ def prepare_model(model, services, project):
                 _literal_path(mount['source'])
                 if not mount.get('read_only', False):
                     path = Path(mount['source'])
+                    # Compose JSON omits create_host_path=true. The explicit
+                    # serializable directory declaration supplies that intent;
+                    # an explicitly false bind option must still refuse it.
+                    create_directory = mount.get('bind', {}).get(
+                        'create_host_path', serialized_targets is not None)
                     explicit_directory = (mount['target'] in directory_targets and
-                                          mount.get('bind', {}).get('create_host_path') is True)
+                                          create_directory is True)
                     if not path.is_dir() and (path.exists() or path.is_symlink() or not explicit_directory):
                         raise ValueError('Writable file or missing bind paths need isolated QA configuration')
                     source = str(Path(mount['source']).resolve())
@@ -227,7 +242,9 @@ def prepare_model(model, services, project):
 def load_recipe(files):
     files = [Path(file).resolve() for file in files]
     base = files[0].parent
-    command = ['docker', 'compose', '--project-directory', str(base)]
+    # Inspect every profile, then isolate only the requested dependency closure.
+    # Compose otherwise drops opt-in services before runtime_services can find them.
+    command = ['docker', 'compose', '--project-directory', str(base), '--profile', '*']
     for file in files:
         command += ['-f', str(file)]
     # Typed fields and paths are resolved exactly once, in memory. Env-file
