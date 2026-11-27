@@ -5,4 +5,8 @@ set -eu
 cd "$(git rev-parse --show-toplevel)"
 # Scan only the history this push sends. Git gives one line per ref on stdin:
 # "<local ref> <local sha> <remote ref> <remote sha>"; an all-zero local sha is a delete.
-exec python3 scripts/check-public.py --pre-push
+updates=$(mktemp "${TMPDIR:-/tmp}/openbq-push-updates.XXXXXX")
+trap 'rm -f "$updates"' EXIT HUP INT TERM
+cat > "$updates"
+python3 scripts/check-public.py --pre-push < "$updates"
+python3 security/gate.py pre-push --remote "${2:?missing Git push destination}" < "$updates"
