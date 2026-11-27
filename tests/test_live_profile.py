@@ -226,7 +226,8 @@ def test_a_one_shot_job_gives_live_grid_data_to_its_uid_before_live_grid_starts(
     assert perms['entrypoint'] == ['/bin/sh', '-ec']
     assert 'chown 10001:10001' in script and '! -user 10001' in script
     assert 'cap_drop' not in perms  # chown needs CAP_CHOWN
-    assert lg['depends_on'] == {'live-grid-perms': {'condition': 'service_completed_successfully'}}
+    assert lg['depends_on']['live-grid-perms'] == {'condition': 'service_completed_successfully'}
+    assert set(lg['depends_on']) == {'live-grid-perms', 'openbq-api', 'openbq-kdb'}
     readme = (ROOT / 'live-grid/README.md').read_text()
     assert 'live-grid-perms' in readme and 'run --rm --user 0 live-grid chown' not in readme
 

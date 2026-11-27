@@ -10,6 +10,9 @@ independent AGPL client; TemporalDB is separately deployed/licensed under
 Business Source License 1.1. See the [live NAS and rollback record](v11/NAS-LIVE-2026-11-04.md).
 Earlier episode release branches and tags remain available.
 
+For current-main source builds, isolated regression runs, and the opt-in live-grid
+deployment gate, see [build and regression controls](docs/main-build-and-regression.md).
+
 ## Scope
 
 Official core/API, seventeen providers, news, and technical/quantitative/econometric extensions. No desktop frontend, custom providers, running MCP service, agent, or later storage stack in the ODP service. `requirements.in` declares the intended direct packages; `requirements.lock` records the full resolved environment used by the Docker build.

@@ -33,3 +33,7 @@ services:
       interval: 20s
       timeout: 5s
       retries: 3
+networks:
+  # The two documented TemporalDB overlays also compile without the base stack.
+  openbq-internal:
+    driver: bridge
