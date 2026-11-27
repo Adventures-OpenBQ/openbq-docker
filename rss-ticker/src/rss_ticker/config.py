@@ -20,6 +20,8 @@ _ENV_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 # mis-built /@<handle>/live URL at request time.
 _KEY_RE = re.compile(r"[a-z0-9-]+")
 _HANDLE_RE = re.compile(r"@[A-Za-z0-9._-]+")
+# A local desktop source, appended by the API rather than resolved on YouTube.
+PIP_GRAB_CHANNEL = "picture-in-picture"
 
 
 @dataclass(frozen=True)
@@ -111,6 +113,8 @@ def _channels(raw: dict) -> tuple[Channel, ...]:
             if not isinstance(item.get(field), str) or not item[field]:
                 raise ConfigError(f"live_tv[{i}] {field} must be a non-empty string")
         key, label, handle = item["key"], item["label"], item["handle"]
+        if key == PIP_GRAB_CHANNEL:
+            raise ConfigError(f"live_tv[{i}] key {key!r} is reserved for Picture in Picture grab")
         if not _KEY_RE.fullmatch(key):
             raise ConfigError(f"live_tv[{i}] key {key!r} must match [a-z0-9-]+")
         if not _HANDLE_RE.fullmatch(handle):
