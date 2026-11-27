@@ -14,7 +14,7 @@ from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
 from openbq_settings_pg.config import Config, SettingsUnavailable
-from openbq_settings_pg.migrate_json import inventory, import_copy, export_copy, Refused
+from openbq_settings_pg.migrate_json import inventory, import_copy, export_copy, Refused, read_fences
 from openbq_settings_pg.store import Store, migrate, SCHEMA, schema_migrations
 from openbq_settings_pg.state_version import StateVersion
 
@@ -162,6 +162,22 @@ commitState(directory,'layouts/a.json','{}',null)]));"""
         self.assertEqual(store.state("00042", "settings.json", b'{}', StateVersion(writers[0], 2)), 204)
         self.assertEqual(store.state("00042", "layouts/new.json", b'{}'), 413)
         self.assertEqual(store.state("00042", "dashboards/d0.json", None, StateVersion(WRITER, 1)), 204)
+
+    def test_manifest_fence_order_is_portable_across_database_text_collations(self):
+        migrate(self.owner)
+        with psycopg.connect(self.owner) as conn:
+            conn.execute("SET ROLE openbq_settings_owner")
+            collation = conn.execute("SELECT collname FROM pg_collation WHERE collprovider='i' ORDER BY collname LIMIT 1").fetchone()
+            if collation is None:
+                self.skipTest("fixture PostgreSQL has no ICU collation")
+            conn.execute(sql.SQL("ALTER TABLE settings.state_fences ALTER COLUMN document_key TYPE text COLLATE {}").format(sql.Identifier(collation[0])))
+            conn.execute("INSERT INTO settings.principals VALUES ('github','00042')")
+            fingerprint = sha256(b"DELETE").hexdigest()
+            for key in ["layouts/A.json", "layouts/a.json", "layouts/a_b.json", "layouts/a-b.json"]:
+                conn.execute("INSERT INTO settings.state_fences VALUES ('github','00042',%s,%s,1,%s)", (key, WRITER, fingerprint))
+            database_order = [list(row) for row in conn.execute("SELECT namespace,principal_id,document_key,writer,sequence,fingerprint FROM settings.state_fences ORDER BY namespace,principal_id,document_key,writer")]
+            self.assertNotEqual(database_order, sorted(database_order), "fixture must exercise non-codepoint ordering")
+            self.assertEqual(read_fences(conn), sorted(database_order))
 
 
 if __name__ == "__main__": unittest.main()

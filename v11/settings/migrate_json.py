@@ -200,9 +200,9 @@ def read_target(conn):
 
 
 def read_fences(conn):
-    return [list(row) for row in conn.execute("""SELECT namespace,principal_id,document_key,
+    return sorted(list(row) for row in conn.execute("""SELECT namespace,principal_id,document_key,
         writer,sequence,fingerprint FROM settings.state_fences
-        ORDER BY namespace,principal_id,document_key,writer""")]
+        ORDER BY namespace,principal_id,document_key,writer"""))
 
 
 def import_copy(conn, documents, manifest, verify=False):
