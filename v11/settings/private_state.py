@@ -4,9 +4,10 @@ import hmac
 import json
 import re
 from starlette.responses import JSONResponse, Response
+from .state_version import read_version, WRITER_HEADER, SEQUENCE_HEADER
 
 PREFIX = "/_openbq/settings/v1/state"
-NAME = re.compile(r"(?:settings|backends|folders|chat|chart-presets)\.json|dashboards/[A-Za-z0-9_-]{1,80}\.json")
+NAME = re.compile(r"(?:settings|backends|folders|chat|chart-presets)\.json|(?:dashboards|workspaces|layouts)/[A-Za-z0-9_-]{1,80}\.json")
 NUMBER = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
 SPACE = re.compile(r"[ \t\r\n]*")
 
@@ -95,6 +96,10 @@ async def handle(request, runtime):
         return Response(status_code=404)
     if request.method not in ("PUT", "DELETE"):
         return Response(status_code=405)
+    try:
+        version = read_version(request.headers)
+    except ValueError:
+        return Response(status_code=400)
     body = None
     if request.method == "PUT":
         if not request.headers.get("content-type", "").startswith("application/json"):
@@ -118,4 +123,6 @@ async def handle(request, runtime):
             valid_json(body)
         except (ValueError, RecursionError):
             return Response(status_code=400)
-    return Response(status_code=await runtime.run(runtime.store.state, principal, name, body))
+    status = await runtime.run(runtime.store.state, principal, name, body, version)
+    headers = {WRITER_HEADER: version.writer, SEQUENCE_HEADER: str(version.sequence)} if status == 204 and version else None
+    return Response(status_code=status, headers=headers)

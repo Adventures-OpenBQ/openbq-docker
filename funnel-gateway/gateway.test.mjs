@@ -1481,7 +1481,7 @@ function send(port, path, method, body, headers = {}) {
     const req = request({ host: "127.0.0.1", port, path, method,
       headers: { ...HEADERS, ...(body === undefined ? {} : { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }), ...headers } }, res => {
       const parts = []; res.on("data", c => parts.push(c));
-      res.on("end", () => resolve({ status: res.statusCode, body: Buffer.concat(parts).toString() }));
+      res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(parts).toString() }));
     });
     req.on("error", reject); req.end(body);
   });
@@ -1514,9 +1514,9 @@ test("state round-trips per user: put, list, overwrite, delete", async t => {
   assert.equal((await send(port, "/state/42/settings.json", "DELETE")).status, 204);
   assert.equal((await send(port, "/state/42/settings.json", "DELETE")).status, 204); // idempotent
   assert.deepEqual(Object.keys(JSON.parse((await http(port, "/state/42")).text).files), ["dashboards/preview.json"]);
-  // One directory per user, flat, and no temp file left behind.
+  // One directory per user, with atomic bodies and fences in the private database.
   assert.deepEqual((await readdir(stateDir)).sort(), ["42", "43"]);
-  assert.deepEqual(await readdir(join(stateDir, "42")), ["dashboards%2Fpreview.json"]);
+  assert.deepEqual(await readdir(join(stateDir, "42")), [".state.sqlite"]);
 });
 
 test("state refuses everything outside its contract", async t => {
@@ -2192,6 +2192,37 @@ test("selected remote state retains text IDs, validates admission and never fall
   assert.equal((await http(port, "/state/99")).status, 502);
   assert.equal((await http(port, "/state/42?x=1")).status, 404);
   assert.equal((await http(port, "/state/42/evil.json")).status, 404);
+});
+
+test("remote state fences reach storage and only matching commits get acknowledged", async t => {
+  const writer = "11111111-1111-4111-8111-111111111111", seen = [];
+  const { port } = await fixture(t, { stateStorage: "postgresql", apiUpstream: "v11" }, {
+    requestState: async (_method, _id, _name, _body, _cfg, _signal, version) => {
+      seen.push(version);
+      return { status: 204, version: { writer, sequence: 2 } };
+    },
+  });
+  const headers = { "x-bdobb-state-writer": writer, "x-bdobb-state-sequence": "2" };
+  const answer = await send(port, "/state/00042/settings.json", "PUT", "{}", headers);
+  assert.equal(answer.status, 204);
+  assert.equal(seen[0]?.writer, writer);
+  assert.equal(seen[0]?.sequence, 2);
+  assert.equal(answer.headers["x-bdobb-state-writer"], writer);
+  assert.equal(answer.headers["x-bdobb-state-sequence"], "2");
+  assert.equal((await send(port, "/state/00042/settings.json", "PUT", "{}",
+    { ...headers, "x-bdobb-state-sequence": "01" })).status, 400);
+  assert.equal(seen.length, 1);
+});
+
+test("remote state refuses missing commit acknowledgement and preserves stale conflicts", async t => {
+  const writer = "11111111-1111-4111-8111-111111111111";
+  let calls = 0;
+  const { port } = await fixture(t, { stateStorage: "postgresql", apiUpstream: "v11" }, {
+    requestState: async () => ({status: calls++ ? 409 : 204}),
+  });
+  const headers = { "x-bdobb-state-writer": writer, "x-bdobb-state-sequence": "2" };
+  assert.equal((await send(port, "/state/42/settings.json", "PUT", "{}", headers)).status, 502);
+  assert.equal((await send(port, "/state/42/settings.json", "DELETE", undefined, headers)).status, 409);
 });
 
 test("remote state limits concurrency and releases work on client disconnect and shutdown", async t => {

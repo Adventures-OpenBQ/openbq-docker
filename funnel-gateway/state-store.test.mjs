@@ -51,3 +51,30 @@ test('private state stops a disconnected request and refuses invalid transport i
     await assert.rejects(requestState(method,id,name,undefined,config,AbortSignal.timeout(1000)));
   }
 });
+
+const writer = '11111111-1111-4111-8111-111111111111';
+test('private state forwards and verifies the committed writer/sequence acknowledgement', async t=>{
+  let received;
+  const config=await upstream(t, async(req,res)=>{
+    received=req.headers; for await(const _chunk of req) { /* consume raw JSON */ }
+    res.writeHead(204,{'x-bdobb-state-writer':writer,'x-bdobb-state-sequence':'2'});res.end();
+  });
+  const answer=await requestState('PUT','42','settings.json',Buffer.from('{}'),config,
+    AbortSignal.timeout(1000),{writer,sequence:2});
+  assert.equal(received['x-bdobb-state-writer'],writer);
+  assert.equal(received['x-bdobb-state-sequence'],'2');
+  assert.deepEqual(answer.version,{writer,sequence:2});
+});
+test('private state refuses successful versioned responses without the exact storage acknowledgement', async t=>{
+  for(const headers of [{},{'x-bdobb-state-writer':writer,'x-bdobb-state-sequence':'1'},
+    {'x-bdobb-state-writer':'22222222-2222-4222-8222-222222222222','x-bdobb-state-sequence':'2'}]) {
+    const config=await upstream(t,(_,res)=>{res.writeHead(204,headers);res.end();});
+    await assert.rejects(requestState('DELETE','42','settings.json',undefined,config,
+      AbortSignal.timeout(1000),{writer,sequence:2}),/State unavailable/);
+  }
+});
+test('private state preserves a stale-write conflict without pretending it was committed', async t=>{
+  const config=await upstream(t,(_,res)=>{res.writeHead(409);res.end();});
+  assert.deepEqual(await requestState('PUT','42','settings.json',Buffer.from('{}'),config,
+    AbortSignal.timeout(1000),{writer,sequence:1}),{status:409});
+});
