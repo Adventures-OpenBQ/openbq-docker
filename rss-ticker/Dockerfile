@@ -24,11 +24,13 @@ RUN apt-get update \
     && chown -R ticker:ticker /data /config
 
 WORKDIR /app
+COPY requirements-build.lock ./requirements-build.lock
+RUN python -m pip install --no-cache-dir --require-hashes --no-deps -r requirements-build.lock
 COPY requirements.lock ./requirements.lock
-RUN pip install --no-cache-dir --require-hashes --no-deps -r requirements.lock
+RUN python -m pip install --no-cache-dir --require-hashes --no-deps --no-build-isolation -r requirements.lock
 COPY pyproject.toml README.md LICENSE LICENSE.upstream LICENSING.md THIRD_PARTY_NOTICES.md ./
 COPY src ./src
-RUN pip install --no-cache-dir --no-deps . && pip check
+RUN python -m pip install --no-cache-dir --no-index --no-deps --no-build-isolation . && python -m pip check
 COPY scripts/verify-httpx-trust-bundle.py /tmp/verify-httpx-trust-bundle.py
 RUN python /tmp/verify-httpx-trust-bundle.py && rm /tmp/verify-httpx-trust-bundle.py
 
