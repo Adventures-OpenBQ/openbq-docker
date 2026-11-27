@@ -38,10 +38,10 @@
       "reviewed_commit": "a4bbededc55b8d248f60cb5c5958c5b2ae3312f7"
     }
   },
-  "qualification_report": null,
+  "qualification_report": "qualification-main-v10-carry.json",
   "candidate_qualification": {
-    "status": "combined_recipe_and_installed_capture_passed_reader_ingress_pending",
-    "reason": "Exact source runtime image passed 22 non-root read-only installed Linux checks: real HTTP capture/retain/join, baked extensions, Silver normalization and exact decimal queries. External ingress and deployed role bootstrap remain outside that evidence.",
+    "status": "combined_carry_bounded_runtime_passed_full_v11_release_not_claimed",
+    "reason": "Fresh provider/table recipes, reader and separate registered data, installed PostgreSQL state, and capture/Silver numeric checks passed within qualification-main-v10-carry.json. Full saved-query lifecycle, external capture ingress and production NAS/platform qualification are not implied.",
     "source_commit": "ff85de318205ce9e7733538cb3082b80f6f63f35"
   },
   "provider_host": {
@@ -64,7 +64,7 @@
     },
     "build_host_commit": "38009c5551b4909382ca24d251b976684c177ea9",
     "generated_recipe_sha256": "6bf42ebe2ff009ebfa6f3bcffcc17444a9b7fa66526f3a15d2c6443a6f6d7c81",
-    "qualification": "Exact combined provider recipe built; embedded package, trust and empty-cache checks passed. Fresh reader ingress and registered provider qualification pending."
+    "qualification": "Exact combined recipe built, embedded trust/package/cache checks passed. Fresh sidecar reader10queries377rows and separate registered EIA/FRED/BLS/CongressGov/EODHD checks160rows passed. Installed PostgreSQL settings6checks passed. Bounded main-carry scope only; full V11 platform/NAS release is not claimed."
   },
   "previous_runtime": {
     "source_commit": "f83abc2141af2ca3b3991df9d7e5e9c78dd44b00",

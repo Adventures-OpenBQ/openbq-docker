@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "scope": "main-only V10 behavior carry; V1-V10 remain closed",
+  "frontend": {
+    "core_test_commit": "2237170be3a777d0123a8d42db5f362f1f36e1e5",
+    "source_offer_commit": "424f34a4495eb97153e8b341ebaf71be83ebdb5a",
+    "unit_passed": 10997,
+    "existing_environment_skipped": 48,
+    "typecheck_lint_build_notices_wasm_web": "passed",
+    "later_changes": "source/privacy/dependency-closure metadata only; refreshed production build passed"
+  },
+  "provider_host": {
+    "source_commit": "38009c5551b4909382ca24d251b976684c177ea9",
+    "image_id": "sha256:b7ad984709f4fc28681aed97c5d1f1c066036e3d2e1c870ae9fad27f46a76430",
+    "platform": "linux/arm64",
+    "fresh_reader": {
+      "transport": "private Tailscale sidecar HTTPS",
+      "data_bearing_queries": 10,
+      "actual_rows": 377,
+      "EIA_requests": 2,
+      "keys": "public demo or keyless only"
+    },
+    "registered_keys": {
+      "status": "passed five separate registered-provider data checks",
+      "rows": {
+        "eia": 5,
+        "bls": 10,
+        "congress": 2,
+        "eodhd": 133,
+        "fred": 10
+      },
+      "total_validated_rows": 160,
+      "transport": "private Tailscale sidecar HTTPS",
+      "profile_and_cache_storage": "memory-only tmpfs; image/profile read-only; kernel swap0; no provider values in Docker configuration/argv/logs",
+      "container_limit_GiB": 4,
+      "credential_containers_and_temporary_port": "removed after checks",
+      "FRED_verification": "Exact date and numeric FEDFUNDS column validated; did not rerun four prior valid calls"
+    },
+    "installed_postgresql_settings_checks": 6,
+    "runtime_resource_note": "Reader boot exceeded an artificial2GiB QA cap; passed at3GiB. Read-only memory-only registered harness is separately bounded at4GiB; its tmpfs pages count toward that cap."
+  },
+  "table_service": {
+    "source_commit": "2237170be3a777d0123a8d42db5f362f1f36e1e5",
+    "image_id": "sha256:68572642b3b4fc419e17f3ba8b2d4c7dea812be47731d89d56f907078d08b6ba",
+    "platform": "linux/arm64",
+    "reader_recipe_build": "passed",
+    "fresh_nonroot_readonly_synthetic_runtime": "passed auth/native calculations/derive/export/isolation/restart persistence",
+    "task_resources": "removed after checks"
+  },
+  "capture_service": {
+    "source_commit": "ff85de318205ce9e7733538cb3082b80f6f63f35",
+    "image_id": "sha256:7f70cea87e8076dad1dd355d924c58239b9adcfbaf6ef21e37e9fd2847ef7458",
+    "installed_checks": 22,
+    "scope": "actual installed HTTP capture/retain/join, PostgreSQL/S3, baked Linux extensions, accepted Silver and exact numeric query",
+    "external_ingress_and_full_role_bootstrap": "not newly qualified by these bounded checks"
+  },
+  "source_and_release_policy": {
+    "origins": "Adventures-OpenBQ only",
+    "legacy_release_refs_assets": "untouched",
+    "built_container_distribution": "local private QA only; no public container distribution",
+    "normal_V11_installer_or_platform_release": "not created or qualified"
+  }
+}

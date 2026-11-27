@@ -135,13 +135,22 @@ A browser hard reload may retain abandoned sessions until expiry and temporarily
 consume more capacity. Close unused dashboards, or wait for expiry before reopening
 when admission refuses. Do not increase one ceiling without reviewing the others.
 
-The final pinned image is **unqualified**: the earlier exact-source image build
-failed at apt with insufficient Docker VM space. No unrelated Docker cache or
-volume was pruned, and that unchanged failure was not retried. A task-owned,
-host-backed Linux runtime verifies the service and health script with a non-root
-host UID, private catalog, read-only root and enforced memory cap. It does not
-verify the assembled image, image UID 10001, named-volume initialization or
-release binaries. Those checks remain required before release.
+The combined main source pinned in `source.lock.json` has been built and checked
+from the reader recipe. Revision `2237170be3a777d0123a8d42db5f362f1f36e1e5`
+produced the local ARM64 image
+`sha256:68572642b3b4fc419e17f3ba8b2d4c7dea812be47731d89d56f907078d08b6ba`.
+The frozen dependency install, native release build, ingestion bundle and license
+collection passed. Its fresh UID 10001 container passed authenticated health,
+upload/open/apply, native LN/SQRT, linked derive, bounded exports, foreign-owner
+refusal, and reopening persisted sources after a restart. It ran with read-only
+root, no host bind mounts, dropped capabilities, two CPUs and a 2 GiB container cap.
+Task containers and fresh test volumes were removed afterward.
+
+This is bounded qualification of the local ARM64 recipe and synthetic native API
+workload, not a claim that a published image, AMD64 image, provider deployment,
+installer or full V11 platform has been qualified. The earlier failed build and
+host-backed checks remain historical evidence; they do not qualify these new
+image bytes. See `v11/qualification-main-v10-carry.json` for the combined scope.
 
 Before any local bring-up, validate operator env/settings and run:
 
