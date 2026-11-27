@@ -40,25 +40,31 @@
   },
   "qualification_report": null,
   "candidate_qualification": {
-    "status": "combined_source_and_recipe_build_passed_runtime_pending",
-    "reason": "Exact source image built and Docker-save archive verified. Combined deployed provider/capture/settings topology has not yet been qualified. Prior observations remain in previous_runtimes.",
+    "status": "combined_recipe_and_installed_capture_passed_reader_ingress_pending",
+    "reason": "Exact source runtime image passed 22 non-root read-only installed Linux checks: real HTTP capture/retain/join, baked extensions, Silver normalization and exact decimal queries. External ingress and deployed role bootstrap remain outside that evidence.",
     "source_commit": "ff85de318205ce9e7733538cb3082b80f6f63f35"
   },
   "provider_host": {
     "version": "11.0.0",
-    "image_id": null,
+    "image_id": "sha256:b7ad984709f4fc28681aed97c5d1f1c066036e3d2e1c870ae9fad27f46a76430",
     "platform": "linux/arm64",
-    "distribution": "source assembly pending local recipe build; unpublished",
+    "distribution": "local build; unpublished",
     "registry_reference": null,
     "sources": {
       "eodhd": {
-        "reviewed_commit": "d1df725404623f5469eb00f7aa0a83d35dd6db6e"
+        "commit": "d1df725404623f5469eb00f7aa0a83d35dd6db6e",
+        "archive_sha256": "2d6854b3cbc4be64c0f93148dccc006fe4a35ac5ce8310818de2477e7a859b0f",
+        "distribution": "verified local clean commit archive; remote availability not asserted"
       },
       "yfinance": {
-        "reviewed_commit": "a4bbededc55b8d248f60cb5c5958c5b2ae3312f7"
+        "commit": "a4bbededc55b8d248f60cb5c5958c5b2ae3312f7",
+        "archive_sha256": "161b86a74bbd290d19646f260abd3e8b2511e57a03aeb45baf8ad514631838ee",
+        "distribution": "verified local clean commit archive; remote availability not asserted"
       }
     },
-    "qualification": "Pending combined source recipe build and deployed qualification; no historical image is relabeled."
+    "build_host_commit": "38009c5551b4909382ca24d251b976684c177ea9",
+    "generated_recipe_sha256": "6bf42ebe2ff009ebfa6f3bcffcc17444a9b7fa66526f3a15d2c6443a6f6d7c81",
+    "qualification": "Exact combined provider recipe built; embedded package, trust and empty-cache checks passed. Fresh reader ingress and registered provider qualification pending."
   },
   "previous_runtime": {
     "source_commit": "f83abc2141af2ca3b3991df9d7e5e9c78dd44b00",
