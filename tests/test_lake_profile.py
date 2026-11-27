@@ -123,7 +123,8 @@ def test_the_bucket_is_made_over_the_s3_api_before_the_flush_starts():
 
 def test_the_lake_image_keeps_openbb_platform_5():
     text = (ROOT / 'Dockerfile.lake').read_text()
-    assert '--constraint /tmp/requirements.lock' in text and 'openbb-core==2.0.1' in text
+    assert '--require-hashes -r /tmp/lake.lock' in text
+    assert 'openbb-core==2.0.1' in (ROOT / 'requirements.lake.lock').read_text()
     assert 'openbb-core==2.0.1' in (ROOT / 'requirements.lock').read_text()
     assert 'COPY scripts/eod_dump.py scripts/s3_init.py /opt/' in text
 

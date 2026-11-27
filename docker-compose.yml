@@ -196,11 +196,10 @@ services:
   # lake jobs join. funnel-gateway, openbq-api and the sidecar share no network with it.
   openbq-kdb:
     profiles: [live]
-    # The default is the maintainer's PRIVATE image (kdb+ is proprietary: KX's licence does not
-    # permit redistributing q, so no kdb image is ever published), pinned by digest and built
-    # for linux/amd64 only. Anyone else sets KDB_IMAGE, or builds their own from their licensed
-    # KDB-X with compose.kdb-build.yml (amd64 or arm64; recipe in kdb-x/).
-    image: ${KDB_IMAGE:-ghcr.io/artcashin/kdb-x:amd64@sha256:013490f90a166e0863651f2c8a7f5d24e8d1beec68d2e3e541c1a2281653a77c}
+    # KDB-X is proprietary; this repository supplies a local build recipe, not q.
+    # Build the reader-local image with compose.kdb-build.yml and an explicit KX_VERSION.
+    # KDB_IMAGE can select an operator-authorized image.
+    image: ${KDB_IMAGE:-openbq-kdb-x:local}
     restart: unless-stopped
     environment:
       # No host part: q listens on this container's bridge interface (live-grid dials openbq-kdb:5000).

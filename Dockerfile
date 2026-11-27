@@ -1,7 +1,7 @@
 # Copyright 2026 SecretoftheUniverse.com LLC. SPDX-License-Identifier: Apache-2.0
 # Extensions with no PyPI release for openbb-core 2 (v3/videos, v3/econdb), built as wheels with a pinned builder.
 FROM python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d AS extensions-build
-RUN python -m pip install hatchling==1.32.4 packaging==26.3 pathspec==1.1.1 pluggy==1.6.0 trove-classifiers==2026.9.21.13 setuptools==84.0.0
+RUN python -m pip install pip==26.2.0 hatchling==1.32.4 packaging==26.3 pathspec==1.1.1 pluggy==1.6.0 trove-classifiers==2026.9.21.13 setuptools==84.0.0
 COPY v3/videos/source /videos
 COPY v3/econdb/source /econdb
 RUN python -m pip wheel --no-deps --no-build-isolation --wheel-dir /wheels /videos /econdb
@@ -15,7 +15,14 @@ FROM python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a559
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 COPY requirements.lock /tmp/requirements.lock
-RUN python -m pip install -r /tmp/requirements.lock && python -m pip check
+COPY scripts/sanitize-public-user-agents.py security/public-user-agent-policy.json /tmp/public-user-agents/
+# Remove exact reviewed corpus records before the install layer is committed.
+RUN python -m pip install pip==26.2.0 \
+    && python -m pip install -r /tmp/requirements.lock \
+    && python /tmp/public-user-agents/sanitize-public-user-agents.py --policy /tmp/public-user-agents/public-user-agent-policy.json \
+    && python -m pip check && rm -rf /tmp/public-user-agents
+COPY scripts/verify-requests-trust-bundle.py /tmp/verify-requests-trust-bundle.py
+RUN python /tmp/verify-requests-trust-bundle.py && rm /tmp/verify-requests-trust-bundle.py
 
 # Pristine pinned packages end here; scripts/test-provider-fixes.sh tests the overlay on this stage.
 FROM odp AS api
@@ -45,6 +52,10 @@ COPY examples/episode3/assets/bdobb-logo.svg /workspace/bdobb-logo.svg
 COPY v5/fixtures /workspace/openbq-fixtures
 COPY lanes/openbb.toml /workspace/openbb.toml
 COPY scripts/healthcheck.py /usr/local/bin/openbq-healthcheck.py
+COPY scripts/verify-provider-cache-empty.py /usr/local/bin/verify-provider-cache-empty.py
+# Provider verification may populate response caches; validate the final image contents.
+RUN rm -rf /root/OpenBBUserData/cache /root/.openbb_platform/cache /root/.cache \
+    && python /usr/local/bin/verify-provider-cache-empty.py
 HEALTHCHECK --interval=30s --timeout=10s --start-period=600s --retries=5 CMD ["python", "/usr/local/bin/openbq-healthcheck.py", "http://127.0.0.1:6900/widgets.json"]
 CMD ["openbb-api", "--host", "0.0.0.0", "--port", "6900"]
 
@@ -76,3 +87,7 @@ RUN python -m pip install --no-deps /tmp/openbq_routes-4.0.0-py3-none-any.whl &&
     && python /tmp/verify-routes.py && rm /tmp/verify-routes.py /tmp/openbq_routes-4.0.0-py3-none-any.whl
 COPY lanes/ssrm_widgets.json /workspace/ssrm_widgets.json
 COPY v3/openbb.toml /workspace/openbb.toml
+
+# Provider verification may populate response caches; validate the final image contents.
+RUN rm -rf /root/OpenBBUserData/cache /root/.openbb_platform/cache /root/.cache \
+    && python /usr/local/bin/verify-provider-cache-empty.py

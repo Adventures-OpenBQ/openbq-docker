@@ -8,7 +8,8 @@ ARG BASE=openbq-local:10.0.0
 FROM ${BASE}
 COPY requirements.lock /tmp/mcp-requirements.lock
 # The base pins every dependency (fastapi, fastmcp, mcp, openbb-core, sse-starlette).
-RUN python -m pip install --no-deps --only-binary=:all: --require-hashes -r /tmp/mcp-requirements.lock \
+RUN python -m pip install pip==26.2.0 \
+    && python -m pip install --no-deps --only-binary=:all: --require-hashes -r /tmp/mcp-requirements.lock \
     && python -m pip check \
     && rm /tmp/mcp-requirements.lock \
     && openbb-build \

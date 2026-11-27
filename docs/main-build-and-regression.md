@@ -51,3 +51,23 @@ have fresh qualification evidence. A release cannot inherit an older release's
 pin. A full local `sha256:` image ID never triggers a pull; an explicitly supplied
 registry digest can be pulled by ensure, while check-only never pulls or recreates
 services. Mutable tags and short IDs are refused.
+
+## Frozen build inputs and private data gates
+
+KDB readers build `openbq-kdb-x:local` themselves using `compose.kdb-build.yml`.
+Set `KX_VERSION` to an explicit release before rendering or building; an empty
+value fails before package downloads. Both the base recipe and secured chart
+recipe use that local image unless the operator sets `KDB_IMAGE`.
+
+API dependencies retain main's pins except the reviewed certifi CA repair.
+Lake, live-grid, key-maint, and RSS recipes consume their frozen closures.
+Main's calendar pin and V11 provider source/capture bindings remain authoritative.
+Build-time gates verify the active HTTPS trust stores, remove only hash-reviewed
+unused vendor corpus records and reject persisted provider responses.
+
+The commit and push hooks run main's public-content checker and the archive/media
+privacy gate. The latter requires gitleaks 8.30.1 and, for GIF inspection, the exact
+Pillow tool version in `security/requirements.txt`; install these in an isolated
+tool environment. Runtime dependencies do not supply the privacy tool environment.
+Fixture exceptions bind the complete normalized file, path, and detector rule.
+No skipped gate or historic image receipt qualifies a new build.
