@@ -201,9 +201,10 @@ async def build_series(symbol, interval, start, end, recorder, window, provider=
     from their flushed ticks as well; see app/lake.py. Without it, the donor's
     path below, unchanged.
     """
-    from app.series import seam_boundary, stitch, tick_capable, window_end
+    from app.series import clip_window, seam_boundary, stitch, tick_capable, window_end, window_start
 
     history, meta = await fetch_history(symbol, interval, start, end, provider)
+    history = clip_window(history, start, end)
     meta = dict(meta)
     meta["rows_from_ticks"] = 0
     meta["seam"] = None
@@ -227,7 +228,7 @@ async def build_series(symbol, interval, start, end, recorder, window, provider=
         span = await asyncio.to_thread(recorder.store.tick_span, symbol)
         if span is None:
             return history, meta
-        boundary = seam_boundary(span[0], interval)
+        boundary = seam_boundary(max(span[0], window_start(start)), interval)
         # Ticks are only ever as recent as *now*, so a window that ended in
         # the past must not have them tacked on. Clip to whichever of the two
         # ends first; if that leaves nothing at or after the seam, the request
@@ -249,7 +250,7 @@ async def build_series(symbol, interval, start, end, recorder, window, provider=
         return history, meta
     meta["rows_from_ticks"] = len(ticks)
     meta["seam"] = boundary.isoformat()
-    return stitch(history, ticks, boundary), meta
+    return clip_window(stitch(history, ticks, boundary), start, end), meta
 
 
 def create_app(*, api_key: str | None = None, seed_client=None, client_factory=None, chart_source=None) -> FastAPI:
@@ -635,6 +636,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         drops them once nobody asks.
         """
         etfs = list(SECTOR_ETFS.values())
+        _admit(etfs)
         leases.renew(etfs, now=asyncio.get_running_loop().time())
         client = _seed_client()
         try:
@@ -861,11 +863,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         symbols = sorted({normalize(s) for s in symbols})
         # D20: the cap /api/subscriptions enforces, on the same union of what is subscribed;
         # renewing a symbol already leased costs no new slot.
-        if len(_subscribed() | set(symbols)) > max_symbols:
-            raise HTTPException(
-                status_code=507,
-                detail=f"cap of {max_symbols} reached for EODHD; remove a symbol first",
-            )
+        _admit(symbols)
         granted = leases.renew(
             symbols,
             now=asyncio.get_running_loop().time(),
@@ -923,6 +921,21 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
         feed is a superset of (and replaces) unioning `pinned` and `leased`.
         """
         return set().union(*(manager._union(feed) for feed in FEEDS))
+
+    def _admit(symbols, replacing=None) -> None:
+        """Check the projected account union before changing registrations.
+
+        No await separates this check from registration on the app loop.
+        Replacing a socket releases only that socket's old set: other sockets,
+        pins and leases still hold every symbol they registered.
+        """
+        current = set().union(*(set(syms) for conn, groups in manager._conns.items()
+                                if conn != replacing for syms in groups.values()))
+        if len(current | set(symbols)) > max_symbols:
+            raise HTTPException(
+                status_code=507,
+                detail=f"cap of {max_symbols} reached for EODHD; remove a symbol first",
+            )
 
     def _subscription_payload() -> dict:
         """Pinned, leased, and the budget they share.
@@ -986,12 +999,7 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
             raise HTTPException(status_code=409, detail=f"{sym} is already subscribed")
         # Union again: adding a symbol that is ALREADY subscribed (pinned,
         # leased, or held by a grid websocket) costs no new slot.
-        projected = _subscribed() | {sym}
-        if len(projected) > max_symbols:
-            raise HTTPException(
-                status_code=507,
-                detail=f"cap of {max_symbols} reached for EODHD; remove a symbol first",
-            )
+        _admit([sym])
         watchlist.add(sym)
         _apply_watchlist()
         return _subscription_payload()
@@ -1088,6 +1096,12 @@ def create_app(*, api_key: str | None = None, seed_client=None, client_factory=N
                     params = msg.get("params") if isinstance(msg, dict) else None
                     raw = params.get("symbol", "") if isinstance(params, dict) else ""
                     symbols = _parse_symbols(str(raw))
+                    try:
+                        _admit(symbols, replacing=conn_id)
+                    except HTTPException:
+                        await ws.close(code=1008, reason="account symbol cap reached")
+                        stop.set()
+                        return
                     manager.register(conn_id, symbols)
                     # Seed baselines for symbols the GET never saw (a param
                     # change adds symbols without a fresh GET) — off-loop, the

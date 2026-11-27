@@ -167,10 +167,10 @@ class LakeTicks:
 
     def wanted_days(self, start: str, end: str, today: date) -> list[date]:
         """Whole past UTC days inside the request, newest `max_days` at most."""
-        from app.series import window_end
+        from app.series import _row_dt, window_end
 
         try:
-            lo = datetime.fromisoformat(str(start).strip()[:10]).date()
+            lo = _row_dt(str(start).strip()).date()
         except ValueError:
             return []
         hi_end = window_end(end)
@@ -239,9 +239,10 @@ async def series_with_lake(symbol, interval, start, end, recorder, window, histo
     import asyncio
     from datetime import timezone
 
-    from app.series import seam_boundary, tick_capable, window_end
+    from app.series import _row_dt, clip_window, seam_boundary, tick_capable, window_end, window_start
 
     today = today or datetime.now(timezone.utc).date()
+    requested_lo, requested_hi = window_start(start), window_end(end)
     meta["rows_from_lake"] = 0
     meta["lake_days"] = []
     lake_rows: list[dict] = []
@@ -253,7 +254,12 @@ async def series_with_lake(symbol, interval, start, end, recorder, window, histo
             if ticks is None:
                 continue
             lo, hi = day_span(ticks, interval)
-            rows = [r for r in bars(ticks, interval) if lo <= r["date"] < hi]
+            # Clip trades before aggregation: the final bucket can contain
+            # trades later than a timestamp end, even when its stamp is inside.
+            requested = ticks[[requested_lo <= _row_dt(t) <= requested_hi
+                               for t in ticks["time"]]]
+            rows = [r for r in bars(requested, interval)
+                    if lo <= r["date"] < hi and requested_lo <= r["date"] <= requested_hi]
             if rows:
                 days.append(day)
                 spans.append((lo, hi))
@@ -270,7 +276,7 @@ async def series_with_lake(symbol, interval, start, end, recorder, window, histo
 
             span = await asyncio.to_thread(recorder.store.tick_span, symbol)
             if span is not None:
-                boundary = seam_boundary(span[0], interval)
+                boundary = seam_boundary(max(span[0], requested_lo), interval)
                 if spans:
                     boundary = max(boundary, max(hi for _, hi in spans))
                 hi = min(span[1], window_end(end))
@@ -287,5 +293,6 @@ async def series_with_lake(symbol, interval, start, end, recorder, window, histo
     meta["rows_from_lake"] = len(lake_rows)
     meta["lake_days"] = [d.isoformat() for d in days]
     if not lake_rows and not tick_rows:
-        return history, meta
-    return join(history, lake_rows, spans, tick_rows, boundary if tick_rows else None), meta
+        return clip_window(history, start, end), meta
+    joined = join(history, lake_rows, spans, tick_rows, boundary if tick_rows else None)
+    return clip_window(joined, start, end), meta
