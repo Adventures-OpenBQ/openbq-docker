@@ -160,5 +160,23 @@
     "rule": "generic-api-key",
     "content_sha256": "67dbc50bc82c12ca22f07bf88823a7d2cb586ba494440d574d2a85268651f990",
     "reason": "Whole-file review: JWT_SECRET is generated as fixture repeated 12 times in isolated PostgreSQL configuration tests; no operator environment or credential values."
+  },
+  {
+    "path": "funnel-gateway/gateway.test.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "c99237d67e819a8b2ebbf95f2c0250c6c4c72047e14d489c283821da829f04cf",
+    "reason": "Historical gateway handshake regression fixture contains the fixed public example WebSocket nonce (decoded text: the sample nonce), not an application credential. Exact complete normalized historical file bytes are bound; future file changes cannot inherit this admission."
+  },
+  {
+    "path": "funnel-gateway/gateway.test.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "d51d241e089719a5bc33d70d1a0bcb391b221fc36d3d73510dc74208bb6fda68",
+    "reason": "Historical gateway handshake regression fixture contains the fixed public example WebSocket nonce (decoded text: the sample nonce), not an application credential. Exact complete normalized historical file bytes are bound; future file changes cannot inherit this admission."
+  },
+  {
+    "path": "funnel-gateway/gateway.test.mjs",
+    "rule": "generic-api-key",
+    "content_sha256": "a5e6e56ffd6993387ba2063e35f95b9605b4b640ca1debdbfb1fc9cf3a9380ad",
+    "reason": "Historical gateway handshake regression fixture contains the fixed public example WebSocket nonce (decoded text: the sample nonce), not an application credential. Exact complete normalized historical file bytes are bound; future file changes cannot inherit this admission."
   }
 ]
