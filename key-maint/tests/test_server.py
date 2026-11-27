@@ -2,9 +2,13 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 import base64
+import json
 import os
+import shutil
+import subprocess
 import time
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -41,9 +45,9 @@ def _no_descriptor(monkeypatch):
     monkeypatch.setattr("app.server.fetch_descriptor", none)
 
 
-def client(files, role):
+def client(files, role, **kwargs):
     cred, auth = files
-    return TestClient(create_app(role=role, cred_file=cred, auth_file=auth))
+    return TestClient(create_app(role=role, cred_file=cred, auth_file=auth, **kwargs))
 
 
 def keys(c, headers=None, params=None):
@@ -182,6 +186,78 @@ class TestDescriptorWiring:
         body = keys(client(files, "admin")).json()
         assert body["summary"].splitlines()[0].startswith("Provider inventory unavailable")
         assert any(r.get("provider_id") == "fmp" for r in body["rows"])
+
+
+class TestEffectiveCredentials:
+    @pytest.fixture
+    def demo_file(self, tmp_path):
+        path = tmp_path / "credentials.demo.env"
+        path.write_text("EIA_API_KEY=DEMO_KEY\nCONGRESS_GOV_API_KEY=DEMO_KEY\n")
+        path.chmod(0o444)
+        return path
+
+    def test_defaults_are_visible_and_admin_edits_only_the_override(self, files, demo_file):
+        admin = client(files, "admin", demo_file=str(demo_file))
+        network = client(files, "network", demo_file=str(demo_file))
+        before = demo_file.read_bytes()
+
+        def get_row(c, env_var, headers):
+            body = keys(c, headers=headers).json()
+            return next(row for row in body["rows"] if row["env_var"] == env_var)
+
+        for forwarded in ("192.0.2.1", "100.100.100.100"):
+            network_headers = {"X-Forwarded-For": forwarded}
+            row = get_row(network, "EIA_API_KEY", network_headers)
+            assert (row["status"], row["demo"]) == ("set", True)
+            assert "value" not in row
+            assert network.put("/keys/EIA_API_KEY", headers=AUTH | network_headers,
+                               json={"value": ""}).status_code == 403
+
+        assert get_row(admin, "EIA_API_KEY", {})["value"] == "DEMO_KEY"
+        r = admin.put("/keys/EIA_API_KEY", headers=AUTH, json={"value": ""})
+        assert r.status_code == 200
+        assert r.json() == {"status": "empty", "restart_required": True}
+        row = get_row(admin, "EIA_API_KEY", {})
+        assert (row["status"], row["demo"], row["value"]) == ("empty", False, "")
+        assert get_row(admin, "CONGRESS_GOV_API_KEY", {})["demo"] is True
+        with open(files[0]) as edited:
+            assert "EIA_API_KEY=\n" in edited.read()
+        assert demo_file.read_bytes() == before
+
+    def test_single_and_bulk_probes_use_the_effective_values(self, files, demo_file, monkeypatch):
+        with open(files[0], "a") as overrides:
+            overrides.write("CONGRESS_GOV_API_KEY=\n")
+
+        async def descriptor(*args):
+            return [
+                {"id": "eia", "auth": "required", "env_vars": ["EIA_API_KEY"]},
+                {"id": "congress_gov", "auth": "required", "env_vars": ["CONGRESS_GOV_API_KEY"]},
+            ]
+
+        def respond(request):
+            if request.url.host == "api.eia.gov":
+                assert request.url.params["api_key"] == "DEMO_KEY"
+            else:
+                assert request.url.path == "/api/v1/eia/short_term_energy_outlook"
+            return httpx.Response(200, json={"results": [{"value": 1}]})
+
+        client_class = httpx.AsyncClient
+        monkeypatch.setattr("app.server.fetch_descriptor", descriptor)
+        monkeypatch.setattr("app.probes.httpx.AsyncClient", lambda **kwargs: client_class(
+            transport=httpx.MockTransport(respond), **kwargs
+        ))
+        c = client(files, "network", demo_file=str(demo_file))
+        forwarded = {"X-Forwarded-For": "100.100.100.100"}
+        r = keys(c, headers=forwarded, params={"run_tests": "true"})
+        assert r.status_code == 200
+        rows = {row["provider_id"]: row for row in r.json()["rows"]}
+        assert [check["result"] for check in rows["eia"]["checks"]] == ["ok", "ok"]
+        assert [check["result"] for check in rows["congress_gov"]["checks"]] == ["skipped", "skipped"]
+        assert "value" not in rows["eia"]
+
+        r = c.get("/keys/EIA_API_KEY/test", headers=AUTH | forwarded)
+        assert r.status_code == 200
+        assert [check["result"] for check in r.json()["checks"]] == ["ok", "ok"]
 
 
 class TestRestartRequired:
@@ -472,6 +548,35 @@ class TestWriteKey:
         r = c.put("/keys/FMP_API_KEY", headers=AUTH, json={"value": "supersecret999\nX"})
         assert r.status_code == 400
         assert "supersecret999" not in r.text
+
+
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker Compose required")
+@pytest.mark.parametrize(
+    "value",
+    [r'prefix-${KEYMAINT_TEST_EXPANSION}', r"prefix-$KEYMAINT_TEST_EXPANSION", r'a\$$b-"'],
+    ids=["braced", "plain", "escaped"],
+)
+def test_admin_key_edit_preserves_literal_dollars_in_compose(files, tmp_path, monkeypatch, value):
+    monkeypatch.setenv("KEYMAINT_TEST_EXPANSION", "compose-replaced-the-literal")
+    with open(files[0], "a") as cred:
+        cred.write("KEYMAINT_TEST_DOLLAR='$'\n")
+    compose = tmp_path / "compose.yaml"
+    compose.write_text("services:\n  probe:\n    image: scratch\n    env_file: ./credentials.env\n")
+
+    admin = client(files, "admin")
+    assert admin.put("/keys/FMP_API_KEY", headers=AUTH, json={"value": value}).status_code == 200
+    row = next(row for row in keys(admin).json()["rows"] if row["env_var"] == "FMP_API_KEY")
+    assert row["value"] == value
+
+    resolved = subprocess.run(
+        ["docker", "compose", "-f", str(compose), "config", "--format", "json"],
+        cwd=tmp_path, check=True, capture_output=True, text=True,
+    )
+    env = json.loads(resolved.stdout)["services"]["probe"]["environment"]
+    # Some Compose versions escape literal dollars when rendering the reusable config.
+    assert env["KEYMAINT_TEST_DOLLAR"] in ("$", "$$")
+    expected = value.replace("$", "$$") if env["KEYMAINT_TEST_DOLLAR"] == "$$" else value
+    assert env["FMP_API_KEY"] == expected
 
 
 class TestPanelWidget:

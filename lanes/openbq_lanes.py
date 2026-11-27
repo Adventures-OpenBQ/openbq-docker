@@ -784,15 +784,50 @@ class Lane:
             return self._answer(503, "The heavy-route lane's queue is full.", request, "queue-503")
         self.waiting += 1
         try:
-            await asyncio.wait_for(self.lock.acquire(), self.deadline)
-        except TimeoutError:
-            return self._answer(503, "The heavy-route lane stayed busy past this request's deadline.",
-                                request, "queue-503")
+            turn = await self._wait_turn(request, until)
         finally:
             self.waiting -= 1
+        if turn == "gone":
+            return self._answer(503, "The client went away while queued.", request, "gone")
+        if turn == "late":
+            return self._answer(503, "The heavy-route lane stayed busy past this request's deadline.",
+                                request, "queue-503")
         # Shielded: a client that gives up does not cancel the call, so the
         # lane is never handed a second request while the first still runs.
         return await asyncio.shield(asyncio.ensure_future(self._run(request, body, until)))
+
+    async def _wait_turn(self, request, until):
+        """Take the lane's lock: "ok", or "late" past the deadline, or "gone" once the client disconnects.
+
+        A client that gave up must not keep its queue place until the lane reaches it, so the wait
+        looks for a disconnect once a second.
+        """
+        if not self.lock.locked():
+            await self.lock.acquire()  # free: taken at once, so the caller never counts as queued
+            return "ok"
+        turn = asyncio.ensure_future(self.lock.acquire())
+        handed_off = False
+        try:
+            while not turn.done():
+                await asyncio.wait({turn}, timeout=max(0.0, min(1.0, until - time.monotonic())))
+                if turn.done():
+                    break
+                why = "late" if time.monotonic() >= until else "gone" if await request.is_disconnected() else None
+                if why:
+                    return why
+            await turn
+            handed_off = True
+            return "ok"
+        finally:
+            if not handed_off:
+                # Only this request's waiter is ours to cancel. If it acquired
+                # the lock before interruption, give that unused turn back.
+                turn.cancel()
+                try:
+                    if await turn:
+                        self.lock.release()
+                except asyncio.CancelledError:
+                    pass
 
     async def _run(self, request, body, until):
         queued = time.monotonic() - (until - self.deadline)
@@ -910,7 +945,7 @@ if os.environ.get("OPENBQ_ROLE") != "worker" and _prefixes:
 
 
 PROVIDERS_PATH = "/providers.json"
-_OPTIONAL = frozenset({"cftc", "econdb"})  # bls is key-required
+_OPTIONAL = frozenset({"bls", "cftc", "econdb"})
 _LOCAL = frozenset({"deltalake", "kdb"})
 _NAMES = {
     "yfinance": "Yahoo Finance", "sec": "SEC", "federal_reserve": "Federal Reserve",

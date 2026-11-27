@@ -3,6 +3,8 @@
 
 import base64
 
+import pytest
+
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
@@ -35,6 +37,16 @@ class TestGuard:
         c = app_with_guard(write_auth(tmp_path))
         assert c.get("/ping").status_code == 401
 
+    def test_initial_utf8_bom_does_not_hide_auth_flag(self, tmp_path):
+        p = tmp_path / "credentials.env"
+        p.write_text(
+            "\ufeffOPENBB_API_AUTH=true\nOPENBB_API_USERNAME=u1\nOPENBB_API_PASSWORD=p1\n",
+            encoding="utf-8",
+        )
+        c = app_with_guard(str(p))
+        assert c.get("/ping").status_code == 401
+        assert c.get("/ping", headers=basic("u1", "p1")).status_code == 200
+
     def test_wrong_password_401(self, tmp_path):
         c = app_with_guard(write_auth(tmp_path))
         assert c.get("/ping", headers=basic("u1", "wrong")).status_code == 401
@@ -60,6 +72,58 @@ class TestFollowsTheApi:
         p = tmp_path / "credentials.env"
         p.write_text("OPENBB_API_AUTH=false\n")
         assert app_with_guard(str(p)).get("/ping").status_code == 200
+
+    @pytest.mark.parametrize("flag", ['"true"', "'true'", 'true'])
+    def test_quoted_auth_uses_the_decoded_credentials(self, tmp_path, flag):
+        p = tmp_path / "credentials.env"
+        p.write_text(
+            f"OPENBB_API_AUTH={flag}\n"
+            "OPENBB_API_USERNAME = 'u1' # comment\n"
+            'OPENBB_API_PASSWORD=" has # comment \\" \\$tag $$suffix " # note\n'
+        )
+        c = app_with_guard(str(p))
+        assert c.get("/ping").status_code == 401
+        assert c.get("/ping", headers=basic("u1", ' has # comment " $tag $suffix ')).status_code == 200
+
+    @pytest.mark.parametrize("flag", ['tru', '"tru"', '"false'])
+    def test_unknown_or_unterminated_auth_flag_denies_access(self, tmp_path, flag):
+        p = tmp_path / "credentials.env"
+        p.write_text(f"OPENBB_API_AUTH={flag}\nOPENBB_API_USERNAME=u1\nOPENBB_API_PASSWORD=p1\n")
+        c = app_with_guard(str(p))
+        assert c.get("/ping").status_code == 401
+        assert c.get("/ping", headers=basic("u1", "p1")).status_code == 401
+
+    @pytest.mark.parametrize("assignment", ['OPENBB_API_AUTH = "true"', 'export OPENBB_API_AUTH=true'])
+    def test_compose_assignment_forms_require_basic_auth(self, tmp_path, assignment):
+        p = tmp_path / "credentials.env"
+        p.write_text(f"{assignment}\nOPENBB_API_USERNAME=u1\nOPENBB_API_PASSWORD=p1\n")
+        c = app_with_guard(str(p))
+        assert c.get("/ping").status_code == 401
+        assert c.get("/ping", headers=basic("u1", "p1")).status_code == 200
+
+    def test_auth_flag_inside_a_quoted_value_does_not_open_the_guard(self, tmp_path):
+        p = tmp_path / "credentials.env"
+        p.write_text(
+            "OPENBB_API_AUTH=true\nOPENBB_API_USERNAME=u1\n"
+            "OPENBB_API_PASSWORD='first\nOPENBB_API_AUTH=false\nlast'\n"
+        )
+        c = app_with_guard(str(p))
+        assert c.get("/ping").status_code == 401
+        assert c.get("/ping", headers=basic("u1", "first\nOPENBB_API_AUTH=false\nlast")).status_code == 200
+
+    @pytest.mark.parametrize("value", [r"$AUTH_FIXTURE", r'"${AUTH_FIXTURE}"'])
+    def test_unresolved_host_expansion_is_not_a_basic_password(self, tmp_path, value):
+        p = tmp_path / "credentials.env"
+        p.write_text(f"OPENBB_API_AUTH=true\nOPENBB_API_USERNAME=u1\nOPENBB_API_PASSWORD={value}\n")
+        c = app_with_guard(str(p))
+        assert c.get("/ping", headers=basic("u1", value.strip('"'))).status_code == 401
+
+    def test_host_inherited_auth_flag_is_not_treated_as_omitted(self, tmp_path):
+        p = tmp_path / "credentials.env"
+        p.write_text("OPENBB_API_AUTH\nOPENBB_API_USERNAME=u1\nOPENBB_API_PASSWORD=p1\n")
+        c = app_with_guard(str(p))
+        assert c.get("/ping").status_code == 401
+        assert c.get("/ping", headers=basic("u1", "p1")).status_code == 401
 
     def test_on_with_empty_credentials_denies_all(self, tmp_path):
         p = tmp_path / "credentials.env"

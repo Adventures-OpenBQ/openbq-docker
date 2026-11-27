@@ -56,11 +56,8 @@ EXAMPLES: dict[str, Example] = {e.provider_id: e for e in [
         f"{_D}/commodity/short_term_energy_outlook", demo_ok=True),
     _ex("congress_gov", "/api/v1/uscongress/bills", {"limit": "1"},
         f"{_D}/uscongress/bills", demo_ok=True),
-    # bls is keyed, not demo-capable: the platform 400s "Missing credential"
-    # for it without a key (verified against an isolated stack run), unlike
-    # cftc/econdb below which answer keyless.
     _ex("bls", "/api/v1/bls/series", {"symbol": "CUUR0000SA0"},
-        f"{_D}/economy/survey/bls_series"),
+        f"{_D}/economy/survey/bls_series", demo_ok=True),
     _ex("cftc", "/api/v1/cftc/cot", {"code": "CFTC_088691"}, f"{_D}/cftc/cot", demo_ok=True),
     _ex("econdb", "/api/v1/economy/country_profile", {"country": "us"},
         f"{_D}/economy/country_profile", demo_ok=True),
@@ -128,7 +125,7 @@ def _check(base_url: str, username: str, password: str) -> int:
     """Run every example through the API and enforce the demo policy:
     demo_ok -> must be ok; keyed (others) -> ok, auth_failed, or skipped are
     all acceptable, since a keyed example run against a deployment WITH real
-    keys legitimately comes back ok (that is not drift -- fmp/fred/bls/
+    keys legitimately comes back ok (that is not drift -- fmp/fred/
     benzinga all did exactly that on 2026-09-24 against production). Any
     no_response/unexpected_response/upstream_error is drift and fails. Returns
     a process exit code."""
