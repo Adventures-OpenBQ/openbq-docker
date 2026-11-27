@@ -14,7 +14,7 @@ docker build --platform linux/amd64 --target frontend-build -t workspace-fronten
 docker build --platform linux/amd64 -t workspace-patched:local workspace/build-context
 ```
 
-Assembly only copies the clean source and records its relative-file checksums. `apply-patches.sh` checks the complete source record, exact upstream pin and original locks, applies patches001–005, copies the previously recorded resolved lock and packages the reviewed migration tool/manifest. It rejects modified inputs, partial/repeated patch state and dependency drift. Start again from a new assembly after a failed application.
+Assembly reads the exact tracked commit with `git archive` and records its relative-file checksums. `apply-patches.sh` checks the complete source record, exact upstream pin and original locks, applies patches001–008, copies the previously recorded resolved lock and packages the reviewed migration tool/manifest. It rejects modified inputs, partial/repeated patch state and dependency drift. Start again from a new assembly after a failed application.
 
 The ordered patch set is:
 
@@ -33,3 +33,9 @@ The root Compose profile retains the legacy SQLite behavior when no lifecycle se
 Run the complete generated-only PostgreSQL gate with `WORKSPACE_TEST_IMAGE=workspace-patched:local workspace/scripts/verify-postgres.sh`. It uses the actual compiled local image, creates private synthetic fixtures, requires every dependency, and qualifies both restore directions after new API writes. No production volume is mounted by the gate.
 
 Privacy hooks are installed with `git config core.hooksPath .githooks`. Keep actual domains, credential files, database snapshots, detailed synthetic evidence and raw runtime logs outside tracked source.
+
+- `006-frozen-backend-build.patch`: retain main's frozen compiler/build inputs and qualify the reviewed CA lock.
+- `007-workspace-request-boundaries.patch`: verify file ownership before storage mutation, remove the unused arbitrary proxy and keep secrets out of request logs.
+- `008-public-test-key-packaging.patch`: remove only the exact reviewed unused Tornado TLS test fixture before the final runtime copy.
+
+`source.json` retains historical image records. `active_build_inputs` identifies the new source inputs; fresh image and PostgreSQL runtime qualification is required before deployment.
