@@ -3,15 +3,15 @@
   "scope": "main-only V10 behavior carry; V1-V10 remain closed",
   "frontend": {
     "core_test_commit": "a36f225a6f89cce1ec2b4c821c0e790cb75eaf75",
-    "source_offer_commit": "821adbee77a6dc6e640a696e470791dbf87001b5",
+    "source_offer_commit": "4af091d3be336e3bc727225614910a3ffe3ec8b6",
     "unit_passed": 11000,
     "existing_environment_skipped": 48,
     "typecheck_lint_build_notices_wasm_web": "passed",
     "later_changes": "A real App/StrictMode regression reproduced duplicate bootstrap replacing a durably imported dashboard in memory. Startup now shares one Promise per mounted App while live effect subscriptions and real remounts retain their behavior. Three new regression tests, 242 focused unit cases, the full 11000-test unit suite and 40 repeated chart/live-grid browser executions passed locally without browser retries. Final same-source CI is required on the source-offer commit before frontend main merge.",
-    "source_id": "882fbc511ee6c4528d66684c51bc5e49676208588a13f9c77f55c80251b12692",
+    "source_id": "6306fe4c8c7fcd3ea67c88de61935ff02b8ba9e07e3081ada61d043479931a82",
     "web_boundary_tests": 105,
     "affected_browser_tests": 47,
-    "source_archive_sha256": "10bc58dbaab6d6519bb5dcbc0a96a7999c6a615b6e7bebf10bd7f7400fd03c65",
+    "source_archive_sha256": "5aedb49665aa330701fdd31f83e4dd9dd0562d4961d8fb6884a85f1e86b68227",
     "core_CI": {
       "commit": "a36f225a6f89cce1ec2b4c821c0e790cb75eaf75",
       "unit_passed": 11000,
@@ -45,6 +45,14 @@
       "affected_browser_executions": 40,
       "browser_retries": 0,
       "real_remount_and_startup_failure_controls": "passed"
+    },
+    "browser_fixture_corrections": {
+      "commit": "3b8a5560e37d54ca41f4b54254aeac6d96a8a6de",
+      "configured_mock_port": "existing MOCK_URL helper",
+      "refresh_contract": "one request delta, only active tab symbols; no required duplicate startup fetch",
+      "repeated_browser_executions_passed": 30,
+      "retries": 0,
+      "production_code_changes": false
     }
   },
   "provider_host": {
