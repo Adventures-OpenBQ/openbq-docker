@@ -136,11 +136,11 @@ test('member connects to a cross-origin immediate parent with referrer disabled'
 }));
 
 test('embedded viewers retain same-origin HTTP proxies and HTTPS external URLs, refusing external HTTP', async () => withPage(async page => {
-  for (const source of ['http://external.example.test/document', 'https://external.example.test/document?name=a%2Fb&rate=10%25', '/document?name=a%2Fb&rate=10%25']) {
+  for (const source of ['http://external.example.test/document', 'https://external.example.test/document?name=a%2Fb&rate=10%25', '/document?name=a%2Fb&rate=10%25', origin + '//external.example.test/document']) {
     await page.route('https://external.example.test/**', route => route.fulfill({body: '<p>Document</p>',contentType: 'text/html'}));
     pages.set('/frame-policy', eia({ mode: 'site', src: source }));
     await page.goto(origin + '/frame-policy');
-    const expected = source.startsWith('http:') ? '' : source;
+    const expected = source.startsWith(origin) ? '/external.example.test/document' : source.startsWith('http:') ? '' : source;
     assert.equal(await page.locator('iframe').getAttribute('src'), expected);
     pages.set('/rss-frame-policy', rss([{title: 'Document', viewer: 'site', src: source, url: source}]));
     await page.goto(origin + '/rss-frame-policy');

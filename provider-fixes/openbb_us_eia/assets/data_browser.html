@@ -476,7 +476,7 @@
       var url = new URL(href);
       // Keep the backend's same-origin proxy usable over local HTTP, while
       // external documents must use TLS. Relative paths inherit our origin.
-      if (url.origin === window.location.origin) return url.pathname + url.search + url.hash;
+      if (url.origin === window.location.origin) return "/" + url.pathname.replace(/^\/+/, "") + url.search + url.hash;
       return href.startsWith("https://") ? href : "";
     }
 
