@@ -3,15 +3,15 @@
   "scope": "main-only V10 behavior carry; V1-V10 remain closed",
   "frontend": {
     "core_test_commit": "a36f225a6f89cce1ec2b4c821c0e790cb75eaf75",
-    "source_offer_commit": "4af091d3be336e3bc727225614910a3ffe3ec8b6",
+    "source_offer_commit": "20c8c236cd14f00ed49a5819f2f2efb4b6fd77d5",
     "unit_passed": 11000,
     "existing_environment_skipped": 48,
     "typecheck_lint_build_notices_wasm_web": "passed",
     "later_changes": "A real App/StrictMode regression reproduced duplicate bootstrap replacing a durably imported dashboard in memory. Startup now shares one Promise per mounted App while live effect subscriptions and real remounts retain their behavior. Three new regression tests, 242 focused unit cases, the full 11000-test unit suite and 40 repeated chart/live-grid browser executions passed locally without browser retries. Final same-source CI is required on the source-offer commit before frontend main merge.",
-    "source_id": "6306fe4c8c7fcd3ea67c88de61935ff02b8ba9e07e3081ada61d043479931a82",
+    "source_id": "2fc4afa4893fbc46a1b369be6d09b965979e0e3e66febef9b2d7d4072fd02745",
     "web_boundary_tests": 105,
     "affected_browser_tests": 47,
-    "source_archive_sha256": "5aedb49665aa330701fdd31f83e4dd9dd0562d4961d8fb6884a85f1e86b68227",
+    "source_archive_sha256": "aac9b64ef54a0c283b482c98375c9986d72949ed8877ea0c3b18997d2d001d1c",
     "core_CI": {
       "commit": "a36f225a6f89cce1ec2b4c821c0e790cb75eaf75",
       "unit_passed": 11000,
@@ -27,7 +27,7 @@
       "aborted_actual_worker_negative_guard": "passed"
     },
     "final_source_CI": {
-      "commit": "4af091d3be336e3bc727225614910a3ffe3ec8b6",
+      "commit": "20c8c236cd14f00ed49a5819f2f2efb4b6fd77d5",
       "pull_request": "https://github.com/Adventures-OpenBQ/bdobb/pull/93",
       "required_before_frontend_main_merge": true
     },
@@ -53,6 +53,22 @@
       "repeated_browser_executions_passed": 30,
       "retries": 0,
       "production_code_changes": false
+    },
+    "browser_harness_cold_start_repair": {
+      "commit": "fc900cabe87edbcb8a5f36c7e0078aed504f8f5f",
+      "cause": "Vite optimizer discovers two worker-only Plotly CommonJS helpers after page startup and sends full-reload",
+      "actual_trace": "HMR full-reload 58ms before second app document GET",
+      "cold_red_green": "same actual chart test, empty dependency cache and four-times CPU throttle; old configuration reloads and fails, repaired configuration passes with one document request and no reload",
+      "scope": "browser mode optimizeDeps.include exact two imports; default scanning retained; native, dev, test and production bundling unchanged",
+      "full_cold_local_suite_required_before_final_push": true
+    },
+    "prior_build_CI": {
+      "commit": "4af091d3be336e3bc727225614910a3ffe3ec8b6",
+      "unit_passed": 11000,
+      "existing_unit_skips": 48,
+      "Rust_passed": 129,
+      "build_status": "SUCCESS",
+      "full_browser_report": "335 passed, 12 existing skips, 1 retry-only failure; source publication and merge refused; retained trace used for cold-start repair"
     }
   },
   "provider_host": {
