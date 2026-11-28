@@ -2,22 +2,21 @@
   "schema": 1,
   "scope": "main-only V10 behavior carry; V1-V10 remain closed",
   "frontend": {
-    "core_test_commit": "8521c85ccf6cc2ac8362906f284ffae12c0a15a0",
-    "source_offer_commit": "371b19efc6f4eaa2f16d60bb805f30a02365bcec",
-    "unit_passed": 10997,
+    "core_test_commit": "a36f225a6f89cce1ec2b4c821c0e790cb75eaf75",
+    "source_offer_commit": "821adbee77a6dc6e640a696e470791dbf87001b5",
+    "unit_passed": 11000,
     "existing_environment_skipped": 48,
     "typecheck_lint_build_notices_wasm_web": "passed",
-    "later_changes": "Only the seven-chart test readiness check and generated source metadata changed after the core CI commit. Fifteen affected existing chart executions passed without retries; a controlled six-second real-worker startup reproduced the old five-second assertion failure and passed with one shared bounded SVG/trace/no-alert readiness check. Failed real workers remain refused. Product runtime code and dependencies are unchanged.",
-    "source_id": "05e997ae64d1d905dca794aea94aa4627380be8782d3d36bc7d203bf8875a62a",
+    "later_changes": "A real App/StrictMode regression reproduced duplicate bootstrap replacing a durably imported dashboard in memory. Startup now shares one Promise per mounted App while live effect subscriptions and real remounts retain their behavior. Three new regression tests, 242 focused unit cases, the full 11000-test unit suite and 40 repeated chart/live-grid browser executions passed locally without browser retries. Final same-source CI is required on the source-offer commit before frontend main merge.",
+    "source_id": "882fbc511ee6c4528d66684c51bc5e49676208588a13f9c77f55c80251b12692",
     "web_boundary_tests": 105,
     "affected_browser_tests": 47,
-    "source_archive_sha256": "a8d58c4e318a9aa82141ae5273943e4213b5f00bccac2f050b4bf6de114b5497",
+    "source_archive_sha256": "10bc58dbaab6d6519bb5dcbc0a96a7999c6a615b6e7bebf10bd7f7400fd03c65",
     "core_CI": {
-      "unit_passed": 10997,
+      "commit": "a36f225a6f89cce1ec2b4c821c0e790cb75eaf75",
+      "unit_passed": 11000,
       "existing_environment_skipped": 48,
-      "web_boundary_tests": 105,
-      "native_tests": 129,
-      "status": "passed"
+      "status": "full unit suite passed locally; final same-source CI required by companion PR"
     },
     "chart_readiness_retest": {
       "existing_cases": 5,
@@ -28,9 +27,24 @@
       "aborted_actual_worker_negative_guard": "passed"
     },
     "final_source_CI": {
-      "commit": "371b19efc6f4eaa2f16d60bb805f30a02365bcec",
+      "commit": "821adbee77a6dc6e640a696e470791dbf87001b5",
       "pull_request": "https://github.com/Adventures-OpenBQ/bdobb/pull/93",
       "required_before_frontend_main_merge": true
+    },
+    "prior_core_CI": {
+      "commit": "8521c85ccf6cc2ac8362906f284ffae12c0a15a0",
+      "unit_passed": 10997,
+      "web_boundary_tests": 105,
+      "native_tests": 129,
+      "status": "passed; unchanged web/native code retains these original evidence identities"
+    },
+    "bootstrap_replay_repair": {
+      "deterministic_original_failure": "actual App/bootstrap/import; delayed second disk snapshot replaces imported dashboard in memory",
+      "guard": "one startup Promise per mounted App; no global memoization",
+      "focused_unit_passed": 242,
+      "affected_browser_executions": 40,
+      "browser_retries": 0,
+      "real_remount_and_startup_failure_controls": "passed"
     }
   },
   "provider_host": {
