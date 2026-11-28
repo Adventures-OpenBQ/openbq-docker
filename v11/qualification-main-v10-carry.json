@@ -2,15 +2,36 @@
   "schema": 1,
   "scope": "main-only V10 behavior carry; V1-V10 remain closed",
   "frontend": {
-    "core_test_commit": "2237170be3a777d0123a8d42db5f362f1f36e1e5",
-    "source_offer_commit": "8521c85ccf6cc2ac8362906f284ffae12c0a15a0",
+    "core_test_commit": "8521c85ccf6cc2ac8362906f284ffae12c0a15a0",
+    "source_offer_commit": "371b19efc6f4eaa2f16d60bb805f30a02365bcec",
     "unit_passed": 10997,
     "existing_environment_skipped": 48,
     "typecheck_lint_build_notices_wasm_web": "passed",
-    "later_changes": "Focused browser contract fixtures and admitted-state URL encoding; 47 affected browser cases passed without retries and all 105 web boundary tests passed. Final combined-source CI is tracked by the companion PR.",
-    "source_id": "cb26d875107a7773dffe7aa717fddd93742401ba622bcdde80a34c26e8ea84b7",
+    "later_changes": "Only the seven-chart test readiness check and generated source metadata changed after the core CI commit. Fifteen affected existing chart executions passed without retries; a controlled six-second real-worker startup reproduced the old five-second assertion failure and passed with one shared bounded SVG/trace/no-alert readiness check. Failed real workers remain refused. Product runtime code and dependencies are unchanged.",
+    "source_id": "05e997ae64d1d905dca794aea94aa4627380be8782d3d36bc7d203bf8875a62a",
     "web_boundary_tests": 105,
-    "affected_browser_tests": 47
+    "affected_browser_tests": 47,
+    "source_archive_sha256": "a8d58c4e318a9aa82141ae5273943e4213b5f00bccac2f050b4bf6de114b5497",
+    "core_CI": {
+      "unit_passed": 10997,
+      "existing_environment_skipped": 48,
+      "web_boundary_tests": 105,
+      "native_tests": 129,
+      "status": "passed"
+    },
+    "chart_readiness_retest": {
+      "existing_cases": 5,
+      "repetitions": 3,
+      "executions_passed": 15,
+      "retries": 0,
+      "delayed_actual_worker_positive": "passed",
+      "aborted_actual_worker_negative_guard": "passed"
+    },
+    "final_source_CI": {
+      "commit": "371b19efc6f4eaa2f16d60bb805f30a02365bcec",
+      "pull_request": "https://github.com/Adventures-OpenBQ/bdobb/pull/93",
+      "required_before_frontend_main_merge": true
+    }
   },
   "provider_host": {
     "source_commit": "a2194389c3b1be89348c75d4a6a3896e85cf3430",
