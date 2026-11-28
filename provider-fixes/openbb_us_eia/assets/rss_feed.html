@@ -247,15 +247,52 @@
     document.getElementById("feed-label").textContent = DATA.label || "EIA RSS Feed";
     document.getElementById("feed-desc").textContent = DATA.description || "";
 
-    function esc(s) {
-      var d = document.createElement("div");
-      d.textContent = s == null ? "" : String(s);
-      return d.innerHTML;
+    function safeUrl(value) {
+      if (typeof value !== "string" || !value.trim()) return "";
+      try {
+        var url = new URL(value, window.location.href);
+        if (url.protocol === "https:") return "https://" + url.host + url.pathname + url.search + url.hash;
+        if (url.protocol === "http:") return "http://" + url.host + url.pathname + url.search + url.hash;
+      } catch (e) {}
+      return "";
     }
+
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+    // Copy only presentational markup into fresh nodes. The parsed document
+    // is inert; no source attributes or executable elements enter the live DOM.
+    function richContent(html) {
+      var parsed = new DOMParser().parseFromString(String(html), "text/html");
+      var fragment = document.createDocumentFragment();
+      var tags = ["P", "DIV", "SPAN", "B", "STRONG", "EM", "I", "U", "BR", "H1", "H2", "H3", "H4", "H5", "H6", "TABLE", "THEAD", "TBODY", "TFOOT", "TR", "TH", "TD", "UL", "OL", "LI", "A", "SUP", "SUB", "BLOCKQUOTE", "PRE", "CODE"];
+      function copy(node, parent) {
+        if (node.nodeType === 3) { parent.appendChild(document.createTextNode(node.textContent)); return; }
+        if (node.nodeType !== 1 || ["SCRIPT", "STYLE", "SVG", "MATH", "IFRAME", "OBJECT", "EMBED", "IMG", "LINK", "META"].indexOf(node.tagName) >= 0) return;
+        var dest = parent;
+        if (tags.indexOf(node.tagName) >= 0) {
+          dest = document.createElement(node.tagName.toLowerCase());
+          if (node.tagName === "A") {
+            var href = safeUrl(node.getAttribute("href"));
+            if (href) { dest.href = href; dest.target = "_blank"; dest.rel = "noopener noreferrer"; }
+          }
+          ["colspan", "rowspan"].forEach(function (attr) {
+            var value = node.getAttribute(attr);
+            if ((node.tagName === "TD" || node.tagName === "TH") && /^[1-9][0-9]?$/.test(value || "")) dest.setAttribute(attr, value);
+          });
+          parent.appendChild(dest);
+        }
+        Array.prototype.forEach.call(node.childNodes, function (child) { copy(child, dest); });
+      }
+      Array.prototype.forEach.call(parsed.body.childNodes, function (node) { copy(node, fragment); });
+      return fragment;
+    }
+
     function withTheme(url) {
-      if (!url || url.indexOf("/eia_proxy/") < 0) return url;
+      if (!url || url.indexOf("/eia_proxy/") < 0) return safeUrl(url);
       var sep = url.indexOf("?") < 0 ? "?" : "&";
-      return url + sep + "obb_theme=" + (DATA.theme === "light" ? "light" : "dark");
+      return safeUrl(url + sep + "obb_theme=" + (DATA.theme === "light" ? "light" : "dark"));
     }
     function fmtDate(iso) {
       var d = new Date(iso);
@@ -394,13 +431,14 @@
           return '<span class="chip"><b>' + esc(m.label) + ":</b> " + esc(m.value) + "</span>";
         }).join("") + "</div>";
       }
-      var excerpt = item.excerpt ? '<div class="excerpt">' + item.excerpt + "</div>" : "";
+      var excerpt = item.excerpt ? '<div class="excerpt"></div>' : "";
       card.innerHTML =
         '<div class="date">' + esc(fmtDate(item.date)) + "</div>" +
         '<div class="title">' + esc(item.title) + "</div>" +
         chips + excerpt +
         '<div class="foot"><span class="author">' + esc(item.author) + "</span>" +
         '<span class="action">' + actionLabel(item) + "</span></div>";
+      if (item.excerpt) card.querySelector(".excerpt").appendChild(richContent(item.excerpt));
       card.addEventListener("click", function () { openModal(item); });
       list.appendChild(card);
     });
@@ -437,7 +475,7 @@
       meta.className = "doc-meta";
       meta.innerHTML = item.meta.map(function (m) {
         return '<span class="chip"><b>' + esc(m.label) + ":</b> " + esc(m.value) + "</span>";
-      }).join("") + (item.ppt_url ? '<a class="chip" href="' + esc(item.ppt_url) + '" target="_blank" rel="noopener">Slides ↗</a>' : "");
+      }).join("") + (item.ppt_url ? '<a class="chip" href="' + esc(safeUrl(item.ppt_url)) + '" target="_blank" rel="noopener">Slides ↗</a>' : "");
       mBody.appendChild(meta);
     }
 
@@ -445,7 +483,7 @@
       wrap.innerHTML = "";
       wrap.appendChild(docStatus(
         'Unable to render the document here. <a href="' +
-        esc(item.url || item.src) + '" target="_blank" rel="noopener">Open it in a new tab ↗</a>'
+        esc(safeUrl(item.url || item.src)) + '" target="_blank" rel="noopener">Open it in a new tab ↗</a>'
       ));
     }
 
@@ -498,13 +536,14 @@
     function openModal(item) {
       openToken += 1;
       mTitle.textContent = item.title || "";
-      mNewtab.href = item.url || item.src || "#";
+      mNewtab.href = safeUrl(item.url || item.src) || "#";
       modal.classList.toggle("wide", item.viewer !== "table");
       mBody.innerHTML = "";
       if (item.viewer === "table") {
         var wrap = document.createElement("div");
         wrap.className = "table-wrap";
-        wrap.innerHTML = item.body_html || '<div class="empty">No data.</div>';
+        if (item.body_html) wrap.appendChild(richContent(item.body_html));
+        else wrap.textContent = "No data.";
         mBody.appendChild(wrap);
       } else if (item.viewer === "pdf") {
         renderMeta(item);
@@ -521,7 +560,7 @@
         frame.style.display = "none";
         var slow = setTimeout(function () {
           status.innerHTML =
-            'Still loading… <a href="' + esc(item.url) +
+            'Still loading… <a href="' + esc(safeUrl(item.url)) +
             '" target="_blank" rel="noopener">open in new tab ↗</a>';
         }, 8000);
         frame.addEventListener("load", function () {

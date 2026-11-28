@@ -185,6 +185,9 @@
 <script>
   (function () {
     var DATA = JSON.parse(document.getElementById("browser-data").textContent);
+    DATA.src = safeUrl(DATA.src);
+    DATA.home = safeUrl(DATA.home);
+    DATA.proxy = safeUrl(DATA.proxy);
     var DARK = DATA.theme !== "light";
     document.documentElement.setAttribute("data-theme", DARK ? "dark" : "light");
 
@@ -253,9 +256,9 @@
         try {
           var u = new URL(rawUrl, window.location.origin);
           u.searchParams.set("obb_theme", theme === "light" ? "light" : "dark");
-          return u.toString();
+          return safeUrl(u.toString());
         } catch (e) {
-          return rawUrl;
+          return "";
         }
       }
 
@@ -370,7 +373,7 @@
 
       var frame = document.createElement("iframe");
       frame.className = "frame";
-      frame.src = restoredSrc();
+      frame.src = safeUrl(restoredSrc());
       frame.setAttribute("referrerpolicy", "same-origin");
       frame.setAttribute("allow", "fullscreen");
       window.__eiaFrame = frame;
@@ -385,7 +388,7 @@
         revealed = false;
         // Navigation must not depend on a paint callback: background or
         // temporarily hidden widgets may suspend requestAnimationFrame.
-        frame.src = DATA.home;
+        frame.src = safeUrl(DATA.home);
       }
       window.__eiaGoHome = goHome;
 
@@ -456,10 +459,19 @@
       document.body.appendChild(frame);
     }
 
+    function safeUrl(value) {
+      if (typeof value !== "string" || !value.trim()) return "";
+      try {
+        var url = new URL(value, window.location.href);
+        if (url.protocol === "https:") return "https://" + url.host + url.pathname + url.search + url.hash;
+        if (url.protocol === "http:") return "http://" + url.host + url.pathname + url.search + url.hash;
+      } catch (e) {}
+      return "";
+    }
+
     function esc(s) {
-      var d = document.createElement("div");
-      d.textContent = s == null ? "" : String(s);
-      return d.innerHTML;
+      return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
 
     var PDFJS_BASE = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/";
@@ -667,7 +679,7 @@
         document.getElementById("h-title").textContent = m.title;
         document.getElementById("h-date").textContent = m.date || "";
         document.getElementById("h-date").style.display = m.date ? "" : "none";
-        document.getElementById("h-open").href = "https://www.eia.gov" + (m.pdf || m.image);
+        document.getElementById("h-open").href = safeUrl("https://www.eia.gov" + (m.pdf || m.image));
         docEl.innerHTML = "";
         var wrap = document.createElement("div");
         wrap.className = "pdf-wrap";
@@ -676,7 +688,7 @@
         var src = DATA.proxy + (m.pdf || m.image);
         if (!m.pdf) {
           var img = document.createElement("img");
-          img.src = src;
+          img.src = safeUrl(src);
           img.style.maxWidth = "100%";
           wrap.innerHTML = "";
           wrap.appendChild(img);

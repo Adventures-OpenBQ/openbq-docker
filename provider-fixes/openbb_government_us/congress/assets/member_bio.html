@@ -163,7 +163,18 @@
     Independent: "var(--ind)"
   };
 
-  var target = window.top || window.parent;
+  var target = window.parent;
+  // A referrer or a browser-authenticated immediate-parent handshake names the
+  // recipient. Never infer this origin from the widget's query parameters.
+  function parentOriginOf(value) {
+    if (value === "tauri://localhost") return value;
+    try {
+      var url = new URL(value);
+      return url.protocol === "http:" || url.protocol === "https:" ? url.origin : "";
+    } catch (e) { return ""; }
+  }
+  var parentOrigin = parentOriginOf(document.referrer) ||
+    parentOriginOf(window.location.ancestorOrigins && window.location.ancestorOrigins[0]);
   var embedded = !!target && target !== window;
   var authHeaders = {};
   var page = document.getElementById("page");
@@ -173,12 +184,15 @@
   render();
 
   window.addEventListener("message", onMessage);
-  if (embedded) {
+  function connect() {
+    if (!embedded || !parentOrigin) return;
     target.postMessage(
       { type: "openbb-connect", widgets: MANIFESTS },
-      "*"
+      parentOrigin
     );
   }
+
+  connect();
 
   function applyTheme(theme) {
     document.documentElement.setAttribute(
@@ -194,9 +208,15 @@
     return node;
   }
 
-  function safeUrl(url) {
-    return /^https?:\/\//i.test(url || "") ? url : "";
-  }
+    function safeUrl(value) {
+      if (typeof value !== "string" || !value.trim()) return "";
+      try {
+        var url = new URL(value, window.location.href);
+        if (url.protocol === "https:") return "https://" + url.host + url.pathname + url.search + url.hash;
+        if (url.protocol === "http:") return "http://" + url.host + url.pathname + url.search + url.hash;
+      } catch (e) {}
+      return "";
+    }
 
   function initials(name) {
     return name
@@ -447,10 +467,10 @@
   }
 
   function publish(widgetId, dataType, data) {
-    if (!embedded) return;
+    if (!embedded || !parentOrigin) return;
     target.postMessage(
       { type: "openbb-data", widgetId: widgetId, dataType: dataType, data: data },
-      "*"
+      parentOrigin
     );
   }
 
@@ -483,6 +503,10 @@
   }
 
   function onMessage(event) {
+    if (!embedded || event.source !== target) return;
+    var origin = parentOriginOf(event.origin);
+    if (!origin || (parentOrigin && origin !== parentOrigin)) return;
+    if (!parentOrigin) { parentOrigin = origin; connect(); }
     var msg = event.data;
     if (!msg || !msg.type) return;
     if (msg.type === "openbb-request") {

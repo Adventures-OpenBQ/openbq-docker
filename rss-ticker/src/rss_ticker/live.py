@@ -187,7 +187,8 @@ def wrapper_html(label: str, video_id: str | None) -> str:
         body = (f'<p style="margin:auto;color:#9ca3af;font:14px system-ui,sans-serif">'
                 f"{name} is off air</p>")
     else:
-        body = (f'<iframe title="{name}" src="https://www.youtube.com/embed/{video_id}?autoplay=1&amp;mute=1" '
+        safe_video_id = html.escape(video_id, quote=True)
+        body = (f'<iframe title="{name}" src="https://www.youtube.com/embed/{safe_video_id}?autoplay=1&amp;mute=1" '
                 'style="border:0;width:100%;height:100%" '
                 'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" '
                 'referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>')

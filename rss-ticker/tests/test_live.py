@@ -8,6 +8,27 @@ import httpx
 from rss_ticker.config import Channel
 from rss_ticker.live import LIVE_TTL_S, STALE_TTL_S, LiveTV, parse_live_video_id
 
+
+def test_wrapper_escapes_video_and_label_at_the_html_boundary():
+    from html.parser import HTMLParser
+    from rss_ticker.live import wrapper_html
+
+    class Frames(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.frames = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "iframe":
+                self.frames.append(dict(attrs))
+
+    parser = Frames()
+    parser.feed(wrapper_html('<img src=x onerror="alert(1)">', 'bad" onload="alert(1)'))
+    assert len(parser.frames) == 1
+    assert set(parser.frames[0]).isdisjoint({"onload", "onerror"})
+    assert parser.frames[0]["title"] == '<img src=x onerror="alert(1)">'
+    assert parser.frames[0]["src"].startswith("https://www.youtube.com/embed/")
+
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
