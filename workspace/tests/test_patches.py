@@ -13,7 +13,7 @@ class PatchTests(unittest.TestCase):
    self.assertIn(p.name,readme,p.name)
   self.assertIn('workspace/scripts/apply-patches.sh',readme)
   script=(ROOT/'scripts/apply-patches.sh').read_text()
-  self.assertIn("['001','002','003','004','005']",script)
+  self.assertIn("['001','002','003','004','005','006','007','008']",script)
  def test_the_system_dashboard_migration_follows_the_pinned_head(self):
   text=(ROOT/'patches/004-system-dashboard.patch').read_text()
   self.assertIn('+down_revision = "0d4a342f4c26"',text)

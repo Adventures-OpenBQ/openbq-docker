@@ -81,14 +81,14 @@ def test_rustfs_fails_closed_on_an_empty_or_default_root_pair():
     assert rustfs['restart'] == 'unless-stopped'
     # REVIEW (user ruling 2026-10-12, "rustfs should be persistent"): the store moved from the
     # named volume rustfs-data to a host directory, so `down -v` cannot delete it.
-    assert rustfs['volumes'] == ['${RUSTFS_DATA_DIR:-./rustfs-data}:/data']
+    assert rustfs['volumes'] == [{'type': 'bind', 'source': '${RUSTFS_DATA_DIR:-./rustfs-data}', 'target': '/data', 'bind': {'create_host_path': True}}]
     assert 'rustfs-data' not in COMPOSE['volumes']
 
 
 def test_rustfs_data_is_a_host_directory_made_writable_before_rustfs_starts():
     rustfs, perms = SERVICES['rustfs'], SERVICES['rustfs-perms']
     # Same directory in both, and rustfs waits for the one-shot to finish.
-    assert perms['volumes'] == rustfs['volumes'] == ['${RUSTFS_DATA_DIR:-./rustfs-data}:/data']
+    assert perms['volumes'] == rustfs['volumes'] == [{'type': 'bind', 'source': '${RUSTFS_DATA_DIR:-./rustfs-data}', 'target': '/data', 'bind': {'create_host_path': True}}]
     assert rustfs['depends_on'] == {'rustfs-perms': {'condition': 'service_completed_successfully'}}
     assert perms['profiles'] == ['live'] and perms['restart'] == 'no'
     # The RustFS image runs as 10001:10001; only the one-shot runs as root, with no network.
@@ -106,7 +106,8 @@ def test_the_bucket_is_made_over_the_s3_api_before_the_flush_starts():
     init, eod = SERVICES['rustfs-init'], SERVICES['eod-dump']
     assert init['command'] == ['python', '/opt/s3_init.py'] and init['restart'] == 'no'
     assert init['depends_on'] == {'rustfs': {'condition': 'service_healthy'}}
-    assert eod['depends_on'] == {'rustfs-init': {'condition': 'service_completed_successfully'}}
+    assert eod['depends_on'] == {'openbq-kdb': {'condition': 'service_started'},
+                                 'rustfs-init': {'condition': 'service_completed_successfully'}}
     for svc in (init, eod):
         assert svc['image'] == 'openbq-lake:10.0.0'
         assert svc['build'] == {'context': '.', 'dockerfile': 'Dockerfile.lake'}
@@ -122,7 +123,8 @@ def test_the_bucket_is_made_over_the_s3_api_before_the_flush_starts():
 
 def test_the_lake_image_keeps_openbb_platform_5():
     text = (ROOT / 'Dockerfile.lake').read_text()
-    assert '--constraint /tmp/requirements.lock' in text and 'openbb-core==2.0.1' in text
+    assert '--require-hashes -r /tmp/lake.lock' in text
+    assert 'openbb-core==2.0.1' in (ROOT / 'requirements.lake.lock').read_text()
     assert 'openbb-core==2.0.1' in (ROOT / 'requirements.lock').read_text()
     assert 'COPY scripts/eod_dump.py scripts/s3_init.py /opt/' in text
 

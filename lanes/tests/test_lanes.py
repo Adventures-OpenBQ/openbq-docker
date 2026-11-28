@@ -203,6 +203,68 @@ class LaneTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(busy), 1)
         self.assertIn("retry-after", busy[0].headers)
 
+    async def test_a_client_that_leaves_the_queue_frees_its_place(self):
+        # A page that gives up on a card (the regression render, a closed dashboard) must not hold its
+        # queue place until the lane reaches it: 16 such waiters filled the queue (v4/v5 CFTC 503s).
+        self.make(queue_max=1)
+        await self.client.get("/api/v1/cftc/echo")
+        busy = asyncio.ensure_future(self.client.get("/api/v1/cftc/sleep?seconds=3"))
+        await asyncio.sleep(0.5)
+        sent = []
+
+        async def receive():
+            if not sent:
+                sent.append(1)
+                return {"type": "http.request", "body": b"", "more_body": False}
+            return {"type": "http.disconnect"}
+
+        gone = Request({"type": "http", "method": "GET", "path": "/api/v1/cftc/echo", "raw_path": b"/api/v1/cftc/echo",
+                        "query_string": b"", "headers": [], "scheme": "http", "server": ("api", 80),
+                        "app": FastAPI()}, receive)
+        await asyncio.wait_for(self.lane.handle(gone, None), 1.5)
+        self.assertEqual(self.lane.waiting, 0)
+        self.assertEqual((await self.client.get("/api/v1/cftc/echo")).status_code, 200)
+        self.assertEqual((await busy).status_code, 200)
+
+    async def test_cancelled_queue_request_preserves_active_and_other_waiters(self):
+        self.make(queue_max=3)
+        pid = (await self.client.get("/api/v1/cftc/echo")).json()["pid"]
+        requests = []
+
+        async def queued(count):
+            async with asyncio.timeout(1):
+                while self.lane.waiting != count:
+                    await asyncio.sleep(0)
+
+        try:
+            active = asyncio.create_task(self.client.get("/api/v1/cftc/sleep?seconds=0.2"))
+            requests.append(active)
+            async with asyncio.timeout(1):
+                while not self.lane.lock.locked():
+                    await asyncio.sleep(0)
+            abandoned = asyncio.create_task(self.client.get("/api/v1/cftc/echo?abandoned=1"))
+            requests.append(abandoned)
+            await queued(1)
+            survivor = asyncio.create_task(self.client.get("/api/v1/cftc/echo?survivor=1"))
+            requests.append(survivor)
+            await queued(2)
+            abandoned.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await abandoned
+            self.assertEqual(self.lane.waiting, 1)
+            self.assertEqual((await active).status_code, 200)
+            response = await asyncio.wait_for(survivor, 1)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["query"], "survivor=1")
+            self.assertEqual(response.json()["pid"], pid)
+            self.assertEqual(self.lane.restarts, 0)
+        finally:
+            # These are only this test's requests; the running worker owns its work.
+            for request in requests:
+                if not request.done():
+                    request.cancel()
+            await asyncio.gather(*requests, return_exceptions=True)
+
     async def test_a_dead_worker_answers_502_and_is_respawned(self):
         self.make()
         pid = (await self.client.get("/api/v1/cftc/echo")).json()["pid"]
@@ -338,11 +400,13 @@ class SsrmCatalogTest(unittest.IsolatedAsyncioTestCase):
             "/api/v1/absent/route": "absent_widget_obb",  # listed but not in widgets.json: skipped
         }
 
-    async def serve(self):
+    async def serve(self, widgets=None):
         app = FastAPI()
 
         @app.get("/widgets.json")
         async def widgets_json():
+            if widgets is not None:
+                return widgets
             return {
                 "cftc_swap_trades_cftc_obb": {
                     "name": "Swap trades", "type": "table",
@@ -369,10 +433,84 @@ class SsrmCatalogTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body["other_obb"], {"name": "Other", "type": "table", "endpoint": "/api/v1/other"})
         self.assertNotIn("absent_widget_obb", body)              # listed-but-absent skipped, no error
 
-    def test_the_committed_list_has_23_widgets_with_ssrm_routes(self):
+    def test_committed_legacy_ssrm_routes_remain_available(self):
         routes = openbq_lanes._load_ssrm_widgets(Path(__file__).parent.parent / "ssrm_widgets.json")
-        self.assertEqual(len(routes), 23)
-        self.assertTrue(all(r.startswith("/api/v1/") for r in routes))
+        self.assertEqual(routes["/api/v1/cftc/swap_trades"], "cftc_swap_trades_cftc_obb")
+        self.assertEqual(routes["/api/v1/finra/fixedincome/bonds"], "finra_fixedincome_bonds_finra_obb")
+        self.assertEqual(routes["/api/v1/federal_reserve/ffiec/institution_structure"],
+                         "ffiec_institution_structure_federal_reserve_obb")
+
+
+    async def test_eia_paging_widgets_use_the_committed_ssrm_routes(self):
+        openbq_lanes.SSRM_ROUTES = openbq_lanes._load_ssrm_widgets(
+            Path(__file__).parent.parent / "ssrm_widgets.json")
+        expected = {
+            'eia_petroleum_imports_exports_and_movements_movements_of_crude_oil_and_selected_products_by_rail_eia_obb': '/api/v1/eia/petroleum/imports_exports_and_movements/movements_of_crude_oil_and_selected_products_by_rail',
+            'eia_petroleum_refining_and_processing_refinery_net_input_eia_obb': '/api/v1/eia/petroleum/refining_and_processing/refinery_net_input',
+            'eia_natural_gas_consumption_end_use_natural_gas_consumption_by_end_use_eia_obb': '/api/v1/eia/natural_gas/consumption_end_use/natural_gas_consumption_by_end_use',
+            'eia_coal_by_mine_by_plant_eia_obb': '/api/v1/eia/coal/by_mine_by_plant',
+            'eia_petroleum_refining_and_processing_refinery_blender_net_input_eia_obb': '/api/v1/eia/petroleum/refining_and_processing/refinery_blender_net_input',
+            'eia_petroleum_refining_and_processing_refinery_net_production_eia_obb': '/api/v1/eia/petroleum/refining_and_processing/refinery_net_production',
+            'eia_petroleum_refining_and_processing_natural_gas_plant_field_production_eia_obb': '/api/v1/eia/petroleum/refining_and_processing/natural_gas_plant_field_production',
+            'eia_petroleum_imports_exports_and_movements_movements_by_tanker_and_barge_between_pad_districts_eia_obb': '/api/v1/eia/petroleum/imports_exports_and_movements/movements_by_tanker_and_barge_between_pad_districts',
+            'eia_natural_gas_prices_natural_gas_prices_eia_obb': '/api/v1/eia/natural_gas/prices/natural_gas_prices',
+            'eia_petroleum_prices_weekly_retail_gasoline_and_diesel_prices_eia_obb': '/api/v1/eia/petroleum/prices/weekly_retail_gasoline_and_diesel_prices',
+            'eia_petroleum_status_report_eia_obb': '/api/v1/eia/petroleum_status_report',
+            'eia_natural_gas_summary_natural_gas_summary_eia_obb': '/api/v1/eia/natural_gas/summary/natural_gas_summary',
+            'eia_electricity_electric_power_operations_eia_obb': '/api/v1/eia/electricity/electric_power_operations',
+            'eia_natural_gas_production_natural_gas_gross_withdrawals_and_production_eia_obb': '/api/v1/eia/natural_gas/production/natural_gas_gross_withdrawals_and_production',
+            'eia_petroleum_consumption_sales_product_supplied_eia_obb': '/api/v1/eia/petroleum/consumption_sales/product_supplied',
+            'eia_petroleum_imports_exports_and_movements_exports_eia_obb': '/api/v1/eia/petroleum/imports_exports_and_movements/exports',
+            'eia_petroleum_imports_exports_and_movements_imports_by_area_of_entry_eia_obb': '/api/v1/eia/petroleum/imports_exports_and_movements/imports_by_area_of_entry',
+            'eia_petroleum_imports_exports_and_movements_movements_between_pad_districts_eia_obb': '/api/v1/eia/petroleum/imports_exports_and_movements/movements_between_pad_districts',
+            'eia_petroleum_imports_exports_and_movements_net_receipts_between_pad_districts_eia_obb': '/api/v1/eia/petroleum/imports_exports_and_movements/net_receipts_between_pad_districts',
+            'eia_petroleum_imports_exports_and_movements_us_imports_by_country_of_origin_eia_obb': '/api/v1/eia/petroleum/imports_exports_and_movements/us_imports_by_country_of_origin',
+            'eia_petroleum_imports_exports_and_movements_weekly_imports_exports_eia_obb': '/api/v1/eia/petroleum/imports_exports_and_movements/weekly_imports_exports',
+            'eia_petroleum_prices_no2_distillate_prices_by_sales_type_eia_obb': '/api/v1/eia/petroleum/prices/no2_distillate_prices_by_sales_type',
+            'eia_petroleum_prices_refiner_gasoline_prices_by_grade_and_sales_type_eia_obb': '/api/v1/eia/petroleum/prices/refiner_gasoline_prices_by_grade_and_sales_type',
+            'eia_petroleum_prices_residual_fuel_oil_prices_by_sales_type_eia_obb': '/api/v1/eia/petroleum/prices/residual_fuel_oil_prices_by_sales_type',
+            'eia_petroleum_refining_and_processing_blender_net_input_eia_obb': '/api/v1/eia/petroleum/refining_and_processing/blender_net_input',
+            'eia_petroleum_refining_and_processing_blender_net_production_eia_obb': '/api/v1/eia/petroleum/refining_and_processing/blender_net_production',
+            'eia_petroleum_refining_and_processing_weekly_refiner_blender_net_production_eia_obb': '/api/v1/eia/petroleum/refining_and_processing/weekly_refiner_blender_net_production',
+            'eia_petroleum_stocks_refinery_bulk_terminal_and_natural_gas_plant_stocks_by_state_eia_obb': '/api/v1/eia/petroleum/stocks/refinery_bulk_terminal_and_natural_gas_plant_stocks_by_state',
+            'eia_petroleum_stocks_refinery_stocks_eia_obb': '/api/v1/eia/petroleum/stocks/refinery_stocks',
+            'eia_petroleum_stocks_weekly_stocks_eia_obb': '/api/v1/eia/petroleum/stocks/weekly_stocks',
+        }
+        widgets = {key: {"name": key, "type": "table", "endpoint": route}
+                   for key, route in expected.items()}
+        widgets["unlisted"] = {"type": "table", "endpoint": "/api/v1/new/main-only"}
+        body = await self.serve(widgets)
+        for key, route in expected.items():
+            with self.subTest(widget=key):
+                self.assertEqual(body[key]["type"], "ssrm_table")
+                self.assertEqual(body[key]["endpoint"], route + "/ssrm")
+                self.assertEqual(body[key]["ssrm"], {"sorting": True, "filtering": ["text", "number"]})
+        self.assertEqual(body["unlisted"], widgets["unlisted"])
+
+
+class QueueWaiterOwnershipTest(unittest.IsolatedAsyncioTestCase):
+    async def test_cancellation_at_lock_handoff_releases_only_the_owned_turn(self):
+        lane = openbq_lanes.Lane([], "/unused/task-owned.sock", prefixes=["/api/v1/cftc/"])
+        await lane.lock.acquire()
+        waiting = asyncio.Event()
+        real_wait = asyncio.wait
+
+        async def cancel_after_acquisition(tasks, **kwargs):
+            waiting.set()
+            result = await real_wait(tasks, **kwargs)
+            # Deliver cancellation after the real acquire finishes, before handoff.
+            asyncio.current_task().cancel()
+            await asyncio.sleep(0)
+            return result
+
+        with mock.patch.object(openbq_lanes.asyncio, "wait", cancel_after_acquisition):
+            request = asyncio.create_task(lane._wait_turn(
+                Request({"type": "http"}), time.monotonic() + 5))
+            await waiting.wait()
+            lane.lock.release()
+            with self.assertRaises(asyncio.CancelledError):
+                await request
+        self.assertFalse(lane.lock.locked())
 
 
 class SsrmLaneTest(unittest.IsolatedAsyncioTestCase):

@@ -7,7 +7,7 @@ services:
       context: .
       dockerfile: kdb-secured/Dockerfile
       args:
-        KDB_BASE_IMAGE: ${KDB_IMAGE:-ghcr.io/artcashin/kdb-x:1.1@sha256:b7fe12489fb255c23273609b6c878889cb249a011b34a132d46a1b2801443894}
+        KDB_BASE_IMAGE: ${KDB_IMAGE:-openbq-kdb-x:local}
     image: openbq-kdb-secured:10.0.0
     entrypoint: [/usr/bin/tini, --, /usr/bin/python3, -m, openbq_kdb.bootstrap]
     command: [--q, /root/.kx/bin/q, --bind, 0.0.0.0, --port, "5000", --mode, tickplant, --data-dir, /data]

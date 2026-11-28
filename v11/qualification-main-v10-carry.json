@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "scope": "main-only V10 behavior carry; V1-V10 remain closed",
+  "frontend": {
+    "core_test_commit": "2237170be3a777d0123a8d42db5f362f1f36e1e5",
+    "source_offer_commit": "8521c85ccf6cc2ac8362906f284ffae12c0a15a0",
+    "unit_passed": 10997,
+    "existing_environment_skipped": 48,
+    "typecheck_lint_build_notices_wasm_web": "passed",
+    "later_changes": "Focused browser contract fixtures and admitted-state URL encoding; 47 affected browser cases passed without retries and all 105 web boundary tests passed. Final combined-source CI is tracked by the companion PR.",
+    "source_id": "cb26d875107a7773dffe7aa717fddd93742401ba622bcdde80a34c26e8ea84b7",
+    "web_boundary_tests": 105,
+    "affected_browser_tests": 47
+  },
+  "provider_host": {
+    "source_commit": "a2194389c3b1be89348c75d4a6a3896e85cf3430",
+    "image_id": "sha256:b3dbb2fe40d9dca04e55bfc17230b67e58f77868ad6ff1248f4ccac1ddd4740a",
+    "platform": "linux/arm64",
+    "scope": "fresh installed security delta after unchanged-provider qualification recorded separately",
+    "fresh_volumes": 2,
+    "transport": "private Tailscale sidecar HTTPS",
+    "catalogue_widgets": 1053,
+    "catalogue_apps": 55,
+    "installed_viewer_sha256": {
+      "openbb_government_us/congress/assets/member_bio.html": "6f6a7ffe4dbe27f8dc16ae104d166b9ec9503c806e596d063e3fc5edf05f8b8c",
+      "openbb_us_eia/assets/data_browser.html": "84bcfe3f2e6e6b38369eb44329aad6206c58cb920b69dc7065fac3bbb8d0ac0c",
+      "openbb_us_eia/assets/rss_feed.html": "c49f037bf72921eda54bc854bdf331f28696548a1386560f8858d2faf64a6016"
+    },
+    "data_bearing_queries": 2,
+    "actual_rows": 49,
+    "generated_HTML_viewers": 2,
+    "operator_keys_used": false,
+    "reused_evidence": "Earlier ten-query reader pass, five-provider registered-key pass and installed PostgreSQL settings checks retain their original commit/image identities in previous_provider_host_qualification. Provider fetchers and PostgreSQL settings sources are unchanged; those prior executions are not relabeled as new-image tests."
+  },
+  "table_service": {
+    "source_commit": "2237170be3a777d0123a8d42db5f362f1f36e1e5",
+    "image_id": "sha256:68572642b3b4fc419e17f3ba8b2d4c7dea812be47731d89d56f907078d08b6ba",
+    "platform": "linux/arm64",
+    "reader_recipe_build": "passed",
+    "fresh_nonroot_readonly_synthetic_runtime": "passed auth/native calculations/derive/export/isolation/restart persistence",
+    "task_resources": "removed after checks"
+  },
+  "capture_service": {
+    "source_commit": "ff85de318205ce9e7733538cb3082b80f6f63f35",
+    "image_id": "sha256:7f70cea87e8076dad1dd355d924c58239b9adcfbaf6ef21e37e9fd2847ef7458",
+    "installed_checks": 22,
+    "scope": "actual installed HTTP capture/retain/join, PostgreSQL/S3, baked Linux extensions, accepted Silver and exact numeric query",
+    "external_ingress_and_full_role_bootstrap": "not newly qualified by these bounded checks"
+  },
+  "source_and_release_policy": {
+    "origins": "Adventures-OpenBQ only",
+    "legacy_release_refs_assets": "untouched",
+    "built_container_distribution": "local private QA only; no public container distribution",
+    "normal_V11_installer_or_platform_release": "not created or qualified"
+  },
+  "previous_provider_host_qualification": {
+    "source_commit": "38009c5551b4909382ca24d251b976684c177ea9",
+    "image_id": "sha256:b7ad984709f4fc28681aed97c5d1f1c066036e3d2e1c870ae9fad27f46a76430",
+    "platform": "linux/arm64",
+    "fresh_reader": {
+      "transport": "private Tailscale sidecar HTTPS",
+      "data_bearing_queries": 10,
+      "actual_rows": 377,
+      "EIA_requests": 2,
+      "keys": "public demo or keyless only"
+    },
+    "registered_keys": {
+      "status": "passed five separate registered-provider data checks",
+      "rows": {
+        "eia": 5,
+        "bls": 10,
+        "congress": 2,
+        "eodhd": 133,
+        "fred": 10
+      },
+      "total_validated_rows": 160,
+      "transport": "private Tailscale sidecar HTTPS",
+      "profile_and_cache_storage": "memory-only tmpfs; image/profile read-only; kernel swap0; no provider values in Docker configuration/argv/logs",
+      "container_limit_GiB": 4,
+      "credential_containers_and_temporary_port": "removed after checks",
+      "FRED_verification": "Exact date and numeric FEDFUNDS column validated; did not rerun four prior valid calls"
+    },
+    "installed_postgresql_settings_checks": 6,
+    "runtime_resource_note": "Reader boot exceeded an artificial2GiB QA cap; passed at3GiB. Read-only memory-only registered harness is separately bounded at4GiB; its tmpfs pages count toward that cap."
+  },
+  "rss_service": {
+    "source_commit": "c44ff782e96a65a6906139f59db8f6c8a37729c0",
+    "image_id": "sha256:cd799f74f87c85966efcb384cb03ffee10bf125ec4be58ac8ac0b4615cca861d",
+    "platform": "linux/arm64",
+    "fresh_volumes": 2,
+    "nonroot_data_writable": true,
+    "initial_articles": 0,
+    "actual_public_articles": 5,
+    "favicons_present": 1,
+    "valid_video_wrapper_status": 200,
+    "invalid_video_identifier_status": 400,
+    "source_tests": 278,
+    "operator_keys_used": false,
+    "task_resources": "removed after checks"
+  },
+  "backend_security_and_CI": {
+    "combined_root_tests": 278,
+    "existing_environment_skipped": 2,
+    "subtests": 51,
+    "gateway_tests": 219,
+    "settings_route_tests": 74,
+    "workspace_source_tests": 28,
+    "workspace_subtests": 4,
+    "actual_viewer_browser_tests": 8,
+    "CodeQL": "No new alerts on final production and test code; all language analyses passed. Metadata-only follow-up retains those source identities.",
+    "publication_hooks": "Actual two-gate boundary protocol, downstream refusal propagation and real compressed-content scanning; a missing pinned scanner still blocks publication."
+  }
+}

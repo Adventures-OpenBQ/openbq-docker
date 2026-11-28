@@ -13,15 +13,17 @@ jobs:
           fetch-depth: 0
       - name: Scan current files and reachable history
         run: python3 scripts/check-public.py --history HEAD
-      - name: Verify source assembly and privacy checks
-        run: python3 -m unittest discover -s workspace/tests
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install the checksum-pinned publication scanner
+        run: python3 security/install.py
       - name: Test the key-mode settings, dashboard and app sync routes
         run: |
           python3 -m pip install --quiet pytest==9.0.2 starlette==1.7.0 httpx==0.28.1 anyio==4.15.1
           python3 -m pytest v3/tests -q -p no:cacheprovider
+      - name: Verify source assembly and privacy checks
+        run: python3 -m pytest workspace/tests/test_*.py -q -p no:cacheprovider
       - name: Test the web profile's compose and Serve configs
         run: |
           python3 -m pip install --quiet pyyaml==6.0.2 fastapi==0.142.2 pydantic==2.13.5 "psycopg[binary]==3.3.2"

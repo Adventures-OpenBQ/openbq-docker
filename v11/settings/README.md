@@ -33,8 +33,11 @@ python -m openbq_settings_pg.migrate_json migrate
 
 The migration command reads only `OPENBQ_SETTINGS_MIGRATION_DSN`. Give that secret
 only to the explicit migration/import job. It obtains the settings advisory lock,
-runs `settings-001`, and records the SHA256 of `schema.sql`. Repeated migration
-checks the exact revision/checksum; an unknown version or checksum fails closed.
+runs `settings-001` followed by additive `settings-002`, recording each SQL file's
+SHA256. An existing, checksum-verified 001 database upgrades in one transaction;
+its documents and historical checkpoints remain intact. Repeated migration
+checks the exact ordered revision/checksum chain; an unknown version or checksum
+fails closed. Never edit an already-applied migration or its recorded checksum.
 Runtime never applies DDL. DSNs are libpq strings or correctly encoded PostgreSQL
 URIs; no tool concatenates passwords into URLs. Require explicit host, database,
 user and `connect_timeout` (1–10 seconds). TLS fields pass directly to libpq;
@@ -100,6 +103,11 @@ persistence. Ordinary 2 MiB and exact-v11-widgets 8 MiB budgets stay separate.
 Stop all writers and use a consistent **copy**. The source layout is explicit:
 `source/keys/<64-hex-stem>[.dashboards|.apps].json` and
 `source/state/<numeric-id>/<encodeURIComponent(logical-name)>`.
+The gateway's newer `source/state/<numeric-id>/.state.sqlite` format is also
+recognized. Copy it only after stopping writers and cleanly closing SQLite;
+copies with a WAL, shared-memory file or journal are refused. Its initialized
+database is authoritative over retained old JSON files. Inventory reads it
+without modifying the source and includes writer fences and deleted records.
 The mapping file is a JSON object from each selected legacy credential stem to a
 canonical stable principal UUID. It contains no Basic credentials. Multiple stems
 mapping to one UUID are refused: select the authoritative generation explicitly.
@@ -118,12 +126,19 @@ python -m openbq_settings_pg.migrate_json export-legacy --destination /new-gener
 
 Import and completion checkpoint commit together. The checkpoint records source
 manifest, schema checksum, document lengths/hashes and mapping. An interrupted
-transaction leaves no partial usable store. An identical completed import can
+transaction leaves no partial usable store. Bodies, tombstones and per-writer
+sequences import together. An identical completed import can
 verify/no-op; divergent source/target or unrelated populated targets refuse.
 After runtime writes, the old import checkpoint intentionally no longer verifies.
+An unchanged 001 import can still verify after the additive upgrade; its original
+checkpoint is compared exactly and never rewritten to claim a new import.
 
-Reverse export reads one consistent document snapshot, writes new protected files,
+Reverse export reads one consistent document/fence snapshot, writes new protected files,
 verifies counts/hashes and atomically publishes a new destination generation.
+Accounts with writer fences export to SQLite, including deleted-only accounts;
+other accounts retain their raw JSON format. Use a gateway supporting fenced
+SQLite state for those exports. Fenced text that cannot round-trip through
+SQLite's UTF-8 text format is refused before publishing, rather than converted.
 Choose the destination stem explicitly (it may represent a rotated Basic pair).
 Never overwrite the original source or treat an old pre-write snapshot as a
 rollback including later writes. Restore key files as OPENBQ_SETTINGS_DIR and

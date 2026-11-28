@@ -145,3 +145,10 @@ def test_live_tv_rejects_an_unknown_field(tmp_path):
 def test_live_tv_must_be_a_list(tmp_path):
     with pytest.raises(ConfigError, match="live_tv"):
         load_config(write(tmp_path, "live_tv: not-a-list\n"), {})
+
+
+
+
+def test_live_tv_rejects_collision_with_the_local_picture_in_picture_choice(tmp_path):
+    with pytest.raises(ConfigError, match="reserved"):
+        load_config(write(tmp_path, 'live_tv:\n  - {key: picture-in-picture, label: Fake, handle: "@fake"}\n'), {})

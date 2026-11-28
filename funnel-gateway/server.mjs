@@ -22,6 +22,7 @@ import { mcpRoute, mcpMessage, MCP_SESSION_RE, MCP_VERSION_RE } from "./mcp-poli
 import { rasterType, LOGO_RESPONSE_BYTES, tableRoute, tableControlRoute, TABLE_CONTROL_CONCURRENCY, TABLE_RESPONSE_BYTES, upstreamPath, newsSubscription, liveGridSubscription, chartStreamControl, refSubscription, socketTarget, socketTicket, socketTicketNonce, stateFile } from "./policy.mjs";
 
 import { requestState as remoteState } from "./state-store.mjs";
+import {stateVersion, readState, commitState} from "./state-local.mjs";
 
 import { temporalRoute, temporalStatus } from "./temporal-policy.mjs";
 
@@ -442,21 +443,7 @@ export function rewriteGridWidgets(spec, config) {
  * 256 KiB a file, 2 MiB and 200 files a user. One flat directory per user; a name is
  * stored percent-encoded, so no request can name a path.
  */
-const STATE_FILE_MAX = 262144, STATE_USER_MAX = 2 * 1024 * 1024, STATE_USER_FILES = 200;
-async function stateFiles(dir) {
-  let names; try { names = await readdir(dir); } catch { return []; }
-  // A crash between the temp write and its rename leaves a .tmp- behind that no listing
-  // or quota counts. Swept once stale; a minute is far past any write still in flight.
-  for (const stored of names.filter(n => n.startsWith(".tmp-"))) {
-    const temp = join(dir, stored);
-    try { if (Date.now() - (await stat(temp)).mtimeMs > 60000) await rm(temp, { force: true }); } catch { /* raced a rename */ }
-  }
-  // A hand-copied file whose name is not valid percent-encoding must not take the whole
-  // user listing down with it: it is skipped, exactly like a name the allow-list refuses.
-  return names.map(stored => {
-    try { return { stored, name: decodeURIComponent(stored) }; } catch { return null; }
-  }).filter(f => f && stateFile(f.name));
-}
+const STATE_FILE_MAX = 262144;
 /** A bounded JSON request body, or the status that refuses it. Parsed only to prove it parses. */
 async function jsonBody(req, max) {
   if (!req.headers["content-type"]?.startsWith("application/json")) return 415;
@@ -476,26 +463,24 @@ async function handleState(req, res, url, config) {
   const dir = join(config.stateDir, match[1]), name = match[2];
   if (name === undefined) {
     if (req.method !== "GET") return reply(res, 405);
-    const files = {};
-    for (const f of await stateFiles(dir)) files[f.name] = await readFile(join(dir, f.stored), "utf8");
-    return reply(res, 200, { files });
+    return reply(res, 200, {files: readState(dir)});
   }
   if (!stateFile(name)) return reply(res, 404);
-  const path = join(dir, encodeURIComponent(name));
-  if (req.method === "DELETE") { await rm(path, { force: true }); return reply(res, 204); }
-  if (req.method !== "PUT") return reply(res, 405);
-  const body = await jsonBody(req, STATE_FILE_MAX);
-  if (typeof body === "number") return reply(res, body);
-  const others = (await stateFiles(dir)).filter(f => f.name !== name);
-  let total = body.length;
-  for (const f of others) total += (await stat(join(dir, f.stored))).size;
-  if (total > STATE_USER_MAX || others.length >= STATE_USER_FILES) return reply(res, 413);
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  // Same directory, so the rename is atomic; the name can never pass stateFile.
-  const temp = join(dir, ".tmp-" + randomBytes(8).toString("hex"));
-  try { await writeFile(temp, body, { mode: 0o600 }); await rename(temp, path); }
-  catch (error) { await rm(temp, { force: true }); throw error; }
-  return reply(res, 204);
+  if (req.method !== "PUT" && req.method !== "DELETE") return reply(res, 405);
+  const version = stateVersion(req);
+  if (version === false) return reply(res, 400);
+  let body = null;
+  if (req.method === "PUT") {
+    const raw = await jsonBody(req, STATE_FILE_MAX);
+    if (typeof raw === "number") return reply(res, raw);
+    body = raw.toString("utf8");
+  }
+  const status = commitState(dir, name, body, version);
+  if (status === 204 && version) {
+    res.setHeader("x-bdobb-state-writer", version.writer);
+    res.setHeader("x-bdobb-state-sequence", version.raw);
+  }
+  return reply(res, status);
 }
 
 // Identity assertions use a separate server-only credential. Possession of the shared
@@ -843,6 +828,8 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
         if (!match || url.search || (match[2] !== undefined && !stateFile(match[2]))) return reply(res, 404);
         const [, id, name] = match;
         if (name === undefined ? req.method !== "GET" : !["PUT", "DELETE"].includes(req.method)) return reply(res, 405);
+        const version = name === undefined ? null : stateVersion(req);
+        if (version === false) return reply(res, 400);
         if (inflight >= config.maxConcurrent) return reply(res, 429);
         inflight++;
         const controller = new AbortController(); stateCalls.add(controller);
@@ -855,7 +842,12 @@ export function createGateway(config, { requestJson = getJson, openNews = connec
             if (typeof body === "number") return reply(res, body);
           }
           const answer = await requestState(req.method, id, name, body, config,
-            AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]));
+            AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]), version);
+          if (version && answer.status === 204) {
+            if (answer.version?.writer !== version.writer || answer.version?.sequence !== version.sequence) return reply(res, 502);
+            res.setHeader("x-bdobb-state-writer", version.writer);
+            res.setHeader("x-bdobb-state-sequence", String(version.sequence));
+          }
           return reply(res, answer.status, answer.json);
         } finally {
           stateCalls.delete(controller); res.off("close", abort); req.off("aborted", abort); inflight--;

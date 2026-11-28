@@ -16,12 +16,12 @@
 # copied into a layer stays in that layer even if a later step deletes it.
 #
 # Build for one platform (loads into the local daemon):
-#   docker build -t kdb-x:local kdb-x/
+#   docker build --build-arg KX_VERSION=<exact-version> -t kdb-x:local kdb-x/
 #
 # Build a real multi-arch image and push it to a PRIVATE registry (buildx cannot
 # --load two platforms at once, which is why this pushes; the package must stay
 # private, since it carries q):
-#   docker buildx build --platform linux/amd64,linux/arm64 \
+#   docker buildx build --build-arg KX_VERSION=<exact-version> --platform linux/amd64,linux/arm64 \
 #     -t ghcr.io/<you>/kdb-x:1.1 --push kdb-x/
 #
 # Then verify the manifest genuinely carries both -- a single-arch tag
@@ -36,9 +36,10 @@ FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595
 # AArch64. (`m64`/`m64arm` are macOS Mach-O builds and cannot run in a Linux
 # container at all -- that distinction costs an afternoon if you miss it.)
 ARG TARGETARCH
-ARG KX_VERSION=~latest~
+ARG KX_VERSION
 
 RUN set -eux; \
+    test -n "$KX_VERSION" || { echo "Set an exact KX_VERSION before building" >&2; exit 1; }; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         ca-certificates curl unzip tini libssl3 libcurl4; \

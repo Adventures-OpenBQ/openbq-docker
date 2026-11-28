@@ -1,7 +1,7 @@
 # Copyright 2026 Art Cashin.
 # SPDX-License-Identifier: AGPL-3.0-only
 
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 
 ENV PYTHONUNBUFFERED=1 \
@@ -24,9 +24,15 @@ RUN apt-get update \
     && chown -R ticker:ticker /data /config
 
 WORKDIR /app
+COPY requirements-build.lock ./requirements-build.lock
+RUN python -m pip install --no-cache-dir --require-hashes --no-deps -r requirements-build.lock
+COPY requirements.lock ./requirements.lock
+RUN python -m pip install --no-cache-dir --require-hashes --no-deps --no-build-isolation -r requirements.lock
 COPY pyproject.toml README.md LICENSE LICENSE.upstream LICENSING.md THIRD_PARTY_NOTICES.md ./
 COPY src ./src
-RUN pip install --no-cache-dir .
+RUN python -m pip install --no-cache-dir --no-index --no-deps --no-build-isolation . && python -m pip check
+COPY scripts/verify-httpx-trust-bundle.py /tmp/verify-httpx-trust-bundle.py
+RUN python /tmp/verify-httpx-trust-bundle.py && rm /tmp/verify-httpx-trust-bundle.py
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh

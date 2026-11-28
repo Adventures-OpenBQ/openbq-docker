@@ -79,8 +79,8 @@ async def document_choices(
 )
 async def document_download(params: Annotated[dict, Body()]) -> list:
     """Download BLS Real Earnings PDFs and return them base64-encoded."""
+    import asyncio
     import base64
-    from io import BytesIO
     from urllib.parse import urlparse
 
     from openbb_core.provider.utils.helpers import make_request
@@ -92,28 +92,44 @@ async def document_download(params: Annotated[dict, Body()]) -> list:
         urls = [urls]
     results: list = []
     for url in urls:
-        parsed = urlparse(url)
-        if parsed.scheme != "https" or (parsed.hostname or "") not in {
-            "www.bls.gov",
-            "bls.gov",
-        }:
+        try:
+            parsed = urlparse(url)
+            allowed_origin = (
+                parsed.scheme == "https"
+                and parsed.hostname in {"www.bls.gov", "bls.gov"}
+                and parsed.username is None
+                and parsed.password is None
+                and parsed.port in (None, 443)
+            )
+        except ValueError:
+            allowed_origin = False
+        if not allowed_origin:
             raise OpenBBError(f"Invalid URL — must be served from bls.gov: {url}")
         if not url.lower().endswith(".pdf"):
             raise OpenBBError(f"Unsupported document format (PDF only): {url}")
         try:
-            resp = make_request(
+            resp = await asyncio.to_thread(
+                make_request,
                 url,
                 headers={
                     "User-Agent": BLS_USER_AGENT,
                     "Accept": "application/pdf,*/*",
                 },
+                allow_redirects=False,
             )
             resp.raise_for_status()
-            encoded = (
-                base64.b64encode(BytesIO(resp.content).getvalue()).decode("utf-8")
-                if isinstance(resp.content, bytes)
-                else resp.content
-            )
+            if not 200 <= resp.status_code < 300:
+                raise ValueError(
+                    "The document download did not return a successful HTTP response."
+                )
+            content = resp.content
+            if (
+                not isinstance(content, bytes)
+                or not content.startswith(b"%PDF-")
+                or b"%%EOF" not in content[-2048:]
+            ):
+                raise ValueError("The document download did not return a complete PDF.")
+            encoded = base64.b64encode(content).decode("utf-8")
             results.append(
                 {
                     "content": encoded,

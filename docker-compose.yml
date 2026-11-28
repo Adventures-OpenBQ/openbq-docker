@@ -196,11 +196,10 @@ services:
   # lake jobs join. funnel-gateway, openbq-api and the sidecar share no network with it.
   openbq-kdb:
     profiles: [live]
-    # The default is the maintainer's PRIVATE image (kdb+ is proprietary: KX's licence does not
-    # permit redistributing q, so no kdb image is ever published), pinned by digest and built
-    # for linux/amd64 only. Anyone else sets KDB_IMAGE, or builds their own from their licensed
-    # KDB-X with compose.kdb-build.yml (amd64 or arm64; recipe in kdb-x/).
-    image: ${KDB_IMAGE:-ghcr.io/artcashin/kdb-x:amd64@sha256:013490f90a166e0863651f2c8a7f5d24e8d1beec68d2e3e541c1a2281653a77c}
+    # KDB-X is proprietary; this repository supplies a local build recipe, not q.
+    # Build the reader-local image with compose.kdb-build.yml and an explicit KX_VERSION.
+    # KDB_IMAGE can select an operator-authorized image.
+    image: ${KDB_IMAGE:-openbq-kdb-x:local}
     restart: unless-stopped
     environment:
       # No host part: q listens on this container's bridge interface (live-grid dials openbq-kdb:5000).
@@ -253,6 +252,10 @@ services:
     image: openbq-live-grid:10.0.0
     restart: unless-stopped
     depends_on:
+      openbq-api:
+        condition: service_started
+      openbq-kdb:
+        condition: service_started
       live-grid-perms:
         condition: service_completed_successfully
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "6903"]
@@ -336,6 +339,8 @@ services:
   # This makes the data directory exist and belong to 10001:10001; it changes ownership only
   # when it is wrong, so a restart costs nothing. Reuses the lake image; no extra image.
   rustfs-perms:
+    labels:
+      com.openbq.regression.state-directories: '["/data"]'
     profiles: [live]
     build:
       context: .
@@ -350,9 +355,15 @@ services:
         [ "$$(stat -c %u:%g /data)" = 10001:10001 ] || chown -R 10001:10001 /data
         chmod 0750 /data
     volumes:
-      - ${RUSTFS_DATA_DIR:-./rustfs-data}:/data
+      - type: bind
+        source: ${RUSTFS_DATA_DIR:-./rustfs-data}
+        target: /data
+        bind:
+          create_host_path: true
     network_mode: none
   rustfs:
+    labels:
+      com.openbq.regression.state-directories: '["/data"]'
     profiles: [live]
     image: rustfs/rustfs:1.0.1@sha256:1803faef57627e2d9c2e7d89d655d712ddded5389040054987163043fecb6a3c
     restart: unless-stopped
@@ -393,7 +404,11 @@ services:
       # recreation, image upgrades and `docker compose down -v`, and can be backed up or
       # moved to another disk as a plain directory. Default ./rustfs-data (git-ignored);
       # set RUSTFS_DATA_DIR in the shell or in .env to put it elsewhere.
-      - ${RUSTFS_DATA_DIR:-./rustfs-data}:/data
+      - type: bind
+        source: ${RUSTFS_DATA_DIR:-./rustfs-data}
+        target: /data
+        bind:
+          create_host_path: true
     networks: [live-private]
   # rustfs-init: one-shot. Delta Lake does not create its own bucket; this makes it over
   # the plain S3 API (scripts/s3_init.py, pyarrow), idempotently. No vendor S3 client.
@@ -425,6 +440,8 @@ services:
     image: openbq-lake:10.0.0
     restart: unless-stopped
     depends_on:
+      openbq-kdb:
+        condition: service_started
       rustfs-init:
         condition: service_completed_successfully
     entrypoint: ["python", "/opt/eod_dump.py", "--loop"]

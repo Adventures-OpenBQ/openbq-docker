@@ -9,6 +9,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+import json
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "check-public.py"
@@ -50,7 +51,11 @@ class DemoKeys(unittest.TestCase):
         self.assertEqual(scan('{"gateway_' 'token": "REPLACE_WITH_A_LONG_RANDOM_TOKEN"}'), 0)
         self.assertEqual(scan('{"gateway_' 'token": "replace_with_a_real_value_9f2"}'), 1)
 class PushHistory(unittest.TestCase):
-    """Exercise the actual pre-push hook with Git's update protocol."""
+    """Actual hook/public scanner, with its downstream credential gate isolated.
+
+    security/test_gate.py separately tests real destination advertisements and
+    credential scanning. Here the collaborator records the exact hook boundary.
+    """
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -61,6 +66,16 @@ class PushHistory(unittest.TestCase):
         shutil.copyfile(SCRIPT, self.root / "scripts/check-public.py")
         self.hook = self.root / ".git/hooks/pre-push"
         shutil.copyfile(SCRIPT.parent.parent / ".githooks/pre-push", self.hook)
+        (self.root / "security").mkdir()
+        (self.root / "security/gate.py").write_text(
+            "import json, sys\n"
+            "from pathlib import Path\n"
+            "Path('.git/gate-call.json').write_text(json.dumps({'argv': sys.argv[1:], 'updates': sys.stdin.read()}))\n"
+            "status = Path('.git/gate-status')\n"
+            "raise SystemExit(int(status.read_text()) if status.exists() else 0)\n"
+        )
+        self.gate_call = self.root / ".git/gate-call.json"
+        self.destination = self.root / ".git/destination.git"
         self.base = self.commit("initial")
         self.zero = "0" * len(self.base)
         self.bad = "https://" + ".".join(["fixture", "private-demo", "ts", "net"])
@@ -81,13 +96,39 @@ class PushHistory(unittest.TestCase):
         return f"{local_ref} {local} {remote_ref} {remote}\n"
 
     def hook_result(self, records):
-        result = subprocess.run(["sh", str(self.hook)], cwd=self.root, input=records, capture_output=True, text=True)
+        self.gate_call.unlink(missing_ok=True)
+        result = subprocess.run(["sh", str(self.hook), "fixture", str(self.destination)],
+                                cwd=self.root, input=records, capture_output=True, text=True)
         self.assertNotIn(self.bad, result.stdout + result.stderr)
+        self.assertNotIn("missing Git push destination", result.stderr)
         return result
+
+    def assert_gate_call(self, records):
+        self.assertTrue(self.gate_call.exists(), "the second gate was not invoked")
+        self.assertEqual(json.loads(self.gate_call.read_text()), {
+            "argv": ["pre-push", "--remote", str(self.destination)], "updates": records,
+        })
+
+    def test_successful_hook_preserves_destination_and_complete_update_protocol(self):
+        records = self.record(self.base, self.base) + self.record(self.zero, self.base, "(delete)")
+        self.assert_exit(records, 0)
+        self.assert_gate_call(records)
+
+    def test_downstream_gate_findings_and_errors_block_an_otherwise_clean_push(self):
+        records = self.record(self.base, self.base)
+        for code in (1, 2):
+            with self.subTest(code=code):
+                (self.root / ".git/gate-status").write_text(str(code))
+                self.assertEqual(self.hook_result(records).returncode, code)
+                self.assert_gate_call(records)
 
     def assert_exit(self, records, expected):
         result = self.hook_result(records)
         self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+        if expected == 0:
+            self.assert_gate_call(records)
+        else:
+            self.assertFalse(self.gate_call.exists(), "public scanner refusal must stop the hook before the second gate")
         return result
 
     def history_with_removed_bad(self):

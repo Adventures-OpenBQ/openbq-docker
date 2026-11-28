@@ -25,8 +25,14 @@ ADD --checksum=sha256:6d21266ce1bd7d9e5ab4e115989c70c20de0382fd973a8f26ab58619eb
 # Shared kdb+ session/store plumbing (Ep. 10). Installed before live-grid
 # itself, since live-grid's own pyproject.toml depends on it and it is not
 # published to PyPI.
+COPY requirements.live-build.lock /tmp/build.lock
+COPY live-grid/requirements.lock /tmp/live-grid.lock
+RUN python -m pip install --require-hashes -r /tmp/build.lock \
+    && python -m pip install --no-build-isolation --require-hashes -r /tmp/live-grid.lock
+COPY scripts/verify-requests-trust-bundle.py /tmp/verify-requests-trust-bundle.py
+RUN python /tmp/verify-requests-trust-bundle.py && rm /tmp/verify-requests-trust-bundle.py
 COPY v10/kdb/source/ /srv/openbq-kdb/
-RUN pip install /srv/openbq-kdb
+RUN python -m pip install --no-deps --no-build-isolation /srv/openbq-kdb
 
 COPY live-grid/pyproject.toml ./
 COPY live-grid/app/ app/
@@ -38,7 +44,7 @@ COPY live-grid/widgets.json ./
 # leaving it out of the image is a 500, not a missing feature.
 COPY live-grid/apps.json ./
 COPY live-grid/macros/ macros/
-RUN pip install . && pip check && chmod 644 app/static/plotly.min.js
+RUN python -m pip install --no-deps --no-build-isolation . && python -m pip check && chmod 644 app/static/plotly.min.js
 # Unprivileged (D21). /data is made here, owned by that uid, so a new live-grid-data volume
 # inherits it; compose adds a read-only root, a /tmp tmpfs, cap_drop ALL and no-new-privileges.
 RUN install -d -o 10001 -g 10001 /data

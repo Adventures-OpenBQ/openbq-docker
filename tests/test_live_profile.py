@@ -45,8 +45,8 @@ def test_kdb_uses_the_named_image_and_mounts_the_licence_read_only():
     # REVIEW (user ruling 2026-10-14: the kdb tier is openbq-kdb, vendored in v10/kdb/source): the service
     # is renamed kdb -> openbq-kdb and kdb-ws/ is the vendored q/; the same facts are asserted.
     kdb = SERVICES['openbq-kdb']
-    # D2: a private amd64-only image, pinned by digest, overridable as KDB_IMAGE.
-    assert kdb['image'] == '${KDB_IMAGE:-ghcr.io/artcashin/kdb-x:amd64@sha256:013490f90a166e0863651f2c8a7f5d24e8d1beec68d2e3e541c1a2281653a77c}'
+    # Select the local licensed build, overridable as KDB_IMAGE.
+    assert kdb['image'] == '${KDB_IMAGE:-openbq-kdb-x:local}'
     assert '${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro' in kdb['volumes']
     assert '${KDB_LICENSE_DIR:-./kdb-license}:/opt/kx-license:ro' in SERVICES['live-grid']['volumes']
 
@@ -226,7 +226,8 @@ def test_a_one_shot_job_gives_live_grid_data_to_its_uid_before_live_grid_starts(
     assert perms['entrypoint'] == ['/bin/sh', '-ec']
     assert 'chown 10001:10001' in script and '! -user 10001' in script
     assert 'cap_drop' not in perms  # chown needs CAP_CHOWN
-    assert lg['depends_on'] == {'live-grid-perms': {'condition': 'service_completed_successfully'}}
+    assert lg['depends_on']['live-grid-perms'] == {'condition': 'service_completed_successfully'}
+    assert set(lg['depends_on']) == {'live-grid-perms', 'openbq-api', 'openbq-kdb'}
     readme = (ROOT / 'live-grid/README.md').read_text()
     assert 'live-grid-perms' in readme and 'run --rm --user 0 live-grid chown' not in readme
 

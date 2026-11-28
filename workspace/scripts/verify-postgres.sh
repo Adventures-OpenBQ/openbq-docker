@@ -26,8 +26,8 @@ actual=json.loads(result.stdout)
 sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
 assert actual['status']=='complete' and actual['upstream']==source['commit']
 assert actual['patches']=={p.name:sha(p) for p in sorted((root/'patches').glob('*.patch'))}
-assert actual['packaged']=={p:sha(root/p) for p in ('postgres/migrate_workspace.py','postgres/schema_manifest.json')}
-assert actual['resolved_lock']==sha(root/'resolved-poetry.lock')==source['observed_build']['resolved_lock_sha256']
+assert actual['packaged']=={p:sha(root/p) for p in ('postgres/migrate_workspace.py','postgres/schema_manifest.json','scripts/strip_public_test_key.py')}
+assert actual['resolved_lock']==sha(root/'resolved-poetry.lock')==source['active_build_inputs']['resolved_lock_sha256']
 assert actual['source_record']==source['postgresql_build']['assembly']['source_record']
 print('Packaged source, patches, tools, manifest and lock provenance verified.')
 PROVENANCE

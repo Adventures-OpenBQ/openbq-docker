@@ -4,7 +4,7 @@ services:
   temporaldb-mcp:
     profiles: [mcp]
     # Same local immutable ID as v11/compose.temporaldb.yaml; no registry pull claim.
-    image: sha256:4cfb00a549291940c16fbc53b1d0e42ce5a6cd21da9a51715c7752ef30f21f00
+    image: sha256:7f70cea87e8076dad1dd355d924c58239b9adcfbaf6ef21e37e9fd2847ef7458
     platform: linux/arm64
     pull_policy: never
     depends_on: [temporaldb-api]
@@ -33,3 +33,7 @@ services:
       interval: 20s
       timeout: 5s
       retries: 3
+networks:
+  # The two documented TemporalDB overlays also compile without the base stack.
+  openbq-internal:
+    driver: bridge

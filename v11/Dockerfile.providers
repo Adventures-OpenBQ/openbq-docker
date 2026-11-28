@@ -35,5 +35,8 @@ COPY v3/openbq_settings.py /usr/local/lib/python3.12/site-packages/openbq_settin
 COPY v11/settings /usr/local/lib/python3.12/site-packages/openbq_settings_pg
 COPY v11/settings/openbb.toml /workspace/openbb.toml
 RUN python -c "import openbq_settings, openbq_settings_pg, psycopg, psycopg_pool; assert psycopg.__version__ == '3.3.2'; assert psycopg_pool.__version__ == '3.3.0'"
+# Provider verification may populate response caches; validate the final image contents.
+RUN rm -rf /root/OpenBBUserData/cache /root/.openbb_platform/cache /root/.cache \
+    && python /usr/local/bin/verify-provider-cache-empty.py
 HEALTHCHECK --interval=30s --timeout=12s --start-period=600s --retries=5 CMD ["python", "-m", "openbq_settings_pg.health"]
 CMD ["python", "-m", "openbq_settings_pg.launch", "--host", "0.0.0.0", "--port", "6900"]

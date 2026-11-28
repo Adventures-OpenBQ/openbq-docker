@@ -12,16 +12,18 @@ The licence is not baked in either. Mount your own at runtime.
 
 ## Build
 
+First export an exact reviewed KX release as `KX_VERSION`; an empty value fails before downloads.
+
 Single platform, straight into your local daemon:
 
 ```bash
-docker build -t kdb-x:local kdb-x/
+docker build --build-arg KX_VERSION="$KX_VERSION" -t kdb-x:local kdb-x/
 ```
 
 Real multi-arch (buildx cannot `--load` two platforms, hence `--push`):
 
 ```bash
-docker buildx build --platform linux/amd64,linux/arm64 \
+docker buildx build --build-arg KX_VERSION="$KX_VERSION" --platform linux/amd64,linux/arm64 \
   -t ghcr.io/<you>/kdb-x:1.1 --push kdb-x/
 docker buildx imagetools inspect ghcr.io/<you>/kdb-x:1.1   # verify BOTH are there
 ```
@@ -90,19 +92,17 @@ straight across — it is platform-independent, unlike the binary.
 
 ## In this stack (the `live` profile)
 
-`docker-compose.yml` runs `openbq-kdb` from `${KDB_IMAGE}`. Its default is the
-maintainer's private image, built from this recipe, pinned by digest and for
-linux/amd64 only; it is not public, and no kdb image is ever published, because
-kdb+ is proprietary. To use your own, set `KDB_IMAGE`, or build it from your
-licensed KDB-X with the override file, which points `openbq-kdb` at this
-directory and tags the result `openbq-kdb-x:local`:
+`docker-compose.yml` runs `openbq-kdb` from `${KDB_IMAGE}`, defaulting to
+`openbq-kdb-x:local`. Build that image yourself with the recipe below, or select
+an operator-authorized image with `KDB_IMAGE`. KDB-X remains proprietary;
+this repository publishes no q binary or licence. The recipe supports amd64
+and arm64. An operator's private image remains an explicit override.
 
 ```bash
 docker compose -f docker-compose.yml -f compose.kdb-build.yml --profile live build openbq-kdb
 docker compose -f docker-compose.yml -f compose.kdb-build.yml --profile live up -d
 ```
 
-Pin a KDB-X release with `KX_VERSION=<version>` in the shell; the default is
-KX's `~latest~`. The stack sets `KX_PORT=5000` (all interfaces of the kdb
+Set an exact `KX_VERSION` in the shell before either command; there is no release default. The stack sets `KX_PORT=5000` (all interfaces of the kdb
 container, which sits on the internal bridge with no host port) and passes
 `v10/kdb/source/q/startup.q` as q's script, so crash recovery is on either way.

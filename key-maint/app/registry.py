@@ -109,12 +109,8 @@ PROVIDERS: dict[str, Provider] = {
 # The API's /providers.json route (lanes/openbq_lanes.py provider_descriptor)
 # defines its own _OPTIONAL/_LOCAL mirrors independently -- that route runs in
 # the API process and cannot import this package.
-#
-# bls is NOT here: an isolated stack run showed the real platform 400s
-# "Missing credential" for bls without a key, while cftc/econdb answer keyless
-# -- the API's credential gate, not the fetcher, decides optionality.
 LOCAL_PROVIDERS: frozenset[str] = frozenset({"deltalake", "kdb"})
-OPTIONAL_PROVIDERS: frozenset[str] = frozenset({"cftc", "econdb"})
+OPTIONAL_PROVIDERS: frozenset[str] = frozenset({"bls", "cftc", "econdb"})
 
 
 def provider_index() -> dict[str, Provider]:
@@ -133,11 +129,12 @@ IGNORE: frozenset[str] = frozenset(
         "TRADIER_ACCOUNT_TYPE",
         "KDB_CONTAINER",
         "KDB_HOST",
-        "LIVE_GRID_PUBLIC_URL",
         "S3_CONTAINER",
         "ARCTICDB_BUCKET",
         "ARCTICDB_LIBRARY",
         "ARCTICDB_URI",
+        # Optional live-grid display origin; it is configuration, not a provider key.
+        "LIVE_GRID_PUBLIC_URL",
         # OpenBQ's credentials.env also carries the API's own Basic auth (which
         # key-maint follows, never reports) and SEC's contact user agent.
         "OPENBB_API_AUTH",

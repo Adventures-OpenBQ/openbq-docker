@@ -14,14 +14,16 @@
 # unlicensed (PYKX_UNLICENSED=true in compose), which covers its q IPC read.
 FROM python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
-COPY requirements.lock /tmp/requirements.lock
-RUN python -m pip install --constraint /tmp/requirements.lock \
-        openbb-core==2.0.1 pandas numpy pyarrow python-dateutil \
-        deltalake==1.6.6 pykx==4.1.0
+COPY requirements.live-build.lock /tmp/build.lock
+COPY requirements.lake.lock /tmp/lake.lock
+RUN python -m pip install --require-hashes -r /tmp/build.lock \
+    && python -m pip install --no-build-isolation --require-hashes -r /tmp/lake.lock
+COPY scripts/verify-requests-trust-bundle.py /tmp/verify-requests-trust-bundle.py
+RUN python /tmp/verify-requests-trust-bundle.py && rm /tmp/verify-requests-trust-bundle.py
 COPY openbb-deltalake /tmp/openbb-deltalake
 COPY v10/kdb/source /tmp/openbq-kdb
-RUN python -m pip install --no-deps /tmp/openbb-deltalake && rm -rf /tmp/openbb-deltalake \
-    && python -m pip install --no-deps /tmp/openbq-kdb && rm -rf /tmp/openbq-kdb \
+RUN python -m pip install --no-deps --no-build-isolation /tmp/openbb-deltalake && rm -rf /tmp/openbb-deltalake \
+    && python -m pip install --no-deps --no-build-isolation /tmp/openbq-kdb && rm -rf /tmp/openbq-kdb \
     && python -m pip check
 COPY scripts/eod_dump.py scripts/s3_init.py /opt/
 WORKDIR /opt

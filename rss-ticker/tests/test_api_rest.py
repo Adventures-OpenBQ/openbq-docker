@@ -227,7 +227,24 @@ def test_channels_are_options_in_config_order(store, broadcaster):
     assert c.get("/api/live/channels").json() == [
         {"label": "Bloomberg TV", "value": "bloomberg-tv"},
         {"label": "Yahoo Finance", "value": "yahoo-finance"},
+        {"label": "Picture in Picture grab", "value": "picture-in-picture"},
     ]
+
+
+def test_picture_in_picture_grab_is_local_and_never_resolves_a_youtube_stream(store, broadcaster):
+    def forbidden_client():
+        raise AssertionError("Chrome PiP grab must not make an upstream request")
+
+    live = LiveTV(CHANNELS, client_getter=forbidden_client)
+    c = TestClient(create_app(Config(live_tv=CHANNELS), store, broadcaster, live=live))
+    response = c.get("/api/live/video", params={"channel": "picture-in-picture"})
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    assert response.text == "bdobb:picture-in-picture"
+
+
+def test_picture_in_picture_grab_does_not_enable_a_disabled_live_tv_service(client):
+    assert client.get("/api/live/video", params={"channel": "picture-in-picture"}).status_code == 404
 
 
 def test_video_unknown_channel_is_404(store, broadcaster):

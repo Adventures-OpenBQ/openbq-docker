@@ -14,7 +14,7 @@ docker build --platform linux/amd64 --target frontend-build -t workspace-fronten
 docker build --platform linux/amd64 -t workspace-postgres:review workspace/build-context
 ```
 
-An existing assembly/patch marker, modified copied input, different pin, changed original lock, or changed recorded resolved lock fails closed. Preserve a failed context for diagnosis and explicitly move it before fresh assembly. Patches001–005 apply in order before Cython compilation. The runtime contains `workspace-build.json`, including source/patch/tool/manifest hashes. The recorded resolved lock is used without resolution; Python3.13, SQLAlchemy2.0.52, Alembic1.19.1, asyncpg0.31.0 and psycopg2-binary2.9.12 remain pinned. Original build provenance remains in `source.json`.
+An existing assembly/patch marker, modified copied input, different pin, changed original lock, or changed recorded resolved lock fails closed. Preserve a failed context for diagnosis and explicitly move it before fresh assembly. Patches001–008 apply in order before Cython compilation. The runtime contains `workspace-build.json`, including source/patch/tool/manifest hashes. The recorded resolved lock is used without resolution; Python3.13, SQLAlchemy2.0.52, Alembic1.19.1, asyncpg0.31.0 and psycopg2-binary2.9.12 remain pinned. Original build provenance remains in `source.json`; `active_build_inputs` records the current CA-repaired lock pending a fresh runtime build.
 
 ## Provision, migrate, then import or bootstrap
 

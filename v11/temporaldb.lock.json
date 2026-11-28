@@ -3,27 +3,27 @@
   "client_compatibility": 11,
   "service": "TemporalDB",
   "version": "0.5.0",
-  "source_commit": "e5f49ffddc11ca72da7e74b3b31bd9a71098865b",
-  "image_id": "sha256:4cfb00a549291940c16fbc53b1d0e42ce5a6cd21da9a51715c7752ef30f21f00",
+  "source_commit": "ff85de318205ce9e7733538cb3082b80f6f63f35",
+  "image_id": "sha256:7f70cea87e8076dad1dd355d924c58239b9adcfbaf6ef21e37e9fd2847ef7458",
   "platform": "linux/arm64",
   "artifact": "temporaldb-0.5.0-linux-arm64.docker.tar",
-  "artifact_sha256": "13898298b6abdb44ebb83410a3b7f60924482c6a5679349c0bc566c35fb7e952",
+  "artifact_sha256": "8e160e72ad8657117660c9033ce9261a9d59949b1aa57da2639152f7861f2776",
   "distribution": "local-docker-save; unpublished",
   "registry_reference": null,
   "provenance": {
-    "image_id": "sha256:4cfb00a549291940c16fbc53b1d0e42ce5a6cd21da9a51715c7752ef30f21f00",
+    "image_id": "sha256:7f70cea87e8076dad1dd355d924c58239b9adcfbaf6ef21e37e9fd2847ef7458",
     "platform": "linux/arm64",
     "labels": {
-      "org.opencontainers.image.revision": "e5f49ffddc11ca72da7e74b3b31bd9a71098865b",
+      "org.opencontainers.image.revision": "ff85de318205ce9e7733538cb3082b80f6f63f35",
       "org.opencontainers.image.source": "https://github.com/Adventures-OpenBQ/temporalDB-docker",
       "org.opencontainers.image.title": "TemporalDB",
       "org.opencontainers.image.version": "0.5.0"
     },
     "version": "0.5.0",
-    "source_commit": "e5f49ffddc11ca72da7e74b3b31bd9a71098865b",
-    "source_date_epoch": "1793638301",
+    "source_commit": "ff85de318205ce9e7733538cb3082b80f6f63f35",
+    "source_date_epoch": "1795792907",
     "artifact": "temporaldb-0.5.0-linux-arm64.docker.tar",
-    "artifact_sha256": "13898298b6abdb44ebb83410a3b7f60924482c6a5679349c0bc566c35fb7e952",
+    "artifact_sha256": "8e160e72ad8657117660c9033ce9261a9d59949b1aa57da2639152f7861f2776",
     "distribution": "local-docker-save; unpublished",
     "registry_reference": null,
     "build_command": "scripts/build_release.py --platform linux/arm64",
@@ -32,64 +32,39 @@
   },
   "providers": {
     "eodhd": {
-      "reviewed_commit": "44f51b1c93eb737b007ab85344e7314bf3c889a9"
+      "reviewed_commit": "d1df725404623f5469eb00f7aa0a83d35dd6db6e"
     },
     "yfinance": {
-      "reviewed_commit": "0a79a60d12e0d8aecdf82e5dd8f66491e287a903"
+      "reviewed_commit": "a4bbededc55b8d248f60cb5c5958c5b2ae3312f7"
     }
   },
-  "qualification_report": "qualification-2026-11-03/platform.json",
+  "qualification_report": "qualification-main-v10-carry.json",
   "candidate_qualification": {
-    "status": "installed_platform_passed_release_gates_remaining",
-    "reason": "Installed Linux platform and MCP core passed. Live Rita, packaged desktop runtime and intended NAS qualification remain open.",
-    "historical_source_commit": "efd560cb6bbbf6b4eeccdc9d84999e90c94598b3",
-    "historical_image_id": "sha256:8c000e0415e773ec10d9db9d1793bef0bd2979e6f30abc741d7a8e26d6e4ded9",
-    "mcp_report": "qualification-2026-11-03/mcp-core.json"
+    "status": "combined_carry_bounded_runtime_passed_full_v11_release_not_claimed",
+    "reason": "Fresh provider/table recipes, reader and separate registered data, installed PostgreSQL state, and capture/Silver numeric checks passed within qualification-main-v10-carry.json. Full saved-query lifecycle, external capture ingress and production NAS/platform qualification are not implied.",
+    "source_commit": "ff85de318205ce9e7733538cb3082b80f6f63f35"
   },
   "provider_host": {
     "version": "11.0.0",
-    "image_id": "sha256:0820fc939831d47d87551d798b9bd42fea5d187fb5866012b91e116b5ab999f0",
+    "image_id": "sha256:b3dbb2fe40d9dca04e55bfc17230b67e58f77868ad6ff1248f4ccac1ddd4740a",
     "platform": "linux/arm64",
     "distribution": "local build; unpublished",
     "registry_reference": null,
     "sources": {
       "eodhd": {
-        "commit": "44f51b1c93eb737b007ab85344e7314bf3c889a9",
-        "archive_sha256": "da58a2767b18ad2087eb15c1ae69de4f568c9c74c4de0a39528fd287e56315ec",
+        "commit": "d1df725404623f5469eb00f7aa0a83d35dd6db6e",
+        "archive_sha256": "2d6854b3cbc4be64c0f93148dccc006fe4a35ac5ce8310818de2477e7a859b0f",
         "distribution": "verified local clean commit archive; remote availability not asserted"
       },
       "yfinance": {
-        "commit": "d867c8bb64fda4dc843146a44f46ec7ca17e0ae8",
-        "archive_sha256": "b61b6be5d672497db521978fb58b61a89059dcccfdc003c5d47607f3a8b826a7",
+        "commit": "a4bbededc55b8d248f60cb5c5958c5b2ae3312f7",
+        "archive_sha256": "161b86a74bbd290d19646f260abd3e8b2511e57a03aeb45baf8ad514631838ee",
         "distribution": "verified local clean commit archive; remote availability not asserted"
       }
     },
-    "qualification": "Built from current integration source; embedded build checks passed. Deployed provider/capture topology not requalified.",
-    "settings_source_commit": "ba2154764f61e6a470379cab29a8765cce05a227",
-    "installed_source_hashes": {
-      "v3/openbq_settings.py": "26018e9b609aca93e3e04adf126d12631533fe436a5ec3e614dd0c5b4e8a9ee9",
-      "v11/settings/README.md": "dfd5340537e7650d903e7b324f523ed0c96babf0c795e24cd6fec291432d7338",
-      "v11/settings/schema.sql": "26bd0a500474688cb3eff4507f5a61fa14e970b2793df365c8db8f3b6e334e26",
-      "v11/settings/store.py": "d268fc62402e427fa959d37599c7719d2d207cca603972ce7e25add3a6898e6d",
-      "v11/settings/openbb.toml": "8010bc1373ba4ad3f141a18f33c120b4270da860dc43f8c66deeb938a8998487",
-      "v11/settings/private_state.py": "0a3dbf60243ba29a89a0fda824f9b2aa8b659307fc59c5e0d33a982f856bab9c",
-      "v11/settings/verify-settings.sh": "17b6c020d313bc2a6f72f18264c517dafd364f484fb57f6c30898c4acfd35caa",
-      "v11/settings/config.py": "6ce989f5b5647ea0dbf082aff90c15594f5edbd7e2890456155e41681ce9aaf4",
-      "v11/settings/launch.py": "5433a3e1b78f147599fa2fba2a54d028c3346eca03b0c1ad69195f229f917fce",
-      "v11/settings/provision.sql": "6093e0db0fe7183bb80cedaf181022aba5a64698bbaed35178cd24f141777fcc",
-      "v11/settings/requirements.lock": "a170e2a10c9104242f29ae6c6cd696306a4e4fe8b476a6d834fc257f32c995f8",
-      "v11/settings/health.py": "f6b91fd3f0fec6a89158ec8dbacc8eb4502b3cf702bd5adb3f7973552879415a",
-      "v11/settings/__init__.py": "07e64b78a898d13caad5d7889176835a4564b8d54f08cdc639ceae6436045020",
-      "v11/settings/migrate_json.py": "a2353c486ac79c95a808c4883c2afc548791b25a176420c52d0cf49eedc95257",
-      "v11/settings/fixtures/browser.mjs": "272ac15ba2217316352ad2a3ff6559d2ca42da6f1635a953d60863b473facacb",
-      "v11/settings/fixtures/gateway.mjs": "d3dcacce79896b562c95dc93fb541251918151ec52bea3f8f33eedf9bbc1d206",
-      "v11/settings/fixtures/json-syntax.mjs": "7909f6ac3787fd3787fe24e96df7b516d6c9cdb92c1947cb792ba2ad361019b2",
-      "v11/settings/tests/verify_fixture.py": "6d1c5fe5a3e38f899e84fdea90a827c3a60f05dfb23b9fddee1bce05ecaed426",
-      "v11/settings/tests/test_contracts.py": "1b28f658eae81836d7d1151067a2861cc7217138eafc415740c76c2d386dd837",
-      "v11/settings/tests/verify_encoding.py": "e1e8cec387d135a550288c8d9107b4f0c9825f335016bcfa427c8951e3460fc9"
-    },
-    "previous_image_id": "sha256:ad23875af24d2cf005cf6c77d65d3f99c9f5a42a49231e7da2deacdc0a7e6ba3",
-    "build_host_commit": "ba2154764f61e6a470379cab29a8765cce05a227"
+    "build_host_commit": "a2194389c3b1be89348c75d4a6a3896e85cf3430",
+    "generated_recipe_sha256": "6bf42ebe2ff009ebfa6f3bcffcc17444a9b7fa66526f3a15d2c6443a6f6d7c81",
+    "qualification": "Fresh exact-source recipe build and two-volume Tailscale runtime passed: installed viewer bytes, 1053 widgets, 55 apps, 49 public/demo data rows and two generated HTML viewers. Earlier unchanged-provider registered and PostgreSQL checks keep their original image identities in qualification-main-v10-carry.json. Full V11 platform/NAS release is not claimed."
   },
   "previous_runtime": {
     "source_commit": "f83abc2141af2ca3b3991df9d7e5e9c78dd44b00",
@@ -123,6 +98,117 @@
       "image_id": "sha256:486634d5aa36dc29c1ae9d0f7cbf73d2328b843d33671bbcd5c9f8eadede7e7e",
       "artifact_sha256": "3b03d312d5c7ae4d5487fd5ed17c23c76fe8c40a5c5a8e93e3f70b982f34ab24",
       "qualification_report": "temporaldb-wholebranch-corrections-qualification.json"
+    },
+    {
+      "source_commit": "e5f49ffddc11ca72da7e74b3b31bd9a71098865b",
+      "image_id": "sha256:4cfb00a549291940c16fbc53b1d0e42ce5a6cd21da9a51715c7752ef30f21f00",
+      "platform": "linux/arm64",
+      "artifact": "temporaldb-0.5.0-linux-arm64.docker.tar",
+      "artifact_sha256": "13898298b6abdb44ebb83410a3b7f60924482c6a5679349c0bc566c35fb7e952",
+      "provenance": {
+        "image_id": "sha256:4cfb00a549291940c16fbc53b1d0e42ce5a6cd21da9a51715c7752ef30f21f00",
+        "platform": "linux/arm64",
+        "labels": {
+          "org.opencontainers.image.revision": "e5f49ffddc11ca72da7e74b3b31bd9a71098865b",
+          "org.opencontainers.image.source": "https://github.com/Adventures-OpenBQ/temporalDB-docker",
+          "org.opencontainers.image.title": "TemporalDB",
+          "org.opencontainers.image.version": "0.5.0"
+        },
+        "version": "0.5.0",
+        "source_commit": "e5f49ffddc11ca72da7e74b3b31bd9a71098865b",
+        "source_date_epoch": "1793638301",
+        "artifact": "temporaldb-0.5.0-linux-arm64.docker.tar",
+        "artifact_sha256": "13898298b6abdb44ebb83410a3b7f60924482c6a5679349c0bc566c35fb7e952",
+        "distribution": "local-docker-save; unpublished",
+        "registry_reference": null,
+        "build_command": "scripts/build_release.py --platform linux/arm64",
+        "lock_sha256": "b0a1d48c8df4342988733efea31c576287b4be487b4c2453b8dbc34d4c2ae367",
+        "extension_lock_sha256": "17f302af620e7342dc96315d6fbc39f4523e8eb75b509aa660438eb914f69f8f"
+      },
+      "qualification_report": "qualification-2026-11-03/platform.json",
+      "candidate_qualification": {
+        "status": "installed_platform_passed_release_gates_remaining",
+        "reason": "Installed Linux platform and MCP core passed. Live Rita, packaged desktop runtime and intended NAS qualification remain open.",
+        "historical_source_commit": "efd560cb6bbbf6b4eeccdc9d84999e90c94598b3",
+        "historical_image_id": "sha256:8c000e0415e773ec10d9db9d1793bef0bd2979e6f30abc741d7a8e26d6e4ded9",
+        "mcp_report": "qualification-2026-11-03/mcp-core.json"
+      },
+      "provider_host": {
+        "version": "11.0.0",
+        "image_id": "sha256:0820fc939831d47d87551d798b9bd42fea5d187fb5866012b91e116b5ab999f0",
+        "platform": "linux/arm64",
+        "distribution": "local build; unpublished",
+        "registry_reference": null,
+        "sources": {
+          "eodhd": {
+            "commit": "44f51b1c93eb737b007ab85344e7314bf3c889a9",
+            "archive_sha256": "da58a2767b18ad2087eb15c1ae69de4f568c9c74c4de0a39528fd287e56315ec",
+            "distribution": "verified local clean commit archive; remote availability not asserted"
+          },
+          "yfinance": {
+            "commit": "d867c8bb64fda4dc843146a44f46ec7ca17e0ae8",
+            "archive_sha256": "b61b6be5d672497db521978fb58b61a89059dcccfdc003c5d47607f3a8b826a7",
+            "distribution": "verified local clean commit archive; remote availability not asserted"
+          }
+        },
+        "qualification": "Built from current integration source; embedded build checks passed. Deployed provider/capture topology not requalified.",
+        "settings_source_commit": "ba2154764f61e6a470379cab29a8765cce05a227",
+        "installed_source_hashes": {
+          "v3/openbq_settings.py": "26018e9b609aca93e3e04adf126d12631533fe436a5ec3e614dd0c5b4e8a9ee9",
+          "v11/settings/README.md": "dfd5340537e7650d903e7b324f523ed0c96babf0c795e24cd6fec291432d7338",
+          "v11/settings/schema.sql": "26bd0a500474688cb3eff4507f5a61fa14e970b2793df365c8db8f3b6e334e26",
+          "v11/settings/store.py": "d268fc62402e427fa959d37599c7719d2d207cca603972ce7e25add3a6898e6d",
+          "v11/settings/openbb.toml": "8010bc1373ba4ad3f141a18f33c120b4270da860dc43f8c66deeb938a8998487",
+          "v11/settings/private_state.py": "0a3dbf60243ba29a89a0fda824f9b2aa8b659307fc59c5e0d33a982f856bab9c",
+          "v11/settings/verify-settings.sh": "17b6c020d313bc2a6f72f18264c517dafd364f484fb57f6c30898c4acfd35caa",
+          "v11/settings/config.py": "6ce989f5b5647ea0dbf082aff90c15594f5edbd7e2890456155e41681ce9aaf4",
+          "v11/settings/launch.py": "5433a3e1b78f147599fa2fba2a54d028c3346eca03b0c1ad69195f229f917fce",
+          "v11/settings/provision.sql": "6093e0db0fe7183bb80cedaf181022aba5a64698bbaed35178cd24f141777fcc",
+          "v11/settings/requirements.lock": "a170e2a10c9104242f29ae6c6cd696306a4e4fe8b476a6d834fc257f32c995f8",
+          "v11/settings/health.py": "f6b91fd3f0fec6a89158ec8dbacc8eb4502b3cf702bd5adb3f7973552879415a",
+          "v11/settings/__init__.py": "07e64b78a898d13caad5d7889176835a4564b8d54f08cdc639ceae6436045020",
+          "v11/settings/migrate_json.py": "a2353c486ac79c95a808c4883c2afc548791b25a176420c52d0cf49eedc95257",
+          "v11/settings/fixtures/browser.mjs": "272ac15ba2217316352ad2a3ff6559d2ca42da6f1635a953d60863b473facacb",
+          "v11/settings/fixtures/gateway.mjs": "d3dcacce79896b562c95dc93fb541251918151ec52bea3f8f33eedf9bbc1d206",
+          "v11/settings/fixtures/json-syntax.mjs": "7909f6ac3787fd3787fe24e96df7b516d6c9cdb92c1947cb792ba2ad361019b2",
+          "v11/settings/tests/verify_fixture.py": "6d1c5fe5a3e38f899e84fdea90a827c3a60f05dfb23b9fddee1bce05ecaed426",
+          "v11/settings/tests/test_contracts.py": "1b28f658eae81836d7d1151067a2861cc7217138eafc415740c76c2d386dd837",
+          "v11/settings/tests/verify_encoding.py": "e1e8cec387d135a550288c8d9107b4f0c9825f335016bcfa427c8951e3460fc9"
+        },
+        "previous_image_id": "sha256:ad23875af24d2cf005cf6c77d65d3f99c9f5a42a49231e7da2deacdc0a7e6ba3",
+        "build_host_commit": "ba2154764f61e6a470379cab29a8765cce05a227"
+      },
+      "providers": {
+        "eodhd": {
+          "reviewed_commit": "44f51b1c93eb737b007ab85344e7314bf3c889a9"
+        },
+        "yfinance": {
+          "reviewed_commit": "0a79a60d12e0d8aecdf82e5dd8f66491e287a903"
+        }
+      },
+      "reason": "Preserved prior main runtime observation before combined V10-fix carry; not evidence for the new source."
     }
-  ]
+  ],
+  "provider_host_previous_main_carry": {
+    "version": "11.0.0",
+    "image_id": "sha256:b7ad984709f4fc28681aed97c5d1f1c066036e3d2e1c870ae9fad27f46a76430",
+    "platform": "linux/arm64",
+    "distribution": "local build; unpublished",
+    "registry_reference": null,
+    "sources": {
+      "eodhd": {
+        "commit": "d1df725404623f5469eb00f7aa0a83d35dd6db6e",
+        "archive_sha256": "2d6854b3cbc4be64c0f93148dccc006fe4a35ac5ce8310818de2477e7a859b0f",
+        "distribution": "verified local clean commit archive; remote availability not asserted"
+      },
+      "yfinance": {
+        "commit": "a4bbededc55b8d248f60cb5c5958c5b2ae3312f7",
+        "archive_sha256": "161b86a74bbd290d19646f260abd3e8b2511e57a03aeb45baf8ad514631838ee",
+        "distribution": "verified local clean commit archive; remote availability not asserted"
+      }
+    },
+    "build_host_commit": "38009c5551b4909382ca24d251b976684c177ea9",
+    "generated_recipe_sha256": "6bf42ebe2ff009ebfa6f3bcffcc17444a9b7fa66526f3a15d2c6443a6f6d7c81",
+    "qualification": "Exact combined recipe built, embedded trust/package/cache checks passed. Fresh sidecar reader10queries377rows and separate registered EIA/FRED/BLS/CongressGov/EODHD checks160rows passed. Installed PostgreSQL settings6checks passed. Bounded main-carry scope only; full V11 platform/NAS release is not claimed."
+  }
 }

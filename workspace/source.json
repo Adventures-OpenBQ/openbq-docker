@@ -54,5 +54,10 @@
       "status": "complete",
       "upstream": "be00e95019a55d57af146919ee46b7e1a4859226"
     }
+  },
+  "active_build_inputs": {
+    "status": "source-only; runtime qualification pending",
+    "resolved_lock_sha256": "ad563d9348078c439c5f1941da2f4e7e4e1144b221951f2b9f9777c074ec2d64",
+    "notes": "Reviewed CA bundle repair; historical observed_build and postgresql_build describe prior images."
   }
 }
