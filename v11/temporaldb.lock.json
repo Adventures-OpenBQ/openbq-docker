@@ -46,7 +46,7 @@
   },
   "provider_host": {
     "version": "11.0.0",
-    "image_id": "sha256:b7ad984709f4fc28681aed97c5d1f1c066036e3d2e1c870ae9fad27f46a76430",
+    "image_id": "sha256:b3dbb2fe40d9dca04e55bfc17230b67e58f77868ad6ff1248f4ccac1ddd4740a",
     "platform": "linux/arm64",
     "distribution": "local build; unpublished",
     "registry_reference": null,
@@ -62,9 +62,9 @@
         "distribution": "verified local clean commit archive; remote availability not asserted"
       }
     },
-    "build_host_commit": "38009c5551b4909382ca24d251b976684c177ea9",
+    "build_host_commit": "a2194389c3b1be89348c75d4a6a3896e85cf3430",
     "generated_recipe_sha256": "6bf42ebe2ff009ebfa6f3bcffcc17444a9b7fa66526f3a15d2c6443a6f6d7c81",
-    "qualification": "Exact combined recipe built, embedded trust/package/cache checks passed. Fresh sidecar reader10queries377rows and separate registered EIA/FRED/BLS/CongressGov/EODHD checks160rows passed. Installed PostgreSQL settings6checks passed. Bounded main-carry scope only; full V11 platform/NAS release is not claimed."
+    "qualification": "Fresh exact-source recipe build and two-volume Tailscale runtime passed: installed viewer bytes, 1053 widgets, 55 apps, 49 public/demo data rows and two generated HTML viewers. Earlier unchanged-provider registered and PostgreSQL checks keep their original image identities in qualification-main-v10-carry.json. Full V11 platform/NAS release is not claimed."
   },
   "previous_runtime": {
     "source_commit": "f83abc2141af2ca3b3991df9d7e5e9c78dd44b00",
@@ -188,5 +188,27 @@
       },
       "reason": "Preserved prior main runtime observation before combined V10-fix carry; not evidence for the new source."
     }
-  ]
+  ],
+  "provider_host_previous_main_carry": {
+    "version": "11.0.0",
+    "image_id": "sha256:b7ad984709f4fc28681aed97c5d1f1c066036e3d2e1c870ae9fad27f46a76430",
+    "platform": "linux/arm64",
+    "distribution": "local build; unpublished",
+    "registry_reference": null,
+    "sources": {
+      "eodhd": {
+        "commit": "d1df725404623f5469eb00f7aa0a83d35dd6db6e",
+        "archive_sha256": "2d6854b3cbc4be64c0f93148dccc006fe4a35ac5ce8310818de2477e7a859b0f",
+        "distribution": "verified local clean commit archive; remote availability not asserted"
+      },
+      "yfinance": {
+        "commit": "a4bbededc55b8d248f60cb5c5958c5b2ae3312f7",
+        "archive_sha256": "161b86a74bbd290d19646f260abd3e8b2511e57a03aeb45baf8ad514631838ee",
+        "distribution": "verified local clean commit archive; remote availability not asserted"
+      }
+    },
+    "build_host_commit": "38009c5551b4909382ca24d251b976684c177ea9",
+    "generated_recipe_sha256": "6bf42ebe2ff009ebfa6f3bcffcc17444a9b7fa66526f3a15d2c6443a6f6d7c81",
+    "qualification": "Exact combined recipe built, embedded trust/package/cache checks passed. Fresh sidecar reader10queries377rows and separate registered EIA/FRED/BLS/CongressGov/EODHD checks160rows passed. Installed PostgreSQL settings6checks passed. Bounded main-carry scope only; full V11 platform/NAS release is not claimed."
+  }
 }
