@@ -211,9 +211,10 @@
     function safeUrl(value) {
       if (typeof value !== "string" || !value.trim()) return "";
       try {
-        var url = new URL(value, window.location.href);
-        if (url.protocol === "https:") return "https://" + url.host + url.pathname + url.search + url.hash;
-        if (url.protocol === "http:") return "http://" + url.host + url.pathname + url.search + url.hash;
+        var href = new URL(value, window.location.href).href;
+        // Test the canonical URL itself: whitespace/control characters cannot
+        // disguise an executable scheme, and no later concatenation changes it.
+        if (href.startsWith("https://") || href.startsWith("http://")) return href;
       } catch (e) {}
       return "";
     }

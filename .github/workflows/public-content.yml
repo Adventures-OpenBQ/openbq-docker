@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install the checksum-pinned publication scanner
+        run: python3 security/install.py
       - name: Test the key-mode settings, dashboard and app sync routes
         run: |
           python3 -m pip install --quiet pytest==9.0.2 starlette==1.7.0 httpx==0.28.1 anyio==4.15.1

@@ -268,7 +268,7 @@
         document.documentElement.setAttribute("data-theme", mode);
         var frame = window.__eiaFrame;
         if (!frame) return;
-        frame.src = themedUrl(frame.src || DATA.src, mode);
+        frame.src = safeFrameUrl(themedUrl(frame.src || DATA.src, mode));
       }
 
       function sendData() {
@@ -373,7 +373,7 @@
 
       var frame = document.createElement("iframe");
       frame.className = "frame";
-      frame.src = safeUrl(restoredSrc());
+      frame.src = safeFrameUrl(restoredSrc());
       frame.setAttribute("referrerpolicy", "same-origin");
       frame.setAttribute("allow", "fullscreen");
       window.__eiaFrame = frame;
@@ -388,7 +388,7 @@
         revealed = false;
         // Navigation must not depend on a paint callback: background or
         // temporarily hidden widgets may suspend requestAnimationFrame.
-        frame.src = safeUrl(DATA.home);
+        frame.src = safeFrameUrl(DATA.home);
       }
       window.__eiaGoHome = goHome;
 
@@ -462,11 +462,22 @@
     function safeUrl(value) {
       if (typeof value !== "string" || !value.trim()) return "";
       try {
-        var url = new URL(value, window.location.href);
-        if (url.protocol === "https:") return "https://" + url.host + url.pathname + url.search + url.hash;
-        if (url.protocol === "http:") return "http://" + url.host + url.pathname + url.search + url.hash;
+        var href = new URL(value, window.location.href).href;
+        // Test the canonical URL itself: whitespace/control characters cannot
+        // disguise an executable scheme, and no later concatenation changes it.
+        if (href.startsWith("https://") || href.startsWith("http://")) return href;
       } catch (e) {}
       return "";
+    }
+
+    function safeFrameUrl(value) {
+      var href = safeUrl(value);
+      if (!href) return "";
+      var url = new URL(href);
+      // Keep the backend's same-origin proxy usable over local HTTP, while
+      // external documents must use TLS. Relative paths inherit our origin.
+      if (url.origin === window.location.origin) return url.pathname + url.search + url.hash;
+      return href.startsWith("https://") ? href : "";
     }
 
     function esc(s) {

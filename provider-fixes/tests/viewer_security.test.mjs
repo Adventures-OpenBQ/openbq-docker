@@ -134,3 +134,17 @@ test('member connects to a cross-origin immediate parent with referrer disabled'
   await page.waitForFunction(() => messages.some(message => message.data.type === 'openbb-data'));
   assert.equal(await page.evaluate(target => messages.filter(message => message.data.type === 'openbb-data').every(message => message.origin === target), childOrigin), true);
 }));
+
+test('embedded viewers retain same-origin HTTP proxies and HTTPS external URLs, refusing external HTTP', async () => withPage(async page => {
+  for (const source of ['http://external.example.test/document', 'https://external.example.test/document?name=a%2Fb&rate=10%25', '/document?name=a%2Fb&rate=10%25']) {
+    await page.route('https://external.example.test/**', route => route.fulfill({body: '<p>Document</p>',contentType: 'text/html'}));
+    pages.set('/frame-policy', eia({ mode: 'site', src: source }));
+    await page.goto(origin + '/frame-policy');
+    const expected = source.startsWith('http:') ? '' : source;
+    assert.equal(await page.locator('iframe').getAttribute('src'), expected);
+    pages.set('/rss-frame-policy', rss([{title: 'Document', viewer: 'site', src: source, url: source}]));
+    await page.goto(origin + '/rss-frame-policy');
+    await page.locator('.card').click();
+    assert.equal(await page.locator('#m-body iframe').getAttribute('src'), expected);
+  }
+}));
