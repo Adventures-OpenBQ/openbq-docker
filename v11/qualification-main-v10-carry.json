@@ -27,7 +27,7 @@
       "aborted_actual_worker_negative_guard": "passed"
     },
     "final_source_CI": {
-      "commit": "821adbee77a6dc6e640a696e470791dbf87001b5",
+      "commit": "4af091d3be336e3bc727225614910a3ffe3ec8b6",
       "pull_request": "https://github.com/Adventures-OpenBQ/bdobb/pull/93",
       "required_before_frontend_main_merge": true
     },
